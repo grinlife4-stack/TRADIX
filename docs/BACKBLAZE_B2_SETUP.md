@@ -39,7 +39,7 @@ In the repository, open **Settings → Secrets and variables → Actions → New
 - `B2_APPLICATION_KEY_ID` = your application key ID
 - `B2_APPLICATION_KEY` = your application key secret
 
-Do not put the key values in GitHub files, issue comments, or chat. Then open **Actions → Verify Backblaze B2 → Run workflow** on branch `factory/phase-0-blueprint`. First run with `write_test=false` to verify authenticated bucket listing. After that succeeds, run again with `write_test=true` to verify upload and read-back. The second run leaves one tiny object under `healthchecks/` because the bucket retains object versions.
+Do not put the key values in GitHub files, issue comments, or chat. Because GitHub requires a `workflow_dispatch` workflow to exist on the default branch, this workflow becomes runnable only after PR #1 is reviewed and merged into `main`. Do not merge it automatically. After the merge, open **Actions → Verify Backblaze B2 → Run workflow**. First run with `write_test=false` to verify authenticated bucket listing. After that succeeds, run again with `write_test=true` to verify upload and read-back. The second run leaves one tiny object under `healthchecks/` because the bucket retains object versions.
 
 ## Local install and verification
 
