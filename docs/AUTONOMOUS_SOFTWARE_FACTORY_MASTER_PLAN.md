@@ -171,7 +171,7 @@ This file is the durable master checklist, not a chat summary. Update task statu
 ## 10. Preflight evidence update — 2026-11-15
 
 - Repository: `grinlife4-stack/TRADIX`; `main` remains at `d778e6e5c15eea353355d38c681b49a00dca1da7` at the time of inspection.
-- Branches observed: `main`, `factory/phase-0-blueprint`; no rulesets returned by GitHub rulesets endpoint. Both branches report `protected=false`.
+- Branches observed before this documentation PR: `main`, `factory/phase-0-blueprint`; the new documentation branch is `factory/preflight-status-2026-11-15`. No rulesets returned by GitHub rulesets endpoint; the observed branches report `protected=false`.
 - Pull request #1 is closed and merged. Its CI run `43739714859` passed.
 - B2 workflow run `43745900128` completed successfully. Job logs confirmed `WRITE_TEST=true`, `B2_AUTH_AND_BUCKET_READ=PASS`, `OBJECTS_VISIBLE_IN_SAMPLE=0`, and `B2_WRITE_AND_READBACK=PASS`. The unique health-check object remains in the bucket because version retention is enabled.
 - Neon project `royal-art-56263739`: production branch `br-lingering-hall-bdh0g9if` is ready and has zero application tables; temporary branch `br-bitter-firefly-bd1jt928` is ready and has seven `memory_*` tables. Both branch records report `protected=false`. No production writes or migrations were performed.
@@ -179,4 +179,4 @@ This file is the durable master checklist, not a chat summary. Update task statu
 - GitHub connector exposes branch/file/commit/PR write operations. It does not expose a direct workflow-dispatch operation in the current tool inventory. CI can still run automatically on a PR or push according to workflow triggers.
 - Sentry connector tools were not present in the current tool inventory.
 - No model-provider API credential or persistent orchestrator has been verified. ChatGPT subscription access must not be treated as an API key or an included external model budget.
-- This preflight correction changes documentation only. It does not deploy a service, alter database schemas, change secrets, modify branch protection, or merge to `main`.
+- Documentation correction is proposed in draft PR #2: https://github.com/grinlife4-stack/TRADIX/pull/2. It does not deploy a service, alter database schemas, change secrets, modify branch protection, or merge to `main`.
