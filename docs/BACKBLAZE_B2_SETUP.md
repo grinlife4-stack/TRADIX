@@ -27,7 +27,21 @@ B2_APPLICATION_KEY=<application-key-secret>
 
 Use a manually created, non-master application key restricted to this bucket. For the adapter's verification path, it needs permission to list files, read files, and write files. Do not grant account-wide access. If the key is restricted to one bucket and the provider requires it for bucket-level listing, enable `listAllBucketNames` only if the chosen operation actually requires listing all buckets; the verification script lists objects within the named bucket, not all buckets.
 
-## Install and verify
+## Configure a no-server verification run with GitHub Actions
+
+A manually triggered GitHub Actions workflow is included at `.github/workflows/verify-backblaze-b2.yml`. It runs on a temporary GitHub-hosted runner and does not create a Railway project or persistent service.
+
+In the repository, open **Settings → Secrets and variables → Actions → New repository secret** and add these five secrets:
+
+- `B2_ENDPOINT` = `https://s3.us-east-005.backblazeb2.com`
+- `B2_REGION` = `us-east-005`
+- `B2_BUCKET_NAME` = `tradix-factory-storage`
+- `B2_APPLICATION_KEY_ID` = your application key ID
+- `B2_APPLICATION_KEY` = your application key secret
+
+Do not put the key values in GitHub files, issue comments, or chat. Then open **Actions → Verify Backblaze B2 → Run workflow** on branch `factory/phase-0-blueprint`. First run with `write_test=false` to verify authenticated bucket listing. After that succeeds, run again with `write_test=true` to verify upload and read-back. The second run leaves one tiny object under `healthchecks/` because the bucket retains object versions.
+
+## Local install and verification
 
 ```bash
 python -m pip install -e '.[storage,dev]'
