@@ -201,3 +201,6 @@ The next integration gate is to prove this contract in CI, then design a separat
 - Hardened direct construction and transition calls against invalid runtime types.
 - CI runs for earlier commits in this PR passed (`43747264790`, `43747257944`, `43747255688`). The latest hardening commit `572c44d47c695884521a1719478f02769c666144` is awaiting its own CI result at the time of this note.
 - No Neon writes, B2 writes, service creation, secret changes, deployment, or merge to `main` occurred in this code slice.
+
+- Added `migrations/drafts/0001_factory_ledger.sql` and `docs/NEON_FACTORY_LEDGER_SCHEMA.md` as review-only schema artifacts. The draft includes append-only triggers (including TRUNCATE protection), idempotency keys, and composite task/attempt/artifact foreign keys. It has not been SQL-validated or executed; no Neon branch was created.
+- CI run `43747315591` confirmed `23 passed in 0.04s` for the Python code slice. Later docs/schema commits are being checked by the same tests; no SQL integration test is configured.
