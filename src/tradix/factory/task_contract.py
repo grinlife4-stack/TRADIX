@@ -146,18 +146,46 @@ _REQUIRED_EVIDENCE: dict[tuple[TaskState, TaskState], str] = {
 }
 
 
+def validate_approval(task: TaskEnvelope, action: str, decision: str | None) -> None:
+    """Enforce human approval for flagged tasks and inherently sensitive actions."""
+    protected_actions = {
+        "production_deploy",
+        "destructive_migration",
+        "secret_change",
+        "permission_change",
+        "irreversible_operation",
+    }
+    if not isinstance(task, TaskEnvelope):
+        raise TaskContractError("task must be a validated TaskEnvelope")
+    if not isinstance(action, str) or not action.strip():
+        raise TaskContractError("action must be a non-empty string")
+    if decision not in (None, "approved", "rejected"):
+        raise TaskContractError("decision must be approved, rejected, or None")
+    if decision == "rejected":
+        raise TaskContractError(f"human approval rejected for action: {action}")
+    if (task.approval_required or action in protected_actions) and decision != "approved":
+        raise TaskContractError(f"human approval is required for action: {action}")
+
+
 def transition_task(
+    task: TaskEnvelope,
     current: TaskState,
     target: TaskState,
     evidence_refs: tuple[str, ...] = (),
+    approval_decision: str | None = None,
 ) -> TaskState:
     """Validate and return the target state; this function never persists it."""
+    if not isinstance(task, TaskEnvelope):
+        raise TaskContractError("task must be a validated TaskEnvelope")
     if not isinstance(current, TaskState) or not isinstance(target, TaskState):
         raise TaskContractError("current and target must be TaskState values")
     if not isinstance(evidence_refs, tuple) or any(not isinstance(ref, str) for ref in evidence_refs):
         raise TaskContractError("evidence_refs must be a tuple of strings")
     if target not in _ALLOWED_TRANSITIONS[current]:
         raise TaskContractError(f"transition not allowed: {current.value} -> {target.value}")
+
+    if current is TaskState.PLANNED and target is TaskState.IMPLEMENTING and task.approval_required:
+        validate_approval(task, "begin_implementation", approval_decision)
 
     required = _REQUIRED_EVIDENCE.get((current, target))
     if required and not any(ref.strip() for ref in evidence_refs):
