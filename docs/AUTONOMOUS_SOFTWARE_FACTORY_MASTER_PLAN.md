@@ -103,7 +103,7 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `VERIFIED`.
 - [ ] Re-inspect GitHub repository settings, branch rules, and CI workflow.
 - [ ] Inspect Neon production and temporary branch schemas separately; do not migrate production.
 - [x] Select Backblaze B2 instead of Cloudflare R2; user-created private bucket and endpoint metadata recorded.
-- [ ] Configure B2 application-key credentials in an approved runtime secret store and run read/write verification; do not place secrets in GitHub or chat.
+- [ ] Add the five B2 settings as encrypted GitHub Actions repository secrets and run the manual read-only then write/read-back verification workflow; do not place secrets in source files or chat.
 - [ ] Inspect Railway workspace, billing/trial limits, regions, persistent storage, and deployment model.
 - [ ] Decide whether Railway is acceptable for the first non-production runtime; compare alternatives before committing.
 - [ ] Define secret storage and runtime-to-Neon/R2 connectivity without exposing secret values.
