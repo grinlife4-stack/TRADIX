@@ -53,6 +53,17 @@ class TaskEnvelope:
     approval_required: bool
 
     def __post_init__(self) -> None:
+        text_fields = (self.task_id, self.project_key, self.repository, self.base_ref, self.title, self.request)
+        if any(not isinstance(value, str) for value in text_fields):
+            raise TaskContractError("task identity and text fields must be strings")
+        if not isinstance(self.acceptance_criteria, tuple) or any(
+            not isinstance(item, str) for item in self.acceptance_criteria
+        ):
+            raise TaskContractError("acceptance_criteria must be a tuple of strings")
+        if not isinstance(self.risk_class, RiskClass):
+            raise TaskContractError("risk_class must be a RiskClass value")
+        if not isinstance(self.approval_required, bool):
+            raise TaskContractError("approval_required must be a boolean")
         if not self.task_id.strip() or len(self.task_id) > 80:
             raise TaskContractError("task_id must contain 1..80 non-whitespace characters")
         if not _PROJECT_KEY.fullmatch(self.project_key):
@@ -141,6 +152,10 @@ def transition_task(
     evidence_refs: tuple[str, ...] = (),
 ) -> TaskState:
     """Validate and return the target state; this function never persists it."""
+    if not isinstance(current, TaskState) or not isinstance(target, TaskState):
+        raise TaskContractError("current and target must be TaskState values")
+    if not isinstance(evidence_refs, tuple) or any(not isinstance(ref, str) for ref in evidence_refs):
+        raise TaskContractError("evidence_refs must be a tuple of strings")
     if target not in _ALLOWED_TRANSITIONS[current]:
         raise TaskContractError(f"transition not allowed: {current.value} -> {target.value}")
 
