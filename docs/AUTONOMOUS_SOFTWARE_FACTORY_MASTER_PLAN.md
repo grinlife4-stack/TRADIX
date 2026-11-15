@@ -214,3 +214,5 @@ The next integration gate is to prove this contract in CI, then design a separat
 - Added `docs/MODEL_PROVIDER_DECISION.md`: GitHub Models is retired; Gemini's free tier permits product-improvement use of submitted content; Hugging Face free inference credit is only $0.10/month; ChatGPT and API billing are separate; Groq free limits are account/model-specific. No provider selected, no API key configured, and no paid usage enabled.
 
 - Added `.github/workflows/factory-ledger-sql.yml` and `tests/test_factory_ledger_sql.sh`. Run `43748128262` applied the draft to an ephemeral PostgreSQL 17 service and passed 16 negative integrity checks, including risk/approval constraints, cross-task and cross-attempt foreign keys, idempotency uniqueness, and UPDATE/DELETE/TRUNCATE rejection. This is disposable CI only, not a Neon migration.
+
+- Final verification for current PR head `90ff75249ad1ae87175c04c2a15120b5df111eee`: Python CI run `43748190319` passed with `40 passed in 0.05s`; PostgreSQL 17 schema CI run `43748190409` passed with all 16 negative integrity checks. The SQL ran only inside the disposable GitHub Actions service container.
