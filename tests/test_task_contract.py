@@ -92,3 +92,24 @@ def test_blocked_task_can_resume_only_to_planned():
     assert transition_task(TaskState.BLOCKED, TaskState.PLANNED) is TaskState.PLANNED
     with pytest.raises(TaskContractError, match="not allowed"):
         transition_task(TaskState.BLOCKED, TaskState.IMPLEMENTING)
+
+
+
+def test_direct_constructor_rejects_invalid_runtime_types():
+    payload = valid_payload()
+    payload["risk_class"] = RiskClass.LOW
+    payload["acceptance_criteria"] = ("criterion",)
+    TaskEnvelope(**payload)
+    payload["approval_required"] = "false"
+    with pytest.raises(TaskContractError, match="approval_required"):
+        TaskEnvelope(**payload)
+
+
+def test_transition_rejects_non_enum_states():
+    with pytest.raises(TaskContractError, match="TaskState"):
+        transition_task("testing", TaskState.REVIEW)
+
+
+def test_transition_rejects_malformed_evidence_container():
+    with pytest.raises(TaskContractError, match="tuple of strings"):
+        transition_task(TaskState.TESTING, TaskState.REVIEW, ["report.json"])
