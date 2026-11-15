@@ -51,7 +51,7 @@ def main() -> int:
         return 0
     except Exception as exc:
         # Do not print environment values, request headers, or credential-bearing objects.
-        print(f"B2_VERIFICATION=FAIL error_type={type(exc).__name__} message={exc}", file=sys.stderr)
+        print(f"B2_VERIFICATION=FAIL error_type={type(exc).__name__}", file=sys.stderr)
         return 1
 
 
