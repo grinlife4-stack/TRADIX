@@ -1,0 +1,38 @@
+name: factory-first-run
+
+on:
+  pull_request:
+    paths:
+      - "examples/first_run/**"
+      - "scripts/run_factory_demo.py"
+      - "scripts/review_factory_demo.py"
+      - "src/tradix/factory/**"
+      - ".github/workflows/factory-first-run.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  first-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Execute the bounded factory run
+        run: |
+          python scripts/run_factory_demo.py --output-dir artifacts/first-run
+      - name: Upload execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradix-first-run-evidence
+          path: artifacts/first-run/
+          if-no-files-found: error
+          retention-days: 14
