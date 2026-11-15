@@ -48,3 +48,10 @@ A separate factory schema must be designed and reviewed before any migration. It
 ## Next slice after CI passes
 
 Design a factory-specific Neon schema in a migration file only. Review it read-only, then apply it only to a newly isolated Neon branch after explicit approval. Do not migrate Production.
+
+
+## Provider-neutral model boundary
+
+The code slice now defines a `ModelAdapter` protocol, bounded request/response records, and a strict JSON plan parser. The adapter returns text only; it has no tool-execution interface. Model output is untrusted and rejects unknown fields, malformed JSON, duplicate step IDs, oversized output, and invalid numeric metadata.
+
+No provider SDK, API key, live model call, or model billing is included. A fake provider is used only in unit tests. This is an interface contract, not an operational agent.
