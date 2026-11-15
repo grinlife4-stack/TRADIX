@@ -131,7 +131,7 @@ _ALLOWED_TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
     TaskState.IMPLEMENTING: frozenset({TaskState.TESTING, TaskState.BLOCKED, TaskState.FAILED, TaskState.CANCELLED}),
     TaskState.TESTING: frozenset({TaskState.REVIEW, TaskState.IMPLEMENTING, TaskState.BLOCKED, TaskState.FAILED, TaskState.CANCELLED}),
     TaskState.REVIEW: frozenset({TaskState.CANDIDATE, TaskState.IMPLEMENTING, TaskState.BLOCKED, TaskState.FAILED, TaskState.CANCELLED}),
-    TaskState.CANDIDATE: frozenset({TaskState.DEPLOYED_TEST, TaskState.VERIFIED, TaskState.BLOCKED, TaskState.FAILED, TaskState.CANCELLED}),
+    TaskState.CANDIDATE: frozenset({TaskState.DEPLOYED_TEST, TaskState.BLOCKED, TaskState.FAILED, TaskState.CANCELLED}),
     TaskState.DEPLOYED_TEST: frozenset({TaskState.VERIFIED, TaskState.BLOCKED, TaskState.FAILED, TaskState.CANCELLED}),
     TaskState.BLOCKED: frozenset({TaskState.PLANNED, TaskState.CANCELLED}),
     TaskState.VERIFIED: frozenset(),
