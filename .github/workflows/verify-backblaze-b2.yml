@@ -14,12 +14,14 @@ permissions:
 
 jobs:
   verify:
+    # Secrets must never be exposed to a manually dispatched run on an arbitrary branch.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -32,8 +34,9 @@ jobs:
           B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
           B2_APPLICATION_KEY_ID: ${{ secrets.B2_APPLICATION_KEY_ID }}
           B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          WRITE_TEST: ${{ inputs.write_test }}
         run: |
-          if [ "${{ inputs.write_test }}" = "true" ]; then
+          if [ "$WRITE_TEST" = "true" ]; then
             python scripts/verify_backblaze_b2.py --write-test
           else
             python scripts/verify_backblaze_b2.py
