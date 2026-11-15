@@ -1,0 +1,29 @@
+{
+  "summary": "Build and verify a small dependency-free Python slug utility.",
+  "steps": [
+    {
+      "step_id": "P1",
+      "action": "Validate the task envelope and acceptance criteria.",
+      "rationale": "Reject malformed or underspecified requests before implementation.",
+      "acceptance_check": "TaskEnvelope accepts the supplied low-risk task."
+    },
+    {
+      "step_id": "P2",
+      "action": "Materialize the reviewed slug utility template and its tests.",
+      "rationale": "The first run uses a deterministic fixture because no live model provider is configured.",
+      "acceptance_check": "Generated source and test files exist in the isolated output workspace."
+    },
+    {
+      "step_id": "P3",
+      "action": "Execute the generated test suite.",
+      "rationale": "A candidate must pass executable tests before review.",
+      "acceptance_check": "Pytest exits with code zero."
+    },
+    {
+      "step_id": "P4",
+      "action": "Run a separate static review process.",
+      "rationale": "A second process checks the generated artifact against basic safety and structure rules.",
+      "acceptance_check": "Review report returns PASS with file hashes."
+    }
+  ]
+}
