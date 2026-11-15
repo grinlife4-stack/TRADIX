@@ -82,9 +82,9 @@ Use a provider-independent adapter. Do not hard-code the factory to one model ve
 | GitHub | Connected; access to `grinlife4-stack/TRADIX` verified; push permission available | TRADIX currently has only a minimal package and smoke-test baseline; CI success is not proof of factory capability |
 | Neon | Connected; production branch is ready and contains no application tables; isolated temporary branch contains seven `memory_*` tables | Those tables are project-memory structures, not yet approved as the factory task ledger; no factory schema or production migration has been performed |
 | Cloudflare | Connected; authenticated account identity verified | Not selected as the current object-storage target; keep the connector for other Cloudflare services |
-| Backblaze B2 | User reports private bucket `tradix-factory-storage`, region `us-east-005`, encryption enabled; endpoint metadata supplied | S3 adapter and verification script added on the isolated branch; runtime secrets are not configured and live API access has not been tested |
+| Backblaze B2 | Private bucket `tradix-factory-storage`, region `us-east-005`; GitHub Actions run `43745900128` passed authenticated listing and object write/read-back | Connectivity verified from an ephemeral GitHub runner only; no persistent runtime artifact lifecycle or backup/restore test yet |
 | Railway | Connected; authenticated user and personal workspace verified | Workspace currently reports zero projects; no service or deployment exists |
-| Sentry | No Sentry tools/connector exposed in the current connected tool inventory | Defer until a runtime service exists; revisit plugin availability later |
+| Sentry | No Sentry connector tools exposed in the current tool inventory | Defer until a runtime service exists; revisit plugin availability later |
 | Model provider adapter | Not implemented | Select providers only after defining security, cost, and fallback requirements |
 
 Never place credentials in this public repository. The repository is public.
@@ -191,3 +191,13 @@ The first implementation slice is deliberately provider-free and persistence-fre
 The temporary Neon branch's seven `memory_*` tables were inspected at the column/constraint level. They represent project memory, work items, artifacts, conversations, decisions, aliases, and memory events. They are not yet accepted as the factory's operational ledger: the event table has no demonstrated append-only enforcement, and the work-item model does not provide the full execution/approval/evidence semantics. Production remains untouched.
 
 The next integration gate is to prove this contract in CI, then design a separate factory ledger schema and an actual execution adapter. The current GitHub Actions workflow runs tests only; it is not an autonomous code-generation agent.
+
+
+## 12. Code slice execution record — 2026-11-15
+
+- Added `src/tradix/factory/task_contract.py` and package initializer; the contract is pure Python and performs no external I/O.
+- Added `tests/test_task_contract.py` for task validation, fail-closed unknown fields, risk approval, legal transitions, and evidence gates.
+- Added `docs/FIRST_VERTICAL_SLICE_SPEC.md` to state the scope and explicit exclusions.
+- Hardened direct construction and transition calls against invalid runtime types.
+- CI runs for earlier commits in this PR passed (`43747264790`, `43747257944`, `43747255688`). The latest hardening commit `572c44d47c695884521a1719478f02769c666144` is awaiting its own CI result at the time of this note.
+- No Neon writes, B2 writes, service creation, secret changes, deployment, or merge to `main` occurred in this code slice.
