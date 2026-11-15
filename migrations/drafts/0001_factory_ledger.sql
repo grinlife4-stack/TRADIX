@@ -1,5 +1,5 @@
--- DRAFT ONLY — NOT APPROVED FOR EXECUTION.
--- Target: an isolated Neon branch created specifically for factory schema testing.
+-- DRAFT ONLY — NOT APPROVED FOR NEON EXECUTION.
+-- CI may apply this file to a disposable PostgreSQL service for schema/constraint tests.
 -- Never run against Production. Review ownership, grants, RLS, and migration strategy first.
 BEGIN;
 
