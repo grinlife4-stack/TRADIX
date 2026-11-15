@@ -53,7 +53,7 @@ Workers must not be able to silently approve their own work. Agents should recei
 ### Systems of record
 - GitHub: source code, branches, pull requests, reviews, CI, and immutable commit references.
 - Neon: structured operational state, task metadata, approvals, execution records, and audit events.
-- Cloudflare R2: independent backup/archive target after bucket existence, access, retention, and restore procedures are verified.
+- Backblaze B2: S3-compatible object-storage target; the user created a private bucket and supplied its endpoint/region. Adapter code is being added on the isolated factory branch; runtime credentials and live connectivity remain unverified.
 - Railway: candidate runtime for API/worker deployment; account connection is verified, but no factory service is deployed yet.
 - Sentry: optional error monitoring; not connected or configured yet.
 
@@ -81,7 +81,8 @@ Use a provider-independent adapter. Do not hard-code the factory to one model ve
 |---|---|---|
 | GitHub | Connected; access to `grinlife4-stack/TRADIX` verified; push permission available | TRADIX currently has only a minimal package and smoke-test baseline; CI success is not proof of factory capability |
 | Neon | Connected; project `TRADIX NEON` identified | Seven memory-related tables were previously created only on a temporary branch; production schema and migration status must be re-inspected before use |
-| Cloudflare | Connected; authenticated account identity verified | R2 bucket inventory and restore workflow still need confirmation; ChatGPT connector access does not mean the runtime has R2 credentials |
+| Cloudflare | Connected; authenticated account identity verified | Not selected as the current object-storage target; keep the connector for other Cloudflare services |
+| Backblaze B2 | User reports private bucket `tradix-factory-storage`, region `us-east-005`, encryption enabled; endpoint metadata supplied | S3 adapter and verification script added on the isolated branch; runtime secrets are not configured and live API access has not been tested |
 | Railway | Connected; authenticated user and personal workspace verified | Workspace currently reports zero projects; no service or deployment exists |
 | Sentry | Not connected | Defer until a runtime service exists |
 | Model provider adapter | Not implemented | Select providers only after defining security, cost, and fallback requirements |
@@ -101,7 +102,8 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `VERIFIED`.
 ### Phase 1 — Verify infrastructure and boundaries
 - [ ] Re-inspect GitHub repository settings, branch rules, and CI workflow.
 - [ ] Inspect Neon production and temporary branch schemas separately; do not migrate production.
-- [ ] Verify Cloudflare R2 bucket inventory; if no suitable bucket exists, request approval before creating one.
+- [x] Select Backblaze B2 instead of Cloudflare R2; user-created private bucket and endpoint metadata recorded.
+- [ ] Configure B2 application-key credentials in an approved runtime secret store and run read/write verification; do not place secrets in GitHub or chat.
 - [ ] Inspect Railway workspace, billing/trial limits, regions, persistent storage, and deployment model.
 - [ ] Decide whether Railway is acceptable for the first non-production runtime; compare alternatives before committing.
 - [ ] Define secret storage and runtime-to-Neon/R2 connectivity without exposing secret values.
@@ -121,7 +123,7 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `VERIFIED`.
 - [ ] Connect Neon using runtime-managed secrets; never expose connection strings.
 - [ ] Add durable task, event, approval, artifact, and run records.
 - [ ] Add health endpoint, structured logs, timeouts, cancellation, and bounded concurrency.
-- [ ] Add backup export to R2 and perform a restore test before declaring backup readiness.
+- [ ] Add backup export to Backblaze B2 and perform a restore test before declaring backup readiness.
 
 ### Phase 4 — Independent quality and security
 - [ ] Separate planner, implementer, tester, reviewer, and release permissions.
@@ -143,9 +145,9 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `VERIFIED`.
 
 1. Review and merge this plan through a pull request; do not merge without user approval.
 2. Inspect the actual TRADIX repository files and workflow to establish the real baseline.
-3. Verify Railway workspace and pricing constraints without creating a project or service.
-4. Verify Cloudflare R2 bucket inventory and Neon production schema, read-only.
-5. Return a concise evidence-based readiness report and propose the first vertical-slice task.
+3. Review Railway workspace and pricing constraints; no project/service currently exists.
+4. Configure B2 secrets in an approved runtime and run the documented connectivity test; this is blocked until a runtime is approved.
+5. Inspect Neon production schema read-only and continue the first vertical-slice design.
 
 ## 8. Required status report format
 
