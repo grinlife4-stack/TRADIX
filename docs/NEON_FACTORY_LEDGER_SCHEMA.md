@@ -31,7 +31,7 @@
 
 ## Critical limitation
 
-PostgreSQL triggers and grants reduce accidental mutation, but a database owner or superuser can alter/disable them. Production-grade immutability therefore also requires strict role separation, restricted migration ownership, backups, and independent integrity verification. This draft does not yet define the application roles, RLS policy, connection pooler settings, or transaction protocol that writes an event and updates its projection atomically. The SQL has not been parsed or executed against PostgreSQL yet; CI currently tests Python only.
+PostgreSQL triggers and grants reduce accidental mutation, but a database owner or superuser can alter/disable them. Production-grade immutability therefore also requires strict role separation, restricted migration ownership, backups, and independent integrity verification. This draft does not yet define the application roles, RLS policy, connection pooler settings, or transaction protocol that writes an event and updates its projection atomically. The SQL is not approved for Neon execution. A separate GitHub Actions job applies it only to a disposable PostgreSQL service and runs negative constraint/immutability tests; that job does not touch Neon.
 
 ## Required review before execution
 
