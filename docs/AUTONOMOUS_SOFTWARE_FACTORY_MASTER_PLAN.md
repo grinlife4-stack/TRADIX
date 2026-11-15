@@ -206,3 +206,5 @@ The next integration gate is to prove this contract in CI, then design a separat
 - CI run `43747315591` confirmed `23 passed in 0.04s` for the Python code slice. Later docs/schema commits are being checked by the same tests; no SQL integration test is configured.
 
 - Approval-gate hardening: `transition_task` now blocks a task flagged for approval from entering `implementing` until an explicit `approved` decision is supplied. `validate_approval` also rejects missing/rejected approval for production deployment, destructive migration, secret change, permission change, and irreversible-operation actions. These are pure policy functions; no runtime caller exists yet, so integration remains a future gate.
+
+- Latest Python CI evidence before the SQL-draft-only refinements: run `43747838605` passed with `28 passed in 0.04s`. The subsequent SQL and schema-document commits still require their own CI run; that workflow only exercises Python tests and does not validate SQL syntax.
