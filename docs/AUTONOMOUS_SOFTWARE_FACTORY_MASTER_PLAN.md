@@ -210,3 +210,5 @@ The next integration gate is to prove this contract in CI, then design a separat
 - Latest Python CI evidence before the SQL-draft-only refinements: run `43747838605` passed with `28 passed in 0.04s`. The subsequent SQL and schema-document commits still require their own CI run; that workflow only exercises Python tests and does not validate SQL syntax.
 
 - Added a provider-neutral `ModelAdapter` protocol, bounded request/response records, and a strict JSON plan parser. Model output remains untrusted data; the adapter contract exposes no tool execution. Unit tests use a fake provider only. No live provider SDK, API key, model call, or billing is configured.
+
+- Added `docs/MODEL_PROVIDER_DECISION.md`: GitHub Models is retired; Gemini's free tier permits product-improvement use of submitted content; Hugging Face free inference credit is only $0.10/month; ChatGPT and API billing are separate; Groq free limits are account/model-specific. No provider selected, no API key configured, and no paid usage enabled.
