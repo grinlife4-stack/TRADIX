@@ -212,3 +212,5 @@ The next integration gate is to prove this contract in CI, then design a separat
 - Added a provider-neutral `ModelAdapter` protocol, bounded request/response records, and a strict JSON plan parser. Model output remains untrusted data; the adapter contract exposes no tool execution. Unit tests use a fake provider only. No live provider SDK, API key, model call, or billing is configured.
 
 - Added `docs/MODEL_PROVIDER_DECISION.md`: GitHub Models is retired; Gemini's free tier permits product-improvement use of submitted content; Hugging Face free inference credit is only $0.10/month; ChatGPT and API billing are separate; Groq free limits are account/model-specific. No provider selected, no API key configured, and no paid usage enabled.
+
+- Added `.github/workflows/factory-ledger-sql.yml` and `tests/test_factory_ledger_sql.sh`. Run `43748128262` applied the draft to an ephemeral PostgreSQL 17 service and passed 16 negative integrity checks, including risk/approval constraints, cross-task and cross-attempt foreign keys, idempotency uniqueness, and UPDATE/DELETE/TRUNCATE rejection. This is disposable CI only, not a Neon migration.
