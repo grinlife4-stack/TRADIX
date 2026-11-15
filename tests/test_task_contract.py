@@ -149,3 +149,9 @@ def test_sensitive_action_requires_approval_even_for_low_risk_task():
 def test_rejected_approval_fails_closed():
     with pytest.raises(TaskContractError, match="approval rejected"):
         validate_approval(valid_task(), "begin_implementation", "rejected")
+
+
+
+def test_candidate_cannot_be_verified_without_test_deployment():
+    with pytest.raises(TaskContractError, match="not allowed"):
+        transition_task(valid_task(), TaskState.CANDIDATE, TaskState.VERIFIED)
