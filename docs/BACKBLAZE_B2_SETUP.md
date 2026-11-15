@@ -39,7 +39,7 @@ In the repository, open **Settings → Secrets and variables → Actions → New
 - `B2_APPLICATION_KEY_ID` = your application key ID
 - `B2_APPLICATION_KEY` = your application key secret
 
-Do not put the key values in GitHub files, issue comments, or chat. Because GitHub requires a `workflow_dispatch` workflow to exist on the default branch, this workflow becomes runnable only after PR #1 is reviewed and merged into `main`. Do not merge it automatically. After the merge, open **Actions → Verify Backblaze B2 → Run workflow**. First run with `write_test=false` to verify authenticated bucket listing. After that succeeds, run again with `write_test=true` to verify upload and read-back. The second run leaves one tiny object under `healthchecks/` because the bucket retains object versions.
+Do not put the key values in GitHub files, issue comments, or chat. Because GitHub requires a `workflow_dispatch` workflow to exist on the default branch, this workflow becomes runnable only after PR #1 is reviewed and merged into `main`. The job also checks that the selected ref is exactly `main` and checks out `main`; a manual dispatch from any other branch is skipped before secrets are exposed. Do not merge it automatically. After the merge, open **Actions → Verify Backblaze B2 → Run workflow**. First run with `write_test=false` to verify authenticated bucket listing. After that succeeds, run again with `write_test=true` to verify upload and read-back. The second run leaves one tiny object under `healthchecks/` because the bucket retains object versions.
 
 ## Local install and verification
 
@@ -68,4 +68,4 @@ The adapter uses AWS Signature Version 4 and path-style addressing. It does not 
 
 ## Current blocker
 
-No Railway project or service exists in the connected workspace. The GitHub adapter can be reviewed and tested in CI, but a live B2 test must run from an approved runtime after its secret store is configured. No cloud project/service should be created until the user reviews the runtime cost and explicitly approves creation/deployment.
+No Railway project or service exists in the connected workspace. A live B2 test can run on GitHub's temporary hosted runner after the five repository secrets are configured; this does not create a persistent service or Railway project. No cloud project/service should be created until the user reviews the runtime cost and explicitly approves creation/deployment.
