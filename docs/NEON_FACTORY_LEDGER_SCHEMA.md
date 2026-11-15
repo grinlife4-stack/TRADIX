@@ -10,7 +10,7 @@
 - `task_events` is the append-only audit stream. Mutable task and attempt rows are projections/current operational state, not the only audit record.
 - Approval decisions, evidence records, and artifact metadata are immutable rows. Corrections are represented by new events/records, not rewriting history.
 - Each event has a unique idempotency key so a retry can be deduplicated.
-- Composite foreign keys prevent an attempt or artifact from being attached to a different task.
+- Composite foreign keys prevent an attempt or artifact from being attached to a different task; evidence is bound to the exact producing attempt.
 - Append-only triggers reject UPDATE, DELETE, and TRUNCATE on events, approvals, evidence, and artifact metadata.
 - Every task belongs to an explicit project namespace and repository.
 - High and critical risk tasks cannot exist without an approval requirement.
