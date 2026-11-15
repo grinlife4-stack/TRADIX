@@ -118,6 +118,7 @@ CREATE TABLE factory.task_artifacts (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (task_id, object_uri, sha256),
     UNIQUE (artifact_id, task_id),
+    UNIQUE (artifact_id, task_id, attempt_id),
     FOREIGN KEY (attempt_id, task_id)
         REFERENCES factory.task_attempts(attempt_id, task_id) ON DELETE RESTRICT
 );
@@ -125,7 +126,7 @@ CREATE TABLE factory.task_artifacts (
 CREATE TABLE factory.task_evidence (
     evidence_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     task_id UUID NOT NULL REFERENCES factory.tasks(task_id) ON DELETE RESTRICT,
-    attempt_id UUID,
+    attempt_id UUID NOT NULL,
     artifact_id UUID NOT NULL,
     evidence_type TEXT NOT NULL CHECK (length(trim(evidence_type)) BETWEEN 1 AND 100),
     description TEXT NOT NULL DEFAULT '',
@@ -135,8 +136,8 @@ CREATE TABLE factory.task_evidence (
         CHECK (jsonb_typeof(metadata) = 'object'),
     FOREIGN KEY (attempt_id, task_id)
         REFERENCES factory.task_attempts(attempt_id, task_id) ON DELETE RESTRICT,
-    FOREIGN KEY (artifact_id, task_id)
-        REFERENCES factory.task_artifacts(artifact_id, task_id) ON DELETE RESTRICT
+    FOREIGN KEY (artifact_id, task_id, attempt_id)
+        REFERENCES factory.task_artifacts(artifact_id, task_id, attempt_id) ON DELETE RESTRICT
 );
 
 CREATE FUNCTION factory.reject_immutable_row_mutation()
