@@ -30,9 +30,9 @@ class ModelRequest:
             raise ModelContractError("request text fields must be non-empty strings")
         if len(self.input_text) > 20000 or len(self.instructions) > 12000:
             raise ModelContractError("model request exceeds text limits")
-        if not isinstance(self.timeout_seconds, int) or not 1 <= self.timeout_seconds <= 300:
+        if isinstance(self.timeout_seconds, bool) or not isinstance(self.timeout_seconds, int) or not 1 <= self.timeout_seconds <= 300:
             raise ModelContractError("timeout_seconds must be an integer from 1 to 300")
-        if not isinstance(self.max_output_tokens, int) or not 1 <= self.max_output_tokens <= 16000:
+        if isinstance(self.max_output_tokens, bool) or not isinstance(self.max_output_tokens, int) or not 1 <= self.max_output_tokens <= 16000:
             raise ModelContractError("max_output_tokens must be an integer from 1 to 16000")
 
 
@@ -56,8 +56,12 @@ class ModelResponse:
         ):
             if not isinstance(value, str) or not value.strip():
                 raise ModelContractError(f"{name} must be a non-empty string")
+        if len(self.output_text) > 100000:
+            raise ModelContractError("output_text exceeds 100000 characters")
         for name, value in (("input_tokens", self.input_tokens), ("output_tokens", self.output_tokens)):
-            if value is not None and (not isinstance(value, int) or value < 0):
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int) or value < 0
+            ):
                 raise ModelContractError(f"{name} must be a non-negative integer or None")
 
 
