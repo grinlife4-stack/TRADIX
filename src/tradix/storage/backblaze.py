@@ -6,7 +6,7 @@ Credentials are read only from environment variables. Never log or serialize the
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Mapping
 from urllib.parse import urlparse
 
@@ -17,7 +17,7 @@ class BackblazeConfig:
     region: str
     bucket_name: str
     application_key_id: str
-    application_key: str
+    application_key: str = field(repr=False)
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "BackblazeConfig":
