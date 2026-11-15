@@ -80,7 +80,7 @@ Use a provider-independent adapter. Do not hard-code the factory to one model ve
 | Component | Verified state | Important limitation |
 |---|---|---|
 | GitHub | Connected; access to `grinlife4-stack/TRADIX` verified; push permission available | TRADIX currently has only a minimal package and smoke-test baseline; CI success is not proof of factory capability |
-| Neon | Connected; project `TRADIX NEON` identified | Seven memory-related tables were previously created only on a temporary branch; production schema and migration status must be re-inspected before use |
+| Neon | Connected; production branch is ready and contains no application tables; isolated temporary branch contains seven `memory_*` tables | Those tables are project-memory structures, not yet approved as the factory task ledger; no factory schema or production migration has been performed |
 | Cloudflare | Connected; authenticated account identity verified | Not selected as the current object-storage target; keep the connector for other Cloudflare services |
 | Backblaze B2 | User reports private bucket `tradix-factory-storage`, region `us-east-005`, encryption enabled; endpoint metadata supplied | S3 adapter and verification script added on the isolated branch; runtime secrets are not configured and live API access has not been tested |
 | Railway | Connected; authenticated user and personal workspace verified | Workspace currently reports zero projects; no service or deployment exists |
@@ -96,8 +96,8 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `VERIFIED`.
 ### Phase 0 — Establish the control record
 - [x] Create this master plan on an isolated Git branch.
 - [x] Open a pull request for review; PR merge remains a human-controlled action. (Historical PR #1 merged; this status-correction PR is separate.)
-- [ ] Establish a durable task/event schema and an append-only execution ledger.
-- [ ] Define task IDs, state transitions, evidence references, and approval records.
+- [ ] Establish a factory-specific durable task/event schema and append-only execution ledger; do not reuse the temporary memory tables without a deliberate schema review.
+- [x] Define initial task envelope and state-transition contract in `src/tradix/factory/task_contract.py`; persistence and approval records remain unimplemented.
 
 ### Phase 1 — Verify infrastructure and boundaries
 - [x] Re-inspect GitHub repository branches, rulesets, and CI workflow. No repository rulesets are configured; `main` is not protected.
@@ -110,8 +110,8 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `VERIFIED`.
 - [ ] Defer Sentry until the first service can emit telemetry.
 
 ### Phase 2 — Build the smallest vertical slice
-- [ ] Select one tiny, reversible task in a non-production branch.
-- [ ] Implement a task state machine: queued → planned → implementing → testing → review → candidate → deployed-test → verified; with blocked/failed/cancelled terminal handling.
+- [x] Select the first bounded task: validate task envelopes and enforce evidence-gated state transitions (pure Python, no external services).
+- [x] Implement a pure state-transition contract with blocked/failed/cancelled handling; orchestration, retries, and persistence remain outside this first code slice.
 - [ ] Implement a worker that reads task input and repository state but cannot deploy to production.
 - [ ] Implement branch-scoped code changes and pull-request creation.
 - [ ] Implement CI evidence collection and independent diff review.
@@ -182,3 +182,12 @@ This file is the durable master checklist, not a chat summary. Update task statu
 - Documentation correction is proposed in draft PR #2: https://github.com/grinlife4-stack/TRADIX/pull/2. It does not deploy a service, alter database schemas, change secrets, modify branch protection, or merge to `main`.
 
 - Public Railway pricing references checked: https://railway.com/pricing and https://docs.railway.com/pricing/free-trial. Account-specific trial eligibility, remaining credits, billing method, and spending caps remain unverified; no Railway resource was created.
+
+
+## 11. First code slice — task contract
+
+The first implementation slice is deliberately provider-free and persistence-free. It establishes strict task-envelope validation and a finite state-transition graph with evidence gates. It does not call an LLM, create branches, write Neon, upload B2 artifacts, or deploy services. Those are later integrations and must not be represented as already working.
+
+The temporary Neon branch's seven `memory_*` tables were inspected at the column/constraint level. They represent project memory, work items, artifacts, conversations, decisions, aliases, and memory events. They are not yet accepted as the factory's operational ledger: the event table has no demonstrated append-only enforcement, and the work-item model does not provide the full execution/approval/evidence semantics. Production remains untouched.
+
+The next integration gate is to prove this contract in CI, then design a separate factory ledger schema and an actual execution adapter. The current GitHub Actions workflow runs tests only; it is not an autonomous code-generation agent.
