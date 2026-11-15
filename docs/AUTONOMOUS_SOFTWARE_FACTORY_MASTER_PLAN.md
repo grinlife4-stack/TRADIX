@@ -1,9 +1,9 @@
 # Autonomous Software Factory — Master Execution Plan
 
-**Document status:** Working baseline, version 0.1  
+**Document status:** Preflight status correction, version 0.2  
 **Created:** 2026-11-15  
 **Control repository:** `grinlife4-stack/TRADIX`  
-**Branch:** `factory/phase-0-blueprint`  
+**Branch:** `factory/preflight-status-2026-11-15`  
 **Operating rule:** This document is the durable project ledger. Do not rely on chat memory as the source of truth.
 
 ## 1. Mission
@@ -53,7 +53,7 @@ Workers must not be able to silently approve their own work. Agents should recei
 ### Systems of record
 - GitHub: source code, branches, pull requests, reviews, CI, and immutable commit references.
 - Neon: structured operational state, task metadata, approvals, execution records, and audit events.
-- Backblaze B2: S3-compatible object-storage target; the user created a private bucket and supplied its endpoint/region. Adapter code is being added on the isolated factory branch; runtime credentials and live connectivity remain unverified.
+- Backblaze B2: S3-compatible object-storage target; private bucket `tradix-factory-storage` verified from GitHub-hosted runner. Authenticated bucket listing and object write/read-back both passed in workflow run `43745900128`. This verifies connectivity only, not the factory artifact lifecycle or backup/restore.
 - Railway: candidate runtime for API/worker deployment; account connection is verified, but no factory service is deployed yet.
 - Sentry: optional error monitoring; not connected or configured yet.
 
@@ -84,7 +84,7 @@ Use a provider-independent adapter. Do not hard-code the factory to one model ve
 | Cloudflare | Connected; authenticated account identity verified | Not selected as the current object-storage target; keep the connector for other Cloudflare services |
 | Backblaze B2 | User reports private bucket `tradix-factory-storage`, region `us-east-005`, encryption enabled; endpoint metadata supplied | S3 adapter and verification script added on the isolated branch; runtime secrets are not configured and live API access has not been tested |
 | Railway | Connected; authenticated user and personal workspace verified | Workspace currently reports zero projects; no service or deployment exists |
-| Sentry | Not connected | Defer until a runtime service exists |
+| Sentry | No Sentry tools/connector exposed in the current connected tool inventory | Defer until a runtime service exists; revisit plugin availability later |
 | Model provider adapter | Not implemented | Select providers only after defining security, cost, and fallback requirements |
 
 Never place credentials in this public repository. The repository is public.
@@ -95,18 +95,18 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `VERIFIED`.
 
 ### Phase 0 — Establish the control record
 - [x] Create this master plan on an isolated Git branch.
-- [ ] Open a pull request for review; do not merge automatically.
+- [x] Open a pull request for review; PR merge remains a human-controlled action. (Historical PR #1 merged; this status-correction PR is separate.)
 - [ ] Establish a durable task/event schema and an append-only execution ledger.
 - [ ] Define task IDs, state transitions, evidence references, and approval records.
 
 ### Phase 1 — Verify infrastructure and boundaries
-- [ ] Re-inspect GitHub repository settings, branch rules, and CI workflow.
-- [ ] Inspect Neon production and temporary branch schemas separately; do not migrate production.
+- [x] Re-inspect GitHub repository branches, rulesets, and CI workflow. No repository rulesets are configured; `main` is not protected.
+- [x] Inspect Neon production and temporary branch schemas separately; production has no user tables; temporary branch has seven `memory_*` tables. No migration performed.
 - [x] Select Backblaze B2 instead of Cloudflare R2; user-created private bucket and endpoint metadata recorded.
-- [ ] Add the five B2 settings as encrypted GitHub Actions repository secrets and run the manual read-only then write/read-back verification workflow; do not place secrets in source files or chat.
-- [ ] Inspect Railway workspace, billing/trial limits, regions, persistent storage, and deployment model.
+- [x] Verify the five B2 settings through the manual GitHub Actions workflow without exposing secret values. Run `43745900128` completed successfully; read/list and write/read-back passed. The test object was retained by design.
+- [ ] Inspect Railway pricing/limits and runtime options. Workspace/project inventory is connected, but the cloud-agent connector listing returned an account capability error; no runtime or project exists.
 - [ ] Decide whether Railway is acceptable for the first non-production runtime; compare alternatives before committing.
-- [ ] Define secret storage and runtime-to-Neon/R2 connectivity without exposing secret values.
+- [ ] Define secret storage and runtime-to-Neon/B2 connectivity without exposing secret values.
 - [ ] Defer Sentry until the first service can emit telemetry.
 
 ### Phase 2 — Build the smallest vertical slice
@@ -143,11 +143,11 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `VERIFIED`.
 
 ## 7. Immediate next actions
 
-1. Review and merge this plan through a pull request; do not merge without user approval.
-2. Inspect the actual TRADIX repository files and workflow to establish the real baseline.
-3. Review Railway workspace and pricing constraints; no project/service currently exists.
-4. Configure B2 secrets in an approved runtime and run the documented connectivity test; this is blocked until a runtime is approved.
-5. Inspect Neon production schema read-only and continue the first vertical-slice design.
+1. Review the status-correction pull request; do not merge without user approval.
+2. Select the first bounded, reversible software task and define exact acceptance criteria.
+3. Resolve the persistent execution/runtime choice and model-provider credentials/cost before attempting autonomous multi-step execution.
+4. Keep Neon production untouched; use an isolated branch for any schema prototype.
+5. Implement a minimal task intake → isolated branch → CI → independent review → evidence report loop before adding deployment.
 
 ## 8. Required status report format
 
@@ -166,3 +166,17 @@ Do not mark a task DONE or VERIFIED based on intention, generated code, or an un
 ## 9. Change-control rule for this document
 
 This file is the durable master checklist, not a chat summary. Update task status only when supported by evidence. Add dated execution notes or link to immutable commits, PRs, CI runs, and deployment IDs. Preserve unresolved items; do not silently remove them. Keep project-specific technical specifications in their own project repositories and link them here rather than copying them into a shared document.
+
+
+## 10. Preflight evidence update — 2026-11-15
+
+- Repository: `grinlife4-stack/TRADIX`; `main` remains at `d778e6e5c15eea353355d38c681b49a00dca1da7` at the time of inspection.
+- Branches observed: `main`, `factory/phase-0-blueprint`; no rulesets returned by GitHub rulesets endpoint. Both branches report `protected=false`.
+- Pull request #1 is closed and merged. Its CI run `43739714859` passed.
+- B2 workflow run `43745900128` completed successfully. Job logs confirmed `WRITE_TEST=true`, `B2_AUTH_AND_BUCKET_READ=PASS`, `OBJECTS_VISIBLE_IN_SAMPLE=0`, and `B2_WRITE_AND_READBACK=PASS`. The unique health-check object remains in the bucket because version retention is enabled.
+- Neon project `royal-art-56263739`: production branch `br-lingering-hall-bdh0g9if` is ready and has zero application tables; temporary branch `br-bitter-firefly-bd1jt928` is ready and has seven `memory_*` tables. Both branch records report `protected=false`. No production writes or migrations were performed.
+- Railway is connected but no project/service exists. The agent-connector listing was not available to this account; do not assume it can provide an execution environment.
+- GitHub connector exposes branch/file/commit/PR write operations. It does not expose a direct workflow-dispatch operation in the current tool inventory. CI can still run automatically on a PR or push according to workflow triggers.
+- Sentry connector tools were not present in the current tool inventory.
+- No model-provider API credential or persistent orchestrator has been verified. ChatGPT subscription access must not be treated as an API key or an included external model budget.
+- This preflight correction changes documentation only. It does not deploy a service, alter database schemas, change secrets, modify branch protection, or merge to `main`.
