@@ -104,7 +104,7 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `VERIFIED`.
 - [x] Inspect Neon production and temporary branch schemas separately; production has no user tables; temporary branch has seven `memory_*` tables. No migration performed.
 - [x] Select Backblaze B2 instead of Cloudflare R2; user-created private bucket and endpoint metadata recorded.
 - [x] Verify the five B2 settings through the manual GitHub Actions workflow without exposing secret values. Run `43745900128` completed successfully; read/list and write/read-back passed. The test object was retained by design.
-- [ ] Inspect Railway pricing/limits and runtime options. Workspace/project inventory is connected, but the cloud-agent connector listing returned an account capability error; no runtime or project exists.
+- [x] Inspect published Railway pricing and workspace/project inventory. Public pricing lists Free at $0 with a 30-day $5 trial then a $1/month free tier; Hobby has a $5/month minimum and Pro $20/month. Account-specific plan/credits are not exposed by the connector. No project/service exists; cloud-agent connector listing returned an account capability error.
 - [ ] Decide whether Railway is acceptable for the first non-production runtime; compare alternatives before committing.
 - [ ] Define secret storage and runtime-to-Neon/B2 connectivity without exposing secret values.
 - [ ] Defer Sentry until the first service can emit telemetry.
@@ -175,8 +175,10 @@ This file is the durable master checklist, not a chat summary. Update task statu
 - Pull request #1 is closed and merged. Its CI run `43739714859` passed.
 - B2 workflow run `43745900128` completed successfully. Job logs confirmed `WRITE_TEST=true`, `B2_AUTH_AND_BUCKET_READ=PASS`, `OBJECTS_VISIBLE_IN_SAMPLE=0`, and `B2_WRITE_AND_READBACK=PASS`. The unique health-check object remains in the bucket because version retention is enabled.
 - Neon project `royal-art-56263739`: production branch `br-lingering-hall-bdh0g9if` is ready and has zero application tables; temporary branch `br-bitter-firefly-bd1jt928` is ready and has seven `memory_*` tables. Both branch records report `protected=false`. No production writes or migrations were performed.
-- Railway is connected but no project/service exists. The agent-connector listing was not available to this account; do not assume it can provide an execution environment.
+- Railway is connected; workspace `Grin Life's Projects` has zero projects. `whoami` exposes no plan/credit details. Published pricing: Free $0 (30-day trial with $5 credits, then $1/month per pricing page), Hobby $5/month minimum, Pro $20/month minimum; actual resource and agent model usage can add charges. The agent-connector listing was not available to this account; do not assume it can provide an execution environment.
 - GitHub connector exposes branch/file/commit/PR write operations. It does not expose a direct workflow-dispatch operation in the current tool inventory. CI can still run automatically on a PR or push according to workflow triggers.
 - Sentry connector tools were not present in the current tool inventory.
 - No model-provider API credential or persistent orchestrator has been verified. ChatGPT subscription access must not be treated as an API key or an included external model budget.
 - Documentation correction is proposed in draft PR #2: https://github.com/grinlife4-stack/TRADIX/pull/2. It does not deploy a service, alter database schemas, change secrets, modify branch protection, or merge to `main`.
+
+- Public Railway pricing references checked: https://railway.com/pricing and https://docs.railway.com/pricing/free-trial. Account-specific trial eligibility, remaining credits, billing method, and spending caps remain unverified; no Railway resource was created.
