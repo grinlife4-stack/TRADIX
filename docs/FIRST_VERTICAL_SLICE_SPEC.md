@@ -13,6 +13,8 @@ Establish a small, testable foundation for the factory without pretending that a
 - Strict task input contract with required fields, bounded text, project namespace, repository identifier, risk class, and approval flag.
 - Unknown fields rejected by default.
 - High and critical risk tasks cannot be accepted without an explicit human-approval requirement.
+- Tasks flagged for approval cannot enter implementation until an explicit approved decision is supplied.
+- Production deployment, destructive migration, secret changes, permission changes, and irreversible operations always require explicit approval, regardless of the task's declared risk class.
 - Explicit lifecycle graph with terminal states.
 - Evidence required before testing can pass to review, review can pass to candidate, and test deployment can pass to verified.
 - Pure functions so behavior is deterministic and can be tested in GitHub Actions.
@@ -39,8 +41,9 @@ A separate factory schema must be designed and reviewed before any migration. It
 3. High and critical risk require human approval.
 4. Illegal lifecycle transitions are rejected.
 5. Evidence gates reject missing evidence and accept a non-empty evidence reference.
-6. The full existing test suite and new tests pass in GitHub Actions.
-7. No external service, secret, database, or deployment is used.
+6. Approval gates reject missing/rejected decisions before flagged implementation and protected actions.
+7. The full existing test suite and new tests pass in GitHub Actions.
+8. No external service, secret, database, or deployment is used.
 
 ## Next slice after CI passes
 
