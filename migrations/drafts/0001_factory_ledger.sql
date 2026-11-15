@@ -57,24 +57,33 @@ CREATE TABLE factory.task_attempts (
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb
         CHECK (jsonb_typeof(metadata) = 'object'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (task_id, attempt_number)
+    UNIQUE (task_id, attempt_number),
+    UNIQUE (attempt_id, task_id)
 );
 
 CREATE TABLE factory.task_events (
     event_seq BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     event_id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
     task_id UUID NOT NULL REFERENCES factory.tasks(task_id) ON DELETE RESTRICT,
-    attempt_id UUID REFERENCES factory.task_attempts(attempt_id) ON DELETE RESTRICT,
+    attempt_id UUID,
     event_type TEXT NOT NULL CHECK (length(trim(event_type)) BETWEEN 1 AND 100),
-    from_state TEXT,
-    to_state TEXT,
+    from_state TEXT CHECK (from_state IS NULL OR from_state IN (
+        'queued', 'planned', 'implementing', 'testing', 'review',
+        'candidate', 'deployed_test', 'verified', 'blocked', 'failed', 'cancelled'
+    )),
+    to_state TEXT CHECK (to_state IS NULL OR to_state IN (
+        'queued', 'planned', 'implementing', 'testing', 'review',
+        'candidate', 'deployed_test', 'verified', 'blocked', 'failed', 'cancelled'
+    )),
     actor_type TEXT NOT NULL CHECK (actor_type IN ('human', 'system', 'agent', 'github')),
     actor_ref TEXT NOT NULL CHECK (length(trim(actor_ref)) BETWEEN 1 AND 200),
-    idempotency_key TEXT NOT NULL UNIQUE,
+    idempotency_key TEXT NOT NULL UNIQUE CHECK (length(trim(idempotency_key)) BETWEEN 1 AND 255),
     payload JSONB NOT NULL DEFAULT '{}'::jsonb
         CHECK (jsonb_typeof(payload) = 'object'),
     occurred_at TIMESTAMPTZ,
-    recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (attempt_id, task_id)
+        REFERENCES factory.task_attempts(attempt_id, task_id) ON DELETE RESTRICT
 );
 
 CREATE INDEX task_events_task_seq_idx
@@ -83,7 +92,7 @@ CREATE INDEX task_events_task_seq_idx
 CREATE TABLE factory.task_approvals (
     approval_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     task_id UUID NOT NULL REFERENCES factory.tasks(task_id) ON DELETE RESTRICT,
-    attempt_id UUID REFERENCES factory.task_attempts(attempt_id) ON DELETE RESTRICT,
+    attempt_id UUID,
     approval_round INTEGER NOT NULL CHECK (approval_round > 0),
     action TEXT NOT NULL CHECK (length(trim(action)) BETWEEN 1 AND 120),
     decision TEXT NOT NULL CHECK (decision IN ('approved', 'rejected')),
@@ -92,33 +101,42 @@ CREATE TABLE factory.task_approvals (
     decision_scope JSONB NOT NULL DEFAULT '{}'::jsonb
         CHECK (jsonb_typeof(decision_scope) = 'object'),
     decided_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (task_id, action, approval_round)
+    UNIQUE (task_id, action, approval_round),
+    FOREIGN KEY (attempt_id, task_id)
+        REFERENCES factory.task_attempts(attempt_id, task_id) ON DELETE RESTRICT
 );
 
 CREATE TABLE factory.task_artifacts (
     artifact_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     task_id UUID NOT NULL REFERENCES factory.tasks(task_id) ON DELETE RESTRICT,
-    attempt_id UUID REFERENCES factory.task_attempts(attempt_id) ON DELETE RESTRICT,
+    attempt_id UUID,
     artifact_type TEXT NOT NULL CHECK (length(trim(artifact_type)) BETWEEN 1 AND 80),
     object_uri TEXT NOT NULL CHECK (length(trim(object_uri)) BETWEEN 1 AND 2048),
     sha256 TEXT NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'),
     byte_size BIGINT NOT NULL CHECK (byte_size >= 0),
     content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (task_id, object_uri, sha256)
+    UNIQUE (task_id, object_uri, sha256),
+    UNIQUE (artifact_id, task_id),
+    FOREIGN KEY (attempt_id, task_id)
+        REFERENCES factory.task_attempts(attempt_id, task_id) ON DELETE RESTRICT
 );
 
 CREATE TABLE factory.task_evidence (
     evidence_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     task_id UUID NOT NULL REFERENCES factory.tasks(task_id) ON DELETE RESTRICT,
-    attempt_id UUID REFERENCES factory.task_attempts(attempt_id) ON DELETE RESTRICT,
-    artifact_id UUID NOT NULL REFERENCES factory.task_artifacts(artifact_id) ON DELETE RESTRICT,
+    attempt_id UUID,
+    artifact_id UUID NOT NULL,
     evidence_type TEXT NOT NULL CHECK (length(trim(evidence_type)) BETWEEN 1 AND 100),
     description TEXT NOT NULL DEFAULT '',
     recorded_by TEXT NOT NULL CHECK (length(trim(recorded_by)) BETWEEN 1 AND 200),
     recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb
-        CHECK (jsonb_typeof(metadata) = 'object')
+        CHECK (jsonb_typeof(metadata) = 'object'),
+    FOREIGN KEY (attempt_id, task_id)
+        REFERENCES factory.task_attempts(attempt_id, task_id) ON DELETE RESTRICT,
+    FOREIGN KEY (artifact_id, task_id)
+        REFERENCES factory.task_artifacts(artifact_id, task_id) ON DELETE RESTRICT
 );
 
 CREATE FUNCTION factory.reject_immutable_row_mutation()
@@ -133,22 +151,34 @@ $$;
 CREATE TRIGGER task_events_append_only
     BEFORE UPDATE OR DELETE ON factory.task_events
     FOR EACH ROW EXECUTE FUNCTION factory.reject_immutable_row_mutation();
+CREATE TRIGGER task_events_no_truncate
+    BEFORE TRUNCATE ON factory.task_events
+    FOR EACH STATEMENT EXECUTE FUNCTION factory.reject_immutable_row_mutation();
 
 CREATE TRIGGER task_approvals_append_only
     BEFORE UPDATE OR DELETE ON factory.task_approvals
     FOR EACH ROW EXECUTE FUNCTION factory.reject_immutable_row_mutation();
+CREATE TRIGGER task_approvals_no_truncate
+    BEFORE TRUNCATE ON factory.task_approvals
+    FOR EACH STATEMENT EXECUTE FUNCTION factory.reject_immutable_row_mutation();
 
 CREATE TRIGGER task_evidence_append_only
     BEFORE UPDATE OR DELETE ON factory.task_evidence
     FOR EACH ROW EXECUTE FUNCTION factory.reject_immutable_row_mutation();
+CREATE TRIGGER task_evidence_no_truncate
+    BEFORE TRUNCATE ON factory.task_evidence
+    FOR EACH STATEMENT EXECUTE FUNCTION factory.reject_immutable_row_mutation();
 
 CREATE TRIGGER task_artifacts_append_only
     BEFORE UPDATE OR DELETE ON factory.task_artifacts
     FOR EACH ROW EXECUTE FUNCTION factory.reject_immutable_row_mutation();
+CREATE TRIGGER task_artifacts_no_truncate
+    BEFORE TRUNCATE ON factory.task_artifacts
+    FOR EACH STATEMENT EXECUTE FUNCTION factory.reject_immutable_row_mutation();
 
-REVOKE UPDATE, DELETE ON factory.task_events FROM PUBLIC;
-REVOKE UPDATE, DELETE ON factory.task_approvals FROM PUBLIC;
-REVOKE UPDATE, DELETE ON factory.task_evidence FROM PUBLIC;
-REVOKE UPDATE, DELETE ON factory.task_artifacts FROM PUBLIC;
+REVOKE UPDATE, DELETE, TRUNCATE ON factory.task_events FROM PUBLIC;
+REVOKE UPDATE, DELETE, TRUNCATE ON factory.task_approvals FROM PUBLIC;
+REVOKE UPDATE, DELETE, TRUNCATE ON factory.task_evidence FROM PUBLIC;
+REVOKE UPDATE, DELETE, TRUNCATE ON factory.task_artifacts FROM PUBLIC;
 
 COMMIT;
