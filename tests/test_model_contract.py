@@ -91,3 +91,19 @@ def test_empty_plan_is_rejected():
     payload["steps"] = []
     with pytest.raises(ModelContractError, match="1..20"):
         PlanDocument.from_model_response(response(json.dumps(payload)))
+
+
+
+def test_boolean_timeout_is_rejected():
+    with pytest.raises(ModelContractError, match="timeout_seconds"):
+        ModelRequest("t", "p", "i", "x", "m", timeout_seconds=True)
+
+
+def test_boolean_token_count_is_rejected():
+    with pytest.raises(ModelContractError, match="input_tokens"):
+        ModelResponse("p", "m", "{}", "r", input_tokens=True)
+
+
+def test_oversized_model_output_is_rejected():
+    with pytest.raises(ModelContractError, match="100000"):
+        ModelResponse("p", "m", "x" * 100001, "r")
