@@ -204,3 +204,5 @@ The next integration gate is to prove this contract in CI, then design a separat
 
 - Added `migrations/drafts/0001_factory_ledger.sql` and `docs/NEON_FACTORY_LEDGER_SCHEMA.md` as review-only schema artifacts. The draft includes append-only triggers (including TRUNCATE protection), idempotency keys, and composite task/attempt/artifact foreign keys. It has not been SQL-validated or executed; no Neon branch was created.
 - CI run `43747315591` confirmed `23 passed in 0.04s` for the Python code slice. Later docs/schema commits are being checked by the same tests; no SQL integration test is configured.
+
+- Approval-gate hardening: `transition_task` now blocks a task flagged for approval from entering `implementing` until an explicit `approved` decision is supplied. `validate_approval` also rejects missing/rejected approval for production deployment, destructive migration, secret change, permission change, and irreversible-operation actions. These are pure policy functions; no runtime caller exists yet, so integration remains a future gate.
