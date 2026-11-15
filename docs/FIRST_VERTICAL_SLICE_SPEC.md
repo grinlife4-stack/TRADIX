@@ -47,7 +47,7 @@ A separate factory schema must be designed and reviewed before any migration. It
 
 ## Next slice after CI passes
 
-Design a factory-specific Neon schema in a migration file only. Review it read-only, then apply it only to a newly isolated Neon branch after explicit approval. Do not migrate Production.
+The draft schema and disposable PostgreSQL 17 integrity tests now exist. The next database step is to create a new isolated Neon branch and apply the migration there only after explicit approval. Do not migrate Production.
 
 
 ## Provider-neutral model boundary
