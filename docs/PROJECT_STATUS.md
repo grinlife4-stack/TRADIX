@@ -4,7 +4,7 @@
 **Repository:** `grinlife4-stack/TRADIX`  
 **Active PR:** [#3 — Define TRADIX executive runtime architecture](https://github.com/grinlife4-stack/TRADIX/pull/3)  
 **Working branch:** `factory/executive-runtime-architecture-v0-1`  
-**Verified head:** `3c5d5236046f03ace7a04224fa53064e58c9f471`  
+**Last verified implementation baseline:** `46bad2a8b74a1d14ef15b9f994bc33327dd89368`  
 **Production policy:** Neon Production and `main` remain untouched unless explicitly approved.
 
 ## 1. Executive status
@@ -17,11 +17,11 @@ The latest PR head passed both Python tests and disposable PostgreSQL 17 plus No
 
 PR #3 is **open, Draft, and unmerged**. Its current head is:
 
-`5a18742717901666bf6eb186a699949effbfaaa7`
+ `46bad2a8b74a1d14ef15b9f994bc33327dd89368`
 
 Successful workflow runs on that exact head:
-- [Python tests — 43814043279](https://github.com/grinlife4-stack/TRADIX/actions/runs/43814043279): success.
-- [Factory ledger + memory gateway SQL/HTTP integration — 43814043269](https://github.com/grinlife4-stack/TRADIX/actions/runs/43814043269): success, including the new transactional task-transition tests.
+- [Python tests — 43814122561](https://github.com/grinlife4-stack/TRADIX/actions/runs/43814043279): success.
+- [Factory ledger + memory gateway SQL/HTTP integration — 43814122574](https://github.com/grinlife4-stack/TRADIX/actions/runs/43814043269): success, including the new transactional task-transition tests.
 
 The integration workflow applies draft schemas only to disposable PostgreSQL 17, runs SQL integrity checks, starts the Node gateway, and exercises health, authorization, missing-project, invalid-key, and authenticated context retrieval paths.
 
@@ -70,7 +70,7 @@ These are historical observations, not a fresh live database read. No migration 
 
 ## 7. Risks and gates
 
-1. **Schema enforcement gap:** the transactional task lifecycle function is tested, but least-privilege application roles/grants are not defined. A runtime role must not receive direct projection-write privileges that bypass the transition function. Atomic worker claiming, lease ownership, and fencing are also not implemented.
+1. **Schema enforcement gap:** a draft `factory_runtime` NOLOGIN role, restricted grants, SECURITY DEFINER transition path, and privilege-boundary tests have now been added. These changes are not yet CI-verified on their new commits and have not been applied to Neon. Atomic worker claiming, lease ownership, and fencing are also not implemented.
 2. **No persistent executor:** CI proves bounded tests, not a continuously running factory.
 3. **No live model path:** the provider interface is not a connected provider.
 4. **Artifact recovery unproven:** B2 connectivity is not backup/restore verification.
@@ -79,7 +79,7 @@ These are historical observations, not a fresh live database read. No migration 
 
 ## 8. Next execution sequence
 
-1. Define and test least-privilege database roles/grants so the runtime cannot bypass the transition function or mutate immutable records.
+1. Verify the new least-privilege role/grant changes on the current branch with CI; review any failures before proceeding.
 2. Finalize the canonical migration plan; do not apply it to Neon until separately reviewed and approved.
 3. Implement atomic worker claims, attempt ownership, bounded retries, lease expiry, heartbeat, fencing, and stale-worker rejection, with concurrency/fault-injection tests.
 4. Add one model-provider adapter only after privacy, credentials, rate limits, and a hard spend ceiling are verified.
@@ -87,7 +87,7 @@ These are historical observations, not a fresh live database read. No migration 
 6. Deploy only to an isolated test environment; run security, restart, concurrency, and recovery tests.
 7. Consider release/merge only after review and verified CI. Production remains a separate explicit approval gate.
 
-## 9. Update protocol
+## 9. Immediate execution update (2026-11-16)\n\n- Added `SECURITY DEFINER` with fixed search path to `factory.transition_task(...)`.\n- Added draft `factory_runtime` NOLOGIN role: SELECT-only table access plus EXECUTE on the controlled transition function; direct writes and sequence access are revoked.\n- Added SQL integration assertions for allowed controlled transition and denied direct projection/event/immutable-row/TRUNCATE writes.\n- Added runtime privilege-boundary documentation.\n- Changes are committed on the working branch after baseline `46bad2a8...`; CI for the new commits is pending.\n- No Neon database, Production, `main`, secrets, deployment, or merge was touched.\n\n## 10. Update protocol
 
 Every substantive work session must update this file with the exact branch/head SHA, PR state, CI run IDs, database changes, external side effects, completed tests, unverified claims, blockers, and next action.
 
