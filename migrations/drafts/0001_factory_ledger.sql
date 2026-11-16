@@ -883,11 +883,12 @@ REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM factory_runtime;
 -- only the table privileges its body requires. It is not a superuser or table owner.
 GRANT USAGE, CREATE ON SCHEMA factory TO factory_executor_owner;
 GRANT SELECT ON factory.projects TO factory_executor_owner;
-GRANT SELECT, UPDATE ON factory.tasks TO factory_executor_owner;
+GRANT SELECT, INSERT, UPDATE ON factory.tasks TO factory_executor_owner;
 GRANT SELECT, INSERT ON factory.task_events TO factory_executor_owner;
 GRANT SELECT, INSERT ON factory.product_dossier_versions TO factory_executor_owner;
-GRANT SELECT ON factory.task_approvals, factory.task_evidence,
-    factory.task_attempts, factory.project_identities TO factory_executor_owner;
+GRANT SELECT ON factory.task_approvals, factory.project_identities TO factory_executor_owner;
+GRANT SELECT, INSERT, UPDATE ON factory.task_attempts TO factory_executor_owner;
+GRANT SELECT, INSERT ON factory.task_artifacts, factory.task_evidence TO factory_executor_owner;
 
 REVOKE ALL ON FUNCTION factory.record_product_dossier(UUID, JSONB, TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION factory.record_product_dossier(UUID, JSONB, TEXT) FROM factory_runtime;
@@ -910,6 +911,23 @@ GRANT EXECUTE ON FUNCTION factory.transition_task(
 ALTER FUNCTION factory.transition_task(
     UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB
 ) OWNER TO factory_executor_owner;
+-- Controlled runtime writes are exposed only through these SECURITY DEFINER functions.
+REVOKE ALL ON FUNCTION factory.create_task(TEXT, TEXT, TEXT, JSONB, TEXT, BOOLEAN, JSONB) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION factory.create_task(TEXT, TEXT, TEXT, JSONB, TEXT, BOOLEAN, JSONB) TO factory_runtime;
+ALTER FUNCTION factory.create_task(TEXT, TEXT, TEXT, JSONB, TEXT, BOOLEAN, JSONB) OWNER TO factory_executor_owner;
+
+REVOKE ALL ON FUNCTION factory.create_task_attempt(UUID, TEXT, TEXT, TEXT, JSONB) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION factory.create_task_attempt(UUID, TEXT, TEXT, TEXT, JSONB) TO factory_runtime;
+ALTER FUNCTION factory.create_task_attempt(UUID, TEXT, TEXT, TEXT, JSONB) OWNER TO factory_executor_owner;
+
+REVOKE ALL ON FUNCTION factory.record_task_evidence(UUID, UUID, TEXT, TEXT, TEXT, BIGINT, TEXT, TEXT, TEXT, JSONB) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION factory.record_task_evidence(UUID, UUID, TEXT, TEXT, TEXT, BIGINT, TEXT, TEXT, TEXT, JSONB) TO factory_runtime;
+ALTER FUNCTION factory.record_task_evidence(UUID, UUID, TEXT, TEXT, TEXT, BIGINT, TEXT, TEXT, TEXT, JSONB) OWNER TO factory_executor_owner;
+
+REVOKE ALL ON FUNCTION factory.finish_task_attempt(UUID, UUID, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION factory.finish_task_attempt(UUID, UUID, TEXT) TO factory_runtime;
+ALTER FUNCTION factory.finish_task_attempt(UUID, UUID, TEXT) OWNER TO factory_executor_owner;
+
 REVOKE CREATE ON SCHEMA factory FROM factory_executor_owner;
 
 -- Project isolation is enforced by database login identity, not caller-settable
