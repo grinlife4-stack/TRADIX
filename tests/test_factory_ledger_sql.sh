@@ -131,7 +131,7 @@ expect_failure "evidence rejects TRUNCATE" "Rows in factory.task_evidence are ap
   "TRUNCATE factory.task_evidence"
 
 
--- A third task has no approval record and is used to prove the database gate.
+# A third task has no approval record and is used to prove the database gate.
 psql <<'SQL'
 INSERT INTO factory.tasks (
   task_id, project_id, task_key, title, request_text, acceptance_criteria,
