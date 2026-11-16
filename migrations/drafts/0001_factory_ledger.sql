@@ -20,9 +20,9 @@ CREATE TABLE factory.projects (
 
 -- Maps each database login identity to exactly one project. session_user is
 -- used so SET ROLE cannot change the project identity.
-CREATE TABLE factory.project_runtime_identities (
+CREATE TABLE factory.project_identities (
     role_name NAME PRIMARY KEY,
-    project_id UUID NOT NULL UNIQUE REFERENCES factory.projects(project_id) ON DELETE RESTRICT,
+    project_id UUID NOT NULL REFERENCES factory.projects(project_id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -373,6 +373,7 @@ REVOKE ALL ON ALL FUNCTIONS IN SCHEMA factory FROM PUBLIC;
 
 GRANT SELECT ON ALL TABLES IN SCHEMA factory TO factory_runtime;
 GRANT INSERT ON factory.task_approvals TO factory_approval_authority;
+GRANT SELECT ON factory.project_identities TO factory_approval_authority;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
     ON ALL TABLES IN SCHEMA factory FROM factory_runtime;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM factory_runtime;
@@ -383,7 +384,7 @@ GRANT USAGE, CREATE ON SCHEMA factory TO factory_executor_owner;
 GRANT SELECT, UPDATE ON factory.tasks TO factory_executor_owner;
 GRANT SELECT, INSERT ON factory.task_events TO factory_executor_owner;
 GRANT SELECT ON factory.task_approvals, factory.task_evidence,
-    factory.project_runtime_identities TO factory_executor_owner;
+    factory.project_identities TO factory_executor_owner;
 
 -- Revoke/grant function ACLs while the migration identity still owns it.
 -- After ownership transfer, a non-superuser migration identity no longer
@@ -408,8 +409,8 @@ REVOKE CREATE ON SCHEMA factory FROM factory_executor_owner;
 -- by an administrator and must not be shared between projects.
 ALTER TABLE factory.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE factory.projects FORCE ROW LEVEL SECURITY;
-ALTER TABLE factory.project_runtime_identities ENABLE ROW LEVEL SECURITY;
-ALTER TABLE factory.project_runtime_identities FORCE ROW LEVEL SECURITY;
+ALTER TABLE factory.project_identities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE factory.project_identities FORCE ROW LEVEL SECURITY;
 ALTER TABLE factory.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE factory.tasks FORCE ROW LEVEL SECURITY;
 ALTER TABLE factory.task_attempts ENABLE ROW LEVEL SECURITY;
@@ -423,35 +424,38 @@ ALTER TABLE factory.task_artifacts FORCE ROW LEVEL SECURITY;
 ALTER TABLE factory.task_evidence ENABLE ROW LEVEL SECURITY;
 ALTER TABLE factory.task_evidence FORCE ROW LEVEL SECURITY;
 
-CREATE POLICY project_identity_self ON factory.project_runtime_identities
-    FOR SELECT TO factory_runtime
+CREATE POLICY project_identity_self ON factory.project_identities
+    FOR SELECT TO PUBLIC
     USING (role_name = session_user);
 CREATE POLICY projects_isolated ON factory.projects
-    FOR SELECT TO factory_runtime
+    FOR SELECT TO PUBLIC
     USING (project_id IN (
-        SELECT project_id FROM factory.project_runtime_identities
+        SELECT project_id FROM factory.project_identities
         WHERE role_name = session_user
     ));
 CREATE POLICY tasks_isolated ON factory.tasks
-    FOR SELECT TO factory_runtime
+    FOR SELECT TO PUBLIC
     USING (project_id IN (
-        SELECT project_id FROM factory.project_runtime_identities
+        SELECT project_id FROM factory.project_identities
         WHERE role_name = session_user
     ));
 CREATE POLICY attempts_isolated ON factory.task_attempts
-    FOR SELECT TO factory_runtime
+    FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
 CREATE POLICY events_isolated ON factory.task_events
-    FOR SELECT TO factory_runtime
+    FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
 CREATE POLICY approvals_isolated ON factory.task_approvals
-    FOR SELECT TO factory_runtime
+    FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
+CREATE POLICY approvals_human_insert ON factory.task_approvals
+    FOR INSERT TO factory_approval_authority
+    WITH CHECK (task_id IN (SELECT task_id FROM factory.tasks));
 CREATE POLICY artifacts_isolated ON factory.task_artifacts
-    FOR SELECT TO factory_runtime
+    FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
 CREATE POLICY evidence_isolated ON factory.task_evidence
-    FOR SELECT TO factory_runtime
+    FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
 
 -- Future objects created by the migration owner inherit the same safe defaults.
