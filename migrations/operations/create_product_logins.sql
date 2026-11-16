@@ -31,17 +31,81 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = :'provisione
 \gexec
 GRANT factory_identity_admin TO :"provisioner_login" WITH SET TRUE, INHERIT FALSE;
 
--- Fail closed if any pre-existing role has unsafe attributes or unexpected
--- factory authority. Passwords must be set separately using psql's interactive
--- \password command or an approved secret manager.
-DO $validate$
-DECLARE
-  v_runtime NAME := current_setting('tradix.runtime_login', true)::NAME;
-  v_approval NAME := current_setting('tradix.approval_login', true)::NAME;
-  v_provisioner NAME := current_setting('tradix.provisioner_login', true)::NAME;
-BEGIN
-  IF v_runtime IS NULL OR v_approval IS NULL OR v_provisioner IS NULL THEN
-    RAISE EXCEPTION 'required login names were not supplied';
-  END IF;
-END
-$validate$;
+-- Validate that reused names do not carry extra authority or unsafe attributes.
+SELECT (
+  SELECT rolcanlogin AND rolinherit AND NOT rolsuper AND NOT rolcreatedb
+         AND NOT rolcreaterole AND NOT rolbypassrls
+  FROM pg_catalog.pg_roles WHERE rolname = :'runtime_login'
+) AS runtime_ok \gset
+\if :runtime_ok
+\else
+  \echo 'Runtime LOGIN has unsafe or missing role attributes.'
+  \quit 3
+\endif
+
+SELECT (
+  SELECT rolcanlogin AND rolinherit AND NOT rolsuper AND NOT rolcreatedb
+         AND NOT rolcreaterole AND NOT rolbypassrls
+  FROM pg_catalog.pg_roles WHERE rolname = :'approval_login'
+) AS approval_ok \gset
+\if :approval_ok
+\else
+  \echo 'Approval LOGIN has unsafe or missing role attributes.'
+  \quit 3
+\endif
+
+SELECT (
+  SELECT rolcanlogin AND NOT rolinherit AND NOT rolsuper AND NOT rolcreatedb
+         AND NOT rolcreaterole AND NOT rolbypassrls
+  FROM pg_catalog.pg_roles WHERE rolname = :'provisioner_login'
+) AS provisioner_ok \gset
+\if :provisioner_ok
+\else
+  \echo 'Provisioner LOGIN has unsafe or missing role attributes.'
+  \quit 3
+\endif
+
+SELECT (
+  pg_catalog.pg_has_role(:'runtime_login', 'factory_runtime', 'MEMBER')
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_auth_members m
+    JOIN pg_catalog.pg_roles granted_role ON granted_role.oid = m.roleid
+    WHERE pg_catalog.pg_get_userbyid(m.member) = :'runtime_login'
+      AND granted_role.rolname <> 'factory_runtime'
+  )
+) AS runtime_membership_ok \gset
+\if :runtime_membership_ok
+\else
+  \echo 'Runtime LOGIN has missing or unexpected role memberships.'
+  \quit 3
+\endif
+
+SELECT (
+  pg_catalog.pg_has_role(:'approval_login', 'factory_approval_authority', 'MEMBER')
+  AND NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_auth_members m
+    JOIN pg_catalog.pg_roles granted_role ON granted_role.oid = m.roleid
+    WHERE pg_catalog.pg_get_userbyid(m.member) = :'approval_login'
+      AND granted_role.rolname <> 'factory_approval_authority'
+  )
+) AS approval_membership_ok \gset
+\if :approval_membership_ok
+\else
+  \echo 'Approval LOGIN has missing or unexpected role memberships.'
+  \quit 3
+\endif
+
+SELECT (
+  pg_catalog.pg_has_role(:'provisioner_login', 'factory_identity_admin', 'SET')
+  AND NOT pg_catalog.pg_has_role(:'provisioner_login', 'factory_identity_admin', 'USAGE')
+  AND NOT pg_catalog.pg_has_role(:'provisioner_login', 'factory_runtime', 'MEMBER')
+  AND NOT pg_catalog.pg_has_role(:'provisioner_login', 'factory_approval_authority', 'MEMBER')
+  AND NOT pg_catalog.pg_has_role(:'provisioner_login', 'factory_executor_owner', 'MEMBER')
+) AS provisioner_membership_ok \gset
+\if :provisioner_membership_ok
+\else
+  \echo 'Provisioner LOGIN has unsafe or unexpected role memberships.'
+  \quit 3
+\endif
+
+\echo 'Product LOGIN roles and provisioner role passed preflight.'
