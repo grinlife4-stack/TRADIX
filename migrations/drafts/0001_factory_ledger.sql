@@ -465,6 +465,10 @@ BEGIN
         RAISE EXCEPTION 'runtime identity has no product mapping';
     END IF;
 
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+        pg_catalog.hashtextextended(v_project_id::text || ':' || p_task_key, 0)
+    );
+
     SELECT * INTO v_task
     FROM factory.tasks
     WHERE project_id = v_project_id AND task_key = p_task_key
@@ -1054,7 +1058,7 @@ DECLARE
     v_attempt factory.task_attempts%ROWTYPE;
 BEGIN
     IF p_task_id IS NULL OR p_attempt_id IS NULL
-       OR p_outcome NOT IN ('succeeded','failed') THEN
+       OR p_outcome IS NULL OR p_outcome NOT IN ('succeeded','failed') THEN
         RAISE EXCEPTION 'invalid attempt completion arguments';
     END IF;
     IF NOT pg_catalog.pg_has_role(session_user, 'factory_runtime', 'MEMBER')
