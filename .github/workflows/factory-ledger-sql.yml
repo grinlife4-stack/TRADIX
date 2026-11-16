@@ -54,6 +54,8 @@ jobs:
         run: bash tests/test_factory_ledger_sql.sh "$POSTGRES_CONTAINER_ID"
       - name: Install product dossier API dependencies
         run: npm install --prefix runtime/product-dossier-api --ignore-scripts --no-audit --no-fund
+      - name: Validate product dossier JSON Schema across product categories
+        run: npm run --prefix runtime/product-dossier-api test:schema
       - name: Run isolated product dossier API integration test
         env:
           DATABASE_URL: postgresql://factory_rt_tradix:ci-only-factory-dossier-password@127.0.0.1:5432/tradix_test?sslmode=disable
