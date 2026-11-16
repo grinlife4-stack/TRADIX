@@ -143,3 +143,15 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
 **Verification status:** code head `0e3ac18c201e9dd04533db325816d2eb08cb2fd3` passed both CI workflows: Python tests [43820898755](https://github.com/grinlife4-stack/TRADIX/actions/runs/43820898755) and PostgreSQL 17 ledger + memory-gateway SQL/HTTP integration [43820898840](https://github.com/grinlife4-stack/TRADIX/actions/runs/43820898840). The ledger migration ran as a non-superuser without `CREATEROLE`; the SQL tests passed. These are disposable PostgreSQL 17 results, not a Neon migration. No Neon SQL has been executed; no Neon branch was created; `main`, Production, secrets, deployments, and merge state remain untouched.
 
 **Provisioning boundary:** each project runtime LOGIN and each human-approval LOGIN must be created by a trusted administrator, granted exactly one authority group, and inserted into `factory.project_identities` by a trusted provisioning identity holding SET-only membership in `factory_identity_admin`. Credentials must remain separate by project. This SQL does not itself provision or authenticate human users.
+
+
+## 2026-11-16 — General-purpose factory scope and product dossier boundary
+
+- Architecture baseline updated to version 1.2 in commit `b2f88c329f62ac906144d30a151c25c7b0223cbe`.
+- TRADIX is now explicitly defined as a general-purpose production factory, not a software-only factory and not a single-product platform.
+- Every product must have its own durable dossier and stable identity. The dossier governs that product's mission, requirements, decisions, tasks, evidence, resources, permissions, budget/costs, outputs, versions, and lifecycle.
+- Shared factory capabilities may be reused, but product identity, data, authority, cost, execution state, and evidence must not be mixed. Cross-product transfer requires explicit authorization, provenance, and scope review.
+- Software-specific tools such as Git, code Sandbox, builds, and software tests are production adapters for relevant product classes, not universal assumptions for every product.
+- The trading platform is an example of an independent product made by TRADIX; it is not part of the factory's own identity or internal operating logic.
+- Verification: the documentation commit was created on `factory/executive-runtime-architecture-v0-1`, under Draft PR #3. At the time of this note, the GitHub connector returned no workflow runs and an empty combined-status list for that exact commit; therefore no CI success is claimed. Recheck the exact PR head before treating this change as verified.
+- No merge, Neon operation, secret change, deployment, Production action, or paid resource creation occurred.
