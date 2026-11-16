@@ -4,7 +4,7 @@
 **Repository:** `grinlife4-stack/TRADIX`  
 **Active PR:** [#3 — Define TRADIX executive runtime architecture](https://github.com/grinlife4-stack/TRADIX/pull/3)  
 **Working branch:** `factory/executive-runtime-architecture-v0-1`  
-**Last verified branch head:** `bfc225bc6a5f9f50195706c4858b7ddffc227a8f`  
+**Last verified code/test baseline:** `bfc225bc6a5f9f50195706c4858b7ddffc227a8f`  
 **Production policy:** Neon Production and `main` remain untouched unless explicitly approved.
 
 ## 1. Executive status
@@ -75,7 +75,7 @@ These are historical observations, not a fresh live database read. No migration 
 
 ## 7. Risks and gates
 
-1. **Schema enforcement gap:** a draft `factory_runtime` NOLOGIN role, restricted grants, SECURITY DEFINER transition path, and privilege-boundary tests are now CI-verified on PostgreSQL 17 using a non-superuser migration identity. They have not been applied to Neon. Atomic worker claiming, lease ownership, and fencing are also not implemented.
+1. **Schema enforcement gap:** a draft `factory_runtime` NOLOGIN role, restricted grants, SECURITY DEFINER transition path, and privilege-boundary tests are CI-verified on PostgreSQL 17 using a non-superuser migration identity without CREATEROLE. They have not been applied to Neon. Atomic worker claiming, lease ownership, and fencing are also not implemented.
 2. **No persistent executor:** CI proves bounded tests, not a continuously running factory.
 3. **No live model path:** the provider interface is not a connected provider.
 4. **Artifact recovery unproven:** B2 connectivity is not backup/restore verification.
@@ -111,16 +111,16 @@ A component is **operational** only when its real execution path has run and its
 
 ## 11. Neon role-provisioning compatibility review (2026-11-16)
 
-**Decision:** A separate Neon API role-provisioning operation is not required for this draft on the currently inspected project, but the migration runner must be a role with `CREATEROLE` and database `CREATE` privileges. The current project exposes `neondb_owner` with `CREATEROLE`, `CREATEDB`, `LOGIN`, and `NOSUPERUSER`. Neon documents SQL-based role management; the two factory roles are `NOLOGIN`, so they do not need passwords.
+**Decision:** A separate Neon API role-provisioning operation is not required, but role provisioning should be a one-time bootstrap separate from ordinary schema migrations. The current project exposes `neondb_owner` with `CREATEROLE`, `CREATEDB`, `LOGIN`, and `NOSUPERUSER`. Neon supports SQL-based role management; the two factory roles are `NOLOGIN`, so they do not need passwords. Run the bootstrap with a trusted administrator; the schema migration identity then needs database `CREATE` and SET-only membership in `factory_executor_owner`, not `CREATEROLE`.
 
 Read-only inspection of the existing branch `factory-ledger-prototype-2026-11-15` confirmed PostgreSQL 18.7 and the role attributes above. That branch currently has no `factory` schema and neither factory role exists. No schema or role was created during this inspection. The `production` branch was not queried for writes and was not modified.
 
 Two PostgreSQL 16+ migration issues were found and corrected:
 
-1. A non-superuser with `CREATEROLE` receives automatic creator membership with `ADMIN TRUE`, but `SET FALSE` and `INHERIT FALSE`. The migration now explicitly grants `factory_executor_owner` back to `CURRENT_USER` with `SET TRUE, INHERIT FALSE`, which is required for the function ownership transfer. Runtime is not granted membership in the owner role.
+1. A non-superuser with `CREATEROLE` receives automatic creator membership with `ADMIN TRUE`, but `SET FALSE` and `INHERIT FALSE`. A separate bootstrap now creates the NOLOGIN factory roles and explicitly grants `factory_executor_owner` to the selected migration identity with `SET TRUE, INHERIT FALSE`. Runtime is not granted membership in the owner role.
 2. Function ACL revocation/grant must happen while the migration identity still owns the function. The ACL operations now occur before `ALTER FUNCTION ... OWNER TO factory_executor_owner`; otherwise a non-superuser migration identity loses authority to change the function ACL after ownership transfer.
 
-CI now provisions `tradix_migrator` as `LOGIN CREATEROLE`, grants it only database `CREATE`, and applies the draft migration as that non-superuser identity. Assertions verify the owner-role SET/INHERIT boundary and runtime isolation. Exact successful runs on branch head `bfc225bc6a5f9f50195706c4858b7ddffc227a8f`:
+CI provisions `tradix_migrator` without `CREATEROLE`, grants it only database `CREATE` plus SET-only membership in the function-owner role, provisions the factory roles separately as administrator, and applies the draft migration as `tradix_migrator`. Assertions verify the owner-role SET/INHERIT boundary and runtime isolation. Exact successful runs on branch head `bfc225bc6a5f9f50195706c4858b7ddffc227a8f`:
 - Python: [43817870900](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817870900)
 - SQL + memory gateway integration: [43817871156](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817871156)
 
