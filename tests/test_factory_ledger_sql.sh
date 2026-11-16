@@ -43,6 +43,7 @@ SET ROLE factory_identity_admin;
 INSERT INTO factory.project_identities (role_name, project_id) VALUES
  ('factory_rt_tradix', '11111111-1111-4111-8111-111111111111'),
  ('factory_rt_info_engine', '22222222-2222-4222-8222-222222222222'),
+ ('factory_rt_physical_goods', '44444444-4444-4444-8444-444444444444'),
  ('factory_approver_tradix', '11111111-1111-4111-8111-111111111111'),
  ('factory_approver_info_engine', '22222222-2222-4222-8222-222222222222');
 RESET ROLE;
