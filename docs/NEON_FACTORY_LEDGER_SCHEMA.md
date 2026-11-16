@@ -13,7 +13,7 @@
 - `factory.transition_task(...)` locks the task row, validates the lifecycle edge, checks required evidence/approval, appends the event, and updates the task projection in one transaction. Exact retries return the original event sequence; reuse of a key for different intent is rejected.
 - Composite foreign keys prevent an attempt or artifact from being attached to a different task; evidence is bound to the exact producing attempt.
 - Append-only triggers reject UPDATE, DELETE, and TRUNCATE on events, approvals, evidence, and artifact metadata.
-- Every task belongs to an explicit project namespace and repository.
+- Every task belongs to an explicit project namespace. A product's Git repository is optional metadata because TRADIX also produces non-software products.
 - High and critical risk tasks cannot exist without an approval requirement.
 - Foreign keys use `ON DELETE RESTRICT`; this design does not provide cascade deletion.
 - No public API, model key, or service credential is stored in this schema.
@@ -105,3 +105,12 @@ Row-level security is enabled and forced on projects, tasks, attempts, events, a
 Human approvals are inserted only through the separate `factory_approval_authority` group. The row records `decided_by_login` from PostgreSQL `session_user`. The approval is bound to a non-null attempt ID and the task's immutable-for-runtime `approval_scope`; the transition gate requires exact equality of task, attempt, action, approved decision, and JSON decision scope. The runtime role cannot insert or alter approval rows. Provisioning and authenticating real human approvers remains an external trusted control-plane responsibility; the SQL role boundary alone does not prove a human's identity.
 
 Required CI negatives include cross-project reads, role escalation, runtime-created approvals, approval reuse across attempts, scope mismatch, missing attempt IDs, and evidence reuse across attempts. CI uses disposable PostgreSQL only. No Neon branch or Production database has been modified by this revision.
+
+
+## General-purpose product registry correction — 2026-11-16
+
+The `factory.projects` registry is product-agnostic. It now records a required `product_type` label and permits `repository_full_name` to be NULL. A Git repository is relevant to software or other Git-managed deliverables, but it is not a prerequisite for registering a physical product, service, or hybrid product.
+
+The SQL integration fixture now registers a `physical` product with no Git repository and asserts that the row is accepted. Existing software fixtures retain their repository references. This change does not create a separate product dossier document or define its storage backend; the architecture baseline requires one independent dossier per product, and its durable reference/versioning contract remains a separate implementation item.
+
+The migration remains a draft artifact. CI must validate this revision on disposable PostgreSQL before any consideration of an isolated Neon trial. No Neon or Production migration is authorized by this change.
