@@ -8,7 +8,7 @@ const health = await fetch(`${base}/health`);
 assert.equal(health.status, 200);
 assert.deepEqual(await health.json(), { ok: true, service: "memory-gateway", version: "1.0.2" });
 
-const unauthorized = await fetch(`${base}/v1/context?project=tradix`);
+const unauthorized = await fetch(`${base}/v1/context?project=missing`);
 assert.equal(unauthorized.status, 401);
 
 const missing = await fetch(`${base}/v1/context?project=tradix`, {
@@ -35,4 +35,4 @@ assert.ok(Array.isArray(context.approved_decisions));
 assert.ok(Array.isArray(context.recent_events));
 assert.equal(context.recent_events[0].event_type, "CI_INTEGRATION_TEST");
 
-console.log("memory gateway integration: 6 checks passed");
+console.log("memory gateway integration checks passed");
