@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { timingSafeEqual } from "node:crypto";
+import { timingSafeEqual, createHash } from "node:crypto";
 import { Pool } from "pg";
 
 const port = Number(process.env.PORT || 8789);
@@ -92,6 +92,128 @@ function mapDatabaseError(error) {
   return [503, "database_unavailable"];
 }
 
+
+function nonEmptyString(value, max) {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= max;
+}
+
+function validateIntake(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input) ||
+      Object.keys(input).some(key => !["dossier", "mission", "task_plan"].includes(key)) ||
+      !input.dossier || !input.mission || !input.task_plan) {
+    return "intake must contain exactly dossier, mission, and task_plan objects";
+  }
+  const { dossier, mission, task_plan: plan } = input;
+  if ([dossier, mission, plan].some(x => !x || typeof x !== "object" || Array.isArray(x) || Object.hasOwn(x, "project_id"))) {
+    return "intake snapshots must be objects and cannot supply project_id";
+  }
+  if (dossier.schema_version !== 1 || dossier.product_type !== productIdentity.product_type ||
+      !nonEmptyString(dossier.mission, 12000) || !Array.isArray(dossier.requirements) || dossier.requirements.length < 1 ||
+      !Array.isArray(dossier.acceptance_criteria) || dossier.acceptance_criteria.length < 1 ||
+      !dossier.lifecycle || dossier.lifecycle.state !== "pending_approval") {
+    return "invalid dossier or dossier lifecycle must be pending_approval";
+  }
+  const missionKeys = new Set(["mission_id","project_key","version","title","objective","acceptance_criteria","constraints","risk_class","approval_required","budget_currency","budget_limit_minor"]);
+  if (Object.keys(mission).some(k => !missionKeys.has(k)) ||
+      mission.project_key !== productIdentity.project_key ||
+      !nonEmptyString(mission.mission_id, 80) || !Number.isInteger(mission.version) || mission.version < 1 ||
+      !nonEmptyString(mission.title,160) || !nonEmptyString(mission.objective,12000) ||
+      !Array.isArray(mission.acceptance_criteria) || mission.acceptance_criteria.length < 1 || mission.acceptance_criteria.length > 30 ||
+      !Array.isArray(mission.constraints || []) || (mission.constraints || []).length > 30 ||
+      !["low","medium","high","critical"].includes(mission.risk_class || "low") ||
+      mission.approval_required !== true ||
+      (["high","critical"].includes(mission.risk_class) && !mission.approval_required) ||
+      ((mission.budget_currency === undefined) !== (mission.budget_limit_minor === undefined)) ||
+      (mission.budget_currency !== undefined && !/^[A-Z]{3}$/.test(mission.budget_currency)) ||
+      (mission.budget_limit_minor !== undefined && (!Number.isSafeInteger(mission.budget_limit_minor) || mission.budget_limit_minor < 0))) {
+    return "invalid mission; approval_required must be true for intake";
+  }
+  const planKeys = new Set(["mission_id","mission_version","plan_version","project_key","tasks","dependencies"]);
+  if (Object.keys(plan).some(k => !planKeys.has(k)) ||
+      plan.mission_id !== mission.mission_id || plan.mission_version !== mission.version ||
+      plan.project_key !== productIdentity.project_key || !Number.isInteger(plan.plan_version) || plan.plan_version < 1 ||
+      !Array.isArray(plan.tasks) || plan.tasks.length < 1 || plan.tasks.length > 100 ||
+      !Array.isArray(plan.dependencies) || plan.dependencies.length > 500) {
+    return "invalid task plan identity or shape";
+  }
+  const ids = new Set();
+  for (const task of plan.tasks) {
+    if (!task || typeof task !== "object" || Array.isArray(task) ||
+        !nonEmptyString(task.task_id,80) || ids.has(task.task_id) ||
+        task.project_key !== productIdentity.project_key ||
+        !nonEmptyString(task.title,160) || !nonEmptyString(task.request,12000) ||
+        !Array.isArray(task.acceptance_criteria) || task.acceptance_criteria.length < 1 || task.acceptance_criteria.length > 30 ||
+        !["low","medium","high","critical"].includes(task.risk_class || "low") ||
+        typeof (task.approval_required ?? false) !== "boolean" ||
+        (["high","critical"].includes(task.risk_class) && task.approval_required !== true) ||
+        ((task.repository === undefined) !== (task.base_ref === undefined))) {
+      return "invalid task envelope in plan";
+    }
+    ids.add(task.task_id);
+  }
+  const edges = new Set();
+  const outgoing = new Map([...ids].map(id => [id, []]));
+  const indegree = new Map([...ids].map(id => [id, 0]));
+  for (const edge of plan.dependencies) {
+    if (!edge || typeof edge !== "object" || Object.keys(edge).length !== 2 ||
+        !ids.has(edge.depends_on) || !ids.has(edge.task_id) || edge.depends_on === edge.task_id) {
+      return "invalid task dependency";
+    }
+    const key = edge.depends_on + "\\u0000" + edge.task_id;
+    if (edges.has(key)) return "duplicate task dependency";
+    edges.add(key);
+    outgoing.get(edge.depends_on).push(edge.task_id);
+    indegree.set(edge.task_id, indegree.get(edge.task_id) + 1);
+  }
+  const ready = [...ids].filter(id => indegree.get(id) === 0);
+  let visited = 0;
+  while (ready.length) {
+    const id = ready.pop();
+    visited++;
+    for (const next of outgoing.get(id)) {
+      indegree.set(next, indegree.get(next) - 1);
+      if (indegree.get(next) === 0) ready.push(next);
+    }
+  }
+  if (visited !== ids.size) return "task plan dependency graph contains a cycle";
+  return null;
+}
+
+function intakeKey(root, kind) {
+  const digest = createHash("sha256").update(root).digest("hex").slice(0, 48);
+  return `intake:${digest}:${kind}`;
+}
+
+async function recordIntake(input, rootKey) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const dossierVersion = await client.query(
+      "SELECT factory.record_product_dossier($1::uuid, $2::jsonb, $3::text) AS version_no",
+      [productIdentity.project_id, JSON.stringify(input.dossier), intakeKey(rootKey, "dossier")]
+    );
+    const missionVersion = await client.query(
+      "SELECT factory.record_mission_version($1::uuid, $2::jsonb, $3::text) AS version_no",
+      [productIdentity.project_id, JSON.stringify(input.mission), intakeKey(rootKey, "mission")]
+    );
+    const planVersion = await client.query(
+      "SELECT factory.record_task_plan_version($1::uuid, $2::text, $3::integer, $4::jsonb, $5::text) AS plan_version_no",
+      [productIdentity.project_id, input.mission.mission_id, input.mission.version, JSON.stringify(input.task_plan), intakeKey(rootKey, "plan")]
+    );
+    await client.query("COMMIT");
+    return {
+      dossier_version: dossierVersion.rows[0].version_no,
+      mission_version: missionVersion.rows[0].version_no,
+      plan_version: planVersion.rows[0].plan_version_no
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function verifyDatabaseIdentity() {
   const identityResult = await pool.query(`
     SELECT session_user::text AS login,
@@ -123,6 +245,25 @@ async function handle(request, response) {
   if (!authorized(request)) return send(response, 401, { error: "unauthorized" });
   if (request.method === "GET" && url.pathname === "/v1/product") {
     return send(response, 200, { product: productIdentity });
+  }
+
+
+  if (request.method === "POST" && url.pathname === "/v1/intake") {
+    const key = idempotencyKey(request, response);
+    if (!key) return;
+    const input = await readJson(request);
+    const invalid = validateIntake(input);
+    if (invalid) return send(response, 422, { error: "invalid_intake", detail: invalid });
+    const versions = await recordIntake(input, key);
+    return send(response, 200, {
+      product: productIdentity,
+      intake_status: "pending_human_approval",
+      dispatch_authorized: false,
+      task_creation: "not_performed",
+      resource_reservation: "not_performed",
+      versions,
+      mission_id: input.mission.mission_id
+    });
   }
 
   if (request.method === "POST" && url.pathname === "/v1/missions") {
