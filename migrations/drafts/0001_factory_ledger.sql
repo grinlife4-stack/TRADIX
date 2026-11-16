@@ -406,7 +406,7 @@ REVOKE ALL ON ALL FUNCTIONS IN SCHEMA factory FROM PUBLIC;
 
 GRANT SELECT ON ALL TABLES IN SCHEMA factory TO factory_runtime;
 GRANT INSERT ON factory.task_approvals TO factory_approval_authority;
-GRANT SELECT ON factory.project_identities TO factory_approval_authority;
+GRANT SELECT ON factory.project_identities, factory.tasks TO factory_approval_authority;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
     ON ALL TABLES IN SCHEMA factory FROM factory_runtime;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM factory_runtime;
