@@ -304,24 +304,34 @@ END;
 $body$;
 
 -- Runtime access is deliberately read-only except for the SECURITY DEFINER
--- transition function. Provisioning this NOLOGIN role is part of this draft
--- migration and must be reviewed before any managed-database application.
-DO $roles$
+-- transition function. Cluster-level roles are provisioned separately by
+-- migrations/bootstrap/0001_factory_roles.sql. The schema migration identity
+-- must be granted SET (but not INHERIT) membership in factory_executor_owner.
+DO $role_preflight$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'factory_executor_owner') THEN
-        EXECUTE 'CREATE ROLE factory_executor_owner NOLOGIN NOINHERIT';
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_roles
+        WHERE rolname = 'factory_executor_owner'
+          AND NOT rolcanlogin AND NOT rolinherit AND NOT rolsuper
+          AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolbypassrls
+    ) THEN
+        RAISE EXCEPTION 'factory_executor_owner missing or has unsafe attributes; run the role bootstrap';
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'factory_runtime') THEN
-        EXECUTE 'CREATE ROLE factory_runtime NOLOGIN NOINHERIT';
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_roles
+        WHERE rolname = 'factory_runtime'
+          AND NOT rolcanlogin AND NOT rolinherit AND NOT rolsuper
+          AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolbypassrls
+    ) THEN
+        RAISE EXCEPTION 'factory_runtime missing or has unsafe attributes; run the role bootstrap';
+    END IF;
+
+    IF NOT pg_catalog.pg_has_role(CURRENT_USER, 'factory_executor_owner', 'SET') THEN
+        RAISE EXCEPTION 'migration identity must have SET membership in factory_executor_owner';
     END IF;
 END
-$roles$;
-
--- PostgreSQL 16+ does not grant SET ROLE to a non-superuser that creates
--- another role with CREATEROLE; its automatic creator membership has SET FALSE.
--- ALTER FUNCTION ... OWNER TO requires the migration role to SET ROLE to the
--- target owner, so grant that narrowly to the current migration identity.
-GRANT factory_executor_owner TO CURRENT_USER WITH SET TRUE, INHERIT FALSE;
+$role_preflight$;
 
 REVOKE ALL ON SCHEMA factory FROM PUBLIC;
 REVOKE CREATE ON SCHEMA factory FROM PUBLIC;
