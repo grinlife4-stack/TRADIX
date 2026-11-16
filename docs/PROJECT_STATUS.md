@@ -290,3 +290,19 @@ The product dossier API and mission/plan API are separately tested write paths, 
 4. Record the intake as pending human approval; do not create executable tasks, claim work, dispatch workers, or reserve resources.
 5. Make exact retries idempotent and reject conflicting reuse.
 6. Keep repository metadata optional for physical and service products; require it only for software tasks under the existing task contract.
+
+
+## 18. Atomic product intake API (2026-11-16)
+
+- Added `POST /v1/intake` to the product-scoped mission-plan API. One request carries exactly three proposed snapshots: product dossier, mission, and task plan.
+- The API validates the product binding, strict mission/plan identity and shape, task uniqueness, dependency references, acyclic dependency graph, and the required approval hold. The dossier lifecycle must explicitly be `pending_approval`; the mission must set `approval_required: true`.
+- The API derives the product ID only from its verified database session identity. Caller-supplied `project_id` is rejected.
+- The three controlled database writer functions run on one PostgreSQL connection inside one explicit transaction. A failure rolls back all three writes. Per-snapshot idempotency keys are deterministically derived from the intake key.
+- The response explicitly reports `pending_human_approval`, `dispatch_authorized: false`, `task_creation: not_performed`, and `resource_reservation: not_performed`.
+- Integration tests exercise a deliberately invalid mission version after the dossier write has begun, then retry with changed dossier content under the same intake key. The successful retry verifies the failed transaction did not leave a partial dossier snapshot. Tests also cover exact retry and rejection when approval is not required.
+- This boundary persists proposed snapshots only. It does not create executable tasks, record an approval decision, claim work, dispatch workers, reserve resources, or start autonomous execution.
+- Verified head: `6c2b7e5e5b13aa8d353d4c2fbea57b3225344c4a`.
+- [Python tests — 43938660747](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938660747): success.
+- [Factory first-run demo — 43938660753](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938660753): success.
+- [Factory ledger + SQL/HTTP integration — 43938660763](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938660763): success, including the mission-plan API atomic-intake integration tests.
+- No Neon migration, Production write, main-branch update, deployment, secret change, paid resource, or PR merge was performed.
