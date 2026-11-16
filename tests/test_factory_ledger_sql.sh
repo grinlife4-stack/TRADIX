@@ -10,9 +10,10 @@ psql <<'SQL'
 CREATE ROLE factory_rt_tradix LOGIN INHERIT;
 CREATE ROLE factory_rt_info_engine LOGIN INHERIT;
 CREATE ROLE factory_approver_tradix LOGIN INHERIT;
+CREATE ROLE factory_approver_info_engine LOGIN INHERIT;
 CREATE ROLE factory_provisioner LOGIN NOINHERIT;
 GRANT factory_runtime TO factory_rt_tradix, factory_rt_info_engine;
-GRANT factory_approval_authority TO factory_approver_tradix;
+GRANT factory_approval_authority TO factory_approver_tradix, factory_approver_info_engine;
 GRANT factory_identity_admin TO factory_provisioner WITH SET TRUE, INHERIT FALSE;
 
 INSERT INTO factory.projects (project_id, project_key, display_name, repository_full_name)
@@ -25,7 +26,8 @@ SET ROLE factory_identity_admin;
 INSERT INTO factory.project_identities (role_name, project_id) VALUES
  ('factory_rt_tradix', '11111111-1111-4111-8111-111111111111'),
  ('factory_rt_info_engine', '22222222-2222-4222-8222-222222222222'),
- ('factory_approver_tradix', '11111111-1111-4111-8111-111111111111');
+ ('factory_approver_tradix', '11111111-1111-4111-8111-111111111111'),
+ ('factory_approver_info_engine', '22222222-2222-4222-8222-222222222222');
 RESET ROLE;
 RESET SESSION AUTHORIZATION;
 
@@ -66,6 +68,7 @@ INSERT INTO factory.task_events (
  'task.created', 'queued', 'system', 'ci-test', 'ci-event-1', '{}'::jsonb
 );
 
+SET SESSION AUTHORIZATION factory_approver_info_engine;
 INSERT INTO factory.task_approvals (
   approval_id, task_id, attempt_id, approval_round, action, decision, decided_by, rationale, decision_scope
 ) VALUES (
@@ -81,6 +84,7 @@ INSERT INTO factory.task_approvals (
  '13131313-1313-4313-8313-131313131313',
  1, 'begin_implementation', 'approved', 'ci-test', 'wrong scope fixture', '{"scope":"wrong"}'::jsonb
 );
+RESET SESSION AUTHORIZATION;
 
 INSERT INTO factory.task_artifacts (
   artifact_id, task_id, attempt_id, artifact_type, object_uri, sha256, byte_size
