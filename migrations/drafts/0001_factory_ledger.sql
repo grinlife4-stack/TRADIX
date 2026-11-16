@@ -50,7 +50,9 @@ REVOKE UPDATE, DELETE, TRUNCATE ON factory.product_dossier_versions FROM PUBLIC;
 CREATE TABLE factory.project_identities (
     role_name NAME PRIMARY KEY,
     project_id UUID NOT NULL REFERENCES factory.projects(project_id) ON DELETE RESTRICT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    identity_kind TEXT NOT NULL CHECK (identity_kind IN ('runtime', 'approval')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (project_id, identity_kind)
 );
 
 CREATE FUNCTION factory.validate_project_identity()
@@ -74,6 +76,10 @@ BEGIN
     v_approver := pg_catalog.pg_has_role(NEW.role_name, 'factory_approval_authority', 'MEMBER');
     IF v_runtime = v_approver THEN
         RAISE EXCEPTION 'project identity must belong to exactly one of runtime or approval authority';
+    END IF;
+    IF (v_runtime AND NEW.identity_kind <> 'runtime')
+       OR (v_approver AND NEW.identity_kind <> 'approval') THEN
+        RAISE EXCEPTION 'project identity kind does not match its authority role';
     END IF;
     IF pg_catalog.pg_has_role(NEW.role_name, 'factory_executor_owner', 'MEMBER') THEN
         RAISE EXCEPTION 'project identity cannot belong to factory_executor_owner';
@@ -561,7 +567,8 @@ REVOKE CREATE ON SCHEMA factory FROM PUBLIC;
 GRANT USAGE ON SCHEMA factory TO factory_runtime;
 GRANT USAGE ON SCHEMA factory TO factory_approval_authority;
 GRANT USAGE ON SCHEMA factory TO factory_identity_admin;
-GRANT SELECT, INSERT, UPDATE, DELETE ON factory.project_identities TO factory_identity_admin;
+GRANT SELECT, INSERT, UPDATE ON factory.projects TO factory_identity_admin;
+GRANT SELECT, INSERT, UPDATE ON factory.project_identities TO factory_identity_admin;
 
 REVOKE ALL ON ALL TABLES IN SCHEMA factory FROM PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM PUBLIC;
@@ -629,6 +636,10 @@ ALTER TABLE factory.task_artifacts FORCE ROW LEVEL SECURITY;
 ALTER TABLE factory.task_evidence ENABLE ROW LEVEL SECURITY;
 ALTER TABLE factory.task_evidence FORCE ROW LEVEL SECURITY;
 
+CREATE POLICY projects_admin_manage ON factory.projects
+    FOR ALL TO factory_identity_admin
+    USING (true)
+    WITH CHECK (true);
 CREATE POLICY project_identity_admin_manage ON factory.project_identities
     FOR ALL TO factory_identity_admin
     USING (true)
