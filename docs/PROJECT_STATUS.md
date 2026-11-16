@@ -4,24 +4,24 @@
 **Repository:** `grinlife4-stack/TRADIX`  
 **Active PR:** [#3 — Define TRADIX executive runtime architecture](https://github.com/grinlife4-stack/TRADIX/pull/3)  
 **Working branch:** `factory/executive-runtime-architecture-v0-1`  
-**Last verified code/test baseline:** `bfc225bc6a5f9f50195706c4858b7ddffc227a8f`  
+**Last verified code/test baseline:** `7019d0be800188f0054e0fbbc0cf8325912c0a0b`  
 **Production policy:** Neon Production and `main` remain untouched unless explicitly approved.
 
 ## 1. Executive status
 
 TRADIX has a verified deterministic demonstration path, a tested runnable read-only memory gateway, draft factory-ledger SQL, and provider-neutral model/task contracts. It is **not yet an autonomous software factory**.
 
-Verified branch head `bfc225bc6a5f9f50195706c4858b7ddffc227a8f` passed both Python tests and disposable PostgreSQL 17 plus Node HTTP integration. The ledger migration now runs in CI as a non-superuser `CREATEROLE` identity, not as PostgreSQL superuser. These checks do not prove a deployed runtime, live model execution, persistent orchestration, autonomous implementation, or unattended recovery.
+Verified branch head `7019d0be800188f0054e0fbbc0cf8325912c0a0b` passed both Python tests and disposable PostgreSQL 17 plus Node HTTP integration. Cluster-level factory roles are provisioned separately by an administrator; the schema migration runs as a non-superuser without `CREATEROLE`. These checks do not prove a deployed runtime, live model execution, persistent orchestration, autonomous implementation, or unattended recovery.
 
 ## 2. Source control and CI
 
 PR #3 is **open, Draft, and unmerged**. Last code/test-verified branch head:
 
-`bfc225bc6a5f9f50195706c4858b7ddffc227a8f`
+`7019d0be800188f0054e0fbbc0cf8325912c0a0b`
 
 Successful workflow runs on that exact head:
-- [Python tests — 43817870900](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817870900): success.
-- [Factory ledger + memory gateway SQL/HTTP integration — 43817871156](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817871156): success. The ledger migration and full role-boundary tests ran as a non-superuser `CREATEROLE` identity.
+- [Python tests — 43818189687](https://github.com/grinlife4-stack/TRADIX/actions/runs/43818189687): success.
+- [Factory ledger + memory gateway SQL/HTTP integration — 43818189686](https://github.com/grinlife4-stack/TRADIX/actions/runs/43818189686): success. Role bootstrap ran as administrator; the schema migration and privilege-boundary tests ran as a non-superuser without `CREATEROLE`.
 
 A subsequent documentation-only status commit `e31365a13b9083150648c77989743c9338c9381a` also passed both workflows: [Python tests — 43817413028](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817413028) and [Factory ledger integration — 43817413000](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817413000).
 
@@ -59,7 +59,7 @@ These are historical observations, not a fresh live database read. No migration 
 - B2 private-bucket connectivity, list, upload, and read-back test from an ephemeral GitHub runner.
 - Read-only Node memory gateway with HTTP entrypoint, `npm start`, runtime README, SQL tests, and HTTP integration tests.
 - JSON schemas for project state, decisions, evidence, and checkpoints.
-- Latest CI on head `bfc225bc6a5f9f50195706c4858b7ddffc227a8f`: both workflows successful (Python `43817870900`; SQL/HTTP `43817871156`).
+- Latest CI on head `7019d0be800188f0054e0fbbc0cf8325912c0a0b`: both workflows successful (Python `43818189687`; SQL/HTTP `43818189686`).
 
 ## 6. Not yet operational
 
@@ -120,8 +120,8 @@ Two PostgreSQL 16+ migration issues were found and corrected:
 1. A non-superuser with `CREATEROLE` receives automatic creator membership with `ADMIN TRUE`, but `SET FALSE` and `INHERIT FALSE`. A separate bootstrap now creates the NOLOGIN factory roles and explicitly grants `factory_executor_owner` to the selected migration identity with `SET TRUE, INHERIT FALSE`. Runtime is not granted membership in the owner role.
 2. Function ACL revocation/grant must happen while the migration identity still owns the function. The ACL operations now occur before `ALTER FUNCTION ... OWNER TO factory_executor_owner`; otherwise a non-superuser migration identity loses authority to change the function ACL after ownership transfer.
 
-CI provisions `tradix_migrator` without `CREATEROLE`, grants it only database `CREATE` plus SET-only membership in the function-owner role, provisions the factory roles separately as administrator, and applies the draft migration as `tradix_migrator`. Assertions verify the owner-role SET/INHERIT boundary and runtime isolation. Exact successful runs on branch head `bfc225bc6a5f9f50195706c4858b7ddffc227a8f`:
-- Python: [43817870900](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817870900)
-- SQL + memory gateway integration: [43817871156](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817871156)
+CI provisions `tradix_migrator` without `CREATEROLE`, grants it only database `CREATE` plus SET-only membership in the function-owner role, provisions the factory roles separately as administrator, and applies the draft migration as `tradix_migrator`. Assertions verify the owner-role SET/INHERIT boundary and runtime isolation. Exact successful runs on branch head `7019d0be800188f0054e0fbbc0cf8325912c0a0b`:
+- Python: [43818189687](https://github.com/grinlife4-stack/TRADIX/actions/runs/43818189687)
+- SQL + memory gateway integration: [43818189686](https://github.com/grinlife4-stack/TRADIX/actions/runs/43818189686)
 
 **Remaining boundary:** disposable PostgreSQL 17 CI plus read-only inspection of Neon PostgreSQL 18 is not a live Neon migration test. Before any future isolated Neon-branch trial, verify the actual connection identity and inspect role memberships, function ownership, ACLs, and default privileges after application. Production, `main`, secrets, deployments, and merges remain untouched.
