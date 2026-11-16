@@ -211,7 +211,7 @@ BEGIN
     IF p_task_id IS NULL
        OR p_to_state IS NULL
        OR p_event_type IS NULL OR length(trim(p_event_type)) NOT BETWEEN 1 AND 100
-       OR p_actor_type IS NULL OR p_actor_type NOT IN ('human', 'system', 'agent', 'github')
+       OR p_actor_type IS NULL OR p_actor_type NOT IN ('system', 'agent', 'github')
        OR p_actor_ref IS NULL OR length(trim(p_actor_ref)) NOT BETWEEN 1 AND 200
        OR p_idempotency_key IS NULL OR length(trim(p_idempotency_key)) NOT BETWEEN 1 AND 255
        OR p_payload IS NULL OR jsonb_typeof(p_payload) <> 'object' THEN
@@ -308,8 +308,11 @@ $body$;
 -- migration and must be reviewed before any managed-database application.
 DO $roles$
 BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'factory_executor_owner') THEN
+        EXECUTE 'CREATE ROLE factory_executor_owner NOLOGIN NOINHERIT';
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'factory_runtime') THEN
-        EXECUTE 'CREATE ROLE factory_runtime NOLOGIN';
+        EXECUTE 'CREATE ROLE factory_runtime NOLOGIN NOINHERIT';
     END IF;
 END
 $roles$;
@@ -326,6 +329,17 @@ GRANT SELECT ON ALL TABLES IN SCHEMA factory TO factory_runtime;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
     ON ALL TABLES IN SCHEMA factory FROM factory_runtime;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM factory_runtime;
+
+-- Give the SECURITY DEFINER function a dedicated, non-login owner with
+-- only the table privileges its body requires. It is not a superuser or table owner.
+GRANT USAGE, CREATE ON SCHEMA factory TO factory_executor_owner;
+GRANT SELECT, UPDATE ON factory.tasks TO factory_executor_owner;
+GRANT SELECT, INSERT ON factory.task_events TO factory_executor_owner;
+GRANT SELECT ON factory.task_approvals, factory.task_evidence TO factory_executor_owner;
+ALTER FUNCTION factory.transition_task(
+    UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB
+) OWNER TO factory_executor_owner;
+REVOKE CREATE ON SCHEMA factory FROM factory_executor_owner;
 
 REVOKE ALL ON FUNCTION factory.transition_task(
     UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB
