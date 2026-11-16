@@ -477,7 +477,36 @@ ALTER TABLE factory.task_evidence FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY project_identity_self ON factory.project_identities
     FOR SELECT TO PUBLIC
-    USING (role_name = session_user);
+    USING (
+        role_name = session_user
+        AND (
+            (
+                pg_catalog.pg_has_role(session_user, 'factory_runtime', 'MEMBER')
+                AND NOT pg_catalog.pg_has_role(session_user, 'factory_approval_authority', 'MEMBER')
+                AND NOT pg_catalog.pg_has_role(session_user, 'factory_executor_owner', 'MEMBER')
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM pg_catalog.pg_auth_members m
+                    JOIN pg_catalog.pg_roles granted_role ON granted_role.oid = m.roleid
+                    WHERE m.member = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = session_user)
+                      AND granted_role.rolname <> 'factory_runtime'
+                )
+            )
+            OR
+            (
+                pg_catalog.pg_has_role(session_user, 'factory_approval_authority', 'MEMBER')
+                AND NOT pg_catalog.pg_has_role(session_user, 'factory_runtime', 'MEMBER')
+                AND NOT pg_catalog.pg_has_role(session_user, 'factory_executor_owner', 'MEMBER')
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM pg_catalog.pg_auth_members m
+                    JOIN pg_catalog.pg_roles granted_role ON granted_role.oid = m.roleid
+                    WHERE m.member = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = session_user)
+                      AND granted_role.rolname <> 'factory_approval_authority'
+                )
+            )
+        )
+    );
 CREATE POLICY projects_isolated ON factory.projects
     FOR SELECT TO PUBLIC
     USING (project_id IN (
