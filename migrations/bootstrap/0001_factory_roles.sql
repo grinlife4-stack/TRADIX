@@ -48,7 +48,7 @@ BEGIN
     IF (
         SELECT count(*)
         FROM pg_catalog.pg_roles
-        WHERE rolname IN ('factory_executor_owner', 'factory_runtime', 'factory_approval_authority')
+        WHERE rolname IN ('factory_executor_owner', 'factory_runtime', 'factory_approval_authority', 'factory_identity_admin')
     ) <> 4 THEN
         RAISE EXCEPTION 'factory role bootstrap incomplete';
     END IF;
