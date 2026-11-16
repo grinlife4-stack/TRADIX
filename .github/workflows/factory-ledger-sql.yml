@@ -29,15 +29,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Provision least-privilege migration test identity
+      - name: Provision non-privileged schema migration identity
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test <<'SQL'
-          CREATE ROLE tradix_migrator LOGIN CREATEROLE;
+          CREATE ROLE tradix_migrator LOGIN NOCREATEROLE;
           GRANT CREATE ON DATABASE tradix_test TO tradix_migrator;
           SQL
-      - name: Apply factory ledger draft as non-superuser CREATEROLE identity
+      - name: Provision cluster-level factory roles as administrator
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/bootstrap/0001_factory_roles.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "GRANT factory_executor_owner TO tradix_migrator WITH SET TRUE, INHERIT FALSE"
+      - name: Apply factory ledger draft as non-superuser without CREATEROLE
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
