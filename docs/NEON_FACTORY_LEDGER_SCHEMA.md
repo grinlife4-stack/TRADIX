@@ -94,3 +94,14 @@ branch. Before a future isolated Neon-branch migration, verify the actual
 migration connection identity and privileges, then inspect the resulting role
 membership, function owner, function ACL, and default privileges. Production
 remains out of scope.
+
+
+## Project identity and approval boundary (draft revision)
+
+The factory ledger uses **independent project login identities**. A database login is mapped to exactly one project in `factory.project_identities`; multiple separately controlled identities may map to the same project (for example, its runtime and its human-approval service). A login must never be shared across projects. Runtime logins inherit only `factory_runtime`; human approval logins inherit only `factory_approval_authority`. Neither may become a member of `factory_executor_owner`, and runtime may not inherit approval authority.
+
+Row-level security is enabled and forced on projects, tasks, attempts, events, approvals, artifacts, evidence, and the identity map. Policies resolve the project from PostgreSQL `session_user`, not caller-settable session variables or `current_user`; using `SET ROLE` therefore cannot switch project identity. The identity-map trigger rejects missing, non-login, privileged, or incorrectly grouped roles. A trusted administrator provisions each login, grants exactly one authority group, and inserts its project mapping. Credentials are project-specific and are not stored in this schema.
+
+Human approvals are inserted only through the separate `factory_approval_authority` group. The row records `decided_by_login` from PostgreSQL `session_user`. The approval is bound to a non-null attempt ID and the task's immutable-for-runtime `approval_scope`; the transition gate requires exact equality of task, attempt, action, approved decision, and JSON decision scope. The runtime role cannot insert or alter approval rows. Provisioning and authenticating real human approvers remains an external trusted control-plane responsibility; the SQL role boundary alone does not prove a human's identity.
+
+Required CI negatives include cross-project reads, role escalation, runtime-created approvals, approval reuse across attempts, scope mismatch, missing attempt IDs, and evidence reuse across attempts. CI uses disposable PostgreSQL only. No Neon branch or Production database has been modified by this revision.
