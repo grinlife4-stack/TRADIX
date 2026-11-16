@@ -1,11 +1,1 @@
-{
-  "name": "factory-memory-gateway",
-  "version": "1.0.1",
-  "private": true,
-  "type": "module",
-  "engines": { "node": ">=24" },
-  "dependencies": {
-    "@neon/functions": "^1.0.0",
-    "pg": "^8.16.3"
-  }
-}
+{"name":"factory-memory-gateway","version":"1.0.2","private":true,"type":"module","engines":{"node":">=24"},"dependencies":{}}
