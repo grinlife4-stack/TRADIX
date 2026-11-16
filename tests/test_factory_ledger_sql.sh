@@ -16,10 +16,25 @@ GRANT factory_runtime TO factory_rt_tradix, factory_rt_info_engine;
 GRANT factory_approval_authority TO factory_approver_tradix, factory_approver_info_engine;
 GRANT factory_identity_admin TO factory_provisioner WITH SET TRUE, INHERIT FALSE;
 
-INSERT INTO factory.projects (project_id, project_key, display_name, repository_full_name)
-VALUES
- ('11111111-1111-4111-8111-111111111111', 'tradix', 'TRADIX', 'grinlife4-stack/TRADIX'),
- ('22222222-2222-4222-8222-222222222222', 'info-engine', 'info_engine', 'grinlife4-stack/info_engine');
+INSERT INTO factory.projects (
+  project_id, project_key, display_name, product_type, repository_full_name
+) VALUES
+ ('11111111-1111-4111-8111-111111111111', 'tradix', 'TRADIX', 'software', 'grinlife4-stack/TRADIX'),
+ ('22222222-2222-4222-8222-222222222222', 'info-engine', 'info_engine', 'software', 'grinlife4-stack/info_engine'),
+ ('44444444-4444-4444-8444-444444444444', 'physical-goods', 'Physical Goods Product', 'physical', NULL);
+
+DO $
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM factory.projects
+    WHERE project_key = 'physical-goods'
+      AND product_type = 'physical'
+      AND repository_full_name IS NULL
+  ) THEN
+    RAISE EXCEPTION 'non-software product without a Git repository was not registered';
+  END IF;
+END;
+$;
 
 SET SESSION AUTHORIZATION factory_provisioner;
 SET ROLE factory_identity_admin;
