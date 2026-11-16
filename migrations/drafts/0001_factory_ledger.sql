@@ -182,4 +182,123 @@ REVOKE UPDATE, DELETE, TRUNCATE ON factory.task_approvals FROM PUBLIC;
 REVOKE UPDATE, DELETE, TRUNCATE ON factory.task_evidence FROM PUBLIC;
 REVOKE UPDATE, DELETE, TRUNCATE ON factory.task_artifacts FROM PUBLIC;
 
+
+-- The only supported lifecycle write path: lock the task, validate the edge,
+-- enforce evidence/approval gates, append the event, and update the projection
+-- in one PostgreSQL transaction. Callers must not update tasks.status directly.
+CREATE FUNCTION factory.transition_task(
+    p_task_id UUID,
+    p_to_state TEXT,
+    p_event_type TEXT,
+    p_actor_type TEXT,
+    p_actor_ref TEXT,
+    p_idempotency_key TEXT,
+    p_attempt_id UUID DEFAULT NULL,
+    p_payload JSONB DEFAULT '{}'::jsonb
+)
+RETURNS BIGINT
+LANGUAGE plpgsql
+AS $
+DECLARE
+    v_task factory.tasks%ROWTYPE;
+    v_existing factory.task_events%ROWTYPE;
+    v_event_seq BIGINT;
+    v_required_evidence TEXT;
+    v_allowed BOOLEAN := FALSE;
+BEGIN
+    IF p_task_id IS NULL
+       OR p_to_state IS NULL
+       OR p_event_type IS NULL OR length(trim(p_event_type)) NOT BETWEEN 1 AND 100
+       OR p_actor_type NOT IN ('human', 'system', 'agent', 'github')
+       OR p_actor_ref IS NULL OR length(trim(p_actor_ref)) NOT BETWEEN 1 AND 200
+       OR p_idempotency_key IS NULL OR length(trim(p_idempotency_key)) NOT BETWEEN 1 AND 255
+       OR p_payload IS NULL OR jsonb_typeof(p_payload) <> 'object' THEN
+        RAISE EXCEPTION 'invalid task transition arguments';
+    END IF;
+
+    SELECT * INTO v_task
+    FROM factory.tasks
+    WHERE task_id = p_task_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'task not found: %', p_task_id;
+    END IF;
+
+    -- Exact retries are harmless; reusing a key for different intent is not.
+    SELECT * INTO v_existing
+    FROM factory.task_events
+    WHERE idempotency_key = p_idempotency_key;
+
+    IF FOUND THEN
+        IF v_existing.task_id = p_task_id
+           AND v_existing.to_state = p_to_state
+           AND v_existing.event_type = p_event_type
+           AND v_existing.attempt_id IS NOT DISTINCT FROM p_attempt_id
+           AND v_existing.actor_type = p_actor_type
+           AND v_existing.actor_ref = p_actor_ref
+           AND v_existing.payload = p_payload THEN
+            RETURN v_existing.event_seq;
+        END IF;
+        RAISE EXCEPTION 'idempotency key reused with different transition intent';
+    END IF;
+
+    v_allowed :=
+        (v_task.status = 'queued' AND p_to_state IN ('planned','blocked','failed','cancelled'))
+        OR (v_task.status = 'planned' AND p_to_state IN ('implementing','blocked','failed','cancelled'))
+        OR (v_task.status = 'implementing' AND p_to_state IN ('testing','blocked','failed','cancelled'))
+        OR (v_task.status = 'testing' AND p_to_state IN ('review','implementing','blocked','failed','cancelled'))
+        OR (v_task.status = 'review' AND p_to_state IN ('candidate','implementing','blocked','failed','cancelled'))
+        OR (v_task.status = 'candidate' AND p_to_state IN ('deployed_test','blocked','failed','cancelled'))
+        OR (v_task.status = 'deployed_test' AND p_to_state IN ('verified','blocked','failed','cancelled'))
+        OR (v_task.status = 'blocked' AND p_to_state IN ('planned','cancelled'));
+
+    IF NOT v_allowed THEN
+        RAISE EXCEPTION 'task transition not allowed: % -> %', v_task.status, p_to_state;
+    END IF;
+
+    IF v_task.status = 'planned' AND p_to_state = 'implementing'
+       AND v_task.approval_required
+       AND NOT EXISTS (
+           SELECT 1 FROM factory.task_approvals
+           WHERE task_id = p_task_id
+             AND action = 'begin_implementation'
+             AND decision = 'approved'
+       ) THEN
+        RAISE EXCEPTION 'human approval required before implementation';
+    END IF;
+
+    v_required_evidence := CASE
+        WHEN v_task.status = 'testing' AND p_to_state = 'review' THEN 'test_report'
+        WHEN v_task.status = 'review' AND p_to_state = 'candidate' THEN 'review_report'
+        WHEN v_task.status = 'deployed_test' AND p_to_state = 'verified' THEN 'health_check'
+        ELSE NULL
+    END;
+
+    IF v_required_evidence IS NOT NULL AND NOT EXISTS (
+        SELECT 1
+        FROM factory.task_evidence e
+        WHERE e.task_id = p_task_id
+          AND e.evidence_type = v_required_evidence
+          AND (p_attempt_id IS NULL OR e.attempt_id = p_attempt_id)
+    ) THEN
+        RAISE EXCEPTION 'required evidence missing: %', v_required_evidence;
+    END IF;
+
+    INSERT INTO factory.task_events (
+        task_id, attempt_id, event_type, from_state, to_state,
+        actor_type, actor_ref, idempotency_key, payload
+    ) VALUES (
+        p_task_id, p_attempt_id, p_event_type, v_task.status, p_to_state,
+        p_actor_type, p_actor_ref, p_idempotency_key, p_payload
+    ) RETURNING event_seq INTO v_event_seq;
+
+    UPDATE factory.tasks
+    SET status = p_to_state, updated_at = now()
+    WHERE task_id = p_task_id;
+
+    RETURN v_event_seq;
+END;
+$;
+
 COMMIT;
