@@ -47,3 +47,12 @@ PostgreSQL triggers and grants reduce accidental mutation, but a database owner 
 ## Execution boundary
 
 This SQL file is a review artifact only. It has not been run against Neon. No branch was created, no schema was applied, and Production was not modified.
+
+
+## Runtime privilege boundary (draft, CI-only)
+
+The draft ledger now provisions a `NOLOGIN` role named `factory_runtime`. It receives schema usage, SELECT on ledger tables, and EXECUTE only on `factory.transition_task(...)`. It receives no direct INSERT/UPDATE/DELETE/TRUNCATE privileges on ledger tables and no sequence privileges. The transition function is `SECURITY DEFINER` with a fixed safe search path; PUBLIC execution is revoked.
+
+A deployment-specific login role must be provisioned separately and granted membership in `factory_runtime`. Do not grant the runtime login role ownership, superuser, CREATEROLE, schema CREATE, or direct table-write privileges. The migration owner remains the function owner and is a privileged administrative identity, not an application credential.
+
+The integration test uses PostgreSQL role switching to prove that the runtime role can read and invoke the controlled transition while direct projection writes, event inserts, immutable-event updates, and TRUNCATE are denied. This is draft SQL tested only in disposable PostgreSQL; it is not approved for Neon or Production. Review managed-role provisioning and default-privilege behavior before any migration.
