@@ -166,3 +166,13 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
 - The architecture baseline version 1.2 was introduced in commit `b2f88c329f62ac906144d30a151c25c7b0223cbe`; it defines TRADIX as a general-purpose production factory and requires an independent dossier per product.
 - Current PR #3 head at the time of this update: `75dfcb3f907bf2c3bfd20a02986a06d95fdf6a7f`. The GitHub connector returned no workflow runs and an empty combined-status list for this head. CI is therefore **unverified**, not passed or failed.
 - No Neon migration, database write, Production change, merge, deployment, secret change, or paid resource creation occurred. All schema changes remain draft files in the PR branch.
+
+
+## 2026-11-16 — Versioned product dossier implementation
+
+- Added `factory.product_dossier_versions`: immutable, append-only snapshots keyed by product/project and monotonically increasing version number.
+- Added controlled writer `factory.record_product_dossier(project_id, dossier, idempotency_key)`. It checks the authenticated `session_user` project mapping, validates the minimum dossier envelope and registered product type, serializes version allocation with a product-row lock, and supports exact idempotent retries.
+- Runtime can read only its own dossier versions and can write only through the SECURITY DEFINER function. Direct INSERT/UPDATE/DELETE/TRUNCATE are not granted; RLS is enabled and forced; append-only triggers reject mutation.
+- Added disposable-PostgreSQL integration cases for version 1/2, exact retry, cross-project write denial, product-type mismatch, required fields, cross-project read isolation, append-only enforcement, and direct-write denial.
+- Migration remains draft-only. No Neon branch, Production database, secret, deployment, merge, or paid resource was touched.
+- CI must be checked against the exact final PR head before this implementation is considered verified.
