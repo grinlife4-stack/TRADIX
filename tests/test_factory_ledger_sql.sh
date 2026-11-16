@@ -167,6 +167,8 @@ INSERT INTO factory.tasks (
  'ci-task-no-approval', 'Approval gate test', 'Must not start without approval.',
  '["approval required"]'::jsonb, 'high', true
 );
+INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
+VALUES ('14141414-1414-4414-8414-141414141414', '33333333-3333-4333-8333-333333333333', 1, 'implementer');
 SQL
 
 psql -v ON_ERROR_STOP=1 -At <<'SQL'
