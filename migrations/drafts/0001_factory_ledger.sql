@@ -51,6 +51,18 @@ BEGIN
     IF pg_catalog.pg_has_role(NEW.role_name, 'factory_executor_owner', 'MEMBER') THEN
         RAISE EXCEPTION 'project identity cannot belong to factory_executor_owner';
     END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_auth_members m
+        JOIN pg_catalog.pg_roles granted_role ON granted_role.oid = m.roleid
+        WHERE m.member = v_role.oid
+          AND granted_role.rolname <> CASE
+              WHEN v_runtime THEN 'factory_runtime'::NAME
+              ELSE 'factory_approval_authority'::NAME
+          END
+    ) THEN
+        RAISE EXCEPTION 'project identity has an unexpected role membership';
+    END IF;
     RETURN NEW;
 END;
 $identity$;
