@@ -88,7 +88,7 @@ function mapDatabaseError(error) {
   if (message.includes("invalid mission snapshot")) return [422, "invalid_mission"];
   if (message.includes("invalid task plan snapshot") ||
       message.includes("task plan contains") ||
-      message.includes("task plan project or mission identity mismatch") || message.includes("mission version not found for this product runtime")) return [422, "invalid_task_plan"];
+      message.includes("task plan project or mission identity mismatch")) return [422, "invalid_task_plan"];
   return [503, "database_unavailable"];
 }
 
