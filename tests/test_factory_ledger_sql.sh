@@ -369,4 +369,42 @@ expect_failure "runtime cannot mutate immutable task events" "permission denied"
 expect_failure "runtime cannot truncate ledger tables" "permission denied" \
   "SET SESSION AUTHORIZATION factory_rt_info_engine; TRUNCATE factory.tasks"
 
+
+# Product dossier snapshots are versioned, project-scoped, idempotent, and append-only.
+dossier_v1='{"schema_version":1,"product_type":"software","mission":"TRADIX dossier isolation test","requirements":["independent product record"],"acceptance_criteria":["versioned and isolated"],"lifecycle":{"state":"active"}}'
+dossier_v2='{"schema_version":1,"product_type":"software","mission":"TRADIX dossier revision two","requirements":["independent product record","revision history"],"acceptance_criteria":["versioned and isolated"],"lifecycle":{"state":"active"}}'
+
+first_dossier_version=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '$dossier_v1'::jsonb, 'tradix-dossier-v1'); RESET SESSION AUTHORIZATION")
+retry_dossier_version=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '$dossier_v1'::jsonb, 'tradix-dossier-v1'); RESET SESSION AUTHORIZATION")
+second_dossier_version=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '$dossier_v2'::jsonb, 'tradix-dossier-v2'); RESET SESSION AUTHORIZATION")
+if [[ "$first_dossier_version" != "1" || "$retry_dossier_version" != "1" || "$second_dossier_version" != "2" ]]; then
+  echo "FAIL: product dossier versioning or idempotent retry is incorrect"
+  exit 1
+fi
+echo "PASS: product dossier snapshots are versioned and idempotent"
+
+expect_failure "runtime cannot write a dossier for another project" "not authorized for this product dossier" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('22222222-2222-4222-8222-222222222222', '$dossier_v1'::jsonb, 'cross-project-dossier')"
+expect_failure "dossier product type must match its registered product" "dossier product_type does not match the registered product" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '{\"schema_version\":1,\"product_type\":\"physical\",\"mission\":\"wrong type\",\"requirements\":[\"x\"],\"acceptance_criteria\":[\"y\"],\"lifecycle\":{}}'::jsonb, 'wrong-product-type')"
+expect_failure "dossier must include required minimum fields" "product dossier does not satisfy the minimum schema" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '{\"schema_version\":1,\"product_type\":\"software\",\"requirements\":[\"x\"],\"acceptance_criteria\":[\"y\"],\"lifecycle\":{}}'::jsonb, 'missing-mission')"
+
+if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT count(*) FROM factory.product_dossier_versions; RESET SESSION AUTHORIZATION")" != "2" ]]; then
+  echo "FAIL: TRADIX runtime cannot read its own dossier versions"
+  exit 1
+fi
+if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT count(*) FROM factory.product_dossier_versions; RESET SESSION AUTHORIZATION")" != "0" ]]; then
+  echo "FAIL: info_engine runtime can read TRADIX dossier versions"
+  exit 1
+fi
+expect_failure "product dossier snapshots reject UPDATE" "Rows in factory.product_dossier_versions are append-only" \
+  "UPDATE factory.product_dossier_versions SET dossier = '{}'::jsonb WHERE project_id = '11111111-1111-4111-8111-111111111111' AND version_no = 1"
+expect_failure "product dossier snapshots reject DELETE" "Rows in factory.product_dossier_versions are append-only" \
+  "DELETE FROM factory.product_dossier_versions WHERE project_id = '11111111-1111-4111-8111-111111111111' AND version_no = 1"
+expect_failure "product dossier snapshots reject TRUNCATE" "Rows in factory.product_dossier_versions are append-only" \
+  "TRUNCATE factory.product_dossier_versions"
+expect_failure "runtime cannot directly insert a dossier snapshot" "permission denied" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.product_dossier_versions (project_id,version_no,idempotency_key,dossier,created_by_login) VALUES ('11111111-1111-4111-8111-111111111111',99,'direct-write','{}'::jsonb,'factory_rt_tradix')"
+
 echo "All factory ledger SQL integration checks passed."
