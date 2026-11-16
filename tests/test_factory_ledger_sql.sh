@@ -130,4 +130,79 @@ expect_failure "evidence rejects DELETE" "Rows in factory.task_evidence are appe
 expect_failure "evidence rejects TRUNCATE" "Rows in factory.task_evidence are append-only" \
   "TRUNCATE factory.task_evidence"
 
+
+-- A third task has no approval record and is used to prove the database gate.
+psql <<'SQL'
+INSERT INTO factory.tasks (
+  task_id, project_id, task_key, title, request_text, acceptance_criteria,
+  risk_class, approval_required
+) VALUES (
+ '33333333-3333-4333-8333-333333333333',
+ '22222222-2222-4222-8222-222222222222',
+ 'ci-task-no-approval', 'Approval gate test', 'Must not start without approval.',
+ '["approval required"]'::jsonb, 'high', true
+);
+SQL
+
+expect_failure "task status cannot be changed directly" "task status must be changed through factory.transition_task" \
+  "UPDATE factory.tasks SET status = 'planned' WHERE task_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'"
+
+psql -v ON_ERROR_STOP=1 -At <<'SQL'
+SELECT factory.transition_task(
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'planned', 'task.planned',
+ 'system', 'ci-test', 'ci-transition-planned'
+);
+SQL
+
+# An exact retry returns the original event sequence and does not append twice.
+first_seq=$(psql -At -c "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','planned','task.planned','system','ci-test','ci-transition-planned')")
+retry_seq=$(psql -At -c "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','planned','task.planned','system','ci-test','ci-transition-planned')")
+if [[ "$first_seq" != "$retry_seq" ]]; then
+  echo "FAIL: idempotent retry returned a different event sequence"
+  exit 1
+fi
+
+expect_failure "idempotency key cannot be reused for different intent" "idempotency key reused with different transition intent" \
+  "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','blocked','task.blocked','system','ci-test','ci-transition-planned')"
+
+psql -v ON_ERROR_STOP=1 -At <<'SQL'
+SELECT factory.transition_task(
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'implementing', 'task.implementing',
+ 'system', 'ci-test', 'ci-transition-implementing',
+ 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+);
+SELECT factory.transition_task(
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'testing', 'task.testing',
+ 'system', 'ci-test', 'ci-transition-testing',
+ 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+);
+SELECT factory.transition_task(
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'review', 'task.review',
+ 'system', 'ci-test', 'ci-transition-review',
+ 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+);
+SQL
+
+expect_failure "candidate requires review evidence" "required evidence missing: review_report" \
+  "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','candidate','task.candidate','system','ci-test','ci-transition-candidate','cccccccc-cccc-4ccc-8ccc-cccccccccccc')"
+
+psql -v ON_ERROR_STOP=1 -At <<'SQL'
+SELECT factory.transition_task(
+ '33333333-3333-4333-8333-333333333333', 'planned', 'task.planned',
+ 'system', 'ci-test', 'ci-noapproval-planned'
+);
+SQL
+
+expect_failure "high-risk task cannot begin without an approval record" "human approval required before implementation" \
+  "SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','implementing','task.implementing','system','ci-test','ci-noapproval-implementing')"
+
+if [[ "$(psql -At -c "SELECT status FROM factory.tasks WHERE task_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'")" != "review" ]]; then
+  echo "FAIL: task projection did not follow the committed event stream"
+  exit 1
+fi
+if [[ "$(psql -At -c "SELECT count(*) FROM factory.task_events WHERE idempotency_key='ci-transition-planned'")" != "1" ]]; then
+  echo "FAIL: idempotent retry created duplicate events"
+  exit 1
+fi
+
 echo "All factory ledger SQL integration checks passed."
