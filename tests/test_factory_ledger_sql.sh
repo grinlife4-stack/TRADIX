@@ -536,7 +536,7 @@ expect_failure "mission snapshots reject UPDATE" "Rows in factory.mission_versio
   "UPDATE factory.mission_versions SET mission = '{}'::jsonb WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND version_no = 1"
 expect_failure "mission snapshots reject DELETE" "Rows in factory.mission_versions are append-only" \
   "DELETE FROM factory.mission_versions WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND version_no = 1"
-expect_failure "mission snapshots reject TRUNCATE" "append-only" \\
+expect_failure "mission snapshots reject TRUNCATE" "append-only" \
   "TRUNCATE factory.mission_versions, factory.task_plan_versions"
 expect_failure "task-plan snapshots reject UPDATE" "Rows in factory.task_plan_versions are append-only" \
   "UPDATE factory.task_plan_versions SET task_plan = '{}'::jsonb WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND plan_version_no = 1"
