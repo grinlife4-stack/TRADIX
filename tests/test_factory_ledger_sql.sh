@@ -10,18 +10,24 @@ psql <<'SQL'
 CREATE ROLE factory_rt_tradix LOGIN INHERIT;
 CREATE ROLE factory_rt_info_engine LOGIN INHERIT;
 CREATE ROLE factory_approver_tradix LOGIN INHERIT;
+CREATE ROLE factory_provisioner LOGIN NOINHERIT;
 GRANT factory_runtime TO factory_rt_tradix, factory_rt_info_engine;
 GRANT factory_approval_authority TO factory_approver_tradix;
+GRANT factory_identity_admin TO factory_provisioner WITH SET TRUE, INHERIT FALSE;
 
 INSERT INTO factory.projects (project_id, project_key, display_name, repository_full_name)
 VALUES
  ('11111111-1111-4111-8111-111111111111', 'tradix', 'TRADIX', 'grinlife4-stack/TRADIX'),
  ('22222222-2222-4222-8222-222222222222', 'info-engine', 'info_engine', 'grinlife4-stack/info_engine');
 
+SET SESSION AUTHORIZATION factory_provisioner;
+SET ROLE factory_identity_admin;
 INSERT INTO factory.project_identities (role_name, project_id) VALUES
  ('factory_rt_tradix', '11111111-1111-4111-8111-111111111111'),
  ('factory_rt_info_engine', '22222222-2222-4222-8222-222222222222'),
  ('factory_approver_tradix', '11111111-1111-4111-8111-111111111111');
+RESET ROLE;
+RESET SESSION AUTHORIZATION;
 
 INSERT INTO factory.tasks (
   task_id, project_id, task_key, title, request_text, acceptance_criteria,
@@ -301,6 +307,10 @@ if [[ "$(psql -At -c "SELECT pg_has_role('factory_runtime','factory_executor_own
 fi
 if [[ "$(psql -At -c "SELECT pg_has_role('factory_runtime','factory_approval_authority','MEMBER')")" != "f" ]]; then
   echo "FAIL: runtime role must not be a member of human approval authority"
+  exit 1
+fi
+if [[ "$(psql -At -c "SELECT pg_has_role('factory_provisioner','factory_identity_admin','SET') AND NOT pg_has_role('factory_provisioner','factory_identity_admin','USAGE')")" != "t" ]]; then
+  echo "FAIL: identity provisioner must have SET-only identity-admin membership"
   exit 1
 fi
 if [[ "$(psql -At -c "SELECT pg_has_role('factory_rt_tradix','factory_executor_owner','MEMBER') OR pg_has_role('factory_rt_tradix','factory_approval_authority','MEMBER')")" != "f" ]]; then
