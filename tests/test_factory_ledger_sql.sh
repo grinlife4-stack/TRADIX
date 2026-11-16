@@ -205,7 +205,7 @@ fi
 
 # Exercise the application role: it can read and call the transition API,
 # but cannot write projections, append events, or mutate immutable records.
-runtime_status=$(psql -At -c "SET ROLE factory_runtime; SELECT status FROM factory.tasks WHERE task_id='33333333-3333-4333-8333-333333333333'")
+runtime_status=$(psql -qAt -c "SET ROLE factory_runtime; SELECT status FROM factory.tasks WHERE task_id='33333333-3333-4333-8333-333333333333'")
 if [[ "$runtime_status" != "planned" ]]; then
   echo "FAIL: runtime role cannot read task projection"
   exit 1
