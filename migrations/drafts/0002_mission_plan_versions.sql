@@ -89,7 +89,7 @@ BEGIN
        OR COALESCE(jsonb_array_length(p_mission->'constraints'), 0) > 30
        OR p_mission->>'mission_id' IS NULL OR length(trim(p_mission->>'mission_id')) NOT BETWEEN 1 AND 80
        OR p_mission->>'project_key' IS NULL
-       OR p_mission->>'version' IS NULL OR p_mission->>'version' !~ '^[1-9][0-9]*
+       OR NOT CASE WHEN jsonb_typeof(p_mission->'version') = 'number' THEN (p_mission->>'version')::numeric >= 1 AND (p_mission->>'version')::numeric = trunc((p_mission->>'version')::numeric) ELSE false END
        OR p_mission->>'title' IS NULL OR length(trim(p_mission->>'title')) NOT BETWEEN 1 AND 160
        OR p_mission->>'objective' IS NULL OR length(trim(p_mission->>'objective')) NOT BETWEEN 1 AND 12000
        OR COALESCE(p_mission->>'risk_class', 'low') NOT IN ('low','medium','high','critical')
