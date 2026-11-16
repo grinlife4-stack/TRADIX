@@ -445,7 +445,7 @@ BEGIN
        OR p_request_text IS NULL OR length(trim(p_request_text)) NOT BETWEEN 1 AND 12000
        OR p_acceptance_criteria IS NULL OR jsonb_typeof(p_acceptance_criteria) <> 'array'
        OR jsonb_array_length(p_acceptance_criteria) NOT BETWEEN 1 AND 30
-       OR p_risk_class NOT IN ('low','medium','high','critical')
+       OR p_risk_class IS NULL OR p_risk_class NOT IN ('low','medium','high','critical')
        OR p_approval_required IS NULL
        OR p_approval_scope IS NULL OR jsonb_typeof(p_approval_scope) <> 'object'
        OR (p_risk_class IN ('high','critical') AND NOT p_approval_required) THEN
@@ -517,7 +517,7 @@ DECLARE
 BEGIN
     IF p_task_id IS NULL
        OR p_idempotency_key IS NULL OR length(trim(p_idempotency_key)) NOT BETWEEN 1 AND 255
-       OR p_worker_role NOT IN ('planner','implementer','tester','reviewer','release','observer')
+       OR p_worker_role IS NULL OR p_worker_role NOT IN ('planner','implementer','tester','reviewer','release','observer')
        OR (p_branch_name IS NOT NULL AND length(trim(p_branch_name)) NOT BETWEEN 1 AND 255)
        OR p_metadata IS NULL OR jsonb_typeof(p_metadata) <> 'object' THEN
         RAISE EXCEPTION 'invalid task attempt arguments';
@@ -1060,7 +1060,7 @@ BEGIN
     WHERE role_name = session_user AND identity_kind = 'runtime';
     IF NOT FOUND THEN RAISE EXCEPTION 'runtime identity has no product mapping'; END IF;
 
-    SELECT * INTO v_attempt FROM factory.task_attempts a
+    SELECT a.* INTO v_attempt FROM factory.task_attempts a
     JOIN factory.tasks t ON t.task_id = a.task_id
     WHERE a.task_id = p_task_id AND a.attempt_id = p_attempt_id
       AND t.project_id = v_project_id
