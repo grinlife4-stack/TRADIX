@@ -410,6 +410,10 @@ BEGIN
     IF pg_catalog.pg_has_role('factory_runtime', 'factory_approval_authority', 'MEMBER') THEN
         RAISE EXCEPTION 'factory_runtime must never be a member of factory_approval_authority';
     END IF;
+    IF pg_catalog.pg_has_role('factory_runtime', 'factory_identity_admin', 'MEMBER')
+       OR pg_catalog.pg_has_role('factory_approval_authority', 'factory_identity_admin', 'MEMBER') THEN
+        RAISE EXCEPTION 'runtime and approval authority must not be members of factory_identity_admin';
+    END IF;
 END
 $role_preflight$;
 
@@ -417,6 +421,8 @@ REVOKE ALL ON SCHEMA factory FROM PUBLIC;
 REVOKE CREATE ON SCHEMA factory FROM PUBLIC;
 GRANT USAGE ON SCHEMA factory TO factory_runtime;
 GRANT USAGE ON SCHEMA factory TO factory_approval_authority;
+GRANT USAGE ON SCHEMA factory TO factory_identity_admin;
+GRANT SELECT, INSERT, UPDATE, DELETE ON factory.project_identities TO factory_identity_admin;
 
 REVOKE ALL ON ALL TABLES IN SCHEMA factory FROM PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM PUBLIC;
@@ -475,6 +481,10 @@ ALTER TABLE factory.task_artifacts FORCE ROW LEVEL SECURITY;
 ALTER TABLE factory.task_evidence ENABLE ROW LEVEL SECURITY;
 ALTER TABLE factory.task_evidence FORCE ROW LEVEL SECURITY;
 
+CREATE POLICY project_identity_admin_manage ON factory.project_identities
+    FOR ALL TO factory_identity_admin
+    USING (true)
+    WITH CHECK (true);
 CREATE POLICY project_identity_self ON factory.project_identities
     FOR SELECT TO PUBLIC
     USING (
