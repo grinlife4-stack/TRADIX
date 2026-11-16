@@ -266,3 +266,27 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
 - This slice persists mission and plan snapshots only. It does not yet expose an HTTP mission/plan API, create executable task rows from a plan, approve plans, reserve resources, or dispatch work.
 - Migration remains draft-only. No Neon migration, Production write, `main` change, deployment, secret change, paid resource, or PR merge occurred.
 
+
+
+## 16. Mission and task-plan HTTP API (2026-11-16)
+
+- Added `runtime/mission-plan-api`, a product-scoped Node.js HTTP API for retrieving the registered product identity, appending immutable mission versions, reading mission history, appending task-plan versions, and reading plan history.
+- The API derives project identity from the authenticated PostgreSQL session and `factory.project_identities`; caller-supplied `project_id` is rejected. Startup verifies a single restricted runtime identity and matching RLS-visible product.
+- Mission and plan writes use the controlled SECURITY DEFINER database functions from draft migration 0002. Idempotency keys are required; conflicting key reuse and invalid version sequencing are mapped to conflict responses. The API does not dispatch tasks or reserve resources.
+- HTTP integration tests cover authentication, product identity, mission creation/retry/conflict, forged project identity rejection, mission history, plan creation/retry/history, dependency persistence, and path/body mismatch rejection.
+- A first CI attempt exposed a test bug: an assertion eagerly consumed the HTTP response body before JSON parsing. The test was corrected; this was not an API or database failure.
+- Verified head: `3787e5916506253d12329c4b723eab03ac2a30ce`.
+- [Python tests — 43937969718](https://github.com/grinlife4-stack/TRADIX/actions/runs/43937969718): success.
+- [Factory first-run demo — 43937969748](https://github.com/grinlife4-stack/TRADIX/actions/runs/43937969748): success.
+- [Factory ledger + SQL/HTTP integration — 43937969770](https://github.com/grinlife4-stack/TRADIX/actions/runs/43937969770): success. This run applies draft migrations only to disposable PostgreSQL 17 and exercises the product dossier API, mission/plan API, factory executor demo, and read-only memory gateway.
+- No Neon migration, Production write, main-branch update, deployment, secret change, paid resource, or PR merge was performed.
+
+## 17. Current intake boundary gap
+
+The product dossier API and mission/plan API are separately tested write paths, but there is not yet one atomic intake operation that binds a submitted brief to a validated dossier, mission version, and task-plan version. A future intake boundary must:
+1. Resolve product identity from the database session, never from caller-provided project identifiers.
+2. Validate the dossier, mission, and task plan against strict contracts before persistence.
+3. Persist all accepted snapshots in one database transaction so partial intake cannot leave a dossier without its mission or plan.
+4. Record the intake as pending human approval; do not create executable tasks, claim work, dispatch workers, or reserve resources.
+5. Make exact retries idempotent and reject conflicting reuse.
+6. Keep repository metadata optional for physical and service products; require it only for software tasks under the existing task contract.
