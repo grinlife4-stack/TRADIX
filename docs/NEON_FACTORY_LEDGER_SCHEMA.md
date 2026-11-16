@@ -56,3 +56,33 @@ The draft ledger now provisions two isolated `NOLOGIN` roles. `factory_runtime` 
 A deployment-specific login role must be provisioned separately and granted membership in `factory_runtime`. Do not grant the runtime login role ownership, superuser, CREATEROLE, schema CREATE, or direct table-write privileges. The migration owner remains the function owner and is a privileged administrative identity, not an application credential.
 
 The integration test uses PostgreSQL role switching to prove that the runtime role can read and invoke the controlled transition while direct projection writes, event inserts, immutable-event updates, and TRUNCATE are denied. It also verifies that the function owner is NOLOGIN/non-superuser, is not a member of the runtime role, and that the runtime cannot spoof a human actor. This is draft SQL tested only in disposable PostgreSQL; it is not approved for Neon or Production. Review managed-role provisioning and default-privilege behavior before any migration.
+
+
+## Neon role-provisioning compatibility review
+
+The current Neon project exposes the PostgreSQL role `neondb_owner` with
+`CREATEROLE` and without superuser status. Neon supports SQL role management,
+so creating the two `NOLOGIN` roles in this draft does not inherently require
+a separate Neon API provisioning step. The migration identity must have both
+`CREATEROLE` and database `CREATE` privilege. This was inspected read-only
+on the existing prototype branch; no role or schema was created there.
+
+Important PostgreSQL 16+ behavior: when a non-superuser `CREATEROLE` role
+creates another role, the automatic creator membership has `ADMIN TRUE`,
+but `SET FALSE` and `INHERIT FALSE`. PostgreSQL requires the current
+migration identity to be able to `SET ROLE` to the new owner before
+`ALTER FUNCTION ... OWNER TO` succeeds. The draft therefore explicitly
+grants `factory_executor_owner` back to `CURRENT_USER` with `SET TRUE`
+and `INHERIT FALSE`. This does not grant the application runtime membership
+in the function-owner role.
+
+The CI migration is now applied by a non-superuser `tradix_migrator` with
+`CREATEROLE` and database `CREATE`, rather than PostgreSQL's superuser.
+Assertions verify the migration role can SET (but does not inherit) the
+function-owner role, while `factory_runtime` cannot become a member of it.
+
+This is still not proof of a Neon migration: no SQL was executed on any Neon
+branch. Before a future isolated Neon-branch migration, verify the actual
+migration connection identity and privileges, then inspect the resulting role
+membership, function owner, function ACL, and default privileges. Production
+remains out of scope.
