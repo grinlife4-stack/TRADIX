@@ -55,7 +55,7 @@ BEGIN
         SELECT 1
         FROM pg_catalog.pg_auth_members m
         JOIN pg_catalog.pg_roles granted_role ON granted_role.oid = m.roleid
-        WHERE m.member = v_role.oid
+        WHERE pg_catalog.pg_get_userbyid(m.member) = NEW.role_name
           AND granted_role.rolname <> CASE
               WHEN v_runtime THEN 'factory_runtime'::NAME
               ELSE 'factory_approval_authority'::NAME
@@ -517,7 +517,7 @@ CREATE POLICY project_identity_self ON factory.project_identities
                     SELECT 1
                     FROM pg_catalog.pg_auth_members m
                     JOIN pg_catalog.pg_roles granted_role ON granted_role.oid = m.roleid
-                    WHERE m.member = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = session_user)
+                    WHERE pg_catalog.pg_get_userbyid(m.member) = session_user
                       AND granted_role.rolname <> 'factory_runtime'
                 )
             )
@@ -530,7 +530,7 @@ CREATE POLICY project_identity_self ON factory.project_identities
                     SELECT 1
                     FROM pg_catalog.pg_auth_members m
                     JOIN pg_catalog.pg_roles granted_role ON granted_role.oid = m.roleid
-                    WHERE m.member = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = session_user)
+                    WHERE pg_catalog.pg_get_userbyid(m.member) = session_user
                       AND granted_role.rolname <> 'factory_approval_authority'
                 )
             )
