@@ -23,7 +23,7 @@ INSERT INTO factory.projects (
  ('22222222-2222-4222-8222-222222222222', 'info-engine', 'info_engine', 'software', 'grinlife4-stack/info_engine'),
  ('44444444-4444-4444-8444-444444444444', 'physical-goods', 'Physical Goods Product', 'physical', NULL);
 
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM factory.projects
@@ -34,7 +34,7 @@ BEGIN
     RAISE EXCEPTION 'non-software product without a Git repository was not registered';
   END IF;
 END;
-$;
+$$;
 
 SET SESSION AUTHORIZATION factory_provisioner;
 SET ROLE factory_identity_admin;
