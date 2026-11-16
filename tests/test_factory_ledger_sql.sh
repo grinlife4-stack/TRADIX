@@ -496,4 +496,73 @@ if (physicalProduct.product_type !== "physical") throw new Error("physical produ
 console.log("PASS: product dossier JSON Schema v1 is valid and supports non-software products");
 NODE
 
+
+# Mission and task-plan snapshots are immutable, versioned, idempotent and product-scoped.
+mission_v1='{"mission_id":"tradix-foundation","project_key":"tradix","version":1,"title":"TRADIX foundation","objective":"Establish a durable product factory core.","acceptance_criteria":["Mission history is durable"],"constraints":["Do not touch Production"],"risk_class":"low","approval_required":false}'
+mission_v2='{"mission_id":"tradix-foundation","project_key":"tradix","version":2,"title":"TRADIX foundation revision","objective":"Establish a durable and auditable product factory core.","acceptance_criteria":["Mission history is durable","Versions are immutable"],"constraints":["Do not touch Production"],"risk_class":"low","approval_required":false}'
+mission_first=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_mission_version('11111111-1111-4111-8111-111111111111', '$mission_v1'::jsonb, 'tradix-mission-v1'); RESET SESSION AUTHORIZATION")
+mission_retry=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_mission_version('11111111-1111-4111-8111-111111111111', '$mission_v1'::jsonb, 'tradix-mission-v1'); RESET SESSION AUTHORIZATION")
+mission_second=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_mission_version('11111111-1111-4111-8111-111111111111', '$mission_v2'::jsonb, 'tradix-mission-v2'); RESET SESSION AUTHORIZATION")
+if [[ "$mission_first" != "1" || "$mission_retry" != "1" || "$mission_second" != "2" ]]; then
+  echo "FAIL: mission versioning or idempotent retry is incorrect"
+  exit 1
+fi
+echo "PASS: mission snapshots are versioned and idempotent"
+
+plan_v1='{"mission_id":"tradix-foundation","mission_version":1,"plan_version":1,"project_key":"tradix","tasks":[{"task_id":"specify-core","project_key":"tradix","title":"Specify core","request":"Define core boundaries.","acceptance_criteria":["Specification exists"],"risk_class":"low","approval_required":false},{"task_id":"test-core","project_key":"tradix","title":"Test core","request":"Test core invariants.","acceptance_criteria":["Tests pass"],"risk_class":"low","approval_required":false}],"dependencies":[{"depends_on":"specify-core","task_id":"test-core"}]}'
+plan_first=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_task_plan_version('11111111-1111-4111-8111-111111111111','tradix-foundation',1,'$plan_v1'::jsonb,'tradix-plan-v1'); RESET SESSION AUTHORIZATION")
+plan_retry=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_task_plan_version('11111111-1111-4111-8111-111111111111','tradix-foundation',1,'$plan_v1'::jsonb,'tradix-plan-v1'); RESET SESSION AUTHORIZATION")
+plan_v2='{"mission_id":"tradix-foundation","mission_version":2,"plan_version":2,"project_key":"tradix","tasks":[{"task_id":"specify-core","project_key":"tradix","title":"Specify core","request":"Define core boundaries and controls.","acceptance_criteria":["Specification exists"],"risk_class":"low","approval_required":false}],"dependencies":[]}'
+plan_second=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_task_plan_version('11111111-1111-4111-8111-111111111111','tradix-foundation',2,'$plan_v2'::jsonb,'tradix-plan-v2'); RESET SESSION AUTHORIZATION")
+if [[ "$plan_first" != "1" || "$plan_retry" != "1" || "$plan_second" != "2" ]]; then
+  echo "FAIL: task-plan versioning or idempotent retry is incorrect"
+  exit 1
+fi
+echo "PASS: task-plan snapshots are versioned and idempotent"
+
+expect_failure "mission idempotency key rejects changed content" "mission idempotency key reused with different content" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_mission_version('11111111-1111-4111-8111-111111111111', '$mission_v2'::jsonb, 'tradix-mission-v1')"
+expect_failure "mission versions must be monotonic" "mission version must equal the next stored version" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_mission_version('11111111-1111-4111-8111-111111111111', '{\"mission_id\":\"tradix-foundation\",\"project_key\":\"tradix\",\"version\":4,\"title\":\"Gap\",\"objective\":\"No skipped versions\",\"acceptance_criteria\":[\"reject gap\"],\"risk_class\":\"low\",\"approval_required\":false}'::jsonb, 'tradix-mission-gap')"
+expect_failure "task plan idempotency key rejects changed content" "task plan idempotency key reused with different content" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_task_plan_version('11111111-1111-4111-8111-111111111111','tradix-foundation',1,'$plan_v2'::jsonb,'tradix-plan-v1')"
+expect_failure "task plan rejects cyclic dependency graph" "task plan dependency graph contains a cycle" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_task_plan_version('11111111-1111-4111-8111-111111111111','tradix-foundation',1,'{\"mission_id\":\"tradix-foundation\",\"mission_version\":1,\"plan_version\":3,\"project_key\":\"tradix\",\"tasks\":[{\"task_id\":\"a\",\"project_key\":\"tradix\"},{\"task_id\":\"b\",\"project_key\":\"tradix\"}],\"dependencies\":[{\"depends_on\":\"a\",\"task_id\":\"b\"},{\"depends_on\":\"b\",\"task_id\":\"a\"}]}'::jsonb,'tradix-plan-cycle')"
+expect_failure "runtime cannot write a mission for another product" "not authorized for this product mission" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_mission_version('22222222-2222-4222-8222-222222222222', '{\"mission_id\":\"other\",\"project_key\":\"info-engine\",\"version\":1,\"title\":\"Other\",\"objective\":\"Cross-project write\",\"acceptance_criteria\":[\"reject\"],\"risk_class\":\"low\",\"approval_required\":false}'::jsonb, 'cross-project-mission')"
+expect_failure "runtime cannot directly insert a mission snapshot" "permission denied" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.mission_versions (project_id,mission_id,version_no,idempotency_key,mission,created_by_login) VALUES ('11111111-1111-4111-8111-111111111111','bypass',99,'direct-mission','{}'::jsonb,'factory_rt_tradix')"
+expect_failure "mission snapshots reject UPDATE" "Rows in factory.mission_versions are append-only" \
+  "UPDATE factory.mission_versions SET mission = '{}'::jsonb WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND version_no = 1"
+expect_failure "mission snapshots reject DELETE" "Rows in factory.mission_versions are append-only" \
+  "DELETE FROM factory.mission_versions WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND version_no = 1"
+expect_failure "mission snapshots reject TRUNCATE" "Rows in factory.mission_versions are append-only" \
+  "TRUNCATE factory.mission_versions"
+expect_failure "task-plan snapshots reject UPDATE" "Rows in factory.task_plan_versions are append-only" \
+  "UPDATE factory.task_plan_versions SET task_plan = '{}'::jsonb WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND plan_version_no = 1"
+expect_failure "task-plan snapshots reject DELETE" "Rows in factory.task_plan_versions are append-only" \
+  "DELETE FROM factory.task_plan_versions WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND plan_version_no = 1"
+expect_failure "task-plan snapshots reject TRUNCATE" "Rows in factory.task_plan_versions are append-only" \
+  "TRUNCATE factory.task_plan_versions"
+
+physical_mission='{"mission_id":"press-line","project_key":"physical-goods","version":1,"title":"Press line","objective":"Prepare a physical production line.","acceptance_criteria":["Equipment plan recorded"],"risk_class":"low","approval_required":false}'
+physical_mission_version=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_physical_goods; SELECT factory.record_mission_version('44444444-4444-4444-8444-444444444444', '$physical_mission'::jsonb, 'physical-mission-v1'); RESET SESSION AUTHORIZATION")
+if [[ "$physical_mission_version" != "1" ]]; then
+  echo "FAIL: repository-free physical product could not store its mission"
+  exit 1
+fi
+if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT count(*) FROM factory.mission_versions; RESET SESSION AUTHORIZATION")" != "0" ]]; then
+  echo "FAIL: info_engine can read another product's mission snapshots"
+  exit 1
+fi
+if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT count(*) FROM factory.mission_versions; RESET SESSION AUTHORIZATION")" != "2" ]]; then
+  echo "FAIL: TRADIX mission visibility is not isolated"
+  exit 1
+fi
+if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT count(*) FROM factory.task_plan_versions; RESET SESSION AUTHORIZATION")" != "2" ]]; then
+  echo "FAIL: TRADIX task-plan visibility is not isolated"
+  exit 1
+fi
+echo "PASS: physical and software product mission storage remains isolated"
+
 echo "All factory ledger SQL integration checks passed."
