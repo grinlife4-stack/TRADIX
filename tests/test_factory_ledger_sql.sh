@@ -41,22 +41,34 @@ $$;
 
 SET SESSION AUTHORIZATION factory_provisioner;
 SET ROLE factory_identity_admin;
--- The onboarding authority can create the registry row and its identity pair atomically.
-INSERT INTO factory.projects (
-  project_id, project_key, display_name, product_type, repository_full_name
-) VALUES (
- '55555555-5555-4555-8555-555555555555', 'onboarding-smoke', 'Onboarding Smoke Product', 'service', NULL
-);
 INSERT INTO factory.project_identities (role_name, project_id, identity_kind) VALUES
  ('factory_rt_tradix', '11111111-1111-4111-8111-111111111111', 'runtime'),
  ('factory_rt_info_engine', '22222222-2222-4222-8222-222222222222', 'runtime'),
  ('factory_rt_physical_goods', '44444444-4444-4444-8444-444444444444', 'runtime'),
  ('factory_approver_tradix', '11111111-1111-4111-8111-111111111111', 'approval'),
  ('factory_approver_info_engine', '22222222-2222-4222-8222-222222222222', 'approval'),
- ('factory_rt_onboarding', '55555555-5555-4555-8555-555555555555', 'runtime'),
- ('factory_approver_onboarding', '55555555-5555-4555-8555-555555555555', 'approval');
+ ('factory_approver_info_engine', '22222222-2222-4222-8222-222222222222', 'approval');
 RESET ROLE;
 RESET SESSION AUTHORIZATION;
+
+onboarding_output=$(docker exec -i "$container_id" psql -X -qAt -v ON_ERROR_STOP=1 -U factory_provisioner -d tradix_test \
+  -v project_key=onboarding-smoke \
+  -v display_name="Onboarding Smoke Product" \
+  -v product_type=service \
+  -v repository_full_name= \
+  -v runtime_login=factory_rt_onboarding \
+  -v approval_login=factory_approver_onboarding \
+  < migrations/operations/register_product.sql)
+onboarding_project_id=$(printf '%s\n' "$onboarding_output" | sed -n 's/^Product registered with project_id=//p')
+if [[ -z "$onboarding_project_id" ]]; then
+  echo "FAIL: product registration script did not return a project id"
+  printf '%s\n' "$onboarding_output"
+  exit 1
+fi
+if [[ "$(psql -At -c "SELECT count(*) FROM factory.project_identities WHERE project_id='$onboarding_project_id'")" != "2" ]]; then
+  echo "FAIL: product registration did not create exactly two identity mappings"
+  exit 1
+fi
 
 INSERT INTO factory.tasks (
   task_id, project_id, task_key, title, request_text, acceptance_criteria,
@@ -158,7 +170,7 @@ expect_failure "identity kind must match the granted authority" "identity kind d
   "INSERT INTO factory.project_identities (role_name, project_id, identity_kind) VALUES ('factory_rt_wrong_kind', '11111111-1111-4111-8111-111111111111', 'approval')"
 
 expect_failure "a product cannot have two runtime LOGIN identities" "project_identities_project_id_identity_kind_key" \
-  "INSERT INTO factory.project_identities (role_name, project_id, identity_kind) VALUES ('factory_rt_onboarding_extra', '55555555-5555-4555-8555-555555555555', 'runtime')"
+  "INSERT INTO factory.project_identities (role_name, project_id, identity_kind) VALUES ('factory_rt_onboarding_extra', '$onboarding_project_id', 'runtime')"
 
 expect_failure "high-risk task cannot omit approval requirement" "tasks_check" \
   "INSERT INTO factory.tasks (project_id, task_key, title, request_text, acceptance_criteria, risk_class, approval_required) VALUES ('11111111-1111-4111-8111-111111111111', 'bad-risk', 'bad', 'bad', '[\"x\"]', 'critical', false)"
