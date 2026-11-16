@@ -17,9 +17,9 @@ function pgError(p){let i=0,o={};while(i<p.length&&p[i]){const k=String.fromChar
 function event(target,ok,timeout=10000){return new Promise((resolve,reject)=>{const timer=setTimeout(()=>finish(reject,Error(ok+" timeout")),timeout),yes=v=>finish(resolve,v),no=e=>finish(reject,e);function finish(f,v){clearTimeout(timer);target.off(ok,yes);target.off("error",no);f(v);}target.once(ok,yes);target.once("error",no);});}
 async function connectDb(){
  const u=new URL(dbUrl),host=u.hostname,port=Number(u.port||5432),user=decodeURIComponent(u.username),pass=decodeURIComponent(u.password),db=decodeURIComponent(u.pathname.slice(1))||user;
- const raw=net.connect({host,port});await event(raw,"connect");raw.setNoDelay(true);const req=Buffer.alloc(8);req.writeInt32BE(8);req.writeInt32BE(80877103,4);raw.write(req);
- const reply=await event(raw,"data");if(reply[0]!==83){raw.destroy();throw Error("PG TLS refused");}if(reply.length>1)raw.unshift(reply.subarray(1));
- const s=tls.connect({socket:raw,servername:host,rejectUnauthorized:true});await event(s,"secureConnect");const r=new Reader(s);
+ const raw=net.connect({host,port});await event(raw,"connect");raw.setNoDelay(true);let s=raw;
+ if(u.searchParams.get("sslmode")!=="disable"){const req=Buffer.alloc(8);req.writeInt32BE(8);req.writeInt32BE(80877103,4);raw.write(req);const reply=await event(raw,"data");if(reply[0]!==83){raw.destroy();throw Error("PG TLS refused");}if(reply.length>1)raw.unshift(reply.subarray(1));s=tls.connect({socket:raw,servername:host,rejectUnauthorized:true});await event(s,"secureConnect");}
+ const r=new Reader(s);
  const body=Buffer.concat([Buffer.from([0,3,0,0]),cstr("user"),cstr(user),cstr("database"),cstr(db),cstr("client_encoding"),cstr("UTF8"),Buffer.from([0])]),head=Buffer.alloc(4);head.writeInt32BE(body.length+4);s.write(Buffer.concat([head,body]));
  let scram=null,ready=false;while(!ready){const m=await r.next();if(m.t==="E")throw pgError(m.p);if(m.t==="Z"){ready=true;break;}if(m.t!=="R")continue;const code=m.p.readInt32BE(0);if(code===0)continue;
  if(code===10){const mechs=m.p.subarray(4).toString().split("\0");if(!mechs.includes("SCRAM-SHA-256"))throw Error("SCRAM unavailable");const nonce=randomBytes(18).toString("base64").replace(/=+$/g,""),bare="n=,r="+nonce,first=Buffer.from("n,,"+bare),len=Buffer.alloc(4);len.writeInt32BE(first.length);s.write(msg("p",Buffer.concat([cstr("SCRAM-SHA-256"),len,first])));scram={bare};continue;}
