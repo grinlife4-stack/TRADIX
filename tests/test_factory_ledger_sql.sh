@@ -388,6 +388,15 @@ fi
 expect_failure "runtime cannot directly insert an approval" "permission denied" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.task_approvals (task_id,attempt_id,approval_round,action,decision,decided_by,rationale) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','cccccccc-cccc-4ccc-8ccc-cccccccccccc',1,'begin_implementation','approved','forged','forged')"
 
+expect_failure "runtime cannot directly create a task" "permission denied" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.tasks (project_id,task_key,title,request_text,acceptance_criteria,risk_class,approval_required) VALUES ('11111111-1111-4111-8111-111111111111','runtime-direct-task','forbidden','forbidden','[\\"x\\"]'::jsonb,'low',false)"
+expect_failure "runtime cannot directly create an attempt" "permission denied" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.task_attempts (task_id,attempt_number,worker_role) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',99,'implementer')"
+expect_failure "runtime cannot directly create artifacts" "permission denied" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.task_artifacts (task_id,attempt_id,artifact_type,object_uri,sha256,byte_size) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','cccccccc-cccc-4ccc-8ccc-cccccccccccc','x','ci://direct-write','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',0)"
+expect_failure "runtime cannot directly create evidence" "permission denied" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.task_evidence (task_id,attempt_id,artifact_id,evidence_type,recorded_by) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','cccccccc-cccc-4ccc-8ccc-cccccccccccc','88888888-8888-4888-8888-888888888888','x','forged')"
+
 psql -v ON_ERROR_STOP=1 -c "SET SESSION AUTHORIZATION factory_approver_tradix; INSERT INTO factory.task_approvals (task_id,attempt_id,approval_round,action,decision,decided_by,rationale,decision_scope) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','cccccccc-cccc-4ccc-8ccc-cccccccccccc',1,'human_review_test','approved','named-approver','approved by trusted approver','{}'::jsonb); RESET SESSION AUTHORIZATION" >/dev/null
 if [[ "$(psql -At -c "SELECT decided_by_login FROM factory.task_approvals WHERE action='human_review_test'")" != "factory_approver_tradix" ]]; then
   echo "FAIL: approval audit did not capture the authentic login identity"
