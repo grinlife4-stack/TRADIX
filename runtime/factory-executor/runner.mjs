@@ -211,13 +211,20 @@ async function main() {
     const attemptId = attemptResult.rows[0].attempt_id;
     await client.query("COMMIT");
 
-    const state = await client.query("SELECT status FROM factory.tasks WHERE task_id=$1", [taskId]);
+    const state = await client.query(
+      "SELECT t.status, a.status AS attempt_status, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.status,a.status",
+      [taskId, attemptId]
+    );
     if (state.rows[0]?.status === "verified") {
-      process.stdout.write(`ALREADY VERIFIED task=${taskId}\n`);
+      const row = state.rows[0];
+      if (row.attempt_status !== "succeeded" || row.event_count !== 7 || row.evidence_count !== 3) {
+        fail("Previously verified task has inconsistent attempt, event, or evidence records");
+      }
+      process.stdout.write(`ALREADY VERIFIED task=${taskId} attempt=${attemptId} events=${row.event_count} evidence=${row.evidence_count}\\n`);
       return;
     }
-    if (state.rows[0]?.status !== "queued") {
-      fail(`Task is in state ${state.rows[0]?.status}; refusing implicit recovery or duplicate execution`);
+    if (state.rows[0]?.status !== "queued" || state.rows[0]?.attempt_status !== "running") {
+      fail(`Task/attempt is in state ${state.rows[0]?.status}/${state.rows[0]?.attempt_status}; refusing implicit recovery or duplicate execution`);
     }
 
     await transition(client, taskId, attemptId, "queued", "planned");
@@ -248,12 +255,22 @@ async function main() {
 
       const healthResult = await runNodeScript(productRoot, healthScript, "product health check");
       await recordEvidence(client, taskId, attemptId, "health_check", healthResult);
-      await transition(client, taskId, attemptId, currentState, "verified");
-      currentState = "verified";
-      await client.query(
-        "SELECT factory.finish_task_attempt($1,$2,'succeeded')",
-        [taskId, attemptId]
-      );
+
+      // Commit attempt success and the terminal task transition atomically.
+      // A failed terminal transition must never leave a succeeded attempt behind.
+      await client.query("BEGIN");
+      try {
+        await client.query(
+          "SELECT factory.finish_task_attempt($1,$2,'succeeded')",
+          [taskId, attemptId]
+        );
+        await transition(client, taskId, attemptId, currentState, "verified");
+        await client.query("COMMIT");
+        currentState = "verified";
+      } catch (finalizeError) {
+        await client.query("ROLLBACK");
+        throw finalizeError;
+      }
     } catch (error) {
       try {
         const attemptState = await client.query(
