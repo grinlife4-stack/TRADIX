@@ -15,11 +15,15 @@ CREATE TABLE factory.projects (
     -- A product may be physical, service-based, hybrid, or otherwise non-software.
     -- Repository metadata is optional and applies only when the product uses Git.
     repository_full_name TEXT
-        CHECK (repository_full_name IS NULL OR
-               repository_full_name ~ '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+
+        CHECK (
+            repository_full_name IS NULL OR
+            repository_full_name ~ '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+        ),
+    status TEXT NOT NULL DEFAULT 'active'
         CHECK (status IN ('active', 'paused', 'archived')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+
 );
 
 -- Maps each database login identity to exactly one project. session_user is
