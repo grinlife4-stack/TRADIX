@@ -799,8 +799,9 @@ BEGIN
 END;
 $dossier$;
 
--- Runtime access is deliberately read-only except for the SECURITY DEFINER
--- transition function. Cluster-level roles are provisioned separately by
+-- Runtime table access remains read-only. Narrow SECURITY DEFINER functions
+-- provide dossier, task, attempt, evidence, and lifecycle writes. Cluster roles
+-- are provisioned separately by
 -- migrations/bootstrap/0001_factory_roles.sql. The schema migration identity
 -- must be granted SET (but not INHERIT) membership in factory_executor_owner.
 DO $role_preflight$
