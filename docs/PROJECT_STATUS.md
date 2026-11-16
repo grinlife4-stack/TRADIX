@@ -4,24 +4,24 @@
 **Repository:** `grinlife4-stack/TRADIX`  
 **Active PR:** [#3 — Define TRADIX executive runtime architecture](https://github.com/grinlife4-stack/TRADIX/pull/3)  
 **Working branch:** `factory/executive-runtime-architecture-v0-1`  
-**Last verified implementation baseline:** `46bad2a8b74a1d14ef15b9f994bc33327dd89368`  
+**Last verified implementation commit:** `2523cc33350eb60a196f79b1853b57739dc1a757`  
 **Production policy:** Neon Production and `main` remain untouched unless explicitly approved.
 
 ## 1. Executive status
 
 TRADIX has a verified deterministic demonstration path, a tested runnable read-only memory gateway, draft factory-ledger SQL, and provider-neutral model/task contracts. It is **not yet an autonomous software factory**.
 
-The latest PR head passed both Python tests and disposable PostgreSQL 17 plus Node HTTP integration. These checks do not prove a deployed runtime, live model execution, persistent orchestration, autonomous implementation, or unattended recovery.
+Verified implementation commit `2523cc33350eb60a196f79b1853b57739dc1a757` passed both Python tests and disposable PostgreSQL 17 plus Node HTTP integration, including the new runtime privilege boundary. These checks do not prove a deployed runtime, live model execution, persistent orchestration, autonomous implementation, or unattended recovery.
 
 ## 2. Source control and CI
 
 PR #3 is **open, Draft, and unmerged**. Its current head is:
 
- `46bad2a8b74a1d14ef15b9f994bc33327dd89368`
+ `2523cc33350eb60a196f79b1853b57739dc1a757`
 
 Successful workflow runs on that exact head:
-- [Python tests — 43814122561](https://github.com/grinlife4-stack/TRADIX/actions/runs/43814043279): success.
-- [Factory ledger + memory gateway SQL/HTTP integration — 43814122574](https://github.com/grinlife4-stack/TRADIX/actions/runs/43814043269): success, including the new transactional task-transition tests.
+- [Python tests — 43814122561](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817318325): success.
+- [Factory ledger + memory gateway SQL/HTTP integration — 43814122574](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817318307): success, including the new transactional task-transition tests.
 
 The integration workflow applies draft schemas only to disposable PostgreSQL 17, runs SQL integrity checks, starts the Node gateway, and exercises health, authorization, missing-project, invalid-key, and authenticated context retrieval paths.
 
@@ -51,6 +51,9 @@ These are historical observations, not a fresh live database read. No migration 
 - Deterministic fixture demo that copies a reviewed template, runs tests/static checks, and emits a candidate artifact.
 - Draft operational factory-ledger SQL with disposable PostgreSQL integrity tests.
 - Transactional `factory.transition_task(...)` function: row-locks the task, validates allowed lifecycle edges, enforces approval/evidence gates, appends the event, updates the task projection atomically, and deduplicates exact retries while rejecting conflicting reuse of an idempotency key.
+- Draft least-privilege database roles: `factory_runtime` is NOLOGIN and read-only on tables, with EXECUTE only on the transition function; `factory_executor_owner` is NOLOGIN, non-superuser, not a table owner, and holds only the privileges required by the SECURITY DEFINER function.
+- Fixed search_path on the SECURITY DEFINER function, revoked PUBLIC execution, and prohibited application callers from claiming `actor_type='human'`.
+- Disposable PostgreSQL tests prove allowed function-mediated transitions and deny direct projection writes, direct event inserts, immutable-row updates, TRUNCATE, runtime-to-owner role membership, and human-actor spoofing.
 - B2 private-bucket connectivity, list, upload, and read-back test from an ephemeral GitHub runner.
 - Read-only Node memory gateway with HTTP entrypoint, `npm start`, runtime README, SQL tests, and HTTP integration tests.
 - JSON schemas for project state, decisions, evidence, and checkpoints.
@@ -79,7 +82,7 @@ These are historical observations, not a fresh live database read. No migration 
 
 ## 8. Next execution sequence
 
-1. Verify the new least-privilege role/grant changes on the current branch with CI; review any failures before proceeding.
+1. Review the role-provisioning model for Neon compatibility without applying it; separate cluster-role provisioning from schema migration if required.
 2. Finalize the canonical migration plan; do not apply it to Neon until separately reviewed and approved.
 3. Implement atomic worker claims, attempt ownership, bounded retries, lease expiry, heartbeat, fencing, and stale-worker rejection, with concurrency/fault-injection tests.
 4. Add one model-provider adapter only after privacy, credentials, rate limits, and a hard spend ceiling are verified.
@@ -89,11 +92,12 @@ These are historical observations, not a fresh live database read. No migration 
 
 ## 9. Immediate execution update (2026-11-16)
 
-- Added `SECURITY DEFINER` with fixed search path to `factory.transition_task(...)`.
+- Added `SECURITY DEFINER` with fixed search path to `factory.transition_task(...)` and transferred ownership to a dedicated NOLOGIN/non-superuser function-owner role with only required table privileges.
 - Added draft `factory_runtime` NOLOGIN role: SELECT-only table access plus EXECUTE on the controlled transition function; direct writes and sequence access are revoked.
-- Added SQL integration assertions for allowed controlled transition and denied direct projection/event/immutable-row/TRUNCATE writes.
+- Added SQL integration assertions for allowed controlled transition and denied direct projection/event/immutable-row/TRUNCATE writes, plus actor spoofing and role-isolation checks.
 - Added runtime privilege-boundary documentation.
-- Changes are committed on the working branch after baseline `46bad2a8...`; CI for the new commits is pending.
+- Verified head `2523cc33350eb60a196f79b1853b57739dc1a757`: Python tests run `43817318325` and factory ledger + memory gateway SQL/HTTP integration run `43817318307`, both successful.
+- An earlier integration run exposed a test-output parsing issue; it was corrected, and the complete privilege suite passed on the verified head.
 - No Neon database, Production, `main`, secrets, deployment, or merge was touched.
 
 ## 10. Update protocol
