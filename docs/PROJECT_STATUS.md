@@ -133,6 +133,7 @@ PR #3 remains Draft and unmerged. The working branch now contains a draft-only l
 - Per-project PostgreSQL login identities mapped one-to-one to a project; separate runtime and human-approval identities may exist for the same project.
 - Forced row-level security across project, task, attempt, event, approval, artifact, evidence, and identity records. Policies use `session_user`, so `SET ROLE` cannot select another project's identity.
 - A database trigger that rejects mapped identities unless they are restricted LOGIN roles belonging to exactly one approved authority group and not to the function-owner role.
+- A separate `factory_identity_admin` role manages project-to-login mappings; it is isolated from runtime, approval authority, and function ownership.
 - Human approvals restricted to the separate `factory_approval_authority` role. The actual database login is recorded in `decided_by_login`.
 - Approval gates bound to a non-null attempt ID and exact equality with the task's `approval_scope`.
 - Evidence gates that reject a missing attempt ID and evidence from any other attempt.
@@ -141,4 +142,4 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
 
 **Verification status:** changes have been pushed only to `factory/executive-runtime-architecture-v0-1`. CI results for the latest head must be checked before treating this revision as verified. No Neon SQL has been executed; no Neon branch was created; `main`, Production, secrets, deployments, and merge state remain untouched.
 
-**Provisioning boundary:** each project runtime LOGIN and each human-approval LOGIN must be created by a trusted administrator, granted exactly one authority group, and inserted into `factory.project_identities`. Credentials must remain separate by project. This SQL does not itself provision or authenticate human users.
+**Provisioning boundary:** each project runtime LOGIN and each human-approval LOGIN must be created by a trusted administrator, granted exactly one authority group, and inserted into `factory.project_identities` by a trusted provisioning identity holding SET-only membership in `factory_identity_admin`. Credentials must remain separate by project. This SQL does not itself provision or authenticate human users.
