@@ -176,9 +176,9 @@ BEGIN
        OR p_task_plan IS NULL OR jsonb_typeof(p_task_plan) <> 'object'
        OR p_idempotency_key IS NULL OR length(trim(p_idempotency_key)) NOT BETWEEN 1 AND 255
        OR p_task_plan->>'mission_id' IS DISTINCT FROM p_mission_id
-       OR p_task_plan->>'mission_version' IS NULL OR p_task_plan->>'mission_version' !~ '^[1-9][0-9]*
+       OR NOT CASE WHEN jsonb_typeof(p_task_plan->'mission_version') = 'number' THEN (p_task_plan->>'mission_version')::numeric >= 1 AND (p_task_plan->>'mission_version')::numeric = trunc((p_task_plan->>'mission_version')::numeric) ELSE false END
        OR (p_task_plan->>'mission_version')::numeric <> p_mission_version_no
-       OR p_task_plan->>'plan_version' IS NULL OR p_task_plan->>'plan_version' !~ '^[1-9][0-9]*
+       OR NOT CASE WHEN jsonb_typeof(p_task_plan->'plan_version') = 'number' THEN (p_task_plan->>'plan_version')::numeric >= 1 AND (p_task_plan->>'plan_version')::numeric = trunc((p_task_plan->>'plan_version')::numeric) ELSE false END
        OR jsonb_typeof(p_task_plan->'tasks') <> 'array'
        OR jsonb_array_length(p_task_plan->'tasks') NOT BETWEEN 1 AND 100
        OR jsonb_typeof(p_task_plan->'dependencies') <> 'array'
