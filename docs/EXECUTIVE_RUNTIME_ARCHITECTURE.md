@@ -112,8 +112,8 @@ Models do not need direct vendor-to-vendor chat. They can collaborate through ta
 - Require provenance and reproducible evidence for every candidate.
 
 ### Stage 5 — Product factory
-- Demonstrate the complete workflow on a real but low-risk software product.
-- Only after repeatable success, add more tools, providers, project templates, and deployment targets.
+- Demonstrate the complete workflow on a real but low-risk product using a category-appropriate production adapter. Software is one possible first category, not a limit on the factory's scope.
+- Only after repeatable success, add more product categories through explicit production adapters, alongside tools, providers, project templates, and deployment targets.
 
 ## 8. Verified baseline at the time of this proposal
 
