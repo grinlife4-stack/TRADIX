@@ -764,7 +764,7 @@ REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM factory_runtime;
 -- only the table privileges its body requires. It is not a superuser or table owner.
 GRANT USAGE, CREATE ON SCHEMA factory TO factory_executor_owner;
 GRANT SELECT ON factory.projects TO factory_executor_owner;
-GRANT SELECT, UPDATE ON factory.tasks TO factory_executor_owner;
+GRANT SELECT, INSERT, UPDATE ON factory.tasks TO factory_executor_owner;
 GRANT SELECT, INSERT ON factory.task_events TO factory_executor_owner;
 GRANT SELECT, INSERT ON factory.product_dossier_versions TO factory_executor_owner;
 GRANT SELECT ON factory.task_approvals, factory.project_identities TO factory_executor_owner;
@@ -894,6 +894,12 @@ CREATE POLICY projects_isolated ON factory.projects
 CREATE POLICY tasks_isolated ON factory.tasks
     FOR SELECT TO PUBLIC
     USING (project_id IN (
+        SELECT project_id FROM factory.project_identities
+        WHERE role_name = session_user
+    ));
+CREATE POLICY tasks_executor_insert ON factory.tasks
+    FOR INSERT TO factory_executor_owner
+    WITH CHECK (project_id IN (
         SELECT project_id FROM factory.project_identities
         WHERE role_name = session_user
     ));
