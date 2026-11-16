@@ -155,3 +155,14 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
 - The trading platform is an example of an independent product made by TRADIX; it is not part of the factory's own identity or internal operating logic.
 - Verification: the documentation commit was created on `factory/executive-runtime-architecture-v0-1`, under Draft PR #3. At the time of this note, the GitHub connector returned no workflow runs and an empty combined-status list for that exact commit; therefore no CI success is claimed. Recheck the exact PR head before treating this change as verified.
 - No merge, Neon operation, secret change, deployment, Production action, or paid resource creation occurred.
+
+
+## 2026-11-16 — Product-agnostic project registry correction
+
+- The draft `factory.projects` table previously required every project to have a GitHub repository. That was a software-only assumption and conflicted with TRADIX's general-purpose factory scope.
+- Corrected `migrations/drafts/0001_factory_ledger.sql` in commit `74aa0c5ee69209ac81d0f20cf8149f8114683565`: added required non-empty `product_type` (default `unspecified`) and made `repository_full_name` optional, while retaining validation when a repository is supplied.
+- Updated `tests/test_factory_ledger_sql.sh` in commit `cecad1842402f6fc1ca104e215bdcef3701b199d` with a physical-product fixture that has no Git repository and an assertion that it registers successfully.
+- Updated `docs/NEON_FACTORY_LEDGER_SCHEMA.md` in commit `75dfcb3f907bf2c3bfd20a02986a06d95fdf6a7f`.
+- The architecture baseline version 1.2 was introduced in commit `b2f88c329f62ac906144d30a151c25c7b0223cbe`; it defines TRADIX as a general-purpose production factory and requires an independent dossier per product.
+- Current PR #3 head at the time of this update: `75dfcb3f907bf2c3bfd20a02986a06d95fdf6a7f`. The GitHub connector returned no workflow runs and an empty combined-status list for this head. CI is therefore **unverified**, not passed or failed.
+- No Neon migration, database write, Production change, merge, deployment, secret change, or paid resource creation occurred. All schema changes remain draft files in the PR branch.
