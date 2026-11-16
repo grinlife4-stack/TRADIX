@@ -218,6 +218,20 @@ if [[ "$(psql -At -c "SELECT status FROM factory.tasks WHERE task_id='33333333-3
 fi
 echo "PASS: runtime role can use the controlled transition function"
 
+expect_failure "runtime cannot claim a human actor identity" "invalid task transition arguments" \
+  "SET ROLE factory_runtime; SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','cancelled','task.cancelled','human','forged-human','ci-forged-human')"
+
+if [[ "$(psql -At -c "SELECT rolsuper::text || ':' || rolcanlogin::text FROM pg_roles WHERE rolname='factory_executor_owner'")" != "false:false" ]]; then
+  echo "FAIL: transition function owner must be NOLOGIN and non-superuser"
+  exit 1
+fi
+if [[ "$(psql -At -c "SELECT pg_has_role('factory_runtime','factory_executor_owner','MEMBER')")" != "f" ]]; then
+  echo "FAIL: runtime role must not be a member of the function-owner role"
+  exit 1
+fi
+echo "PASS: function owner is isolated from runtime and is not privileged"
+
+
 expect_failure "runtime cannot directly update task projection" "permission denied" \
   "SET ROLE factory_runtime; UPDATE factory.tasks SET status = 'verified' WHERE task_id = '33333333-3333-4333-8333-333333333333'"
 expect_failure "runtime cannot directly append task events" "permission denied" \
