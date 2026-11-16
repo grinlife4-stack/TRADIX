@@ -46,10 +46,10 @@ INSERT INTO factory.project_identities (role_name, project_id, identity_kind) VA
  ('factory_rt_info_engine', '22222222-2222-4222-8222-222222222222', 'runtime'),
  ('factory_rt_physical_goods', '44444444-4444-4444-8444-444444444444', 'runtime'),
  ('factory_approver_tradix', '11111111-1111-4111-8111-111111111111', 'approval'),
- ('factory_approver_info_engine', '22222222-2222-4222-8222-222222222222', 'approval'),
  ('factory_approver_info_engine', '22222222-2222-4222-8222-222222222222', 'approval');
 RESET ROLE;
 RESET SESSION AUTHORIZATION;
+SQL
 
 onboarding_output=$(docker exec -i "$container_id" psql -X -qAt -v ON_ERROR_STOP=1 -U factory_provisioner -d tradix_test \
   -v project_key=onboarding-smoke \
@@ -70,6 +70,7 @@ if [[ "$(psql -At -c "SELECT count(*) FROM factory.project_identities WHERE proj
   exit 1
 fi
 
+psql <<'SQL'
 INSERT INTO factory.tasks (
   task_id, project_id, task_key, title, request_text, acceptance_criteria,
   risk_class, approval_required, approval_scope
