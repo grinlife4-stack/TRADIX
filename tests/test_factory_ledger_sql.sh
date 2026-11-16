@@ -25,7 +25,7 @@ INSERT INTO factory.project_identities (role_name, project_id) VALUES
 
 INSERT INTO factory.tasks (
   task_id, project_id, task_key, title, request_text, acceptance_criteria,
-  risk_class, approval_required
+  risk_class, approval_required, approval_scope
 ) VALUES
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   '11111111-1111-4111-8111-111111111111', 'ci-task-1',
@@ -34,7 +34,7 @@ INSERT INTO factory.tasks (
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   '22222222-2222-4222-8222-222222222222', 'ci-task-2',
   'Cross-project test', 'Verify task isolation.',
-  '["foreign keys hold"]'::jsonb, 'high', true);
+  '["foreign keys hold"]'::jsonb, 'high', true, '{"scope":"required"}'::jsonb);
 
 INSERT INTO factory.task_attempts (
   attempt_id, task_id, attempt_number, worker_role
@@ -46,7 +46,11 @@ INSERT INTO factory.task_attempts (
  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 1, 'implementer'),
  ('12121212-1212-4212-8212-121212121212',
-  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 2, 'implementer');
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 2, 'implementer'),
+ ('13131313-1313-4313-8313-131313131313',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 3, 'implementer'),
+ ('14141414-1414-4414-8414-141414141414',
+  '33333333-3333-4333-8333-333333333333', 1, 'implementer');
 
 INSERT INTO factory.task_events (
   event_id, task_id, attempt_id, event_type, to_state, actor_type,
@@ -64,7 +68,14 @@ INSERT INTO factory.task_approvals (
  '99999999-9999-4999-8999-999999999999',
  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
  'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
- 1, 'begin_implementation', 'approved', 'ci-test', 'CI fixture', '{}'::jsonb
+ 1, 'begin_implementation', 'approved', 'ci-test', 'CI fixture', '{"scope":"required"}'::jsonb
+);
+INSERT INTO factory.task_approvals (
+  task_id, attempt_id, approval_round, action, decision, decided_by, rationale, decision_scope
+) VALUES (
+ 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+ '13131313-1313-4313-8313-131313131313',
+ 1, 'begin_implementation', 'approved', 'ci-test', 'wrong scope fixture', '{"scope":"wrong"}'::jsonb
 );
 
 INSERT INTO factory.task_artifacts (
@@ -213,7 +224,7 @@ SELECT factory.transition_task(
 SQL
 
 expect_failure "high-risk task cannot begin without an approval record" "human approval required for this attempt and decision scope" \
-  "SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','implementing','task.implementing','system','ci-test','ci-noapproval-implementing','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')"
+  "SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','implementing','task.implementing','system','ci-test','ci-noapproval-implementing','14141414-1414-4414-8414-141414141414')"
 
 psql -v ON_ERROR_STOP=1 -At <<'SQL'
 SELECT factory.transition_task(
@@ -223,6 +234,8 @@ SELECT factory.transition_task(
 SQL
 expect_failure "approval from a previous attempt cannot authorize a new attempt" "human approval required for this attempt and decision scope" \
   "SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','implementing','task.implementing','system','ci-test','ci-stale-approval','12121212-1212-4212-8212-121212121212')"
+expect_failure "approval with the wrong decision scope cannot authorize implementation" "human approval required for this attempt and decision scope" \
+  "SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','implementing','task.implementing','system','ci-test','ci-wrong-scope','13131313-1313-4313-8313-131313131313')"
 psql -v ON_ERROR_STOP=1 -At -c "SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','implementing','task.implementing','system','ci-test','ci-approved-implementing','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')" >/dev/null
 
 if [[ "$(psql -At -c "SELECT status FROM factory.tasks WHERE task_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'")" != "review" ]]; then
