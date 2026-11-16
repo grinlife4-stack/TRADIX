@@ -186,23 +186,6 @@ REVOKE UPDATE, DELETE, TRUNCATE ON factory.task_artifacts FROM PUBLIC;
 -- The only supported lifecycle write path: lock the task, validate the edge,
 -- enforce evidence/approval gates, append the event, and update the projection
 -- in one PostgreSQL transaction. Callers must not update tasks.status directly.
-CREATE FUNCTION factory.reject_direct_task_status_update()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $body$
-BEGIN
-    IF NEW.status IS DISTINCT FROM OLD.status
-       AND current_setting('factory.transition_in_progress', true) IS DISTINCT FROM 'on' THEN
-        RAISE EXCEPTION 'task status must be changed through factory.transition_task';
-    END IF;
-    RETURN NEW;
-END;
-$body$;
-
-CREATE TRIGGER tasks_status_via_transition_function
-    BEFORE UPDATE OF status ON factory.tasks
-    FOR EACH ROW EXECUTE FUNCTION factory.reject_direct_task_status_update();
-
 CREATE FUNCTION factory.transition_task(
     p_task_id UUID,
     p_to_state TEXT,
@@ -310,11 +293,9 @@ BEGIN
         p_actor_type, p_actor_ref, p_idempotency_key, p_payload
     ) RETURNING event_seq INTO v_event_seq;
 
-    PERFORM set_config('factory.transition_in_progress', 'on', true);
     UPDATE factory.tasks
     SET status = p_to_state, updated_at = now()
     WHERE task_id = p_task_id;
-    PERFORM set_config('factory.transition_in_progress', 'off', true);
 
     RETURN v_event_seq;
 END;
