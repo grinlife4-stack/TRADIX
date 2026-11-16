@@ -209,6 +209,7 @@ expect_failure "evidence from another attempt cannot satisfy the gate" "required
   "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','review','task.review','system','ci-test','ci-transition-review-wrong-attempt','dddddddd-dddd-4ddd-8ddd-dddddddddddd')"
 
 psql -v ON_ERROR_STOP=1 -At <<'SQL'
+SET SESSION AUTHORIZATION factory_rt_tradix;
 SELECT factory.transition_task(
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'review', 'task.review',
  'system', 'ci-test', 'ci-transition-review',
