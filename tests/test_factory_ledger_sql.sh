@@ -48,9 +48,7 @@ INSERT INTO factory.task_attempts (
  ('12121212-1212-4212-8212-121212121212',
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 2, 'implementer'),
  ('13131313-1313-4313-8313-131313131313',
-  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 3, 'implementer'),
- ('14141414-1414-4414-8414-141414141414',
-  '33333333-3333-4333-8333-333333333333', 1, 'implementer');
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 3, 'implementer');
 
 INSERT INTO factory.task_events (
   event_id, task_id, attempt_id, event_type, to_state, actor_type,
