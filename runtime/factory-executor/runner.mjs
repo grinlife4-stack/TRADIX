@@ -219,43 +219,60 @@ async function main() {
     await transition(client, taskId, attemptId, "queued", "planned");
     await transition(client, taskId, attemptId, "planned", "implementing");
 
-    let runResult;
-    let testResult;
+    let currentState = "implementing";
     try {
-      runResult = await runNodeScript(productRoot, runScript, "product run");
-      testResult = await runNodeScript(productRoot, testScript, "product test");
-    } catch (error) {
+      const runResult = await runNodeScript(productRoot, runScript, "product run");
+      const testResult = await runNodeScript(productRoot, testScript, "product test");
+
+      await transition(client, taskId, attemptId, currentState, "testing");
+      currentState = "testing";
+      await recordEvidence(client, taskId, attemptId, "test_report", {
+        stdout: [runResult.stdout, testResult.stdout].join("\\n"),
+        stderr: [runResult.stderr, testResult.stderr].join("\\n"),
+        exitCode: 0
+      });
+
+      await transition(client, taskId, attemptId, currentState, "review");
+      currentState = "review";
+      const reviewResult = await runNodeScript(productRoot, reviewScript, "product review");
+      await recordEvidence(client, taskId, attemptId, "review_report", reviewResult);
+
+      await transition(client, taskId, attemptId, currentState, "candidate");
+      currentState = "candidate";
+      await transition(client, taskId, attemptId, currentState, "deployed_test");
+      currentState = "deployed_test";
+
+      const healthResult = await runNodeScript(productRoot, healthScript, "product health check");
+      await recordEvidence(client, taskId, attemptId, "health_check", healthResult);
+      await transition(client, taskId, attemptId, currentState, "verified");
+      currentState = "verified";
       await client.query(
-        "SELECT factory.finish_task_attempt($1,$2,'failed')",
+        "SELECT factory.finish_task_attempt($1,$2,'succeeded')",
         [taskId, attemptId]
       );
-      await client.query(
-        "SELECT factory.transition_task($1,'failed','task.failed','agent',$2,$3,$4)",
-        [taskId, EXECUTOR_ID, `factory-executor:${taskId}:failed`, attemptId]
-      );
+    } catch (error) {
+      try {
+        const attemptState = await client.query(
+          "SELECT status FROM factory.task_attempts WHERE task_id=$1 AND attempt_id=$2",
+          [taskId, attemptId]
+        );
+        if (attemptState.rows[0]?.status === "running") {
+          await client.query(
+            "SELECT factory.finish_task_attempt($1,$2,'failed')",
+            [taskId, attemptId]
+          );
+          if (currentState !== "verified") {
+            await client.query(
+              "SELECT factory.transition_task($1,'failed','task.failed','agent',$2,$3,$4)",
+              [taskId, EXECUTOR_ID, `factory-executor:${taskId}:failed`, attemptId]
+            );
+          }
+        }
+      } catch (cleanupError) {
+        process.stderr.write(`FACTORY_EXECUTOR_CLEANUP_FAILED: ${cleanupError.message}\\n`);
+      }
       throw error;
     }
-
-    await transition(client, taskId, attemptId, "implementing", "testing");
-    await recordEvidence(client, taskId, attemptId, "test_report", {
-      stdout: [runResult.stdout, testResult.stdout].join("\n"),
-      stderr: [runResult.stderr, testResult.stderr].join("\n"),
-      exitCode: 0
-    });
-    await transition(client, taskId, attemptId, "testing", "review");
-
-    const reviewResult = await runNodeScript(productRoot, reviewScript, "product review");
-    await recordEvidence(client, taskId, attemptId, "review_report", reviewResult);
-    await transition(client, taskId, attemptId, "review", "candidate");
-    await transition(client, taskId, attemptId, "candidate", "deployed_test");
-
-    const healthResult = await runNodeScript(productRoot, healthScript, "product health check");
-    await recordEvidence(client, taskId, attemptId, "health_check", healthResult);
-    await client.query(
-      "SELECT factory.finish_task_attempt($1,$2,'succeeded')",
-      [taskId, attemptId]
-    );
-    await transition(client, taskId, attemptId, "deployed_test", "verified");
 
     const verified = await client.query(
       "SELECT t.status, a.status AS attempt_status, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.status,a.status",
