@@ -39,4 +39,4 @@ VALUES
 COMMIT;
 RESET ROLE;
 
-\echo Product registered. Record the returned project_id from the psql output.
+\echo Product registered with project_id=:project_id
