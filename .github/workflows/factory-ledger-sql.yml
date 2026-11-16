@@ -54,6 +54,21 @@ jobs:
         run: bash tests/test_factory_ledger_sql.sh "$POSTGRES_CONTAINER_ID"
       - name: Install product dossier API dependencies
         run: npm install --prefix runtime/product-dossier-api --ignore-scripts --no-audit --no-fund
+      - name: Install factory executor dependencies
+        run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
+      - name: Execute Hello World through the product runtime
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: node runtime/factory-executor/runner.mjs examples/hello-world/product.json
+      - name: Upload factory execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello-world-factory-evidence
+          path: /tmp/tradix-factory-executor/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Validate product dossier JSON Schema across product categories
         run: npm run --prefix runtime/product-dossier-api test:schema
       - name: Run isolated product dossier API integration test
