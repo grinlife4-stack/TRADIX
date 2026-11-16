@@ -30,7 +30,7 @@ INSERT INTO factory.tasks (
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   '11111111-1111-4111-8111-111111111111', 'ci-task-1',
   'CI ledger test', 'Verify schema constraints.',
-  '["tests pass"]'::jsonb, 'low', false),
+  '["tests pass"]'::jsonb, 'low', false, '{}'::jsonb),
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   '22222222-2222-4222-8222-222222222222', 'ci-task-2',
   'Cross-project test', 'Verify task isolation.',
