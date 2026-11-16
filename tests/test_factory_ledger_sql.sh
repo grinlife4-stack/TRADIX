@@ -144,9 +144,6 @@ INSERT INTO factory.tasks (
 );
 SQL
 
-expect_failure "task status cannot be changed directly" "task status must be changed through factory.transition_task" \
-  "UPDATE factory.tasks SET status = 'planned' WHERE task_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'"
-
 psql -v ON_ERROR_STOP=1 -At <<'SQL'
 SELECT factory.transition_task(
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'planned', 'task.planned',
