@@ -18,6 +18,14 @@ CREATE TABLE factory.projects (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Maps each database login identity to exactly one project. session_user is
+-- used so SET ROLE cannot change the project identity.
+CREATE TABLE factory.project_runtime_identities (
+    role_name NAME PRIMARY KEY,
+    project_id UUID NOT NULL UNIQUE REFERENCES factory.projects(project_id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE factory.tasks (
     task_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES factory.projects(project_id) ON DELETE RESTRICT,
@@ -29,6 +37,8 @@ CREATE TABLE factory.tasks (
                AND jsonb_array_length(acceptance_criteria) BETWEEN 1 AND 30),
     risk_class TEXT NOT NULL CHECK (risk_class IN ('low', 'medium', 'high', 'critical')),
     approval_required BOOLEAN NOT NULL,
+    approval_scope JSONB NOT NULL DEFAULT '{}'::jsonb
+        CHECK (jsonb_typeof(approval_scope) = 'object'),
     status TEXT NOT NULL DEFAULT 'queued'
         CHECK (status IN (
             'queued', 'planned', 'implementing', 'testing', 'review',
@@ -92,7 +102,7 @@ CREATE INDEX task_events_task_seq_idx
 CREATE TABLE factory.task_approvals (
     approval_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     task_id UUID NOT NULL REFERENCES factory.tasks(task_id) ON DELETE RESTRICT,
-    attempt_id UUID,
+    attempt_id UUID NOT NULL,
     approval_round INTEGER NOT NULL CHECK (approval_round > 0),
     action TEXT NOT NULL CHECK (length(trim(action)) BETWEEN 1 AND 120),
     decision TEXT NOT NULL CHECK (decision IN ('approved', 'rejected')),
@@ -100,8 +110,9 @@ CREATE TABLE factory.task_approvals (
     rationale TEXT NOT NULL CHECK (length(trim(rationale)) BETWEEN 1 AND 4000),
     decision_scope JSONB NOT NULL DEFAULT '{}'::jsonb
         CHECK (jsonb_typeof(decision_scope) = 'object'),
+    decided_by_login NAME NOT NULL DEFAULT session_user,
     decided_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (task_id, action, approval_round),
+    UNIQUE (task_id, action, attempt_id),
     FOREIGN KEY (attempt_id, task_id)
         REFERENCES factory.task_attempts(attempt_id, task_id) ON DELETE RESTRICT
 );
@@ -259,15 +270,24 @@ BEGIN
         RAISE EXCEPTION 'task transition not allowed: % -> %', v_task.status, p_to_state;
     END IF;
 
+    IF p_attempt_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM factory.task_attempts
+        WHERE attempt_id = p_attempt_id AND task_id = p_task_id
+    ) THEN
+        RAISE EXCEPTION 'attempt does not belong to task';
+    END IF;
+
     IF v_task.status = 'planned' AND p_to_state = 'implementing'
        AND v_task.approval_required
-       AND NOT EXISTS (
+       AND (p_attempt_id IS NULL OR NOT EXISTS (
            SELECT 1 FROM factory.task_approvals
            WHERE task_id = p_task_id
+             AND attempt_id = p_attempt_id
              AND action = 'begin_implementation'
              AND decision = 'approved'
-       ) THEN
-        RAISE EXCEPTION 'human approval required before implementation';
+             AND decision_scope = v_task.approval_scope
+       )) THEN
+        RAISE EXCEPTION 'human approval required for this attempt and decision scope';
     END IF;
 
     v_required_evidence := CASE
@@ -277,14 +297,16 @@ BEGIN
         ELSE NULL
     END;
 
-    IF v_required_evidence IS NOT NULL AND NOT EXISTS (
-        SELECT 1
-        FROM factory.task_evidence e
-        WHERE e.task_id = p_task_id
-          AND e.evidence_type = v_required_evidence
-          AND (p_attempt_id IS NULL OR e.attempt_id = p_attempt_id)
+    IF v_required_evidence IS NOT NULL AND (
+        p_attempt_id IS NULL OR NOT EXISTS (
+            SELECT 1
+            FROM factory.task_evidence e
+            WHERE e.task_id = p_task_id
+              AND e.evidence_type = v_required_evidence
+              AND e.attempt_id = p_attempt_id
+        )
     ) THEN
-        RAISE EXCEPTION 'required evidence missing: %', v_required_evidence;
+        RAISE EXCEPTION 'required evidence missing for the specified attempt: %', v_required_evidence;
     END IF;
 
     INSERT INTO factory.task_events (
@@ -330,18 +352,27 @@ BEGIN
     IF NOT pg_catalog.pg_has_role(CURRENT_USER, 'factory_executor_owner', 'SET') THEN
         RAISE EXCEPTION 'migration identity must have SET membership in factory_executor_owner';
     END IF;
+
+    IF pg_catalog.pg_has_role('factory_runtime', 'factory_executor_owner', 'MEMBER') THEN
+        RAISE EXCEPTION 'factory_runtime must never be a member of factory_executor_owner';
+    END IF;
+    IF pg_catalog.pg_has_role('factory_runtime', 'factory_approval_authority', 'MEMBER') THEN
+        RAISE EXCEPTION 'factory_runtime must never be a member of factory_approval_authority';
+    END IF;
 END
 $role_preflight$;
 
 REVOKE ALL ON SCHEMA factory FROM PUBLIC;
 REVOKE CREATE ON SCHEMA factory FROM PUBLIC;
 GRANT USAGE ON SCHEMA factory TO factory_runtime;
+GRANT USAGE ON SCHEMA factory TO factory_approval_authority;
 
 REVOKE ALL ON ALL TABLES IN SCHEMA factory FROM PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA factory FROM PUBLIC;
 
 GRANT SELECT ON ALL TABLES IN SCHEMA factory TO factory_runtime;
+GRANT INSERT ON factory.task_approvals TO factory_approval_authority;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
     ON ALL TABLES IN SCHEMA factory FROM factory_runtime;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM factory_runtime;
@@ -351,7 +382,8 @@ REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM factory_runtime;
 GRANT USAGE, CREATE ON SCHEMA factory TO factory_executor_owner;
 GRANT SELECT, UPDATE ON factory.tasks TO factory_executor_owner;
 GRANT SELECT, INSERT ON factory.task_events TO factory_executor_owner;
-GRANT SELECT ON factory.task_approvals, factory.task_evidence TO factory_executor_owner;
+GRANT SELECT ON factory.task_approvals, factory.task_evidence,
+    factory.project_runtime_identities TO factory_executor_owner;
 
 -- Revoke/grant function ACLs while the migration identity still owns it.
 -- After ownership transfer, a non-superuser migration identity no longer
@@ -370,6 +402,57 @@ ALTER FUNCTION factory.transition_task(
     UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB
 ) OWNER TO factory_executor_owner;
 REVOKE CREATE ON SCHEMA factory FROM factory_executor_owner;
+
+-- Project isolation is enforced by database login identity, not caller-settable
+-- session variables. Every project-specific LOGIN role must be explicitly mapped
+-- by an administrator and must not be shared between projects.
+ALTER TABLE factory.projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE factory.projects FORCE ROW LEVEL SECURITY;
+ALTER TABLE factory.project_runtime_identities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE factory.project_runtime_identities FORCE ROW LEVEL SECURITY;
+ALTER TABLE factory.tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE factory.tasks FORCE ROW LEVEL SECURITY;
+ALTER TABLE factory.task_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE factory.task_attempts FORCE ROW LEVEL SECURITY;
+ALTER TABLE factory.task_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE factory.task_events FORCE ROW LEVEL SECURITY;
+ALTER TABLE factory.task_approvals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE factory.task_approvals FORCE ROW LEVEL SECURITY;
+ALTER TABLE factory.task_artifacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE factory.task_artifacts FORCE ROW LEVEL SECURITY;
+ALTER TABLE factory.task_evidence ENABLE ROW LEVEL SECURITY;
+ALTER TABLE factory.task_evidence FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY project_identity_self ON factory.project_runtime_identities
+    FOR SELECT TO factory_runtime
+    USING (role_name = session_user);
+CREATE POLICY projects_isolated ON factory.projects
+    FOR SELECT TO factory_runtime
+    USING (project_id IN (
+        SELECT project_id FROM factory.project_runtime_identities
+        WHERE role_name = session_user
+    ));
+CREATE POLICY tasks_isolated ON factory.tasks
+    FOR SELECT TO factory_runtime
+    USING (project_id IN (
+        SELECT project_id FROM factory.project_runtime_identities
+        WHERE role_name = session_user
+    ));
+CREATE POLICY attempts_isolated ON factory.task_attempts
+    FOR SELECT TO factory_runtime
+    USING (task_id IN (SELECT task_id FROM factory.tasks));
+CREATE POLICY events_isolated ON factory.task_events
+    FOR SELECT TO factory_runtime
+    USING (task_id IN (SELECT task_id FROM factory.tasks));
+CREATE POLICY approvals_isolated ON factory.task_approvals
+    FOR SELECT TO factory_runtime
+    USING (task_id IN (SELECT task_id FROM factory.tasks));
+CREATE POLICY artifacts_isolated ON factory.task_artifacts
+    FOR SELECT TO factory_runtime
+    USING (task_id IN (SELECT task_id FROM factory.tasks));
+CREATE POLICY evidence_isolated ON factory.task_evidence
+    FOR SELECT TO factory_runtime
+    USING (task_id IN (SELECT task_id FROM factory.tasks));
 
 -- Future objects created by the migration owner inherit the same safe defaults.
 ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA factory
