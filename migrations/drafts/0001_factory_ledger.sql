@@ -441,15 +441,15 @@ BEGIN
     END IF;
 
     IF p_dossier->>'schema_version' IS DISTINCT FROM '1'
-       OR jsonb_typeof(p_dossier->'product_type') <> 'string'
+       OR jsonb_typeof(p_dossier->'product_type') IS DISTINCT FROM 'string'
        OR length(trim(p_dossier->>'product_type')) NOT BETWEEN 1 AND 80
-       OR jsonb_typeof(p_dossier->'mission') <> 'string'
+       OR jsonb_typeof(p_dossier->'mission') IS DISTINCT FROM 'string'
        OR length(trim(p_dossier->>'mission')) NOT BETWEEN 1 AND 12000
-       OR jsonb_typeof(p_dossier->'requirements') <> 'array'
+       OR jsonb_typeof(p_dossier->'requirements') IS DISTINCT FROM 'array'
        OR jsonb_array_length(p_dossier->'requirements') < 1
-       OR jsonb_typeof(p_dossier->'acceptance_criteria') <> 'array'
+       OR jsonb_typeof(p_dossier->'acceptance_criteria') IS DISTINCT FROM 'array'
        OR jsonb_array_length(p_dossier->'acceptance_criteria') < 1
-       OR jsonb_typeof(p_dossier->'lifecycle') <> 'object' THEN
+       OR jsonb_typeof(p_dossier->'lifecycle') IS DISTINCT FROM 'object' THEN
         RAISE EXCEPTION 'product dossier does not satisfy the minimum schema';
     END IF;
 
@@ -572,11 +572,17 @@ REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM factory_runtime;
 -- Give the SECURITY DEFINER function a dedicated, non-login owner with
 -- only the table privileges its body requires. It is not a superuser or table owner.
 GRANT USAGE, CREATE ON SCHEMA factory TO factory_executor_owner;
+GRANT SELECT ON factory.projects TO factory_executor_owner;
 GRANT SELECT, UPDATE ON factory.tasks TO factory_executor_owner;
 GRANT SELECT, INSERT ON factory.task_events TO factory_executor_owner;
 GRANT SELECT, INSERT ON factory.product_dossier_versions TO factory_executor_owner;
 GRANT SELECT ON factory.task_approvals, factory.task_evidence,
     factory.task_attempts, factory.project_identities TO factory_executor_owner;
+
+REVOKE ALL ON FUNCTION factory.record_product_dossier(UUID, JSONB, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION factory.record_product_dossier(UUID, JSONB, TEXT) FROM factory_runtime;
+GRANT EXECUTE ON FUNCTION factory.record_product_dossier(UUID, JSONB, TEXT) TO factory_runtime;
+ALTER FUNCTION factory.record_product_dossier(UUID, JSONB, TEXT) OWNER TO factory_executor_owner;
 
 -- Revoke/grant function ACLs while the migration identity still owns it.
 -- After ownership transfer, a non-superuser migration identity no longer
@@ -599,7 +605,9 @@ REVOKE CREATE ON SCHEMA factory FROM factory_executor_owner;
 -- Project isolation is enforced by database login identity, not caller-settable
 -- session variables. Every project-specific LOGIN role must be explicitly mapped
 -- by an administrator and must not be shared between projects.
-ALTER TABLE factory.product_dossier_versions ENABLE ROW LEVEL SECURITY;\nALTER TABLE factory.product_dossier_versions FORCE ROW LEVEL SECURITY;\nALTER TABLE factory.projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE factory.product_dossier_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE factory.product_dossier_versions FORCE ROW LEVEL SECURITY;
+ALTER TABLE factory.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE factory.projects FORCE ROW LEVEL SECURITY;
 ALTER TABLE factory.project_identities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE factory.project_identities FORCE ROW LEVEL SECURITY;
@@ -727,7 +735,7 @@ CREATE POLICY evidence_isolated ON factory.task_evidence
     FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
 
-REVOKE ALL ON FUNCTION factory.record_product_dossier(UUID, JSONB, TEXT) FROM PUBLIC;\nGRANT EXECUTE ON FUNCTION factory.record_product_dossier(UUID, JSONB, TEXT) TO factory_runtime;\nREVOKE ALL ON FUNCTION factory.validate_project_identity() FROM PUBLIC;
+REVOKE ALL ON FUNCTION factory.validate_project_identity() FROM PUBLIC;
 REVOKE ALL ON FUNCTION factory.validate_human_approval_identity() FROM PUBLIC;
 
 -- Future objects created by the migration owner inherit the same safe defaults.
