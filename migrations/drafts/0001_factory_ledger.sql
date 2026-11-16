@@ -1016,6 +1016,12 @@ CREATE POLICY tasks_isolated ON factory.tasks
         SELECT project_id FROM factory.project_identities
         WHERE role_name = session_user
     ));
+CREATE POLICY tasks_executor_insert ON factory.tasks
+    FOR INSERT TO factory_executor_owner
+    WITH CHECK (project_id IN (
+        SELECT project_id FROM factory.project_identities
+        WHERE role_name = session_user
+    ));
 CREATE POLICY tasks_transition_update ON factory.tasks
     FOR UPDATE TO factory_executor_owner
     USING (project_id IN (
@@ -1029,6 +1035,13 @@ CREATE POLICY tasks_transition_update ON factory.tasks
 CREATE POLICY attempts_isolated ON factory.task_attempts
     FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
+CREATE POLICY attempts_executor_insert ON factory.task_attempts
+    FOR INSERT TO factory_executor_owner
+    WITH CHECK (task_id IN (SELECT task_id FROM factory.tasks));
+CREATE POLICY attempts_executor_update ON factory.task_attempts
+    FOR UPDATE TO factory_executor_owner
+    USING (task_id IN (SELECT task_id FROM factory.tasks))
+    WITH CHECK (task_id IN (SELECT task_id FROM factory.tasks));
 CREATE POLICY events_isolated ON factory.task_events
     FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
@@ -1063,9 +1076,15 @@ CREATE TRIGGER task_approval_identity_guard
 CREATE POLICY artifacts_isolated ON factory.task_artifacts
     FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
+CREATE POLICY artifacts_executor_insert ON factory.task_artifacts
+    FOR INSERT TO factory_executor_owner
+    WITH CHECK (task_id IN (SELECT task_id FROM factory.tasks));
 CREATE POLICY evidence_isolated ON factory.task_evidence
     FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
+CREATE POLICY evidence_executor_insert ON factory.task_evidence
+    FOR INSERT TO factory_executor_owner
+    WITH CHECK (task_id IN (SELECT task_id FROM factory.tasks));
 
 REVOKE ALL ON FUNCTION factory.validate_project_identity() FROM PUBLIC;
 REVOKE ALL ON FUNCTION factory.validate_human_approval_identity() FROM PUBLIC;
