@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "execution_mode": "trusted-node",
+  "product_dir": ".",
+  "dossier": {
+    "schema_version": 1,
+    "product_type": "service",
+    "mission": "A minimal Hello World product proving the factory onboarding and execution path.",
+    "requirements": [
+      "The program prints the exact greeting Hello from TRADIX."
+    ],
+    "acceptance_criteria": [
+      "The program exits successfully and prints the expected output."
+    ],
+    "lifecycle": {
+      "state": "active"
+    },
+    "deliverables": [
+      {
+        "name": "Hello World executable",
+        "format": "Node.js"
+      }
+    ]
+  },
+  "task": {
+    "task_key": "hello-world-runner-v1",
+    "title": "Execute Hello World through the TRADIX factory runtime",
+    "request_text": "Run the product, test its output, review its source, and verify its health.",
+    "acceptance_criteria": [
+      "The product exits successfully.",
+      "The product prints Hello from TRADIX.",
+      "Test, review, and health evidence are recorded."
+    ],
+    "risk_class": "low",
+    "approval_required": false,
+    "approval_scope": {}
+  },
+  "attempt": {
+    "idempotency_key": "hello-world-runner-attempt-v1",
+    "worker_role": "implementer",
+    "branch_name": "factory/executive-runtime-architecture-v0-1",
+    "metadata": {
+      "executor": "tradix-factory-executor-v0.1"
+    }
+  },
+  "scripts": {
+    "run": "index.mjs",
+    "test": "test.mjs",
+    "review": "review.mjs",
+    "health": "health.mjs"
+  }
+}
