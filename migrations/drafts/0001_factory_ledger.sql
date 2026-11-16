@@ -428,6 +428,11 @@ BEGIN
        OR pg_catalog.pg_has_role('factory_approval_authority', 'factory_identity_admin', 'MEMBER') THEN
         RAISE EXCEPTION 'runtime and approval authority must not be members of factory_identity_admin';
     END IF;
+    IF pg_catalog.pg_has_role('factory_identity_admin', 'factory_runtime', 'MEMBER')
+       OR pg_catalog.pg_has_role('factory_identity_admin', 'factory_approval_authority', 'MEMBER')
+       OR pg_catalog.pg_has_role('factory_identity_admin', 'factory_executor_owner', 'MEMBER') THEN
+        RAISE EXCEPTION 'factory_identity_admin must remain a separate authority';
+    END IF;
 END
 $role_preflight$;
 
