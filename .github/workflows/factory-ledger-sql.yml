@@ -63,4 +63,4 @@ jobs:
             sleep 1
           done
           curl --silent --fail http://127.0.0.1:8787/health >/dev/null || { cat /tmp/memory-gateway.log; exit 1; }
-          node tests/test_memory_gateway_integration.mjs
+          node tests/test_memory_gateway_integration.mjs || { cat /tmp/memory-gateway.log; exit 1; }
