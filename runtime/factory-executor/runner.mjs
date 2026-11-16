@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile, realpath } from "node:fs/promises";
+import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
@@ -121,6 +121,9 @@ async function transition(client, taskId, attemptId, from, to) {
 
 async function recordEvidence(client, taskId, attemptId, type, result) {
   const payload = artifactPayload(result, type);
+  const evidenceDir = resolve(process.env.FACTORY_EVIDENCE_DIR ?? "/tmp/tradix-factory-executor", taskId);
+  await mkdir(evidenceDir, { recursive: true });
+  await writeFile(resolve(evidenceDir, `${type}.txt`), payload.content, { mode: 0o600 });
   await client.query(
     "SELECT factory.record_task_evidence($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)",
     [
