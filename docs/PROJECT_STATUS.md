@@ -4,12 +4,12 @@
 **Repository:** `grinlife4-stack/TRADIX`  
 **Active PR:** [#3 — Define TRADIX executive runtime architecture](https://github.com/grinlife4-stack/TRADIX/pull/3)  
 **Working branch:** `factory/executive-runtime-architecture-v0-1`  
-**Last verified code/test baseline:** `7019d0be800188f0054e0fbbc0cf8325912c0a0b`  
+**Last verified code/test baseline:** `4f9b56bb201e100dc8c23324b9148a97de773cd7`  
 **Production policy:** Neon Production and `main` remain untouched unless explicitly approved.
 
 ## 1. Executive status
 
-TRADIX has a verified deterministic demonstration path, a tested runnable read-only memory gateway, draft factory-ledger SQL, and provider-neutral model/task contracts. It is **not yet an autonomous software factory**.
+TRADIX has a verified deterministic demonstration path, a tested runnable read-only memory gateway, draft factory-ledger SQL, and provider-neutral model/task contracts. It is **not yet an autonomous general-purpose factory**.
 
 Verified branch head `7019d0be800188f0054e0fbbc0cf8325912c0a0b` passed both Python tests and disposable PostgreSQL 17 plus Node HTTP integration. Cluster-level factory roles are provisioned separately by an administrator; the schema migration runs as a non-superuser without `CREATEROLE`. These checks do not prove a deployed runtime, live model execution, persistent orchestration, autonomous implementation, or unattended recovery.
 
@@ -206,3 +206,20 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
   - `tests` Run #159 (`43922797652`): success.
 - No workflow failure or in-progress job remained for that SHA. Combined status endpoint returned an empty status list; the two workflow runs and their job steps are the positive CI evidence.
 - This confirms disposable PostgreSQL 17 CI only. It does not prove the draft migration on Neon PostgreSQL 18 or authorize deployment.
+
+## 12. Factory Core contract correction and current CI (2026-11-16)
+
+- Repaired the malformed `.github/workflows/factory-ledger-sql.yml`: the executor retry assertion and artifact-upload step had been merged into one malformed step, with duplicated later steps. The workflow now contains one correctly bounded retry assertion and one artifact upload.
+- Corrected the factory executor's already-verified retry output to emit a real newline. The prior literal backslash-n caused the retry assertion to fail even though the database state, attempt, seven lifecycle events, and three evidence records were valid.
+- Made `TaskEnvelope.repository` and `TaskEnvelope.base_ref` optional as a pair. Software tasks may provide both; physical/service tasks may omit both. Supplying only one is rejected. This removes a software-only assumption from the shared task contract.
+- Exact verified head: `4f9b56bb201e100dc8c23324b9148a97de773cd7`.
+- CI on that exact head:
+  - `tests` Run `43933205174`: success.
+  - `factory-ledger-sql` Run `43933205144`: success, including non-superuser migration, product registration, executor run and idempotent retry, dossier schema/API checks, and memory gateway SQL/HTTP tests.
+  - `factory-first-run` Run `43933205165`: success.
+- PR #3 remains open and Draft. Its base is `factory/preflight-status-2026-11-15`; it remains unmerged.
+- PR #4 (`factory/phase-0-blueprint`) is a separate branch based on `main`, containing a small in-memory task lifecycle demo and B2 adapter work. It does not contain PR #3's ledger, product dossier API, or current Factory Core baseline. Do not treat it as a successor or merge it as a substitute for PR #3.
+- Factory Core is still incomplete: there is no unified request-intake boundary that turns an incoming product brief into a validated product dossier plus an approval-gated initial task plan. Product registration still relies on a trusted provisioning script; no autonomous privilege or login provisioning is enabled.
+- The current executor is explicitly trusted-code only, not an OS sandbox. Untrusted product code must not be run through it.
+- No Neon migration, Production write, `main` change, deployment, secret change, paid resource, or PR merge occurred.
+
