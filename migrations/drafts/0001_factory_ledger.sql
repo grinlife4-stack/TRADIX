@@ -41,13 +41,6 @@ CREATE TABLE factory.product_dossier_versions (
 CREATE INDEX product_dossier_versions_latest_idx
     ON factory.product_dossier_versions (project_id, version_no DESC);
 
-CREATE TRIGGER product_dossier_versions_append_only
-    BEFORE UPDATE OR DELETE ON factory.product_dossier_versions
-    FOR EACH ROW EXECUTE FUNCTION factory.reject_immutable_row_mutation();
-CREATE TRIGGER product_dossier_versions_no_truncate
-    BEFORE TRUNCATE ON factory.product_dossier_versions
-    FOR EACH STATEMENT EXECUTE FUNCTION factory.reject_immutable_row_mutation();
-
 REVOKE UPDATE, DELETE, TRUNCATE ON factory.product_dossier_versions FROM PUBLIC;
 
 CREATE TABLE factory.project_identities (
@@ -234,6 +227,13 @@ BEGIN
     RAISE EXCEPTION 'Rows in %.% are append-only', TG_TABLE_SCHEMA, TG_TABLE_NAME;
 END;
 $$;
+
+CREATE TRIGGER product_dossier_versions_append_only
+    BEFORE UPDATE OR DELETE ON factory.product_dossier_versions
+    FOR EACH ROW EXECUTE FUNCTION factory.reject_immutable_row_mutation();
+CREATE TRIGGER product_dossier_versions_no_truncate
+    BEFORE TRUNCATE ON factory.product_dossier_versions
+    FOR EACH STATEMENT EXECUTE FUNCTION factory.reject_immutable_row_mutation();
 
 CREATE TRIGGER task_events_append_only
     BEFORE UPDATE OR DELETE ON factory.task_events
@@ -453,10 +453,11 @@ BEGIN
         RAISE EXCEPTION 'product dossier does not satisfy the minimum schema';
     END IF;
 
+    PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_project_id::text, 0));
+
     SELECT product_type INTO v_product_type
     FROM factory.projects
-    WHERE project_id = p_project_id
-    FOR UPDATE;
+    WHERE project_id = p_project_id;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'product not found or not visible to this identity';
