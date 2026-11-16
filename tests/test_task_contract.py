@@ -36,6 +36,31 @@ def test_valid_task_envelope_is_parsed():
     assert task.acceptance_criteria[0] == "Invalid input is rejected"
 
 
+def test_physical_product_task_can_omit_source_control_context():
+    payload = valid_payload()
+    payload.pop("repository")
+    payload.pop("base_ref")
+
+    task = TaskEnvelope.from_mapping(payload)
+
+    assert task.repository is None
+    assert task.base_ref is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("repository", "owner/product"), ("base_ref", "main")],
+)
+def test_source_control_context_must_be_provided_as_a_pair(field, value):
+    payload = valid_payload()
+    payload.pop("repository")
+    payload.pop("base_ref")
+    payload[field] = value
+
+    with pytest.raises(TaskContractError, match="provided together"):
+        TaskEnvelope.from_mapping(payload)
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
