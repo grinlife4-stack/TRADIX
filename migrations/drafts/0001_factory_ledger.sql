@@ -439,12 +439,25 @@ CREATE POLICY tasks_isolated ON factory.tasks
         SELECT project_id FROM factory.project_identities
         WHERE role_name = session_user
     ));
+CREATE POLICY tasks_transition_update ON factory.tasks
+    FOR UPDATE TO factory_executor_owner
+    USING (project_id IN (
+        SELECT project_id FROM factory.project_identities
+        WHERE role_name = session_user
+    ))
+    WITH CHECK (project_id IN (
+        SELECT project_id FROM factory.project_identities
+        WHERE role_name = session_user
+    ));
 CREATE POLICY attempts_isolated ON factory.task_attempts
     FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
 CREATE POLICY events_isolated ON factory.task_events
     FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
+CREATE POLICY events_transition_insert ON factory.task_events
+    FOR INSERT TO factory_executor_owner
+    WITH CHECK (task_id IN (SELECT task_id FROM factory.tasks));
 CREATE POLICY approvals_isolated ON factory.task_approvals
     FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
