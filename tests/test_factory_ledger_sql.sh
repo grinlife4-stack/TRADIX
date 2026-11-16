@@ -70,6 +70,93 @@ if [[ "$(psql -At -c "SELECT count(*) FROM factory.project_identities WHERE proj
   exit 1
 fi
 
+# Execute a real, minimal product through registration, dossier, evidence, and lifecycle.
+psql -c "ALTER ROLE factory_rt_onboarding PASSWORD 'ci-only-onboarding-password'" >/dev/null
+hello_dossier='{"schema_version":1,"product_type":"service","mission":"A minimal Hello World product proving the factory onboarding and execution path.","requirements":["The program prints the exact greeting Hello from TRADIX."],"acceptance_criteria":["The program exits successfully and prints the expected output."],"lifecycle":{"state":"active"},"deliverables":[{"name":"Hello World executable","format":"Node.js"}]}'
+hello_dossier_version=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_onboarding; SELECT factory.record_product_dossier('$onboarding_project_id', '$hello_dossier'::jsonb, 'hello-world-dossier-v1'); RESET SESSION AUTHORIZATION")
+if [[ "$hello_dossier_version" != "1" ]]; then
+  echo "FAIL: Hello World product dossier was not created as version 1"
+  exit 1
+fi
+
+hello_task_id="55555555-5555-4555-8555-555555555551"
+hello_attempt_id="55555555-5555-4555-8555-555555555552"
+psql -v project_id="$onboarding_project_id" -v task_id="$hello_task_id" -v attempt_id="$hello_attempt_id" <<'SQL'
+INSERT INTO factory.tasks (
+  task_id, project_id, task_key, title, request_text, acceptance_criteria,
+  risk_class, approval_required
+) VALUES (
+  :'task_id', :'project_id', 'hello-world-run',
+  'Execute Hello World demo product',
+  'Run the product and verify its exact stdout.',
+  '["process exits with code 0","stdout equals Hello from TRADIX"]'::jsonb,
+  'low', false
+);
+INSERT INTO factory.task_attempts (
+  attempt_id, task_id, attempt_number, worker_role, branch_name
+) VALUES (
+  :'attempt_id', :'task_id', 1, 'implementer', 'factory/executive-runtime-architecture-v0-1'
+);
+SQL
+
+node examples/hello-world/test.mjs
+node examples/hello-world/index.mjs > /tmp/tradix-hello-world-output.txt
+printf '{"review":"passed","scope":"hello-world-demo"}\n' > /tmp/tradix-hello-world-review.json
+printf '{"health":"ok","service":"hello-world-demo"}\n' > /tmp/tradix-hello-world-health.json
+
+test_sha=$(sha256sum /tmp/tradix-hello-world-output.txt | awk '{print $1}')
+test_bytes=$(wc -c < /tmp/tradix-hello-world-output.txt | tr -d ' ')
+review_sha=$(sha256sum /tmp/tradix-hello-world-review.json | awk '{print $1}')
+review_bytes=$(wc -c < /tmp/tradix-hello-world-review.json | tr -d ' ')
+health_sha=$(sha256sum /tmp/tradix-hello-world-health.json | awk '{print $1}')
+health_bytes=$(wc -c < /tmp/tradix-hello-world-health.json | tr -d ' ')
+
+psql -v task_id="$hello_task_id" -v attempt_id="$hello_attempt_id" \
+  -v test_sha="$test_sha" -v test_bytes="$test_bytes" \
+  -v review_sha="$review_sha" -v review_bytes="$review_bytes" \
+  -v health_sha="$health_sha" -v health_bytes="$health_bytes" <<'SQL'
+INSERT INTO factory.task_artifacts (
+  task_id, attempt_id, artifact_type, object_uri, sha256, byte_size, content_type
+) VALUES
+ (:'task_id', :'attempt_id', 'test_report', 'ci://hello-world/stdout.txt', :'test_sha', :'test_bytes', 'text/plain'),
+ (:'task_id', :'attempt_id', 'review_report', 'ci://hello-world/review.json', :'review_sha', :'review_bytes', 'application/json'),
+ (:'task_id', :'attempt_id', 'health_check', 'ci://hello-world/health.json', :'health_sha', :'health_bytes', 'application/json');
+
+INSERT INTO factory.task_evidence (
+  task_id, attempt_id, artifact_id, evidence_type, recorded_by
+)
+SELECT :'task_id', :'attempt_id', artifact_id, artifact_type, 'hello-world-ci'
+FROM factory.task_artifacts
+WHERE task_id = :'task_id'
+  AND object_uri IN (
+    'ci://hello-world/stdout.txt',
+    'ci://hello-world/review.json',
+    'ci://hello-world/health.json'
+  );
+SQL
+
+psql -v task_id="$hello_task_id" -v attempt_id="$hello_attempt_id" -v ON_ERROR_STOP=1 -At <<'SQL'
+SET SESSION AUTHORIZATION factory_rt_onboarding;
+SELECT factory.transition_task(:'task_id', 'planned', 'task.planned', 'agent', 'hello-world-ci', 'hello-world-planned', :'attempt_id');
+SELECT factory.transition_task(:'task_id', 'implementing', 'task.implementing', 'agent', 'hello-world-ci', 'hello-world-implementing', :'attempt_id');
+SELECT factory.transition_task(:'task_id', 'testing', 'task.testing', 'agent', 'hello-world-ci', 'hello-world-testing', :'attempt_id');
+SELECT factory.transition_task(:'task_id', 'review', 'task.review', 'agent', 'hello-world-ci', 'hello-world-review', :'attempt_id');
+SELECT factory.transition_task(:'task_id', 'candidate', 'task.candidate', 'agent', 'hello-world-ci', 'hello-world-candidate', :'attempt_id');
+SELECT factory.transition_task(:'task_id', 'deployed_test', 'task.deployed_test', 'agent', 'hello-world-ci', 'hello-world-deployed-test', :'attempt_id');
+SELECT factory.transition_task(:'task_id', 'verified', 'task.verified', 'agent', 'hello-world-ci', 'hello-world-verified', :'attempt_id');
+RESET SESSION AUTHORIZATION;
+SQL
+
+if [[ "$(psql -At -c "SELECT status FROM factory.tasks WHERE task_id='$hello_task_id'")" != "verified" ]]; then
+  echo "FAIL: Hello World task did not reach verified state"
+  exit 1
+fi
+if [[ "$(psql -At -c "SELECT count(*) FROM factory.task_events WHERE task_id='$hello_task_id'")" != "7" ]]; then
+  echo "FAIL: Hello World lifecycle did not record all seven transitions"
+  exit 1
+fi
+echo "PASS: Hello World product registered, dossier v1 recorded, executed, evidenced, and verified"
+
 psql <<'SQL'
 INSERT INTO factory.tasks (
   task_id, project_id, task_key, title, request_text, acceptance_criteria,
