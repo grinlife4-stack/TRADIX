@@ -155,9 +155,9 @@ const makeIntake = (version = 1, requirement = "Atomic intake requirement") => (
     dependencies: []
   }
 });
-const postIntake = (payload, key = intakeKey) => fetch(`${base}/v1/intake`, {
+const postIntake = (payload, idempotency = intakeKey) => fetch(`${base}/v1/intake`, {
   method: "POST",
-  headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "idempotency-key": key },
+  headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "idempotency-key": idempotency },
   body: JSON.stringify(payload)
 });
 const atomicFailure = await postIntake(makeIntake(2));
