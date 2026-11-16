@@ -84,6 +84,8 @@ class MissionEnvelope:
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "MissionEnvelope":
+        if not isinstance(value, Mapping):
+            raise MissionContractError("mission must be an object")
         required = {
             "mission_id", "project_key", "version", "title",
             "objective", "acceptance_criteria",
@@ -217,6 +219,10 @@ class TaskPlan:
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any], mission: MissionEnvelope) -> "TaskPlan":
+        if not isinstance(value, Mapping):
+            raise MissionContractError("task plan must be an object")
+        if not isinstance(mission, MissionEnvelope):
+            raise MissionContractError("mission must be a validated MissionEnvelope")
         expected = {
             "mission_id", "mission_version", "plan_version",
             "project_key", "tasks", "dependencies",
