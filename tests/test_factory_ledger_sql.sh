@@ -9,10 +9,11 @@ psql() {
 psql <<'SQL'
 CREATE ROLE factory_rt_tradix LOGIN INHERIT;
 CREATE ROLE factory_rt_info_engine LOGIN INHERIT;
+CREATE ROLE factory_rt_physical_goods LOGIN INHERIT;
 CREATE ROLE factory_approver_tradix LOGIN INHERIT;
 CREATE ROLE factory_approver_info_engine LOGIN INHERIT;
 CREATE ROLE factory_provisioner LOGIN NOINHERIT;
-GRANT factory_runtime TO factory_rt_tradix, factory_rt_info_engine;
+GRANT factory_runtime TO factory_rt_tradix, factory_rt_info_engine, factory_rt_physical_goods;
 GRANT factory_approval_authority TO factory_approver_tradix, factory_approver_info_engine;
 GRANT factory_identity_admin TO factory_provisioner WITH SET TRUE, INHERIT FALSE;
 
@@ -382,6 +383,23 @@ if [[ "$first_dossier_version" != "1" || "$retry_dossier_version" != "1" || "$se
   exit 1
 fi
 echo "PASS: product dossier snapshots are versioned and idempotent"
+
+physical_dossier='{"schema_version":1,"product_type":"physical","mission":"Independent physical product dossier","requirements":["no Git repository required"],"acceptance_criteria":["physical product dossier can be versioned"],"lifecycle":{"state":"active"},"resource_plan":{"equipment":[]}}'
+physical_version=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_physical_goods; SELECT factory.record_product_dossier('44444444-4444-4444-8444-444444444444', '$physical_dossier'::jsonb, 'physical-dossier-v1'); RESET SESSION AUTHORIZATION")
+if [[ "$physical_version" != "1" ]]; then
+  echo "FAIL: physical product without a Git repository could not receive its own dossier"
+  exit 1
+fi
+if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_physical_goods; SELECT count(*) FROM factory.product_dossier_versions; RESET SESSION AUTHORIZATION")" != "1" ]]; then
+  echo "FAIL: physical product cannot read its own dossier"
+  exit 1
+fi
+if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT count(*) FROM factory.product_dossier_versions; RESET SESSION AUTHORIZATION")" != "2" ]]; then
+  echo "FAIL: TRADIX dossier visibility was contaminated by another product"
+  exit 1
+fi
+echo "PASS: physical product dossier creation and cross-product isolation"
+
 
 expect_failure "runtime cannot write a dossier for another project" "not authorized for this product dossier" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('22222222-2222-4222-8222-222222222222', '$dossier_v1'::jsonb, 'cross-project-dossier')"
