@@ -80,14 +80,15 @@ function mapDatabaseError(error) {
   if (message.includes("not authorized for this product mission") ||
       message.includes("not authorized for this product task plan") ||
       message.includes("session identity is not an isolated product runtime")) return [403, "product_scope_denied"];
-  if (message.includes("idempotency key reused with different content")) return [409, "idempotency_conflict"];
+  if (message.includes("idempotency key reused with different content") ||
+      message.includes("task plan idempotency key reused with different content")) return [409, "idempotency_conflict"];
   if (message.includes("version must equal the next stored version") ||
-      message.includes("task plan version must equal the next stored version")) return [409, "version_conflict"];
+      message.includes("plan_version must equal the next stored version")) return [409, "version_conflict"];
   if (message.includes("mission version not found for this product runtime")) return [404, "mission_version_not_found"];
   if (message.includes("invalid mission snapshot")) return [422, "invalid_mission"];
   if (message.includes("invalid task plan snapshot") ||
       message.includes("task plan contains") ||
-      message.includes("task plan project or mission identity mismatch")) return [422, "invalid_task_plan"];
+      message.includes("task plan project or mission identity mismatch") || message.includes("mission version not found for this product runtime")) return [422, "invalid_task_plan"];
   return [503, "database_unavailable"];
 }
 
