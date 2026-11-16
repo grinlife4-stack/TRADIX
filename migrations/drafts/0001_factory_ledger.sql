@@ -38,7 +38,7 @@ DECLARE
     v_approver BOOLEAN;
 BEGIN
     SELECT * INTO v_role FROM pg_catalog.pg_roles WHERE rolname = NEW.role_name;
-    IF NOT FOUND OR NOT v_role.rolcanlogin OR v_role.rolsuper OR v_role.rolcreatedb
+    IF NOT FOUND OR NOT v_role.rolcanlogin OR NOT v_role.rolinherit OR v_role.rolsuper OR v_role.rolcreatedb
        OR v_role.rolcreaterole OR v_role.rolbypassrls THEN
         RAISE EXCEPTION 'project identity must be an existing restricted LOGIN role';
     END IF;
@@ -271,6 +271,12 @@ BEGIN
         RAISE EXCEPTION 'task not found: %', p_task_id;
     END IF;
 
+    IF NOT pg_catalog.pg_has_role(session_user, 'factory_runtime', 'MEMBER')
+       OR pg_catalog.pg_has_role(session_user, 'factory_approval_authority', 'MEMBER')
+       OR pg_catalog.pg_has_role(session_user, 'factory_executor_owner', 'MEMBER') THEN
+        RAISE EXCEPTION 'session identity is not an isolated project runtime role';
+    END IF;
+
     -- Exact retries are harmless; reusing a key for different intent is not.
     SELECT * INTO v_existing
     FROM factory.task_events
@@ -497,6 +503,25 @@ CREATE POLICY approvals_isolated ON factory.task_approvals
 CREATE POLICY approvals_human_insert ON factory.task_approvals
     FOR INSERT TO factory_approval_authority
     WITH CHECK (task_id IN (SELECT task_id FROM factory.tasks));
+CREATE FUNCTION factory.validate_human_approval_identity()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = pg_catalog, factory, pg_temp
+AS $approval_identity$
+BEGIN
+    IF NOT pg_catalog.pg_has_role(session_user, 'factory_approval_authority', 'MEMBER')
+       OR pg_catalog.pg_has_role(session_user, 'factory_runtime', 'MEMBER')
+       OR pg_catalog.pg_has_role(session_user, 'factory_executor_owner', 'MEMBER') THEN
+        RAISE EXCEPTION 'approval must be recorded by an isolated human-approval login';
+    END IF;
+    RETURN NEW;
+END;
+$approval_identity$;
+
+CREATE TRIGGER task_approval_identity_guard
+    BEFORE INSERT ON factory.task_approvals
+    FOR EACH ROW EXECUTE FUNCTION factory.validate_human_approval_identity();
 CREATE POLICY artifacts_isolated ON factory.task_artifacts
     FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
@@ -505,6 +530,7 @@ CREATE POLICY evidence_isolated ON factory.task_evidence
     USING (task_id IN (SELECT task_id FROM factory.tasks));
 
 REVOKE ALL ON FUNCTION factory.validate_project_identity() FROM PUBLIC;
+REVOKE ALL ON FUNCTION factory.validate_human_approval_identity() FROM PUBLIC;
 
 -- Future objects created by the migration owner inherit the same safe defaults.
 ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA factory
