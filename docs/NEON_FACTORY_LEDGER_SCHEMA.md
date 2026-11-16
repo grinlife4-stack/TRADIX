@@ -62,26 +62,32 @@ The integration test uses PostgreSQL role switching to prove that the runtime ro
 
 The current Neon project exposes the PostgreSQL role `neondb_owner` with
 `CREATEROLE` and without superuser status. Neon supports SQL role management,
-so creating the two `NOLOGIN` roles in this draft does not inherently require
-a separate Neon API provisioning step. The migration identity must have both
-`CREATEROLE` and database `CREATE` privilege. This was inspected read-only
-on the existing prototype branch; no role or schema was created there.
+so a separate Neon API operation is not required. For least privilege,
+cluster-level role creation is separated into the one-time
+`migrations/bootstrap/0001_factory_roles.sql` step. Run that bootstrap as a
+trusted administrator with `CREATEROLE`; then grant
+`factory_executor_owner` to the chosen schema-migration identity with
+`SET TRUE, INHERIT FALSE`. The ordinary schema migration needs database
+`CREATE` plus that SET membership, not `CREATEROLE`. This was inspected
+read-only on the existing prototype branch; no role or schema was created there.
 
 Important PostgreSQL 16+ behavior: when a non-superuser `CREATEROLE` role
 creates another role, the automatic creator membership has `ADMIN TRUE`,
-but `SET FALSE` and `INHERIT FALSE`. PostgreSQL requires the current
-migration identity to be able to `SET ROLE` to the new owner before
-`ALTER FUNCTION ... OWNER TO` succeeds. The draft therefore explicitly
-grants `factory_executor_owner` back to `CURRENT_USER` with `SET TRUE`
-and `INHERIT FALSE`. This does not grant the application runtime membership
-in the function-owner role.
+but `SET FALSE` and `INHERIT FALSE`. The bootstrap therefore does not rely
+on implicit creator membership. It explicitly grants
+`factory_executor_owner` to the selected migration identity with
+`SET TRUE, INHERIT FALSE`. This does not grant the application runtime
+membership in the function-owner role.
 
 Function ACL revocation and the runtime EXECUTE grant are applied before ownership transfer, while the migration identity still owns the function. After transfer, a non-superuser migration identity cannot change that function ACL without additional grant authority.
 
-The CI migration is now applied by a non-superuser `tradix_migrator` with
-`CREATEROLE` and database `CREATE`, rather than PostgreSQL's superuser.
-Assertions verify the migration role can SET (but does not inherit) the
-function-owner role, while `factory_runtime` cannot become a member of it.
+CI provisions the two factory roles separately as administrator, grants
+`factory_executor_owner` to `tradix_migrator` with SET but not INHERIT, then
+applies the schema migration as a non-superuser `tradix_migrator` without
+`CREATEROLE`. The migration identity has database `CREATE` only for schema
+creation plus the narrowly scoped owner-role SET membership. Assertions verify
+the migration role can SET (but does not inherit) the function-owner role,
+while `factory_runtime` cannot become a member of it.
 
 This is still not proof of a Neon migration: no SQL was executed on any Neon
 branch. Before a future isolated Neon-branch migration, verify the actual
