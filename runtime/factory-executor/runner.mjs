@@ -220,7 +220,7 @@ async function main() {
       if (row.attempt_status !== "succeeded" || row.event_count !== 7 || row.evidence_count !== 3) {
         fail("Previously verified task has inconsistent attempt, event, or evidence records");
       }
-      process.stdout.write(`ALREADY VERIFIED task=${taskId} attempt=${attemptId} events=${row.event_count} evidence=${row.evidence_count}\\n`);
+      process.stdout.write(`ALREADY VERIFIED task=${taskId} attempt=${attemptId} events=${row.event_count} evidence=${row.evidence_count}\n`);
       return;
     }
     if (state.rows[0]?.status !== "queued" || state.rows[0]?.attempt_status !== "running") {
