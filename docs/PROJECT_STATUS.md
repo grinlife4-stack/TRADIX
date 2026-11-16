@@ -15,13 +15,15 @@ Verified implementation commit `2523cc33350eb60a196f79b1853b57739dc1a757` passed
 
 ## 2. Source control and CI
 
-PR #3 is **open, Draft, and unmerged**. Its current head is:
+PR #3 is **open, Draft, and unmerged**. Last code/test-verified implementation head:
 
- `2523cc33350eb60a196f79b1853b57739dc1a757`
+`2523cc33350eb60a196f79b1853b57739dc1a757`
 
 Successful workflow runs on that exact head:
-- [Python tests — 43814122561](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817318325): success.
-- [Factory ledger + memory gateway SQL/HTTP integration — 43814122574](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817318307): success, including the new transactional task-transition tests.
+- [Python tests — 43817318325](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817318325): success.
+- [Factory ledger + memory gateway SQL/HTTP integration — 43817318307](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817318307): success, including the new transactional task-transition and least-privilege tests.
+
+A subsequent documentation-only status commit `e31365a13b9083150648c77989743c9338c9381a` also passed both workflows: [Python tests — 43817413028](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817413028) and [Factory ledger integration — 43817413000](https://github.com/grinlife4-stack/TRADIX/actions/runs/43817413000).
 
 The integration workflow applies draft schemas only to disposable PostgreSQL 17, runs SQL integrity checks, starts the Node gateway, and exercises health, authorization, missing-project, invalid-key, and authenticated context retrieval paths.
 
