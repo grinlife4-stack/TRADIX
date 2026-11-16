@@ -336,6 +336,8 @@ CREATE POLICY task_plan_versions_insert ON factory.task_plan_versions
 GRANT SELECT ON factory.mission_versions, factory.task_plan_versions TO factory_runtime;
 GRANT SELECT, INSERT ON factory.mission_versions, factory.task_plan_versions TO factory_executor_owner;
 
+GRANT CREATE ON SCHEMA factory TO factory_executor_owner;
+
 REVOKE ALL ON FUNCTION factory.record_mission_version(UUID, JSONB, TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION factory.record_mission_version(UUID, JSONB, TEXT) FROM factory_runtime;
 GRANT EXECUTE ON FUNCTION factory.record_mission_version(UUID, JSONB, TEXT) TO factory_runtime;
@@ -345,5 +347,6 @@ REVOKE ALL ON FUNCTION factory.record_task_plan_version(UUID, TEXT, INTEGER, JSO
 REVOKE ALL ON FUNCTION factory.record_task_plan_version(UUID, TEXT, INTEGER, JSONB, TEXT) FROM factory_runtime;
 GRANT EXECUTE ON FUNCTION factory.record_task_plan_version(UUID, TEXT, INTEGER, JSONB, TEXT) TO factory_runtime;
 ALTER FUNCTION factory.record_task_plan_version(UUID, TEXT, INTEGER, JSONB, TEXT) OWNER TO factory_executor_owner;
+REVOKE CREATE ON SCHEMA factory FROM factory_executor_owner;
 
 COMMIT;
