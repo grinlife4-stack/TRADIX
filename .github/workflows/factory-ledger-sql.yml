@@ -48,6 +48,11 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0001_factory_ledger.sql
+      - name: Apply mission and task-plan version migration to disposable PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0002_mission_plan_versions.sql
       - name: Test factory ledger and register the Hello World demo product
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
