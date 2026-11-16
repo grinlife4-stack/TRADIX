@@ -113,6 +113,10 @@ expect_failure() {
   echo "PASS: $label"
 }
 
+psql -c "CREATE ROLE factory_rt_bad LOGIN INHERIT; GRANT factory_runtime, factory_approval_authority TO factory_rt_bad" >/dev/null
+expect_failure "a project identity cannot combine runtime and approval authority" "must belong to exactly one of runtime or approval authority" \
+  "INSERT INTO factory.project_identities (role_name, project_id) VALUES ('factory_rt_bad', '11111111-1111-4111-8111-111111111111')"
+
 expect_failure "high-risk task cannot omit approval requirement" "tasks_check" \
   "INSERT INTO factory.tasks (project_id, task_key, title, request_text, acceptance_criteria, risk_class, approval_required) VALUES ('11111111-1111-4111-8111-111111111111', 'bad-risk', 'bad', 'bad', '[\"x\"]', 'critical', false)"
 
