@@ -76,6 +76,8 @@ grants `factory_executor_owner` back to `CURRENT_USER` with `SET TRUE`
 and `INHERIT FALSE`. This does not grant the application runtime membership
 in the function-owner role.
 
+Function ACL revocation and the runtime EXECUTE grant are applied before ownership transfer, while the migration identity still owns the function. After transfer, a non-superuser migration identity cannot change that function ACL without additional grant authority.
+
 The CI migration is now applied by a non-superuser `tradix_migrator` with
 `CREATEROLE` and database `CREATE`, rather than PostgreSQL's superuser.
 Assertions verify the migration role can SET (but does not inherit) the
