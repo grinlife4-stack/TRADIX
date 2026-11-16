@@ -317,6 +317,12 @@ BEGIN
 END
 $roles$;
 
+-- PostgreSQL 16+ does not grant SET ROLE to a non-superuser that creates
+-- another role with CREATEROLE; its automatic creator membership has SET FALSE.
+-- ALTER FUNCTION ... OWNER TO requires the migration role to SET ROLE to the
+-- target owner, so grant that narrowly to the current migration identity.
+GRANT factory_executor_owner TO CURRENT_USER WITH SET TRUE, INHERIT FALSE;
+
 REVOKE ALL ON SCHEMA factory FROM PUBLIC;
 REVOKE CREATE ON SCHEMA factory FROM PUBLIC;
 GRANT USAGE ON SCHEMA factory TO factory_runtime;
