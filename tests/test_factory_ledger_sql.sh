@@ -13,9 +13,14 @@ CREATE ROLE factory_rt_info_engine LOGIN INHERIT;
 CREATE ROLE factory_rt_physical_goods LOGIN INHERIT;
 CREATE ROLE factory_approver_tradix LOGIN INHERIT;
 CREATE ROLE factory_approver_info_engine LOGIN INHERIT;
+CREATE ROLE factory_rt_onboarding LOGIN INHERIT;
+CREATE ROLE factory_rt_onboarding_extra LOGIN INHERIT;
+CREATE ROLE factory_approver_onboarding LOGIN INHERIT;
+CREATE ROLE factory_rt_wrong_kind LOGIN INHERIT;
 CREATE ROLE factory_provisioner LOGIN NOINHERIT;
 GRANT factory_runtime TO factory_rt_tradix, factory_rt_info_engine, factory_rt_physical_goods;
-GRANT factory_approval_authority TO factory_approver_tradix, factory_approver_info_engine;
+GRANT factory_approval_authority TO factory_approver_tradix, factory_approver_info_engine, factory_approver_onboarding;
+GRANT factory_runtime TO factory_rt_onboarding, factory_rt_onboarding_extra, factory_rt_wrong_kind;
 GRANT factory_identity_admin TO factory_provisioner WITH SET TRUE, INHERIT FALSE;
 
 INSERT INTO factory.projects (
@@ -40,12 +45,20 @@ $$;
 
 SET SESSION AUTHORIZATION factory_provisioner;
 SET ROLE factory_identity_admin;
-INSERT INTO factory.project_identities (role_name, project_id) VALUES
- ('factory_rt_tradix', '11111111-1111-4111-8111-111111111111'),
- ('factory_rt_info_engine', '22222222-2222-4222-8222-222222222222'),
- ('factory_rt_physical_goods', '44444444-4444-4444-8444-444444444444'),
- ('factory_approver_tradix', '11111111-1111-4111-8111-111111111111'),
- ('factory_approver_info_engine', '22222222-2222-4222-8222-222222222222');
+-- The onboarding authority can create the registry row and its identity pair atomically.
+INSERT INTO factory.projects (
+  project_id, project_key, display_name, product_type, repository_full_name
+) VALUES (
+ '55555555-5555-4555-8555-555555555555', 'onboarding-smoke', 'Onboarding Smoke Product', 'service', NULL
+);
+INSERT INTO factory.project_identities (role_name, project_id, identity_kind) VALUES
+ ('factory_rt_tradix', '11111111-1111-4111-8111-111111111111', 'runtime'),
+ ('factory_rt_info_engine', '22222222-2222-4222-8222-222222222222', 'runtime'),
+ ('factory_rt_physical_goods', '44444444-4444-4444-8444-444444444444', 'runtime'),
+ ('factory_approver_tradix', '11111111-1111-4111-8111-111111111111', 'approval'),
+ ('factory_approver_info_engine', '22222222-2222-4222-8222-222222222222', 'approval'),
+ ('factory_rt_onboarding', '55555555-5555-4555-8555-555555555555', 'runtime'),
+ ('factory_approver_onboarding', '55555555-5555-4555-8555-555555555555', 'approval');
 RESET ROLE;
 RESET SESSION AUTHORIZATION;
 
@@ -143,7 +156,13 @@ expect_failure() {
 
 psql -c "CREATE ROLE factory_rt_bad LOGIN INHERIT; GRANT factory_runtime, factory_approval_authority TO factory_rt_bad" >/dev/null
 expect_failure "a project identity cannot combine runtime and approval authority" "must belong to exactly one of runtime or approval authority" \
-  "INSERT INTO factory.project_identities (role_name, project_id) VALUES ('factory_rt_bad', '11111111-1111-4111-8111-111111111111')"
+  "INSERT INTO factory.project_identities (role_name, project_id, identity_kind) VALUES ('factory_rt_bad', '11111111-1111-4111-8111-111111111111', 'runtime')"
+
+expect_failure "identity kind must match the granted authority" "identity kind does not match its authority role" \
+  "INSERT INTO factory.project_identities (role_name, project_id, identity_kind) VALUES ('factory_rt_wrong_kind', '11111111-1111-4111-8111-111111111111', 'approval')"
+
+expect_failure "a product cannot have two runtime LOGIN identities" "project_identities_project_id_identity_kind_key" \
+  "INSERT INTO factory.project_identities (role_name, project_id, identity_kind) VALUES ('factory_rt_onboarding_extra', '55555555-5555-4555-8555-555555555555', 'runtime')"
 
 expect_failure "high-risk task cannot omit approval requirement" "tasks_check" \
   "INSERT INTO factory.tasks (project_id, task_key, title, request_text, acceptance_criteria, risk_class, approval_required) VALUES ('11111111-1111-4111-8111-111111111111', 'bad-risk', 'bad', 'bad', '[\"x\"]', 'critical', false)"
