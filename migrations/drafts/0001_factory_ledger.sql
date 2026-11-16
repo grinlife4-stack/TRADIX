@@ -189,7 +189,7 @@ REVOKE UPDATE, DELETE, TRUNCATE ON factory.task_artifacts FROM PUBLIC;
 CREATE FUNCTION factory.reject_direct_task_status_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-AS $
+AS $body$
 BEGIN
     IF NEW.status IS DISTINCT FROM OLD.status
        AND current_setting('factory.transition_in_progress', true) IS DISTINCT FROM 'on' THEN
@@ -197,7 +197,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$;
+$body$;
 
 CREATE TRIGGER tasks_status_via_transition_function
     BEFORE UPDATE OF status ON factory.tasks
@@ -215,7 +215,7 @@ CREATE FUNCTION factory.transition_task(
 )
 RETURNS BIGINT
 LANGUAGE plpgsql
-AS $
+AS $body$
 DECLARE
     v_task factory.tasks%ROWTYPE;
     v_existing factory.task_events%ROWTYPE;
@@ -318,6 +318,6 @@ BEGIN
 
     RETURN v_event_seq;
 END;
-$;
+$body$;
 
 COMMIT;
