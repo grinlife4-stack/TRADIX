@@ -198,6 +198,8 @@ CREATE FUNCTION factory.transition_task(
 )
 RETURNS BIGINT
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, factory, pg_temp
 AS $body$
 DECLARE
     v_task factory.tasks%ROWTYPE;
@@ -300,5 +302,47 @@ BEGIN
     RETURN v_event_seq;
 END;
 $body$;
+
+-- Runtime access is deliberately read-only except for the SECURITY DEFINER
+-- transition function. Provisioning this NOLOGIN role is part of this draft
+-- migration and must be reviewed before any managed-database application.
+DO $roles$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'factory_runtime') THEN
+        EXECUTE 'CREATE ROLE factory_runtime NOLOGIN';
+    END IF;
+END
+$roles$;
+
+REVOKE ALL ON SCHEMA factory FROM PUBLIC;
+REVOKE CREATE ON SCHEMA factory FROM PUBLIC;
+GRANT USAGE ON SCHEMA factory TO factory_runtime;
+
+REVOKE ALL ON ALL TABLES IN SCHEMA factory FROM PUBLIC;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM PUBLIC;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA factory FROM PUBLIC;
+
+GRANT SELECT ON ALL TABLES IN SCHEMA factory TO factory_runtime;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+    ON ALL TABLES IN SCHEMA factory FROM factory_runtime;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA factory FROM factory_runtime;
+
+REVOKE ALL ON FUNCTION factory.transition_task(
+    UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB
+) FROM PUBLIC;
+REVOKE ALL ON FUNCTION factory.transition_task(
+    UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB
+) FROM factory_runtime;
+GRANT EXECUTE ON FUNCTION factory.transition_task(
+    UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB
+) TO factory_runtime;
+
+-- Future objects created by the migration owner inherit the same safe defaults.
+ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA factory
+    REVOKE ALL ON TABLES FROM PUBLIC;
+ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA factory
+    GRANT SELECT ON TABLES TO factory_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA factory
+    REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
 
 COMMIT;
