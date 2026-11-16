@@ -232,7 +232,7 @@ SELECT factory.transition_task(
 RESET SESSION AUTHORIZATION;
 SQL
 
-expect_failure "candidate requires review evidence" "required evidence missing: review_report" \
+expect_failure "candidate requires review evidence" "required evidence missing for the specified attempt: review_report" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','candidate','task.candidate','system','ci-test','ci-transition-candidate','cccccccc-cccc-4ccc-8ccc-cccccccccccc')"
 
 psql -v ON_ERROR_STOP=1 -At <<'SQL'
