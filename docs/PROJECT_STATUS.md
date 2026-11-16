@@ -172,3 +172,16 @@ This section supersedes the earlier statements above that the memory-gateway mig
 
 ### Next gate
 Before any Neon trial: review and approve the schema responsibility boundary, add deployment/runtime configuration and secret handling, then run a controlled isolated Neon branch trial. Production remains prohibited until that trial and its recovery/security checks pass.
+
+
+## 10. Final verification after runtime documentation — 2026-11-16
+
+The memory gateway package now includes an `npm start` script and `runtime/memory-gateway/README.md` documents startup, required environment, TLS policy, API responses, and the read-only boundary.
+
+**Latest fully tested branch head:** `9747796858895313e5eedc2712ed52c7a597f71e`
+
+- [Python tests — run 43812887056](https://github.com/grinlife4-stack/TRADIX/actions/runs/43812887056): success.
+- [Factory ledger + memory gateway SQL/HTTP integration — run 43812887095](https://github.com/grinlife4-stack/TRADIX/actions/runs/43812887095): success.
+- Both runs completed successfully on the latest implementation/documentation head. The PostgreSQL job applied both draft schemas only to disposable PostgreSQL 17 and passed the factory-ledger tests, memory schema invariants, and Node HTTP integration.
+
+The tested component is now a runnable, read-only memory gateway with repeatable CI evidence. It is still not deployed and is not yet connected to Neon. No Production changes have been made.
