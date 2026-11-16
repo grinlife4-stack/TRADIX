@@ -156,3 +156,88 @@ BEFORE UPDATE ON memory_decisions
 FOR EACH ROW EXECUTE FUNCTION memory_set_updated_at();
 
 COMMIT;
+
+
+-- Read-only bootstrap context for a fresh executive-leader session.
+CREATE OR REPLACE FUNCTION memory_bootstrap_context(p_project_key text)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT jsonb_build_object(
+    'schema_version', '1.0',
+    'generated_at', now(),
+    'project', jsonb_build_object(
+      'project_id', p.project_id,
+      'project_key', p.project_key,
+      'name', p.name,
+      'status', p.status,
+      'state_version', p.state_version,
+      'current_state', p.current_state,
+      'current_commit', p.current_commit
+    ),
+    'active_missions', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'mission_id', m.mission_id,
+        'mission_key', m.mission_key,
+        'title', m.title,
+        'status', m.status,
+        'mission_version', m.mission_version,
+        'objective', m.objective,
+        'constraints', m.constraints
+      ) ORDER BY m.updated_at DESC)
+      FROM memory_missions m
+      WHERE m.project_id = p.project_id AND m.status = 'ACTIVE'
+    ), '[]'::jsonb),
+    'approved_decisions', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'decision_id', d.decision_id,
+        'title', d.title,
+        'content', d.content,
+        'rationale', d.rationale,
+        'version', d.version,
+        'approved_at', d.approved_at,
+        'source_refs', d.source_refs
+      ) ORDER BY d.approved_at DESC)
+      FROM memory_decisions d
+      WHERE d.project_id = p.project_id AND d.status = 'APPROVED'
+    ), '[]'::jsonb),
+    'latest_checkpoint', (
+      SELECT jsonb_build_object(
+        'checkpoint_id', c.checkpoint_id,
+        'checkpoint_seq', c.checkpoint_seq,
+        'verified_state', c.verified_state,
+        'source_versions', c.source_versions,
+        'active_tasks', c.active_tasks,
+        'approved_decisions', c.approved_decisions,
+        'open_issues', c.open_issues,
+        'pending_operations', c.pending_operations,
+        'next_action', c.next_action,
+        'unknowns', c.unknowns,
+        'conflicts', c.conflicts,
+        'created_at', c.created_at
+      )
+      FROM memory_checkpoints c
+      WHERE c.project_id = p.project_id
+      ORDER BY c.checkpoint_seq DESC
+      LIMIT 1
+    ),
+    'recent_events', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'event_id', e.event_id,
+        'event_type', e.event_type,
+        'actor_id', e.actor_id,
+        'payload', e.payload,
+        'recorded_at', e.recorded_at
+      ) ORDER BY e.recorded_at DESC)
+      FROM (
+        SELECT * FROM memory_events
+        WHERE project_id = p.project_id
+        ORDER BY recorded_at DESC
+        LIMIT 20
+      ) e
+    ), '[]'::jsonb)
+  )
+  FROM memory_projects p
+  WHERE p.project_key = p_project_key;
+$$;
