@@ -176,3 +176,12 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
 - Added disposable-PostgreSQL integration cases for version 1/2, exact retry, cross-project write denial, product-type mismatch, required fields, cross-project read isolation, append-only enforcement, and direct-write denial.
 - Migration remains draft-only. No Neon branch, Production database, secret, deployment, merge, or paid resource was touched.
 - CI must be checked against the exact final PR head before this implementation is considered verified.
+
+
+## 2026-11-16 — Product dossier contract and CI verification
+
+- Added `schemas/product-dossier-v1.schema.json`, a machine-readable JSON Schema v1 contract. It defines the minimum common envelope and optional extensible sections for product-specific decisions, resources, budgets/costs, deliverables, risks, assets, dependencies, security, and domain specifications.
+- Corrected the dossier writer documentation: version allocation uses a transaction-scoped advisory lock keyed by product ID.
+- Exact tested commit before this schema-only follow-up: `a27216b4b9a1ccedb28f624b059e3fc033a22fcf`. On that SHA, `factory-ledger-sql` Run #114 (`43921328351`) and `tests` Run #147 (`43921328215`) both completed successfully. The SQL job applied the draft migration as a non-superuser, passed the product dossier version/idempotency, product-type, required-field, cross-project, append-only, and direct-write-denial checks, and then passed the memory gateway SQL and HTTP integration tests.
+- The schema/documentation follow-up itself must receive CI on its resulting PR head before it is considered fully verified.
+- No Neon or Production migration, database write, merge, deployment, secret change, or paid resource creation occurred.
