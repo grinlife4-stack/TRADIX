@@ -10,6 +10,7 @@
 - `task_events` is the append-only audit stream. Mutable task and attempt rows are projections/current operational state, not the only audit record.
 - Approval decisions, evidence records, and artifact metadata are immutable rows. Corrections are represented by new events/records, not rewriting history.
 - Each event has a unique idempotency key so a retry can be deduplicated.
+- `factory.transition_task(...)` locks the task row, validates the lifecycle edge, checks required evidence/approval, appends the event, and updates the task projection in one transaction. Exact retries return the original event sequence; reuse of a key for different intent is rejected.
 - Composite foreign keys prevent an attempt or artifact from being attached to a different task; evidence is bound to the exact producing attempt.
 - Append-only triggers reject UPDATE, DELETE, and TRUNCATE on events, approvals, evidence, and artifact metadata.
 - Every task belongs to an explicit project namespace and repository.
@@ -31,14 +32,14 @@
 
 ## Critical limitation
 
-PostgreSQL triggers and grants reduce accidental mutation, but a database owner or superuser can alter/disable them. Production-grade immutability therefore also requires strict role separation, restricted migration ownership, backups, and independent integrity verification. This draft does not yet define the application roles, RLS policy, connection pooler settings, or transaction protocol that writes an event and updates its projection atomically. The SQL is not approved for Neon execution. A separate GitHub Actions job applies it only to a disposable PostgreSQL service and runs negative constraint/immutability tests; that job does not touch Neon.
+PostgreSQL triggers and grants reduce accidental mutation, but a database owner or superuser can alter/disable them. Production-grade immutability therefore also requires strict role separation, restricted migration ownership, backups, and independent integrity verification. This draft still does not define the application roles, RLS policy, connection pooler settings, or least-privilege grants. The transition function provides the atomic event-plus-projection transaction, but callers with direct UPDATE privilege on `factory.tasks` could bypass it. Before runtime use, define a non-owner application role, revoke direct status/projection writes from it, grant only the required function execution and scoped reads, and test the boundary using that role. The function is not a substitute for database privilege design. The SQL is not approved for Neon execution. A separate GitHub Actions job applies it only to a disposable PostgreSQL service and runs negative constraint/immutability tests; that job does not touch Neon.
 
 ## Required review before execution
 
 1. Confirm the project namespace and whether one project may have multiple repositories.
 2. Define who may create tasks, append events, decide approvals, and read artifacts.
 3. Define RLS or a service-role boundary before exposing any endpoint.
-4. Define the transaction contract: append event + update projection + store idempotency outcome atomically.
+4. Review the implemented transition function and add role-based negative tests proving the runtime role cannot bypass it with direct UPDATE, cannot mutate immutable records, and cannot cross project boundaries.
 5. Add migration versioning and restore verification.
 6. Validate SQL syntax, then test the migration on a new isolated Neon branch, including negative tests for UPDATE/DELETE/TRUNCATE on immutable tables and cross-task foreign-key violations.
 7. Confirm Neon plan/branch costs before creating the test branch.
