@@ -237,3 +237,16 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
 - This is a pure validation contract. It does not yet persist missions or plan versions, create task rows, approve a plan, allocate resources, or dispatch work. Those operations remain outside this completed slice.
 - No Neon migration, Production write, `main` change, deployment, secret change, paid resource, or PR merge occurred.
 
+## 14. Mission and plan parser hardening (2026-11-16)
+
+- Hardened `MissionEnvelope.from_mapping` and `TaskPlan.from_mapping` to reject non-object input with the domain-specific `MissionContractError`, rather than leaking raw Python `TypeError` exceptions.
+- The task-plan parser also rejects an unvalidated mission argument before inspecting or constructing the plan.
+- Added parameterized tests for null, array, string, and numeric inputs to both parsers, plus an invalid mission argument.
+- Exact verified code head: `7bf968c4eb8b7520a8b6efbde5c3c57bf671b5f3`.
+- CI on that exact head:
+  - `tests` Run `43934376565`: success.
+  - `factory-ledger-sql` Run `43934376331`: success.
+  - `factory-first-run` Run `43934376319`: success.
+- The mission and plan contracts remain pure validation only. No database persistence, immutable plan history, resource reservation, approval record, or dispatch is implemented by this slice.
+- No Neon migration, Production write, `main` change, deployment, secret change, paid resource, or PR merge occurred.
+
