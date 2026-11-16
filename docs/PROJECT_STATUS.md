@@ -87,7 +87,16 @@ These are historical observations, not a fresh live database read. No migration 
 6. Deploy only to an isolated test environment; run security, restart, concurrency, and recovery tests.
 7. Consider release/merge only after review and verified CI. Production remains a separate explicit approval gate.
 
-## 9. Immediate execution update (2026-11-16)\n\n- Added `SECURITY DEFINER` with fixed search path to `factory.transition_task(...)`.\n- Added draft `factory_runtime` NOLOGIN role: SELECT-only table access plus EXECUTE on the controlled transition function; direct writes and sequence access are revoked.\n- Added SQL integration assertions for allowed controlled transition and denied direct projection/event/immutable-row/TRUNCATE writes.\n- Added runtime privilege-boundary documentation.\n- Changes are committed on the working branch after baseline `46bad2a8...`; CI for the new commits is pending.\n- No Neon database, Production, `main`, secrets, deployment, or merge was touched.\n\n## 10. Update protocol
+## 9. Immediate execution update (2026-11-16)
+
+- Added `SECURITY DEFINER` with fixed search path to `factory.transition_task(...)`.
+- Added draft `factory_runtime` NOLOGIN role: SELECT-only table access plus EXECUTE on the controlled transition function; direct writes and sequence access are revoked.
+- Added SQL integration assertions for allowed controlled transition and denied direct projection/event/immutable-row/TRUNCATE writes.
+- Added runtime privilege-boundary documentation.
+- Changes are committed on the working branch after baseline `46bad2a8...`; CI for the new commits is pending.
+- No Neon database, Production, `main`, secrets, deployment, or merge was touched.
+
+## 10. Update protocol
 
 Every substantive work session must update this file with the exact branch/head SHA, PR state, CI run IDs, database changes, external side effects, completed tests, unverified claims, blockers, and next action.
 
