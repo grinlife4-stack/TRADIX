@@ -154,8 +154,12 @@ async function main() {
     fail("Only execution_mode=trusted-node is supported; this runner is not an OS sandbox");
   }
 
-  const baseDir = dirname(manifestPath);
+  const baseDir = await realpath(dirname(manifestPath));
   const productRoot = await realpath(resolve(baseDir, assertString(manifest.product_dir, "product_dir", 255)));
+  const productRelative = relative(baseDir, productRoot);
+  if (productRelative.startsWith(`..${sep}`) || productRelative === ".." || isAbsolute(productRelative)) {
+    fail("product_dir must resolve inside the manifest directory");
+  }
   const task = manifest.task ?? {};
   const attempt = manifest.attempt ?? {};
   const dossier = manifest.dossier ?? {};
