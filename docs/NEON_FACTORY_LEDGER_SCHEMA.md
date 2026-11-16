@@ -114,3 +114,29 @@ The `factory.projects` registry is product-agnostic. It now records a required `
 The SQL integration fixture now registers a `physical` product with no Git repository and asserts that the row is accepted. Existing software fixtures retain their repository references. This change does not create a separate product dossier document or define its storage backend; the architecture baseline requires one independent dossier per product, and its durable reference/versioning contract remains a separate implementation item.
 
 The migration remains a draft artifact. CI must validate this revision on disposable PostgreSQL before any consideration of an isolated Neon trial. No Neon or Production migration is authorized by this change.
+
+
+## Product dossier ledger — versioned and project-isolated
+
+`factory.product_dossier_versions` stores immutable snapshots for each product dossier. A dossier is not a repository folder: it is the durable, versioned record for the product, regardless of whether the product is software, physical, service-based, or hybrid.
+
+Minimum envelope for schema version 1:
+- `schema_version`: currently 1;
+- `product_type`: must match the product registry;
+- `mission`: non-empty statement;
+- `requirements`: non-empty array;
+- `acceptance_criteria`: non-empty array;
+- `lifecycle`: object.
+
+Product-specific detail may be added as further JSON fields; the common envelope does not force every product into the same production workflow. Decisions, resource plans, cost models, deliverables, risks, and domain-specific specifications belong in the dossier payload as the product's needs mature.
+
+The only runtime write path is `factory.record_product_dossier(project_id, dossier, idempotency_key)`. It:
+- derives authority from the authenticated database `session_user` and its one-project identity mapping;
+- rejects cross-project writes and product-type mismatches;
+- serializes version allocation by locking the product registry row;
+- appends immutable version snapshots and returns the version number;
+- makes exact retries idempotent and rejects reuse of a key for different content.
+
+Runtime identities receive SELECT only on the table and EXECUTE on the controlled function. UPDATE, DELETE, TRUNCATE, and direct INSERT are not granted; append-only triggers provide an additional guard. RLS is enabled and forced. Dossier payloads are metadata/specification records, not a substitute for the product's operational database or binary artifact store.
+
+The SQL integration tests cover version progression, idempotency, required fields, product-type binding, cross-project rejection, read isolation, append-only behavior, and denial of direct runtime INSERT. CI must pass against the exact PR head before the change is considered verified. This remains a draft migration; no Neon or Production migration is authorized.
