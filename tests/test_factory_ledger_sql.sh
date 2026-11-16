@@ -229,7 +229,7 @@ if [[ "$(psql -At -c "SELECT pg_has_role('tradix_migrator','factory_executor_own
   echo "FAIL: migration role must be able to SET ROLE to the function owner during ownership transfer"
   exit 1
 fi
-if [[ "$(psql -At -c "SELECT pg_has_role('tradix_migrator','factory_executor_owner','INHERIT')")" != "f" ]]; then
+if [[ "$(psql -At -c "SELECT pg_has_role('tradix_migrator','factory_executor_owner','USAGE')")" != "f" ]]; then
   echo "FAIL: migration role must not inherit function-owner privileges"
   exit 1
 fi
