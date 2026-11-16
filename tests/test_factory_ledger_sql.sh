@@ -389,7 +389,7 @@ expect_failure "runtime cannot directly insert an approval" "permission denied" 
   "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.task_approvals (task_id,attempt_id,approval_round,action,decision,decided_by,rationale) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','cccccccc-cccc-4ccc-8ccc-cccccccccccc',1,'begin_implementation','approved','forged','forged')"
 
 expect_failure "runtime cannot directly create a task" "permission denied" \
-  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.tasks (project_id,task_key,title,request_text,acceptance_criteria,risk_class,approval_required) VALUES ('11111111-1111-4111-8111-111111111111','runtime-direct-task','forbidden','forbidden','[\\"x\\"]'::jsonb,'low',false)"
+  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.tasks (project_id,task_key,title,request_text,acceptance_criteria,risk_class,approval_required) VALUES ('11111111-1111-4111-8111-111111111111','runtime-direct-task','forbidden','forbidden',jsonb_build_array('x'),'low',false)"
 expect_failure "runtime cannot directly create an attempt" "permission denied" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.task_attempts (task_id,attempt_number,worker_role) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',99,'implementer')"
 expect_failure "runtime cannot directly create artifacts" "permission denied" \
