@@ -33,7 +33,7 @@ const postMission = () => fetch(`${base}/v1/missions`, {
   body: JSON.stringify(mission)
 });
 const createdMission = await postMission();
-assert.equal(createdMission.status, 200, await createdMission.text());
+assert.equal(createdMission.status, 200);
 const createdMissionBody = await createdMission.json();
 assert.equal(createdMissionBody.mission.version_no, 1);
 assert.equal(createdMissionBody.mission.mission.mission_id, missionId);
@@ -95,7 +95,7 @@ const postPlan = () => fetch(`${base}/v1/missions/${missionId}/plans`, {
   body: JSON.stringify(plan)
 });
 const createdPlan = await postPlan();
-assert.equal(createdPlan.status, 200, await createdPlan.text());
+assert.equal(createdPlan.status, 200);
 const createdPlanBody = await createdPlan.json();
 assert.equal(createdPlanBody.task_plan.plan_version_no, 1);
 assert.equal(createdPlanBody.task_plan.task_plan.dependencies.length, 1);
