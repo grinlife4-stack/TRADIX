@@ -146,3 +146,22 @@ def test_task_plan_rejects_duplicate_dependencies():
 
     with pytest.raises(MissionContractError, match="duplicate task dependency"):
         TaskPlan.from_mapping(payload, mission)
+
+
+@pytest.mark.parametrize("invalid", [None, [], "not-an-object", 42])
+def test_mission_parser_rejects_non_object_input_with_contract_error(invalid):
+    with pytest.raises(MissionContractError, match="mission must be an object"):
+        MissionEnvelope.from_mapping(invalid)
+
+
+@pytest.mark.parametrize("invalid", [None, [], "not-an-object", 42])
+def test_task_plan_parser_rejects_non_object_input_with_contract_error(invalid):
+    mission = MissionEnvelope.from_mapping(valid_mission_payload())
+
+    with pytest.raises(MissionContractError, match="task plan must be an object"):
+        TaskPlan.from_mapping(invalid, mission)
+
+
+def test_task_plan_parser_rejects_unvalidated_mission_argument():
+    with pytest.raises(MissionContractError, match="validated MissionEnvelope"):
+        TaskPlan.from_mapping(valid_plan_payload(), {})
