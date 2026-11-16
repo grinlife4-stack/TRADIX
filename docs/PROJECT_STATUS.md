@@ -197,3 +197,12 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
 - `factory-ledger-sql` Run #125 (`43922571436`): success. Steps 1–13 completed, including disposable PostgreSQL migration, Factory Ledger SQL tests, product dossier API dependency install and HTTP integration, and memory gateway SQL/HTTP integration.
 - `tests` Run #158 (`43922571415`): success; Python test suite passed.
 - The API and migration remain code artifacts in Draft PR #3. No Neon migration, Production database write, deployment, merge, credential change outside disposable CI, or paid resource creation occurred.
+
+
+## 2026-11-16 — Final dossier API CI confirmation
+
+- PR #3 head `6e3b66b271c1ede9288cb5c7bb5505aafba662ae` passed both workflows:
+  - `factory-ledger-sql` Run #126 (`43922797507`): success, including schema migration as a non-superuser, physical-product dossier creation, cross-product RLS isolation, JSON Schema smoke test, authenticated Product Dossier API write/read/idempotency tests, and Memory Gateway SQL/HTTP tests.
+  - `tests` Run #159 (`43922797652`): success.
+- No workflow failure or in-progress job remained for that SHA. Combined status endpoint returned an empty status list; the two workflow runs and their job steps are the positive CI evidence.
+- This confirms disposable PostgreSQL 17 CI only. It does not prove the draft migration on Neon PostgreSQL 18 or authorize deployment.
