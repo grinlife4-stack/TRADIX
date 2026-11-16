@@ -103,6 +103,26 @@ jobs:
           done
           curl --silent --fail http://127.0.0.1:8788/health >/dev/null || { cat /tmp/product-dossier-api.log; exit 1; }
           PRODUCT_DOSSIER_API_URL=http://127.0.0.1:8788 PRODUCT_DOSSIER_API_KEY="$PRODUCT_DOSSIER_API_KEY" node tests/test_product_dossier_api.mjs || { cat /tmp/product-dossier-api.log; exit 1; }
+      - name: Install mission plan API dependencies
+        run: npm install --prefix runtime/mission-plan-api --ignore-scripts --no-audit --no-fund
+      - name: Run isolated mission and task-plan API integration test
+        env:
+          DATABASE_URL: postgresql://factory_rt_tradix:ci-only-factory-dossier-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          MISSION_PLAN_API_KEY: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          NODE_ENV: test
+          PORT: "8789"
+        run: |
+          node runtime/mission-plan-api/server.mjs > /tmp/mission-plan-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8789/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:8789/health >/dev/null || { cat /tmp/mission-plan-api.log; exit 1; }
+          MISSION_PLAN_API_URL=http://127.0.0.1:8789 MISSION_PLAN_API_KEY="$MISSION_PLAN_API_KEY" node tests/test_mission_plan_api.mjs || { cat /tmp/mission-plan-api.log; exit 1; }
       - name: Apply memory gateway migration to disposable PostgreSQL
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
