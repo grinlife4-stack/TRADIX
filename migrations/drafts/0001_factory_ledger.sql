@@ -417,7 +417,7 @@ GRANT USAGE, CREATE ON SCHEMA factory TO factory_executor_owner;
 GRANT SELECT, UPDATE ON factory.tasks TO factory_executor_owner;
 GRANT SELECT, INSERT ON factory.task_events TO factory_executor_owner;
 GRANT SELECT ON factory.task_approvals, factory.task_evidence,
-    factory.project_identities TO factory_executor_owner;
+    factory.task_attempts, factory.project_identities TO factory_executor_owner;
 
 -- Revoke/grant function ACLs while the migration identity still owns it.
 -- After ownership transfer, a non-superuser migration identity no longer
