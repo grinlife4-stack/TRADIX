@@ -26,6 +26,39 @@ CREATE TABLE factory.project_identities (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE FUNCTION factory.validate_project_identity()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = pg_catalog, factory, pg_temp
+AS $identity$
+DECLARE
+    v_role pg_catalog.pg_roles%ROWTYPE;
+    v_runtime BOOLEAN;
+    v_approver BOOLEAN;
+BEGIN
+    SELECT * INTO v_role FROM pg_catalog.pg_roles WHERE rolname = NEW.role_name;
+    IF NOT FOUND OR NOT v_role.rolcanlogin OR v_role.rolsuper OR v_role.rolcreatedb
+       OR v_role.rolcreaterole OR v_role.rolbypassrls THEN
+        RAISE EXCEPTION 'project identity must be an existing restricted LOGIN role';
+    END IF;
+
+    v_runtime := pg_catalog.pg_has_role(NEW.role_name, 'factory_runtime', 'MEMBER');
+    v_approver := pg_catalog.pg_has_role(NEW.role_name, 'factory_approval_authority', 'MEMBER');
+    IF v_runtime = v_approver THEN
+        RAISE EXCEPTION 'project identity must belong to exactly one of runtime or approval authority';
+    END IF;
+    IF pg_catalog.pg_has_role(NEW.role_name, 'factory_executor_owner', 'MEMBER') THEN
+        RAISE EXCEPTION 'project identity cannot belong to factory_executor_owner';
+    END IF;
+    RETURN NEW;
+END;
+$identity$;
+
+CREATE TRIGGER project_identity_validate
+    BEFORE INSERT OR UPDATE ON factory.project_identities
+    FOR EACH ROW EXECUTE FUNCTION factory.validate_project_identity();
+
 CREATE TABLE factory.tasks (
     task_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES factory.projects(project_id) ON DELETE RESTRICT,
@@ -470,6 +503,8 @@ CREATE POLICY artifacts_isolated ON factory.task_artifacts
 CREATE POLICY evidence_isolated ON factory.task_evidence
     FOR SELECT TO PUBLIC
     USING (task_id IN (SELECT task_id FROM factory.tasks));
+
+REVOKE ALL ON FUNCTION factory.validate_project_identity() FROM PUBLIC;
 
 -- Future objects created by the migration owner inherit the same safe defaults.
 ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA factory
