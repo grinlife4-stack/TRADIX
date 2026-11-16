@@ -407,4 +407,33 @@ expect_failure "product dossier snapshots reject TRUNCATE" "Rows in factory.prod
 expect_failure "runtime cannot directly insert a dossier snapshot" "permission denied" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.product_dossier_versions (project_id,version_no,idempotency_key,dossier,created_by_login) VALUES ('11111111-1111-4111-8111-111111111111',99,'direct-write','{}'::jsonb,'factory_rt_tradix')"
 
+
+# The machine-readable dossier contract must remain aligned with the database envelope.
+node --input-type=module <<'NODE'
+import { readFileSync } from "node:fs";
+const schema = JSON.parse(readFileSync("schemas/product-dossier-v1.schema.json", "utf8"));
+const expected = ["schema_version", "product_type", "mission", "requirements", "acceptance_criteria", "lifecycle"];
+if (schema.$schema !== "https://json-schema.org/draft/2020-12/schema") throw new Error("wrong JSON Schema draft");
+if (schema.properties?.schema_version?.const !== 1) throw new Error("schema_version must be 1");
+for (const key of expected) {
+  if (!schema.required?.includes(key) || !schema.properties?.[key]) throw new Error(`missing required dossier field: ${key}`);
+}
+if (schema.additionalProperties !== true) throw new Error("product-specific dossier fields must remain extensible");
+for (const key of ["decisions", "resource_plan", "budget", "costs", "deliverables", "risks", "assets", "dependencies", "domain_specification"]) {
+  if (!schema.properties[key]) throw new Error(`missing extensible product section: ${key}`);
+}
+const physicalProduct = {
+  schema_version: 1,
+  product_type: "physical",
+  mission: "A physical product dossier fixture",
+  requirements: ["independent product record"],
+  acceptance_criteria: ["versioned and isolated"],
+  lifecycle: { state: "active" },
+  resource_plan: { equipment: [] }
+};
+for (const key of schema.required) if (!(key in physicalProduct)) throw new Error(`fixture missing ${key}`);
+if (physicalProduct.product_type !== "physical") throw new Error("physical product fixture invalid");
+console.log("PASS: product dossier JSON Schema v1 is valid and supports non-software products");
+NODE
+
 echo "All factory ledger SQL integration checks passed."
