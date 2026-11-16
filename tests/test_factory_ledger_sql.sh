@@ -7,10 +7,21 @@ psql() {
 }
 
 psql <<'SQL'
+CREATE ROLE factory_rt_tradix LOGIN INHERIT;
+CREATE ROLE factory_rt_info_engine LOGIN INHERIT;
+CREATE ROLE factory_approver_tradix LOGIN INHERIT;
+GRANT factory_runtime TO factory_rt_tradix, factory_rt_info_engine;
+GRANT factory_approval_authority TO factory_approver_tradix;
+
 INSERT INTO factory.projects (project_id, project_key, display_name, repository_full_name)
 VALUES
  ('11111111-1111-4111-8111-111111111111', 'tradix', 'TRADIX', 'grinlife4-stack/TRADIX'),
  ('22222222-2222-4222-8222-222222222222', 'info-engine', 'info_engine', 'grinlife4-stack/info_engine');
+
+INSERT INTO factory.project_identities (role_name, project_id) VALUES
+ ('factory_rt_tradix', '11111111-1111-4111-8111-111111111111'),
+ ('factory_rt_info_engine', '22222222-2222-4222-8222-222222222222'),
+ ('factory_approver_tradix', '11111111-1111-4111-8111-111111111111');
 
 INSERT INTO factory.tasks (
   task_id, project_id, task_key, title, request_text, acceptance_criteria,
@@ -33,7 +44,9 @@ INSERT INTO factory.task_attempts (
  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 2, 'implementer'),
  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 1, 'implementer');
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 1, 'implementer'),
+ ('12121212-1212-4212-8212-121212121212',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 2, 'implementer');
 
 INSERT INTO factory.task_events (
   event_id, task_id, attempt_id, event_type, to_state, actor_type,
@@ -46,11 +59,12 @@ INSERT INTO factory.task_events (
 );
 
 INSERT INTO factory.task_approvals (
-  approval_id, task_id, approval_round, action, decision, decided_by, rationale
+  approval_id, task_id, attempt_id, approval_round, action, decision, decided_by, rationale, decision_scope
 ) VALUES (
  '99999999-9999-4999-8999-999999999999',
  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
- 1, 'begin_implementation', 'approved', 'ci-test', 'CI fixture'
+ 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+ 1, 'begin_implementation', 'approved', 'ci-test', 'CI fixture', '{}'::jsonb
 );
 
 INSERT INTO factory.task_artifacts (
@@ -173,6 +187,14 @@ SELECT factory.transition_task(
  'system', 'ci-test', 'ci-transition-testing',
  'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 );
+SQL
+
+expect_failure "required evidence cannot be checked without an attempt" "required evidence missing for the specified attempt" \
+  "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','review','task.review','system','ci-test','ci-transition-review-null')"
+expect_failure "evidence from another attempt cannot satisfy the gate" "required evidence missing for the specified attempt" \
+  "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','review','task.review','system','ci-test','ci-transition-review-wrong-attempt','dddddddd-dddd-4ddd-8ddd-dddddddddddd')"
+
+psql -v ON_ERROR_STOP=1 -At <<'SQL'
 SELECT factory.transition_task(
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'review', 'task.review',
  'system', 'ci-test', 'ci-transition-review',
@@ -190,8 +212,18 @@ SELECT factory.transition_task(
 );
 SQL
 
-expect_failure "high-risk task cannot begin without an approval record" "human approval required before implementation" \
-  "SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','implementing','task.implementing','system','ci-test','ci-noapproval-implementing')"
+expect_failure "high-risk task cannot begin without an approval record" "human approval required for this attempt and decision scope" \
+  "SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','implementing','task.implementing','system','ci-test','ci-noapproval-implementing','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')"
+
+psql -v ON_ERROR_STOP=1 -At <<'SQL'
+SELECT factory.transition_task(
+ 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'planned', 'task.planned',
+ 'system', 'ci-test', 'ci-approved-planned'
+);
+SQL
+expect_failure "approval from a previous attempt cannot authorize a new attempt" "human approval required for this attempt and decision scope" \
+  "SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','implementing','task.implementing','system','ci-test','ci-stale-approval','12121212-1212-4212-8212-121212121212')"
+psql -v ON_ERROR_STOP=1 -At -c "SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','implementing','task.implementing','system','ci-test','ci-approved-implementing','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')" >/dev/null
 
 if [[ "$(psql -At -c "SELECT status FROM factory.tasks WHERE task_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'")" != "review" ]]; then
   echo "FAIL: task projection did not follow the committed event stream"
@@ -205,13 +237,13 @@ fi
 
 # Exercise the application role: it can read and call the transition API,
 # but cannot write projections, append events, or mutate immutable records.
-runtime_status=$(psql -qAt -c "SET ROLE factory_runtime; SELECT status FROM factory.tasks WHERE task_id='33333333-3333-4333-8333-333333333333'")
+runtime_status=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT status FROM factory.tasks WHERE task_id='33333333-3333-4333-8333-333333333333'; RESET SESSION AUTHORIZATION")
 if [[ "$runtime_status" != "planned" ]]; then
   echo "FAIL: runtime role cannot read task projection"
   exit 1
 fi
 
-psql -v ON_ERROR_STOP=1 -At -c "SET ROLE factory_runtime; SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','blocked','task.blocked','system','ci-runtime','ci-runtime-transition')" >/dev/null
+psql -v ON_ERROR_STOP=1 -At -c "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','blocked','task.blocked','system','ci-runtime','ci-runtime-transition'); RESET SESSION AUTHORIZATION" >/dev/null
 if [[ "$(psql -At -c "SELECT status FROM factory.tasks WHERE task_id='33333333-3333-4333-8333-333333333333'")" != "blocked" ]]; then
   echo "FAIL: runtime role could not transition task through the controlled function"
   exit 1
@@ -219,7 +251,7 @@ fi
 echo "PASS: runtime role can use the controlled transition function"
 
 expect_failure "runtime cannot claim a human actor identity" "invalid task transition arguments" \
-  "SET ROLE factory_runtime; SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','cancelled','task.cancelled','human','forged-human','ci-forged-human')"
+  "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','cancelled','task.cancelled','human','forged-human','ci-forged-human')"
 
 if [[ "$(psql -At -c "SELECT rolsuper::text || ':' || rolcanlogin::text FROM pg_roles WHERE rolname='factory_executor_owner'")" != "false:false" ]]; then
   echo "FAIL: transition function owner must be NOLOGIN and non-superuser"
@@ -241,16 +273,45 @@ if [[ "$(psql -At -c "SELECT pg_has_role('factory_runtime','factory_executor_own
   echo "FAIL: runtime role must not be a member of the function-owner role"
   exit 1
 fi
-echo "PASS: function owner is isolated from runtime and is not privileged"
+if [[ "$(psql -At -c "SELECT pg_has_role('factory_runtime','factory_approval_authority','MEMBER')")" != "f" ]]; then
+  echo "FAIL: runtime role must not be a member of human approval authority"
+  exit 1
+fi
+if [[ "$(psql -At -c "SELECT pg_has_role('factory_rt_tradix','factory_executor_owner','MEMBER') OR pg_has_role('factory_rt_tradix','factory_approval_authority','MEMBER')")" != "f" ]]; then
+  echo "FAIL: project runtime identity has privileged role membership"
+  exit 1
+fi
+echo "PASS: function owner, runtime, and approval authority are isolated"
 
+
+if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT count(*) FROM factory.projects; RESET SESSION AUTHORIZATION")" != "1" ]]; then
+  echo "FAIL: TRADIX runtime can see projects outside its identity"
+  exit 1
+fi
+if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT count(*) FROM factory.projects; RESET SESSION AUTHORIZATION")" != "1" ]]; then
+  echo "FAIL: info_engine runtime can see projects outside its identity"
+  exit 1
+fi
+if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT count(*) FROM factory.tasks WHERE task_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'; RESET SESSION AUTHORIZATION")" != "0" ]]; then
+  echo "FAIL: TRADIX runtime can read info_engine tasks"
+  exit 1
+fi
+expect_failure "runtime cannot directly insert an approval" "permission denied" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.task_approvals (task_id,attempt_id,approval_round,action,decision,decided_by,rationale) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','cccccccc-cccc-4ccc-8ccc-cccccccccccc',1,'begin_implementation','approved','forged','forged')"
+
+psql -v ON_ERROR_STOP=1 -c "SET SESSION AUTHORIZATION factory_approver_tradix; INSERT INTO factory.task_approvals (task_id,attempt_id,approval_round,action,decision,decided_by,rationale,decision_scope) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','cccccccc-cccc-4ccc-8ccc-cccccccccccc',1,'human_review_test','approved','named-approver','approved by trusted approver','{}'::jsonb); RESET SESSION AUTHORIZATION" >/dev/null
+if [[ "$(psql -At -c "SELECT decided_by_login FROM factory.task_approvals WHERE action='human_review_test'")" != "factory_approver_tradix" ]]; then
+  echo "FAIL: approval audit did not capture the authentic login identity"
+  exit 1
+fi
 
 expect_failure "runtime cannot directly update task projection" "permission denied" \
-  "SET ROLE factory_runtime; UPDATE factory.tasks SET status = 'verified' WHERE task_id = '33333333-3333-4333-8333-333333333333'"
+  "SET SESSION AUTHORIZATION factory_rt_info_engine; UPDATE factory.tasks SET status = 'verified' WHERE task_id = '33333333-3333-4333-8333-333333333333'"
 expect_failure "runtime cannot directly append task events" "permission denied" \
-  "SET ROLE factory_runtime; INSERT INTO factory.task_events (task_id,event_type,actor_type,actor_ref,idempotency_key) VALUES ('33333333-3333-4333-8333-333333333333','runtime.bypass','system','ci-test','runtime-bypass-event')"
+  "SET SESSION AUTHORIZATION factory_rt_info_engine; INSERT INTO factory.task_events (task_id,event_type,actor_type,actor_ref,idempotency_key) VALUES ('33333333-3333-4333-8333-333333333333','runtime.bypass','system','ci-test','runtime-bypass-event')"
 expect_failure "runtime cannot mutate immutable task events" "permission denied" \
-  "SET ROLE factory_runtime; UPDATE factory.task_events SET event_type = 'tampered' WHERE event_id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'"
+  "SET SESSION AUTHORIZATION factory_rt_info_engine; UPDATE factory.task_events SET event_type = 'tampered' WHERE event_id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'"
 expect_failure "runtime cannot truncate ledger tables" "permission denied" \
-  "SET ROLE factory_runtime; TRUNCATE factory.tasks"
+  "SET SESSION AUTHORIZATION factory_rt_info_engine; TRUNCATE factory.tasks"
 
 echo "All factory ledger SQL integration checks passed."
