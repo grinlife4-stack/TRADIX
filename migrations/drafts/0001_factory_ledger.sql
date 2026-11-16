@@ -342,11 +342,10 @@ GRANT USAGE, CREATE ON SCHEMA factory TO factory_executor_owner;
 GRANT SELECT, UPDATE ON factory.tasks TO factory_executor_owner;
 GRANT SELECT, INSERT ON factory.task_events TO factory_executor_owner;
 GRANT SELECT ON factory.task_approvals, factory.task_evidence TO factory_executor_owner;
-ALTER FUNCTION factory.transition_task(
-    UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB
-) OWNER TO factory_executor_owner;
-REVOKE CREATE ON SCHEMA factory FROM factory_executor_owner;
 
+-- Revoke/grant function ACLs while the migration identity still owns it.
+-- After ownership transfer, a non-superuser migration identity no longer
+-- owns the function and cannot alter its ACL without an explicit grant option.
 REVOKE ALL ON FUNCTION factory.transition_task(
     UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB
 ) FROM PUBLIC;
@@ -356,6 +355,11 @@ REVOKE ALL ON FUNCTION factory.transition_task(
 GRANT EXECUTE ON FUNCTION factory.transition_task(
     UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB
 ) TO factory_runtime;
+
+ALTER FUNCTION factory.transition_task(
+    UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB
+) OWNER TO factory_executor_owner;
+REVOKE CREATE ON SCHEMA factory FROM factory_executor_owner;
 
 -- Future objects created by the migration owner inherit the same safe defaults.
 ALTER DEFAULT PRIVILEGES FOR ROLE CURRENT_USER IN SCHEMA factory
