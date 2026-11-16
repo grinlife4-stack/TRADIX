@@ -202,4 +202,29 @@ if [[ "$(psql -At -c "SELECT count(*) FROM factory.task_events WHERE idempotency
   exit 1
 fi
 
+
+# Exercise the application role: it can read and call the transition API,
+# but cannot write projections, append events, or mutate immutable records.
+runtime_status=$(psql -At -c "SET ROLE factory_runtime; SELECT status FROM factory.tasks WHERE task_id='33333333-3333-4333-8333-333333333333'")
+if [[ "$runtime_status" != "planned" ]]; then
+  echo "FAIL: runtime role cannot read task projection"
+  exit 1
+fi
+
+psql -v ON_ERROR_STOP=1 -At -c "SET ROLE factory_runtime; SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','blocked','task.blocked','system','ci-runtime','ci-runtime-transition')" >/dev/null
+if [[ "$(psql -At -c "SELECT status FROM factory.tasks WHERE task_id='33333333-3333-4333-8333-333333333333'")" != "blocked" ]]; then
+  echo "FAIL: runtime role could not transition task through the controlled function"
+  exit 1
+fi
+echo "PASS: runtime role can use the controlled transition function"
+
+expect_failure "runtime cannot directly update task projection" "permission denied" \
+  "SET ROLE factory_runtime; UPDATE factory.tasks SET status = 'verified' WHERE task_id = '33333333-3333-4333-8333-333333333333'"
+expect_failure "runtime cannot directly append task events" "permission denied" \
+  "SET ROLE factory_runtime; INSERT INTO factory.task_events (task_id,event_type,actor_type,actor_ref,idempotency_key) VALUES ('33333333-3333-4333-8333-333333333333','runtime.bypass','system','ci-test','runtime-bypass-event')"
+expect_failure "runtime cannot mutate immutable task events" "permission denied" \
+  "SET ROLE factory_runtime; UPDATE factory.task_events SET event_type = 'tampered' WHERE event_id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'"
+expect_failure "runtime cannot truncate ledger tables" "permission denied" \
+  "SET ROLE factory_runtime; TRUNCATE factory.tasks"
+
 echo "All factory ledger SQL integration checks passed."
