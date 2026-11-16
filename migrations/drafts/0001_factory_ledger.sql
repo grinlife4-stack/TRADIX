@@ -400,6 +400,20 @@ BEGIN
         RAISE EXCEPTION 'factory_runtime missing or has unsafe attributes; run the role bootstrap';
     END IF;
 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_roles
+        WHERE rolname = 'factory_approval_authority'
+          AND NOT rolcanlogin AND NOT rolinherit AND NOT rolsuper
+          AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolbypassrls
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_roles
+        WHERE rolname = 'factory_identity_admin'
+          AND NOT rolcanlogin AND NOT rolinherit AND NOT rolsuper
+          AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolbypassrls
+    ) THEN
+        RAISE EXCEPTION 'approval or identity-admin role missing or unsafe; run the role bootstrap';
+    END IF;
+
     IF NOT pg_catalog.pg_has_role(CURRENT_USER, 'factory_executor_owner', 'SET') THEN
         RAISE EXCEPTION 'migration identity must have SET membership in factory_executor_owner';
     END IF;
