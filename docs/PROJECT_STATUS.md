@@ -44,7 +44,7 @@ PR #3 evidence:
 - [Draft ledger SQL tests, run 43811245043](https://github.com/grinlife4-stack/TRADIX/actions/runs/43811245043): completed successfully.
 - Important test-scope limit: `.github/workflows/factory-ledger-sql.yml` applies only `migrations/drafts/0001_factory_ledger.sql` to a disposable PostgreSQL 17 service. It does **not** execute `migrations/0001_memory_gateway.sql` and does not test the new Node.js memory gateway. Those PR #3 additions therefore remain unverified by these CI runs.
 
-**Review discrepancy:** PR #3's description says “Documentation only”, but its changed files include `migrations/0001_memory_gateway.sql`, `runtime/memory-gateway/index.mjs`, `runtime/memory-gateway/package.json`, and four JSON schemas, in addition to documentation. The description should be corrected before merge so reviewers understand the actual scope.
+**PR description correction:** The initial PR #3 description understated its scope. It has now been updated to list the memory-gateway migration, Node.js gateway, JSON schemas, and this status record, and to state explicitly that the new migration and gateway are not yet integration-tested.
 
 No PR #2 or PR #3 merge is recorded in this snapshot. `main` remains separate from these draft changes.
 
