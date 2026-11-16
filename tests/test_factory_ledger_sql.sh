@@ -225,6 +225,18 @@ if [[ "$(psql -At -c "SELECT rolsuper::text || ':' || rolcanlogin::text FROM pg_
   echo "FAIL: transition function owner must be NOLOGIN and non-superuser"
   exit 1
 fi
+if [[ "$(psql -At -c "SELECT pg_has_role('tradix_migrator','factory_executor_owner','SET')")" != "t" ]]; then
+  echo "FAIL: migration role must be able to SET ROLE to the function owner during ownership transfer"
+  exit 1
+fi
+if [[ "$(psql -At -c "SELECT pg_has_role('tradix_migrator','factory_executor_owner','INHERIT')")" != "f" ]]; then
+  echo "FAIL: migration role must not inherit function-owner privileges"
+  exit 1
+fi
+if [[ "$(psql -At -c "SELECT rolsuper::text || ':' || rolcreaterole::text FROM pg_roles WHERE rolname='tradix_migrator'")" != "false:true" ]]; then
+  echo "FAIL: integration migration actor must be non-superuser with CREATEROLE"
+  exit 1
+fi
 if [[ "$(psql -At -c "SELECT pg_has_role('factory_runtime','factory_executor_owner','MEMBER')")" != "f" ]]; then
   echo "FAIL: runtime role must not be a member of the function-owner role"
   exit 1
