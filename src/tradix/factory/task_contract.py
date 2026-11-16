@@ -44,18 +44,23 @@ class TaskState(str, Enum):
 class TaskEnvelope:
     task_id: str
     project_key: str
-    repository: str
-    base_ref: str
     title: str
     request: str
     acceptance_criteria: tuple[str, ...]
     risk_class: RiskClass
     approval_required: bool
+    # Software-specific source-control context. Physical and service products omit both.
+    repository: str | None = None
+    base_ref: str | None = None
 
     def __post_init__(self) -> None:
-        text_fields = (self.task_id, self.project_key, self.repository, self.base_ref, self.title, self.request)
+        text_fields = (self.task_id, self.project_key, self.title, self.request)
         if any(not isinstance(value, str) for value in text_fields):
             raise TaskContractError("task identity and text fields must be strings")
+        if self.repository is not None and not isinstance(self.repository, str):
+            raise TaskContractError("repository must be a string or None")
+        if self.base_ref is not None and not isinstance(self.base_ref, str):
+            raise TaskContractError("base_ref must be a string or None")
         if not isinstance(self.acceptance_criteria, tuple) or any(
             not isinstance(item, str) for item in self.acceptance_criteria
         ):
@@ -68,9 +73,11 @@ class TaskEnvelope:
             raise TaskContractError("task_id must contain 1..80 non-whitespace characters")
         if not _PROJECT_KEY.fullmatch(self.project_key):
             raise TaskContractError("project_key must be a lowercase slug (2..40 characters)")
-        if not _REPOSITORY.fullmatch(self.repository):
+        if (self.repository is None) != (self.base_ref is None):
+            raise TaskContractError("repository and base_ref must be provided together")
+        if self.repository is not None and not _REPOSITORY.fullmatch(self.repository):
             raise TaskContractError("repository must use owner/name format")
-        if not self.base_ref.strip() or len(self.base_ref) > 255:
+        if self.base_ref is not None and (not self.base_ref.strip() or len(self.base_ref) > 255):
             raise TaskContractError("base_ref must contain 1..255 characters")
         if not self.title.strip() or len(self.title) > 160:
             raise TaskContractError("title must contain 1..160 characters")
@@ -87,12 +94,14 @@ class TaskEnvelope:
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "TaskEnvelope":
-        expected = {
-            "task_id", "project_key", "repository", "base_ref", "title",
-            "request", "acceptance_criteria", "risk_class", "approval_required",
+        required = {
+            "task_id", "project_key", "title", "request",
+            "acceptance_criteria", "risk_class", "approval_required",
         }
-        unknown = set(value) - expected
-        missing = expected - set(value)
+        optional = {"repository", "base_ref"}
+        allowed = required | optional
+        unknown = set(value) - allowed
+        missing = required - set(value)
         if unknown:
             raise TaskContractError(f"unknown task fields: {', '.join(sorted(unknown))}")
         if missing:
@@ -108,20 +117,20 @@ class TaskEnvelope:
         except (TypeError, ValueError) as exc:
             raise TaskContractError("risk_class must be low, medium, high, or critical") from exc
 
-        string_fields = ("task_id", "project_key", "repository", "base_ref", "title", "request")
+        string_fields = ("task_id", "project_key", "title", "request")
         if any(not isinstance(value[field], str) for field in string_fields):
             raise TaskContractError("task identity and text fields must be strings")
 
         return cls(
             task_id=value["task_id"],
             project_key=value["project_key"],
-            repository=value["repository"],
-            base_ref=value["base_ref"],
             title=value["title"],
             request=value["request"],
             acceptance_criteria=tuple(criteria),
             risk_class=risk,
             approval_required=value["approval_required"],
+            repository=value.get("repository"),
+            base_ref=value.get("base_ref"),
         )
 
 
