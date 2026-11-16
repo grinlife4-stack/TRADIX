@@ -93,6 +93,7 @@ BEGIN
        OR p_mission->>'title' IS NULL OR length(trim(p_mission->>'title')) NOT BETWEEN 1 AND 160
        OR p_mission->>'objective' IS NULL OR length(trim(p_mission->>'objective')) NOT BETWEEN 1 AND 12000
        OR COALESCE(p_mission->>'risk_class', 'low') NOT IN ('low','medium','high','critical')
+       OR (p_mission ? 'approval_required' AND p_mission->>'approval_required' NOT IN ('true','false'))
        OR (COALESCE(p_mission->>'risk_class', 'low') IN ('high','critical')
            AND p_mission->>'approval_required' IS DISTINCT FROM 'true')
        OR ((p_mission ? 'budget_currency') <> (p_mission ? 'budget_limit_minor'))
@@ -231,7 +232,7 @@ BEGIN
         SELECT 1
         FROM jsonb_array_elements(p_task_plan->'dependencies') d(value)
         WHERE jsonb_typeof(d.value) <> 'object'
-           OR jsonb_object_length(d.value) <> 2
+           OR (SELECT count(*) FROM jsonb_object_keys(d.value)) <> 2
            OR d.value->>'depends_on' IS NULL
            OR d.value->>'task_id' IS NULL
            OR d.value->>'depends_on' = d.value->>'task_id'
