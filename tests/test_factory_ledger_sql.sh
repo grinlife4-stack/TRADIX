@@ -8,6 +8,7 @@ psql() {
 
 psql <<'SQL'
 CREATE ROLE factory_rt_tradix LOGIN INHERIT;
+ALTER ROLE factory_rt_tradix PASSWORD 'ci-only-factory-dossier-password';
 CREATE ROLE factory_rt_info_engine LOGIN INHERIT;
 CREATE ROLE factory_rt_physical_goods LOGIN INHERIT;
 CREATE ROLE factory_approver_tradix LOGIN INHERIT;
