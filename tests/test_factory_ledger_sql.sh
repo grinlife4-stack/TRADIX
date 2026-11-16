@@ -6,23 +6,19 @@ psql() {
   docker exec -i "$container_id" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test "$@"
 }
 
-psql <<'SQL'
-CREATE ROLE factory_rt_tradix LOGIN INHERIT;
-ALTER ROLE factory_rt_tradix PASSWORD 'ci-only-factory-dossier-password';
-CREATE ROLE factory_rt_info_engine LOGIN INHERIT;
-CREATE ROLE factory_rt_physical_goods LOGIN INHERIT;
-CREATE ROLE factory_approver_tradix LOGIN INHERIT;
-CREATE ROLE factory_approver_info_engine LOGIN INHERIT;
-CREATE ROLE factory_rt_onboarding LOGIN INHERIT;
-CREATE ROLE factory_rt_onboarding_extra LOGIN INHERIT;
-CREATE ROLE factory_approver_onboarding LOGIN INHERIT;
-CREATE ROLE factory_rt_wrong_kind LOGIN INHERIT;
-CREATE ROLE factory_provisioner LOGIN NOINHERIT;
-GRANT factory_runtime TO factory_rt_tradix, factory_rt_info_engine, factory_rt_physical_goods;
-GRANT factory_approval_authority TO factory_approver_tradix, factory_approver_info_engine, factory_approver_onboarding;
-GRANT factory_runtime TO factory_rt_onboarding, factory_rt_onboarding_extra, factory_rt_wrong_kind;
-GRANT factory_identity_admin TO factory_provisioner WITH SET TRUE, INHERIT FALSE;
+provision_logins() {
+  docker exec -i "$container_id" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test -v runtime_login="$1" -v approval_login="$2" -v provisioner_login=factory_provisioner < migrations/operations/create_product_logins.sql
+}
 
+provision_logins factory_rt_tradix factory_approver_tradix
+provision_logins factory_rt_info_engine factory_approver_info_engine
+provision_logins factory_rt_physical_goods factory_approver_physical_goods
+provision_logins factory_rt_onboarding factory_approver_onboarding
+provision_logins factory_rt_onboarding_extra factory_approver_onboarding_extra
+provision_logins factory_rt_wrong_kind factory_approver_wrong_kind
+psql -c "ALTER ROLE factory_rt_tradix PASSWORD 'ci-only-factory-dossier-password'" >/dev/null
+
+psql <<'SQL'
 INSERT INTO factory.projects (
   project_id, project_key, display_name, product_type, repository_full_name
 ) VALUES
