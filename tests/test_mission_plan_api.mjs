@@ -116,4 +116,73 @@ const pathMismatch = await fetch(`${base}/v1/missions/another-mission/plans`, {
 });
 assert.equal(pathMismatch.status, 400);
 
+
+const intakeKey = "mission-plan-api-ci-intake-v1";
+const makeIntake = (version = 1, requirement = "Atomic intake requirement") => ({
+  dossier: {
+    schema_version: 1,
+    product_type: product.product_type,
+    mission: "Validate the atomic product intake boundary.",
+    requirements: [requirement],
+    acceptance_criteria: ["All snapshots persist together"],
+    lifecycle: { state: "pending_approval" }
+  },
+  mission: {
+    mission_id: "mission-plan-api-ci-intake",
+    project_key: product.project_key,
+    version,
+    title: "Atomic intake integration",
+    objective: "Persist dossier, mission, and plan in one transaction.",
+    acceptance_criteria: ["All three snapshots are committed together"],
+    constraints: ["No task dispatch", "No resource reservation"],
+    risk_class: "low",
+    approval_required: true
+  },
+  task_plan: {
+    mission_id: "mission-plan-api-ci-intake",
+    mission_version: version,
+    plan_version: 1,
+    project_key: product.project_key,
+    tasks: [{
+      task_id: "prepare-intake-review",
+      project_key: product.project_key,
+      title: "Prepare intake review",
+      request: "Prepare the dossier and plan for human review.",
+      acceptance_criteria: ["Review packet is complete"],
+      risk_class: "low",
+      approval_required: true
+    }],
+    dependencies: []
+  }
+});
+const postIntake = (payload, key = intakeKey) => fetch(`${base}/v1/intake`, {
+  method: "POST",
+  headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "idempotency-key": key },
+  body: JSON.stringify(payload)
+});
+const atomicFailure = await postIntake(makeIntake(2));
+assert.equal(atomicFailure.status, 409);
+const atomicFailureBody = await atomicFailure.json();
+assert.deepEqual(atomicFailureBody, { error: "version_conflict" });
+// Reusing the same idempotency key with changed dossier content succeeds only
+// if the failed transaction rolled back the earlier dossier insert.
+const acceptedIntake = await postIntake(makeIntake(1, "Requirement after rollback"));
+assert.equal(acceptedIntake.status, 200);
+const acceptedIntakeBody = await acceptedIntake.json();
+assert.equal(acceptedIntakeBody.intake_status, "pending_human_approval");
+assert.equal(acceptedIntakeBody.dispatch_authorized, false);
+assert.equal(acceptedIntakeBody.task_creation, "not_performed");
+assert.equal(acceptedIntakeBody.resource_reservation, "not_performed");
+assert.equal(acceptedIntakeBody.versions.dossier_version, 1);
+assert.equal(acceptedIntakeBody.versions.mission_version, 1);
+assert.equal(acceptedIntakeBody.versions.plan_version, 1);
+const intakeRetry = await postIntake(makeIntake(1, "Requirement after rollback"));
+assert.equal(intakeRetry.status, 200);
+assert.deepEqual((await intakeRetry.json()).versions, acceptedIntakeBody.versions);
+const invalidApprovalGate = await postIntake({
+  ...makeIntake(),
+  mission: { ...makeIntake().mission, approval_required: false }
+}, "mission-plan-api-ci-no-approval");
+assert.equal(invalidApprovalGate.status, 422);
+
 console.log("mission plan API integration checks passed");
