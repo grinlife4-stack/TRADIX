@@ -149,3 +149,16 @@ The machine-readable common envelope is defined in `schemas/product-dossier-v1.s
 `runtime/product-dossier-api` exposes the dossier ledger to one product runtime identity per API instance. It derives the product from the authenticated PostgreSQL `session_user`, requires exactly one identity mapping and runtime-only membership, and refuses caller-supplied project identifiers. Read operations are RLS-scoped; writes call only `factory.record_product_dossier` and require an idempotency key. The adapter cannot create projects or change role mappings.
 
 The API integration workflow runs against disposable PostgreSQL and uses a CI-only password. This verifies the adapter and database contract together; it does not authorize deployment or a Neon migration.
+
+## Product registration and identity provisioning — draft
+
+Product onboarding is split into two authority domains:
+
+1. A trusted DBA with `CREATEROLE` creates the product's separate runtime and approval LOGIN roles. The runtime LOGIN receives only `factory_runtime`; the approval LOGIN receives only `factory_approval_authority`. The DBA also creates or reuses a factory-wide provisioner LOGIN with SET-only, non-inherited membership in `factory_identity_admin`.
+2. The provisioner connects independently and uses `factory_identity_admin` to insert the product registry row and its two identity mappings in one transaction.
+
+The `project_identities.identity_kind` column is constrained to `runtime` or `approval`. A trigger checks that the declared kind matches the LOGIN's actual authority membership. A unique constraint on `(project_id, identity_kind)` enforces at most one runtime and one approval LOGIN per product; the registration transaction inserts both, so a partially registered product is rolled back.
+
+The identity-admin role may SELECT/INSERT/UPDATE product registry rows and SELECT/INSERT/UPDATE identity mappings. It cannot create LOGIN roles, grant role memberships, write dossier snapshots, or approve work. Product runtime APIs cannot register products or alter identity mappings. The DBA-only and provisioner scripts are in `migrations/operations/`; credentials are intentionally excluded and must be set out-of-band.
+
+CI tests cover identity-kind mismatch, duplicate runtime identity per product, and product registration through the restricted identity-admin authority. These remain disposable-PostgreSQL tests. The operations scripts are runbooks only: no Neon or Production operation is authorized by their presence.
