@@ -89,7 +89,7 @@ BEGIN
        OR COALESCE(jsonb_array_length(p_mission->'constraints'), 0) > 30
        OR p_mission->>'mission_id' IS NULL OR length(trim(p_mission->>'mission_id')) NOT BETWEEN 1 AND 80
        OR p_mission->>'project_key' IS NULL
-       OR NOT CASE WHEN jsonb_typeof(p_mission->'version') = 'number' THEN (p_mission->>'version')::numeric >= 1 AND (p_mission->>'version')::numeric = trunc((p_mission->>'version')::numeric) ELSE false END
+       OR (CASE WHEN jsonb_typeof(p_mission->'version') = 'number' THEN (p_mission->>'version')::numeric >= 1 AND (p_mission->>'version')::numeric = trunc((p_mission->>'version')::numeric) ELSE false END) IS NOT TRUE
        OR p_mission->>'title' IS NULL OR length(trim(p_mission->>'title')) NOT BETWEEN 1 AND 160
        OR p_mission->>'objective' IS NULL OR length(trim(p_mission->>'objective')) NOT BETWEEN 1 AND 12000
        OR COALESCE(p_mission->>'risk_class', 'low') NOT IN ('low','medium','high','critical')
@@ -176,9 +176,9 @@ BEGIN
        OR p_task_plan IS NULL OR jsonb_typeof(p_task_plan) <> 'object'
        OR p_idempotency_key IS NULL OR length(trim(p_idempotency_key)) NOT BETWEEN 1 AND 255
        OR p_task_plan->>'mission_id' IS DISTINCT FROM p_mission_id
-       OR NOT CASE WHEN jsonb_typeof(p_task_plan->'mission_version') = 'number' THEN (p_task_plan->>'mission_version')::numeric >= 1 AND (p_task_plan->>'mission_version')::numeric = trunc((p_task_plan->>'mission_version')::numeric) ELSE false END
+       OR (CASE WHEN jsonb_typeof(p_task_plan->'mission_version') = 'number' THEN (p_task_plan->>'mission_version')::numeric >= 1 AND (p_task_plan->>'mission_version')::numeric = trunc((p_task_plan->>'mission_version')::numeric) ELSE false END) IS NOT TRUE
        OR (p_task_plan->>'mission_version')::numeric <> p_mission_version_no
-       OR NOT CASE WHEN jsonb_typeof(p_task_plan->'plan_version') = 'number' THEN (p_task_plan->>'plan_version')::numeric >= 1 AND (p_task_plan->>'plan_version')::numeric = trunc((p_task_plan->>'plan_version')::numeric) ELSE false END
+       OR (CASE WHEN jsonb_typeof(p_task_plan->'plan_version') = 'number' THEN (p_task_plan->>'plan_version')::numeric >= 1 AND (p_task_plan->>'plan_version')::numeric = trunc((p_task_plan->>'plan_version')::numeric) ELSE false END) IS NOT TRUE
        OR jsonb_typeof(p_task_plan->'tasks') <> 'array'
        OR jsonb_array_length(p_task_plan->'tasks') NOT BETWEEN 1 AND 100
        OR jsonb_typeof(p_task_plan->'dependencies') <> 'array'
