@@ -4,7 +4,7 @@
 **Repository:** `grinlife4-stack/TRADIX`  
 **Active PR:** [#3 — Define TRADIX executive runtime architecture](https://github.com/grinlife4-stack/TRADIX/pull/3)  
 **Working branch:** `factory/executive-runtime-architecture-v0-1`  
-**Last verified code/test baseline:** `4f9b56bb201e100dc8c23324b9148a97de773cd7`  
+**Last verified code/test baseline:** `4a20a81b9687705692107b36900654027316ae87`  
 **Production policy:** Neon Production and `main` remain untouched unless explicitly approved.
 
 ## 1. Executive status
@@ -221,5 +221,19 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
 - PR #4 (`factory/phase-0-blueprint`) is a separate branch based on `main`, containing a small in-memory task lifecycle demo and B2 adapter work. It does not contain PR #3's ledger, product dossier API, or current Factory Core baseline. Do not treat it as a successor or merge it as a substitute for PR #3.
 - Factory Core is still incomplete: there is no unified request-intake boundary that turns an incoming product brief into a validated product dossier plus an approval-gated initial task plan. Product registration still relies on a trusted provisioning script; no autonomous privilege or login provisioning is enabled.
 - The current executor is explicitly trusted-code only, not an OS sandbox. Untrusted product code must not be run through it.
+- No Neon migration, Production write, `main` change, deployment, secret change, paid resource, or PR merge occurred.
+
+## 13. Mission and dependency-aware plan contracts (2026-11-16)
+
+- Added `src/tradix/factory/mission_contract.py` with a validated, versioned `MissionEnvelope` and immutable `TaskPlan` contract.
+- Mission validation covers product scope, mission/version identity, objective, acceptance criteria, constraints, risk/approval coupling, and an optional explicit budget ceiling represented in integer minor units plus ISO-style currency code. Missing budget means no spend authority is granted by this contract.
+- Task plans are bound to one exact mission ID/version and one project. Every task must belong to that project; task IDs and dependency edges must be unique; dependency references must resolve; cycles are rejected; a deterministic topological order is returned.
+- Added tests for physical-product missions, high-risk approval gates, budget completeness, unknown fields, cross-project tasks, unknown dependencies, cycles, duplicate edges, and stale mission versions.
+- Exact verified head: `4a20a81b9687705692107b36900654027316ae87`.
+- CI on that exact head:
+  - `tests` Run `43934004536`: success.
+  - `factory-ledger-sql` Run `43934004520`: success.
+  - `factory-first-run` Run `43934004667`: success.
+- This is a pure validation contract. It does not yet persist missions or plan versions, create task rows, approve a plan, allocate resources, or dispatch work. Those operations remain outside this completed slice.
 - No Neon migration, Production write, `main` change, deployment, secret change, paid resource, or PR merge occurred.
 
