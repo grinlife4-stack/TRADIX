@@ -170,24 +170,27 @@ VALUES ('14141414-1414-4414-8414-141414141414', '33333333-3333-4333-8333-3333333
 SQL
 
 psql -v ON_ERROR_STOP=1 -At <<'SQL'
+SET SESSION AUTHORIZATION factory_rt_tradix;
 SELECT factory.transition_task(
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'planned', 'task.planned',
  'system', 'ci-test', 'ci-transition-planned'
 );
+RESET SESSION AUTHORIZATION;
 SQL
 
 # An exact retry returns the original event sequence and does not append twice.
-first_seq=$(psql -At -c "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','planned','task.planned','system','ci-test','ci-transition-planned')")
-retry_seq=$(psql -At -c "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','planned','task.planned','system','ci-test','ci-transition-planned')")
+first_seq=$(psql -At -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','planned','task.planned','system','ci-test','ci-transition-planned'); RESET SESSION AUTHORIZATION")
+retry_seq=$(psql -At -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','planned','task.planned','system','ci-test','ci-transition-planned'); RESET SESSION AUTHORIZATION")
 if [[ "$first_seq" != "$retry_seq" ]]; then
   echo "FAIL: idempotent retry returned a different event sequence"
   exit 1
 fi
 
 expect_failure "idempotency key cannot be reused for different intent" "idempotency key reused with different transition intent" \
-  "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','blocked','task.blocked','system','ci-test','ci-transition-planned')"
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','blocked','task.blocked','system','ci-test','ci-transition-planned')"
 
 psql -v ON_ERROR_STOP=1 -At <<'SQL'
+SET SESSION AUTHORIZATION factory_rt_tradix;
 SELECT factory.transition_task(
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'implementing', 'task.implementing',
  'system', 'ci-test', 'ci-transition-implementing',
@@ -201,9 +204,9 @@ SELECT factory.transition_task(
 SQL
 
 expect_failure "required evidence cannot be checked without an attempt" "required evidence missing for the specified attempt" \
-  "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','review','task.review','system','ci-test','ci-transition-review-null')"
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','review','task.review','system','ci-test','ci-transition-review-null')"
 expect_failure "evidence from another attempt cannot satisfy the gate" "required evidence missing for the specified attempt" \
-  "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','review','task.review','system','ci-test','ci-transition-review-wrong-attempt','dddddddd-dddd-4ddd-8ddd-dddddddddddd')"
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','review','task.review','system','ci-test','ci-transition-review-wrong-attempt','dddddddd-dddd-4ddd-8ddd-dddddddddddd')"
 
 psql -v ON_ERROR_STOP=1 -At <<'SQL'
 SELECT factory.transition_task(
@@ -211,32 +214,37 @@ SELECT factory.transition_task(
  'system', 'ci-test', 'ci-transition-review',
  'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 );
+RESET SESSION AUTHORIZATION;
 SQL
 
 expect_failure "candidate requires review evidence" "required evidence missing: review_report" \
-  "SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','candidate','task.candidate','system','ci-test','ci-transition-candidate','cccccccc-cccc-4ccc-8ccc-cccccccccccc')"
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.transition_task('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','candidate','task.candidate','system','ci-test','ci-transition-candidate','cccccccc-cccc-4ccc-8ccc-cccccccccccc')"
 
 psql -v ON_ERROR_STOP=1 -At <<'SQL'
+SET SESSION AUTHORIZATION factory_rt_info_engine;
 SELECT factory.transition_task(
  '33333333-3333-4333-8333-333333333333', 'planned', 'task.planned',
  'system', 'ci-test', 'ci-noapproval-planned'
 );
+RESET SESSION AUTHORIZATION;
 SQL
 
 expect_failure "high-risk task cannot begin without an approval record" "human approval required for this attempt and decision scope" \
-  "SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','implementing','task.implementing','system','ci-test','ci-noapproval-implementing','14141414-1414-4414-8414-141414141414')"
+  "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT factory.transition_task('33333333-3333-4333-8333-333333333333','implementing','task.implementing','system','ci-test','ci-noapproval-implementing','14141414-1414-4414-8414-141414141414')"
 
 psql -v ON_ERROR_STOP=1 -At <<'SQL'
+SET SESSION AUTHORIZATION factory_rt_info_engine;
 SELECT factory.transition_task(
  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'planned', 'task.planned',
  'system', 'ci-test', 'ci-approved-planned'
 );
+RESET SESSION AUTHORIZATION;
 SQL
 expect_failure "approval from a previous attempt cannot authorize a new attempt" "human approval required for this attempt and decision scope" \
-  "SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','implementing','task.implementing','system','ci-test','ci-stale-approval','12121212-1212-4212-8212-121212121212')"
+  "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','implementing','task.implementing','system','ci-test','ci-stale-approval','12121212-1212-4212-8212-121212121212')"
 expect_failure "approval with the wrong decision scope cannot authorize implementation" "human approval required for this attempt and decision scope" \
-  "SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','implementing','task.implementing','system','ci-test','ci-wrong-scope','13131313-1313-4313-8313-131313131313')"
-psql -v ON_ERROR_STOP=1 -At -c "SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','implementing','task.implementing','system','ci-test','ci-approved-implementing','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')" >/dev/null
+  "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','implementing','task.implementing','system','ci-test','ci-wrong-scope','13131313-1313-4313-8313-131313131313')"
+psql -v ON_ERROR_STOP=1 -At -c "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','implementing','task.implementing','system','ci-test','ci-approved-implementing','eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'); RESET SESSION AUTHORIZATION" >/dev/null
 
 if [[ "$(psql -At -c "SELECT status FROM factory.tasks WHERE task_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'")" != "review" ]]; then
   echo "FAIL: task projection did not follow the committed event stream"
