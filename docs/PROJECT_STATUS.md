@@ -185,3 +185,15 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
 - Exact tested commit before this schema-only follow-up: `a27216b4b9a1ccedb28f624b059e3fc033a22fcf`. On that SHA, `factory-ledger-sql` Run #114 (`43921328351`) and `tests` Run #147 (`43921328215`) both completed successfully. The SQL job applied the draft migration as a non-superuser, passed the product dossier version/idempotency, product-type, required-field, cross-project, append-only, and direct-write-denial checks, and then passed the memory gateway SQL and HTTP integration tests.
 - The schema/documentation follow-up itself must receive CI on its resulting PR head before it is considered fully verified.
 - No Neon or Production migration, database write, merge, deployment, secret change, or paid resource creation occurred.
+
+
+## 2026-11-16 — Product dossier API verified on disposable PostgreSQL
+
+- Added `runtime/product-dossier-api`: a Node.js HTTP service for one product per instance. It resolves product identity from the authenticated database `session_user`, rejects mixed/privileged roles and multiple identity mappings at startup, and does not accept a caller-supplied `project_id`.
+- Read endpoints: product identity, latest dossier, and bounded version history. Write endpoint: append dossier through `factory.record_product_dossier` with an idempotency key. The API cannot create products, grant roles, approve work, or directly mutate dossier rows.
+- Added API integration tests for bearer authentication, product resolution, write/read, exact idempotent retry, forged project identity rejection, and product-type mismatch rejection.
+- Added SQL integration for a physical product with no Git repository: it receives its own dossier and cannot see TRADIX's dossier rows. TRADIX remains unable to see the physical product's dossier.
+- Exact PR #3 head verified: `8d48e333898f4d5af376584dfbacb39fab526346`.
+- `factory-ledger-sql` Run #125 (`43922571436`): success. Steps 1–13 completed, including disposable PostgreSQL migration, Factory Ledger SQL tests, product dossier API dependency install and HTTP integration, and memory gateway SQL/HTTP integration.
+- `tests` Run #158 (`43922571415`): success; Python test suite passed.
+- The API and migration remain code artifacts in Draft PR #3. No Neon migration, Production database write, deployment, merge, credential change outside disposable CI, or paid resource creation occurred.
