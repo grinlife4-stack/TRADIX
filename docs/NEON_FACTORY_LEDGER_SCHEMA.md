@@ -133,10 +133,12 @@ Product-specific detail may be added as further JSON fields; the common envelope
 The only runtime write path is `factory.record_product_dossier(project_id, dossier, idempotency_key)`. It:
 - derives authority from the authenticated database `session_user` and its one-project identity mapping;
 - rejects cross-project writes and product-type mismatches;
-- serializes version allocation by locking the product registry row;
+- serializes version allocation with a transaction-scoped advisory lock keyed to the product;
 - appends immutable version snapshots and returns the version number;
 - makes exact retries idempotent and rejects reuse of a key for different content.
 
 Runtime identities receive SELECT only on the table and EXECUTE on the controlled function. UPDATE, DELETE, TRUNCATE, and direct INSERT are not granted; append-only triggers provide an additional guard. RLS is enabled and forced. Dossier payloads are metadata/specification records, not a substitute for the product's operational database or binary artifact store.
 
 The SQL integration tests cover version progression, idempotency, required fields, product-type binding, cross-project rejection, read isolation, append-only behavior, and denial of direct runtime INSERT. CI must pass against the exact PR head before the change is considered verified. This remains a draft migration; no Neon or Production migration is authorized.
+
+The machine-readable common envelope is defined in `schemas/product-dossier-v1.schema.json`. It is deliberately extensible: optional sections for decisions, resources, budget/costs, deliverables, risks, assets, dependencies, security, and domain specifications do not impose one workflow on every product.
