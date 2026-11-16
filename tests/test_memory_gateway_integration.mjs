@@ -11,7 +11,7 @@ assert.deepEqual(await health.json(), { ok: true, service: "memory-gateway", ver
 const unauthorized = await fetch(`${base}/v1/context?project=missing`);
 assert.equal(unauthorized.status, 401);
 
-const missing = await fetch(`${base}/v1/context?project=tradix`, {
+const missing = await fetch(`${base}/v1/context?project=missing`, {
   headers: { authorization: `Bearer ${key}` }
 });
 assert.equal(missing.status, 404);
