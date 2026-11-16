@@ -1,13 +1,15 @@
 import pg from "pg";
+import { attachDatabasePool } from "@neon/functions";
 import { timingSafeEqual, createHash } from "node:crypto";
 
 const { Pool } = pg;
 const databaseUrl = process.env.DATABASE_URL;
 const apiKey = process.env.MEMORY_GATEWAY_API_KEY;
 if (!databaseUrl) throw new Error("DATABASE_URL is required");
-if (!apiKey || apiKey.length < 32) throw new Error("MEMORY_GATEWAY_API_KEY must be at least 32 characters");
+if (!apiKey || apiKey.length < 64) throw new Error("MEMORY_GATEWAY_API_KEY must be at least 64 characters");
 
 const pool = new Pool({ connectionString: databaseUrl, max: 3, idleTimeoutMillis: 30000, connectionTimeoutMillis: 5000 });
+attachDatabasePool(pool);
 const expected = createHash("sha256").update(apiKey).digest();
 
 function authorized(request) {
@@ -32,7 +34,7 @@ export default {
   async fetch(request) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/health") {
-      return json({ ok: true, service: "memory-gateway", version: "1.0" });
+      return json({ ok: true, service: "memory-gateway", version: "1.0.1" });
     }
     if (!authorized(request)) return json({ error: "unauthorized" }, 401);
     if (request.method !== "GET") return json({ error: "method_not_allowed" }, 405);
