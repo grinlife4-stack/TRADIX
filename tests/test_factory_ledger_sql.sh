@@ -233,8 +233,8 @@ if [[ "$(psql -At -c "SELECT pg_has_role('tradix_migrator','factory_executor_own
   echo "FAIL: migration role must not inherit function-owner privileges"
   exit 1
 fi
-if [[ "$(psql -At -c "SELECT rolsuper::text || ':' || rolcreaterole::text FROM pg_roles WHERE rolname='tradix_migrator'")" != "false:true" ]]; then
-  echo "FAIL: integration migration actor must be non-superuser with CREATEROLE"
+if [[ "$(psql -At -c "SELECT rolsuper::text || ':' || rolcreaterole::text FROM pg_roles WHERE rolname='tradix_migrator'")" != "false:false" ]]; then
+  echo "FAIL: schema migration actor must be non-superuser without CREATEROLE"
   exit 1
 fi
 if [[ "$(psql -At -c "SELECT pg_has_role('factory_runtime','factory_executor_owner','MEMBER')")" != "f" ]]; then
