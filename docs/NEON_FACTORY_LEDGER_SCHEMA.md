@@ -142,3 +142,10 @@ Runtime identities receive SELECT only on the table and EXECUTE on the controlle
 The SQL integration tests cover version progression, idempotency, required fields, product-type binding, cross-project rejection, read isolation, append-only behavior, and denial of direct runtime INSERT. CI must pass against the exact PR head before the change is considered verified. This remains a draft migration; no Neon or Production migration is authorized.
 
 The machine-readable common envelope is defined in `schemas/product-dossier-v1.schema.json`. It is deliberately extensible: optional sections for decisions, resources, budget/costs, deliverables, risks, assets, dependencies, security, and domain specifications do not impose one workflow on every product.
+
+
+## Product dossier HTTP adapter
+
+`runtime/product-dossier-api` exposes the dossier ledger to one product runtime identity per API instance. It derives the product from the authenticated PostgreSQL `session_user`, requires exactly one identity mapping and runtime-only membership, and refuses caller-supplied project identifiers. Read operations are RLS-scoped; writes call only `factory.record_product_dossier` and require an idempotency key. The adapter cannot create projects or change role mappings.
+
+The API integration workflow runs against disposable PostgreSQL and uses a CI-only password. This verifies the adapter and database contract together; it does not authorize deployment or a Neon migration.
