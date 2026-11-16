@@ -250,3 +250,19 @@ New disposable-PostgreSQL integration cases cover two-project read isolation, ru
 - The mission and plan contracts remain pure validation only. No database persistence, immutable plan history, resource reservation, approval record, or dispatch is implemented by this slice.
 - No Neon migration, Production write, `main` change, deployment, secret change, paid resource, or PR merge occurred.
 
+## 15. Persistent mission and task-plan version ledger (2026-11-16)
+
+- Added draft migration `migrations/drafts/0002_mission_plan_versions.sql` with project-scoped `factory.mission_versions` and `factory.task_plan_versions`.
+- Mission versions are sequenced per product and mission ID. Task-plan versions are sequenced per product and mission ID, and each plan references an exact stored mission version from the same product.
+- Added controlled SECURITY DEFINER writers `factory.record_mission_version(...)` and `factory.record_task_plan_version(...)`. Both derive authority from `session_user`, enforce product identity, serialize version allocation with transaction-scoped advisory locks, and make exact idempotent retries return the original version. Reusing a key with different content is rejected.
+- Both version tables are RLS-enabled and forced, readable only within the mapped product identity, and append-only. Runtime roles have SELECT plus EXECUTE on the controlled writers, but no direct INSERT/UPDATE/DELETE/TRUNCATE rights.
+- Database validation checks mission/project/version identity, task-plan/mission identity, task identity uniqueness, dependency references, duplicate edges, and cycles. The Python MissionEnvelope/TaskPlan validators remain the stricter application contract; the SQL layer is not a replacement for them.
+- CI applies migration 0002 only after the existing ledger migration on disposable PostgreSQL 17. Tests cover version increments, idempotent retries, changed-payload key reuse, project isolation, physical products without repositories, cycle rejection, and immutable records.
+- Exact verified code head: `f08fb938cdb18a7488d35233bd0719cd0e8050cf`.
+- CI on that exact head:
+  - `tests` Run `43936708287`: success.
+  - `factory-ledger-sql` Run `43936708261`: success, including both migrations, SQL integration tests, executor idempotent retry, product dossier API, and memory gateway checks.
+  - `factory-first-run` Run `43936708244`: success.
+- This slice persists mission and plan snapshots only. It does not yet expose an HTTP mission/plan API, create executable task rows from a plan, approve plans, reserve resources, or dispatch work.
+- Migration remains draft-only. No Neon migration, Production write, `main` change, deployment, secret change, paid resource, or PR merge occurred.
+
