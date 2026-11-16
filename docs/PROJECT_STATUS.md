@@ -138,3 +138,37 @@ This file is a dated snapshot. On every substantive work session, update it with
 - blockers, approvals required, and one next action.
 
 Never mark work operational because a design, migration file, or adapter exists. Operational means the real execution path ran and its result was independently verified.
+
+
+## 9. Verified implementation update — 2026-11-16
+
+This section supersedes the earlier statements above that the memory-gateway migration and Node gateway had not been tested.
+
+**Current tested source head:** `9d582902e63aa527043edc311dcda53f10ea1730`  
+**PR:** [#3 — still Draft and unmerged](https://github.com/grinlife4-stack/TRADIX/pull/3)
+
+### Added implementation
+- Added `runtime/memory-gateway/server.mjs`, a Node.js HTTP adapter that exposes the existing read-only gateway handler as a runnable service.
+- Added explicit local PostgreSQL TLS-mode support. TLS remains required by default; `sslmode=disable` is an explicit opt-in for disposable local/test databases only.
+- Added `tests/test_memory_gateway_sql.sh` for disposable PostgreSQL schema, bootstrap, append-only, and idempotency checks.
+- Added `tests/test_memory_gateway_integration.mjs` for health, authorization, missing-project, invalid-key, and successful context retrieval.
+- Extended `.github/workflows/factory-ledger-sql.yml` to apply and test both draft schemas in disposable PostgreSQL 17, then run the Node HTTP integration test against that database.
+- The first integration attempts exposed two real test issues: the test runner's PostgreSQL instance did not offer TLS, and the missing-project test accidentally queried the seeded project. Both were corrected and the final run passed.
+
+### CI evidence on the tested source head
+- [Python tests — run 43812745634](https://github.com/grinlife4-stack/TRADIX/actions/runs/43812745634): completed successfully.
+- [Factory ledger + memory gateway SQL and HTTP integration — run 43812745635](https://github.com/grinlife4-stack/TRADIX/actions/runs/43812745635): completed successfully.
+  - Existing factory ledger SQL tests passed.
+  - Memory gateway migration applied successfully to disposable PostgreSQL 17.
+  - Memory gateway SQL invariants passed: bootstrap, append-only event mutation rejection, and idempotency uniqueness.
+  - Node HTTP integration passed: health endpoint, unauthorized request, missing project, invalid project key, and authenticated context retrieval.
+- The successful integration proves the tested Node/PostgreSQL path in CI. It does **not** prove deployment, production hardening, Neon connectivity, persistent operation, or autonomous orchestration.
+
+### Runtime and safety status
+- The memory gateway now has a runnable Node entrypoint and passing disposable-database integration evidence.
+- Neon Production remains untouched; no Neon migration was applied.
+- The separate factory operational ledger remains a draft; no canonical production schema has been approved.
+- PR #2 and PR #3 remain unmerged. No deployment, paid infrastructure, secret change, or Production write was performed.
+
+### Next gate
+Before any Neon trial: review and approve the schema responsibility boundary, add deployment/runtime configuration and secret handling, then run a controlled isolated Neon branch trial. Production remains prohibited until that trial and its recovery/security checks pass.
