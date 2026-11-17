@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 from .catalog import SourceDescriptor
-from .sales import import_normalized_sales_report
+from .sales import SalesReportImport, import_normalized_sales_report
 
 
 def _timestamp(value: str) -> datetime:
@@ -49,7 +49,7 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _result_document(imported: object) -> dict[str, object]:
+def _result_document(imported: SalesReportImport) -> dict[str, object]:
     observations = imported.observations
     return {
         "schema_version": "mega-market-import-result-v1",
@@ -112,8 +112,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.output is None:
             sys.stdout.write(rendered)
         else:
-            with args.output.open("x", encoding="utf-8", newline="\n") as handle:
-                handle.write(rendered)
+            try:
+                with args.output.open("x", encoding="utf-8", newline="\n") as handle:
+                    handle.write(rendered)
+            except FileExistsError as exc:
+                raise FileExistsError(f"output file already exists: {args.output}") from exc
             sys.stdout.write(f"Import result written to {args.output}\n")
         return 0
     except (OSError, TypeError, ValueError) as exc:
