@@ -43,6 +43,14 @@ def _aware_datetime(value: Any) -> bool:
     return parsed.tzinfo is not None and parsed.utcoffset() is not None
 
 
+def _reject_unknown_fields(
+    section: dict[str, Any], allowed: set[str], label: str, errors: list[str]
+) -> None:
+    unknown = sorted(set(section) - allowed)
+    if unknown:
+        errors.append(f"{label} has unknown fields: {', '.join(unknown)}")
+
+
 def _verified_evidence(section: dict[str, Any], label: str, errors: list[str]) -> None:
     if section.get("status") == "verified":
         if not _valid_sha256(section.get("evidence_sha256")):
@@ -86,12 +94,14 @@ def validate_manifest(manifest: Any) -> list[str]:
 
     source = manifest.get("source")
     if isinstance(source, dict):
+        _reject_unknown_fields(source, {"status", "format", "export_procedure", "import_procedure", "evidence_path", "evidence_sha256"}, "source", errors)
         for field in ("format", "export_procedure", "import_procedure"):
             if not _nonempty(source.get(field)):
                 errors.append(f"source.{field} must be documented")
 
     runtime = manifest.get("runtime")
     if isinstance(runtime, dict):
+        _reject_unknown_fields(runtime, {"status", "interface", "version_policy", "target_matrix", "build_definition", "evidence_path", "evidence_sha256"}, "runtime", errors)
         for field in ("interface", "version_policy", "build_definition"):
             if not _nonempty(runtime.get(field)):
                 errors.append(f"runtime.{field} must be documented")
@@ -108,6 +118,7 @@ def validate_manifest(manifest: Any) -> list[str]:
             if not isinstance(dependency, dict):
                 errors.append(f"{label} must be an object")
                 continue
+            _reject_unknown_fields(dependency, {"name", "kind", "provider_specific", "adapter", "replacement_plan", "alternatives", "status", "evidence_path", "evidence_sha256"}, label, errors)
             for field in ("name", "kind", "adapter", "replacement_plan"):
                 if not _nonempty(dependency.get(field)):
                     errors.append(f"{label}.{field} must be documented")
@@ -129,6 +140,7 @@ def validate_manifest(manifest: Any) -> list[str]:
             if not isinstance(item, dict):
                 errors.append(f"{label} must be an object")
                 continue
+            _reject_unknown_fields(item, {"name", "format", "export_procedure", "import_procedure", "integrity_method", "status", "evidence_path", "evidence_sha256"}, label, errors)
             for field in ("name", "format", "export_procedure", "import_procedure", "integrity_method"):
                 if not _nonempty(item.get(field)):
                     errors.append(f"{label}.{field} must be documented")
@@ -138,12 +150,14 @@ def validate_manifest(manifest: Any) -> list[str]:
 
     artifacts = manifest.get("artifacts")
     if isinstance(artifacts, dict):
+        _reject_unknown_fields(artifacts, {"status", "interface", "export_procedure", "import_procedure", "integrity_method", "evidence_path", "evidence_sha256"}, "artifacts", errors)
         for field in ("interface", "export_procedure", "import_procedure", "integrity_method"):
             if not _nonempty(artifacts.get(field)):
                 errors.append(f"artifacts.{field} must be documented")
 
     secrets = manifest.get("secrets")
     if isinstance(secrets, dict):
+        _reject_unknown_fields(secrets, {"status", "source_control_excluded", "export_excluded", "rebind_procedure", "evidence_path", "evidence_sha256"}, "secrets", errors)
         if secrets.get("source_control_excluded") is not True:
             errors.append("secrets.source_control_excluded must be true")
         if secrets.get("export_excluded") is not True:
@@ -153,6 +167,7 @@ def validate_manifest(manifest: Any) -> list[str]:
 
     backup = manifest.get("backup_restore")
     if isinstance(backup, dict):
+        _reject_unknown_fields(backup, {"status", "backup_format", "restore_procedure", "restore_test", "evidence_path", "evidence_sha256"}, "backup_restore", errors)
         for field in ("backup_format", "restore_procedure"):
             if not _nonempty(backup.get(field)):
                 errors.append(f"backup_restore.{field} must be documented")
@@ -160,6 +175,7 @@ def validate_manifest(manifest: Any) -> list[str]:
         if not isinstance(restore_test, dict):
             errors.append("backup_restore.restore_test must be an object")
         else:
+            _reject_unknown_fields(restore_test, {"status", "target", "tested_at", "evidence_path", "evidence_sha256"}, "backup_restore.restore_test", errors)
             status = restore_test.get("status")
             if status not in {"not_run", "passed", "failed"}:
                 errors.append("backup_restore.restore_test.status must be not_run, passed, or failed")
@@ -176,6 +192,7 @@ def validate_manifest(manifest: Any) -> list[str]:
 
     exit_cost = manifest.get("exit_cost")
     if isinstance(exit_cost, dict):
+        _reject_unknown_fields(exit_cost, {"status", "currency", "estimated_amount", "estimated_hours", "notes", "evidence_path", "evidence_sha256"}, "exit_cost", errors)
         if not re.fullmatch(r"[A-Z]{3}", str(exit_cost.get("currency", ""))):
             errors.append("exit_cost.currency must be a three-letter uppercase currency code")
         if not _nonempty(exit_cost.get("notes")):
