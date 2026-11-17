@@ -12,7 +12,7 @@ from products.megamarket.cpiie.reviewer_auth import (
 )
 
 
-class TestReviewerVerifier:
+class FakeReviewerVerifier:
     """Deterministic test double only; never use as a production identity provider."""
 
     def __init__(self):
@@ -478,7 +478,7 @@ class CPIIERegistryTests(unittest.TestCase):
                 "old-rule", "reviewer|retailer-x|catalog.old|VERIFIED", RuleState.VERIFIED
             )
             result = old_registry.evaluate(
-                "catalog.old", now="2026-11-17T00:00:00+00:00",
+                "catalog.old", now=datetime.now(timezone.utc).isoformat(),
                 max_age_seconds=86400,
             )
             self.assertEqual(result.state, CapabilityState.BLOCKED_EXPIRED)
