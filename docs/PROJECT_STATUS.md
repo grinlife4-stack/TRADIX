@@ -306,3 +306,22 @@ The product dossier API and mission/plan API are separately tested write paths, 
 - [Factory first-run demo — 43938660753](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938660753): success.
 - [Factory ledger + SQL/HTTP integration — 43938660763](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938660763): success, including the mission-plan API atomic-intake integration tests.
 - No Neon migration, Production write, main-branch update, deployment, secret change, paid resource, or PR merge was performed.
+
+
+## 19. Atomic intake registration and approval decision ledger (2026-11-17)
+
+- Added draft migration `migrations/drafts/0003_intake_approval_decisions.sql`.
+- Added immutable `factory.intake_submissions` records. The mission-plan API now registers the exact dossier, mission, and task-plan version numbers in the same PostgreSQL transaction as the three snapshots. The API response includes a durable `intake_id`; exact retries return the same ID.
+- Intake registration is controlled by `factory.record_product_intake(...)`. It derives the product from the runtime database login, verifies the exact pending-approval dossier/mission/plan versions, and rejects changed idempotency-key reuse.
+- Added immutable `factory.intake_approvals` and `factory.record_intake_approval(...)`. Only the separate `factory_approval_authority` group may execute the decision function. The project is derived from the approval login; the recorded `decided_by_login` is PostgreSQL `session_user`, not a caller-supplied name.
+- A decision is bound to one `intake_id`. One final decision (approved or rejected) is permitted per intake. Exact retries are idempotent; conflicting reuse, a second decision, cross-product access, direct table writes, and UPDATE/DELETE/TRUNCATE are rejected.
+- RLS is enabled and forced on both new tables. Runtime and approval identities can read only their mapped product's intake/decision records. Neither can directly insert; controlled SECURITY DEFINER functions perform writes.
+- CI tests cover atomic intake identity, exact retry, changed-key conflict, pending-approval gate, rejection followed by a separately revised intake approval, exact decision identity, second-decision rejection, cross-product isolation, runtime/approver write denial, and append-only protection. The mission-plan HTTP integration test now checks that the same `intake_id` is returned on retry.
+- Exact verified code head: `38d871f1991af105221048555c9afebd79eabc37`.
+- CI on that exact head:
+  - [tests — 43996991585](https://github.com/grinlife4-stack/TRADIX/actions/runs/43996991585): success.
+  - [factory-first-run — 43996991565](https://github.com/grinlife4-stack/TRADIX/actions/runs/43996991565): success.
+  - [factory-ledger-sql — 43996991509](https://github.com/grinlife4-stack/TRADIX/actions/runs/43996991509): success. Migration 0003, SQL authority/RLS tests, product dossier API, mission-plan API including intake registration, factory executor demo, and memory gateway checks passed on disposable PostgreSQL 17.
+- Important limit: the database approval authority is implemented and tested, but a human-facing approval interface and individual human authentication/control-plane integration are not yet implemented. A database login identifies the approval principal; it does not, by itself, prove which person used a shared credential.
+- Approval records do not create executable tasks, authorize dispatch, reserve resources, deploy, or start autonomous execution. An approved intake is only a recorded decision.
+- No Neon migration, Production write, main-branch update, deployment, secret change, paid resource, or PR merge was performed.
