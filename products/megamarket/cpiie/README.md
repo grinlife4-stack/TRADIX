@@ -22,7 +22,8 @@ This provider-neutral engine is isolated under `products/megamarket/cpiie`; it i
 - Require each rule to declare a structured `ALLOW` or `DENY` effect before it can contribute to a positive capability decision. Omitted effects remain `UNSPECIFIED` and block evaluation, including rules migrated from older databases.
 - Apply deny-overrides semantics: any current, verified `DENY` rule blocks the capability even if another rule says `ALLOW`; unknown effect values fail closed.
 - Require a signed reviewer assertion validated by an injected trusted identity-provider adapter before any rule review (`VERIFIED`, `CONFLICT`, or `EXPIRED`).
-- Enforce exact company, capability, and decision scope; persist the issuer, subject, key ID, assertion ID, authentication window, and signed authorization receipt with each review.
+- Enforce the `policy_reviewer` role plus exact company, capability, decision, and evidence-context scope. `review_context_hash(rule_id, decision)` produces a canonical challenge hash binding the company, source, document hash/version, evidence ID, rule text/effect/expiry, and decision; the signed assertion and durable receipt must carry that exact hash.
+- Persist issuer, subject, key ID, assertion ID, role, scope, authentication window, context hash, and signed authorization receipt with each review.
 - Re-verify the signed authorization receipt during every capability evaluation; missing, invalid, expired, or revoked receipts fail closed.
 - Reject direct SQL review-state updates that do not include a complete authenticated reviewer receipt; legacy reviewer labels migrate without authority.
 - Fail closed when policy is absent, unreviewed, conflicting, expired, or older than a caller-configured freshness limit.
