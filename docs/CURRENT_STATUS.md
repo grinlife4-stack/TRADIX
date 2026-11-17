@@ -16,6 +16,7 @@
   - Factory first-run: [43938849723](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938849723)
   - Factory ledger SQL/HTTP integration: [43938849718](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938849718)
 - PR #2 and PR #4 are closed and unmerged; they are superseded, not release artifacts.
+- PR #5 (pending-approval dossier restriction) was closed without merge after CI showed the change broke the trusted Hello World onboarding executor. It is a rejected experiment, not an accepted fix.
 - `main` was not changed by the maintenance work. Its protection status was reported as disabled during inspection; do not assume branch protection enforces review or CI gates.
 
 ## 2. Implemented and verified boundaries
@@ -39,7 +40,14 @@
 
 A green disposable-database CI run is not evidence that any of these missing capabilities is operational.
 
-## 4. Maintenance branch
+## 4. Additional lifecycle gap found
+
+- Atomic `POST /v1/intake` enforces pending human approval for dossier + mission + task-plan snapshots.
+- The standalone dossier writer and trusted factory onboarding executor also create dossier versions outside that intake path; the executor additionally creates and runs a low-risk task.
+- A database-wide pending-only restriction was tested and rejected because it broke the existing trusted onboarding path. No part of that failed change was merged.
+- The lifecycle is not yet unified: a complete approval-decision writer and approved-plan-to-task path are still missing. Do not claim that every product onboarding path is governed by the atomic intake gate until these callers are reconciled.
+
+## 5. Maintenance branch
 
 - Maintenance branch: [`maintenance/repository-slimdown-v0-1`](https://github.com/grinlife4-stack/TRADIX/tree/maintenance/repository-slimdown-v0-1).
 - The superseded software-only master plan was moved to `docs/archive/`; its content was preserved.
@@ -47,7 +55,7 @@ A green disposable-database CI run is not evidence that any of these missing cap
 - The large historical log remains in `docs/PROJECT_STATUS.md`; this file is now the concise current snapshot.
 - Maintenance changes are documentation and package-metadata only (the package description now matches the general-purpose factory scope). No runtime code, schema, migration, workflow, or test was changed. No runtime tests were run on this branch, and no maintenance-branch CI result is claimed.
 
-## 5. Next engineering gates
+## 6. Next engineering gates
 
 1. Complete dependency reproducibility: generate and commit package lockfiles for each independently deployable Node package, then change CI from `npm install` to `npm ci`. Do not hand-author lockfiles.
 2. Implement worker ownership, leases, fencing, and stale-write rejection as one database-enforced lifecycle path; close all bypass writes and test concurrency, expiry, crash, and takeover.
@@ -56,7 +64,7 @@ A green disposable-database CI run is not evidence that any of these missing cap
 5. Add a real isolation boundary before any untrusted product code can execute.
 6. Obtain independent review of PR #3, re-check exact-head CI and mergeability, then decide whether it is ready to leave Draft.
 
-## 6. Safety and change record
+## 7. Safety and change record
 
 - No Neon schema migration or Production database write was performed.
 - No secrets or repository permissions were changed.
