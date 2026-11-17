@@ -166,3 +166,19 @@ Do not mark a task DONE or VERIFIED based on intention, generated code, or an un
 ## 9. Change-control rule for this document
 
 This file is the durable master checklist, not a chat summary. Update task status only when supported by evidence. Add dated execution notes or link to immutable commits, PRs, CI runs, and deployment IDs. Preserve unresolved items; do not silently remove them. Keep project-specific technical specifications in their own project repositories and link them here rather than copying them into a shared document.
+
+## 10. Interoperability and communication standards
+
+TRADIX follows the rule **USE ESTABLISHED STANDARDS ONLY**.
+
+- Do not invent proprietary communication protocols, agent protocols, wire formats, or protocol dialects.
+- Select a standard only when a concrete integration or communication requirement arises; do not add technologies speculatively.
+- Choose the smallest suitable set of mature, documented, secure, interoperable standards, considering maintainability and operating cost.
+- Evaluate A2A for agent-to-agent delegation/discovery and MCP for standardized access to tools, resources, and context when those use cases arise.
+- Use established HTTP APIs or gRPC for service communication according to compatibility and performance needs.
+- Consider MQTT or OPC UA only when actual industrial-device integration requires them.
+- Use standard data formats and validation tools such as JSON and JSON Schema where suitable. Project-specific schemas are data contracts, not new communication protocols.
+- Build adapters only to bridge existing standards, vendors, or legacy systems. An adapter must not turn into a proprietary protocol or a replacement for an established standard.
+- Record the concrete requirement, chosen standard, alternatives, security implications, and selection rationale in the relevant project documentation.
+
+This is a standing architectural principle, not a separate product or implementation project. Apply it at the point of need.

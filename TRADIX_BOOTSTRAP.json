@@ -392,5 +392,26 @@
     ],
     "update_rule": "Update this manifest in the same reviewed change that materially changes factory capabilities or policy. Keep verified and planned states distinct.",
     "review_required": true
+  },
+  "interoperability_policy": {
+    "governing_rule": "USE_ESTABLISHED_STANDARDS_ONLY",
+    "principle": "TRADIX does not invent proprietary communication protocols, agent protocols, wire formats, or protocol dialects. Use established, documented, interoperable standards.",
+    "activation": "Apply this policy when a concrete integration or communication requirement arises; do not adopt technologies speculatively or merely because they are available.",
+    "selection_criteria": [
+      "Choose the established standard that directly fits the communication use case.",
+      "Prefer interoperability, security, maturity, documentation, maintainability, and low operational cost.",
+      "Use the smallest number of standards and components that satisfies the requirement.",
+      "Keep implementations provider-neutral where practical."
+    ],
+    "examples_by_use_case": {
+      "agent_to_agent": "Evaluate established agent-to-agent standards such as A2A when agent delegation or discovery is actually required.",
+      "agent_to_tools_and_context": "Evaluate MCP when agents need a standardized interface to tools, resources, or context.",
+      "service_to_service": "Use established HTTP APIs or gRPC according to compatibility, performance, and operational needs.",
+      "industrial_devices": "Use established industrial standards such as MQTT or OPC UA only when the relevant device or control-system integration requires them."
+    },
+    "adapters": "Build adapters only where necessary to bridge existing standards, vendors, or legacy systems; adapters must not become a new proprietary protocol.",
+    "data_contracts": "Use standard formats and validation mechanisms such as JSON and JSON Schema where suitable. Project-specific data schemas are data contracts, not new communication protocols.",
+    "decision_record": "Record the requirement, selected standard, alternatives considered, security implications, and reason for selection in the relevant project documentation.",
+    "prohibition": "Do not create a TRADIX-specific replacement for an established communication standard."
   }
 }
