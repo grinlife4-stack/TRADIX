@@ -17,6 +17,7 @@ jobs:
         with:
           node-version: "24.22.3"
       - run: node --test runtime/factory-executor/gvisor-runtime.test.mjs
+      - run: bash -n tests/gvisor_runtime_integration.sh
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
