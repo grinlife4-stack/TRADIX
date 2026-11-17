@@ -250,6 +250,7 @@ jobs:
       - name: Test CI evidence manifest integrity
         run: npm run --prefix runtime/factory-executor test:evidence
       - name: Build immutable CI evidence manifest
+        if: always()
         env:
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           GITHUB_REPOSITORY: ${{ github.repository }}
