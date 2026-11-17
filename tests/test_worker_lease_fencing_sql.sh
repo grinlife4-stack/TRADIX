@@ -154,6 +154,12 @@ if [[ -z "$token1" ]]; then
   echo "FAIL: first worker did not receive a fencing token"
   exit 1
 fi
+same_worker_token="$(runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$task_id','$attempt_id','lease-worker-old',5)")"
+if [[ "$same_worker_token" != "$token1" ]]; then
+  echo "FAIL: idempotent acquisition by the same live worker changed its fencing token"
+  exit 1
+fi
+echo "PASS: repeated acquisition by the same live worker is idempotent"
 
 expect_identity_failure "factory_rt_info_engine" "another product cannot renew TRADIX lease" "lease is missing, expired, or owned by another worker" \
   "SELECT factory.renew_task_lease('$task_id','$attempt_id','lease-worker-old',$token1,30)"
