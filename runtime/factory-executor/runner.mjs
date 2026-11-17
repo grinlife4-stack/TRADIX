@@ -3,7 +3,7 @@ import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
-import { buildGvisorRuntimeArgs, preflightGvisorSandbox } from "./gvisor-runtime.mjs";
+import { preflightGvisorSandbox } from "./gvisor-runtime.mjs";
 import pg from "pg";
 
 const { Client } = pg;
