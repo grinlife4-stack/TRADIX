@@ -88,10 +88,9 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  SELECT t.project_id, p.project_key
-    INTO v_project_id, v_project_key
+  SELECT t.project_id
+    INTO v_project_id
     FROM public.memory_gateway_tokens t
-    JOIN public.memory_projects p ON p.project_id=t.project_id
    WHERE t.token_hash=p_token_hash
      AND t.revoked_at IS NULL
      AND (t.expires_at IS NULL OR t.expires_at > now());
@@ -100,7 +99,18 @@ BEGIN
     RETURN NULL;
   END IF;
 
+  -- Establish the tenant boundary before reading any project-owned row.
   PERFORM set_config('tradix.project_id', v_project_id::text, true);
+
+  SELECT p.project_key
+    INTO v_project_key
+    FROM public.memory_projects p
+   WHERE p.project_id=v_project_id;
+
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+
   v_context := public.memory_bootstrap_context(v_project_key);
   RETURN v_context;
 END;
