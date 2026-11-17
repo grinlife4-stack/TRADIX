@@ -83,7 +83,7 @@ class PolicyMonitorTests(unittest.TestCase):
         )
 
     def test_monitor_history_is_append_only(self):
-        self.opener.side_effect = OSError("offline")
+        self.opener.open.side_effect = OSError("offline")
         self.monitor.check_source("policy", allowed_hosts={"policy.example.org"})
         with self.assertRaisesRegex(Exception, "append-only"):
             self.registry.connection.execute(
