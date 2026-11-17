@@ -184,10 +184,11 @@ No phase is considered complete without a working artifact and recorded test evi
 
 ## 12. Latest source verification — 2026-11-18
 
-- Latest available source archive: `NEXORA-0.5.1.zip` (6,642,045 bytes), currently in the user's ChatGPT Library; it is not yet committed to this repository.
-- SHA-256: `33cace591cd000cafdaebf7093a8a818d62e140beddf6d9c6a8815adfd4b4098`.
-- Archive integrity: ZIP test passed; 22 entries.
-- Automated Node smoke tests: 23/23 passed; JavaScript syntax checks passed.
+- Latest source baseline: `NEXORA-0.5.1.zip` (6,642,045 bytes), currently in the user's ChatGPT Library; it is not yet committed to this repository.
+- Baseline SHA-256: `33cace591cd000cafdaebf7093a8a818d62e140beddf6d9c6a8815adfd4b4098`; ZIP integrity passed (22 entries); baseline automated smoke tests: 23/23 passed.
+- A local `NEXORA-0.5.2` candidate was generated from that baseline to correct stale PWA manifest metadata (`lang=en`, `dir=ltr`) and the HTML description, and to bump the service-worker cache to v8.
+- Candidate SHA-256: `4cf1fe5163c01bb516df0ac6c4a11b361fb539208594d022dcd6da87d66c3c6e`; ZIP integrity passed (19 files); automated smoke tests: 24/24 passed.
+- The 0.5.2 candidate is a local test artifact only; it is not yet committed to the repository or approved as a release.
 - The archive supports English, French, and Spanish, including all 30 written guided-practice days in those languages.
 - The archive still uses the temporary `n` mark and does not include the approved repository logo. Logo integration and PWA icon replacement are still required.
 - Physical-device/browser acceptance testing and production deployment remain unverified.
