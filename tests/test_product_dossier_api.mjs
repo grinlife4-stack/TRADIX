@@ -26,7 +26,8 @@ const dossier = {
   requirements: ["persist through the controlled dossier writer"],
   acceptance_criteria: ["same idempotency key returns the same version"],
   lifecycle: { state: "active" },
-  resource_plan: { execution: "isolated" }
+  resource_plan: { execution: "isolated" },
+  portability: { manifest: "portability.json", status: "planned" }
 };
 const idempotencyKey = `dossier-api-ci-${Date.now()}`;
 const create = () => fetch(`${base}/v1/dossier`, {
@@ -42,6 +43,7 @@ const first = await create();
 assert.equal(first.status, 200);
 const firstBody = await first.json();
 assert.equal(firstBody.dossier.dossier.mission, dossier.mission);
+assert.deepEqual(firstBody.dossier.dossier.portability, dossier.portability);
 const retry = await create();
 assert.equal(retry.status, 200);
 const retryBody = await retry.json();
