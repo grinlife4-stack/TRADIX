@@ -126,6 +126,9 @@ Implemented in this change:
 - sender/type restrictions and project/identifier validation;
 - JSON Schema for the versioned message protocol;
 - unit tests for invalid sender combinations, malformed needs, scope errors, and invalid payloads;
+- recursive JSON-value validation for message bodies, rejecting unsupported objects, non-finite numbers, non-string object keys, and excessive nesting;
+- defensive recursive freezing of validated message payloads, while preserving standard JSON serialization;
+- tests proving caller-side mutation cannot alter a validated message after construction;
 - architecture and authority-boundary documentation.
 
 Not implemented yet:
