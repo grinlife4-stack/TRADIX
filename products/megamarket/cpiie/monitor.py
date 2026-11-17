@@ -167,43 +167,53 @@ class PolicyMonitor:
 
 
     def recover_pending(self, source_id: str | None = None) -> int:
-        """Close orphaned STARTED checks after an operator confirms no worker is active.
+        """Atomically close orphaned STARTED checks after operator confirmation.
 
-        This is explicit rather than automatic so a second live process cannot
-        incorrectly classify another process's in-flight check as interrupted.
-        The original STARTED event is preserved; recovery appends a terminal
-        FAILED event and never edits history.
+        BEGIN IMMEDIATE serializes recovery across SQLite connections. The
+        pending set is selected only after the write lock is held, so a second
+        recovery process cannot append a duplicate terminal event for the
+        same check. All terminal receipts commit together or roll back together.
         """
         db = self.registry.connection
-        if source_id is None:
-            rows = db.execute(
-                """SELECT s.check_id, s.source_id, s.checked_at
-                   FROM monitor_checks s
-                   WHERE s.status='STARTED'
-                     AND NOT EXISTS (
-                         SELECT 1 FROM monitor_checks t
-                         WHERE t.check_id=s.check_id AND t.event_id>s.event_id
-                     )
-                   ORDER BY s.event_id"""
-            ).fetchall()
-        else:
-            rows = db.execute(
-                """SELECT s.check_id, s.source_id, s.checked_at
-                   FROM monitor_checks s
-                   WHERE s.source_id=? AND s.status='STARTED'
-                     AND NOT EXISTS (
-                         SELECT 1 FROM monitor_checks t
-                         WHERE t.check_id=s.check_id AND t.event_id>s.event_id
-                     )
-                   ORDER BY s.event_id""",
-                (source_id,),
-            ).fetchall()
-        for row in rows:
-            self._append_event(
-                row["check_id"], row["source_id"], row["checked_at"], "FAILED",
-                error="INTERRUPTED: no terminal receipt was committed",
-            )
-        return len(rows)
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            if source_id is None:
+                rows = db.execute(
+                    """SELECT s.check_id, s.source_id, s.checked_at
+                       FROM monitor_checks s
+                       WHERE s.status='STARTED'
+                         AND NOT EXISTS (
+                             SELECT 1 FROM monitor_checks t
+                             WHERE t.check_id=s.check_id AND t.event_id>s.event_id
+                         )
+                       ORDER BY s.event_id"""
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    """SELECT s.check_id, s.source_id, s.checked_at
+                       FROM monitor_checks s
+                       WHERE s.source_id=? AND s.status='STARTED'
+                         AND NOT EXISTS (
+                             SELECT 1 FROM monitor_checks t
+                             WHERE t.check_id=s.check_id AND t.event_id>s.event_id
+                         )
+                       ORDER BY s.event_id""",
+                    (source_id,),
+                ).fetchall()
+            for row in rows:
+                db.execute(
+                    """INSERT INTO monitor_checks
+                       (check_id, source_id, checked_at, status, version, changed,
+                        content_sha256, error)
+                       VALUES (?, ?, ?, 'FAILED', NULL, 0, NULL, ?)""",
+                    (row["check_id"], row["source_id"], row["checked_at"],
+                     "INTERRUPTED: no terminal receipt was committed"),
+                )
+            db.commit()
+            return len(rows)
+        except Exception:
+            db.rollback()
+            raise
 
     def check_all(self, *, allowed_hosts: set[str]) -> tuple[MonitorResult, ...]:
         rows = self.registry.connection.execute(
