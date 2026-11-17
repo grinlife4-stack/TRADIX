@@ -38,6 +38,7 @@ class _FrozenDict(dict):
     popitem = _immutable
     setdefault = _immutable
     update = _immutable
+    __ior__ = _immutable
 
 
 class Sender(str, Enum):
