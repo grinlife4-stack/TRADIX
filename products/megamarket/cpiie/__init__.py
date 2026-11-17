@@ -1,7 +1,7 @@
 """Provider-neutral, read-only CPIIE registry for MegaMarket.
 
 This package records official sources, immutable document snapshots, evidence and
-reviewed rules. It deliberately performs no network access or external actions.
+reviewed rules. The registry itself performs no network access or external actions.
 """
 from __future__ import annotations
 
