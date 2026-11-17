@@ -111,8 +111,9 @@ async function runNodeScript(productRoot, script, label, leaseGuard) {
 
     for (const [stream, chunks] of [[child.stdout, stdout], [child.stderr, stderr]]) {
       stream.on("data", chunk => {
+        if (forcedError) return;
         bytes += chunk.length;
-        if (bytes > MAX_OUTPUT_BYTES && !forcedError) {
+        if (bytes > MAX_OUTPUT_BYTES) {
           forcedError = new Error(`${label} output exceeded ${MAX_OUTPUT_BYTES} bytes`);
           void terminateChildTree(child);
           return;
