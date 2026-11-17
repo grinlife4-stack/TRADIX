@@ -1,8 +1,6 @@
 # TRADIX
 
-General-purpose production factory.
-
-TRADIX is a general-purpose production factory. Each product has an independent dossier, lifecycle, and evidence trail.
+A general-purpose production factory. Each product has an independent dossier, lifecycle, and evidence trail.
 
 ## Project navigation
 
@@ -11,4 +9,4 @@ TRADIX is a general-purpose production factory. Each product has an independent 
 - [Executive runtime architecture](docs/EXECUTIVE_RUNTIME_ARCHITECTURE.md)
 - [Historical project log](docs/PROJECT_STATUS.md)
 
-Internal implementation details, credentials, private data, and proprietary decision logic are maintained separately.
+Secrets and private operational data must not be committed to this repository.
