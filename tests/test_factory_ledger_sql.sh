@@ -463,7 +463,7 @@ expect_failure "product dossier snapshots reject UPDATE" "Rows in factory.produc
 expect_failure "product dossier snapshots reject DELETE" "Rows in factory.product_dossier_versions are append-only" \
   "DELETE FROM factory.product_dossier_versions WHERE project_id = '11111111-1111-4111-8111-111111111111' AND version_no = 1"
 expect_failure "product dossier snapshots reject TRUNCATE" "Rows in factory.product_dossier_versions are append-only" \
-  "TRUNCATE factory.product_dossier_versions, factory.intake_approvals"
+  "TRUNCATE factory.product_dossier_versions, factory.intake_submissions, factory.intake_approvals"
 expect_failure "runtime cannot directly insert a dossier snapshot" "permission denied" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.product_dossier_versions (project_id,version_no,idempotency_key,dossier,created_by_login) VALUES ('11111111-1111-4111-8111-111111111111',99,'direct-write','{}'::jsonb,'factory_rt_tradix')"
 
@@ -537,13 +537,13 @@ expect_failure "mission snapshots reject UPDATE" "Rows in factory.mission_versio
 expect_failure "mission snapshots reject DELETE" "Rows in factory.mission_versions are append-only" \
   "DELETE FROM factory.mission_versions WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND version_no = 1"
 expect_failure "mission snapshots reject TRUNCATE" "append-only" \
-  "TRUNCATE factory.mission_versions, factory.task_plan_versions, factory.intake_approvals"
+  "TRUNCATE factory.mission_versions, factory.task_plan_versions, factory.intake_submissions, factory.intake_approvals"
 expect_failure "task-plan snapshots reject UPDATE" "Rows in factory.task_plan_versions are append-only" \
   "UPDATE factory.task_plan_versions SET task_plan = '{}'::jsonb WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND plan_version_no = 1"
 expect_failure "task-plan snapshots reject DELETE" "Rows in factory.task_plan_versions are append-only" \
   "DELETE FROM factory.task_plan_versions WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND plan_version_no = 1"
 expect_failure "task-plan snapshots reject TRUNCATE" "Rows in factory.task_plan_versions are append-only" \
-  "TRUNCATE factory.task_plan_versions, factory.intake_approvals"
+  "TRUNCATE factory.task_plan_versions, factory.intake_submissions, factory.intake_approvals"
 
 physical_mission='{"mission_id":"press-line","project_key":"physical-goods","version":1,"title":"Press line","objective":"Prepare a physical production line.","acceptance_criteria":["Equipment plan recorded"],"risk_class":"low","approval_required":false}'
 physical_mission_version=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_physical_goods; SELECT factory.record_mission_version('44444444-4444-4444-8444-444444444444', '$physical_mission'::jsonb, 'physical-mission-v1'); RESET SESSION AUTHORIZATION")
@@ -566,7 +566,7 @@ fi
 echo "PASS: physical and software product mission storage remains isolated"
 
 
-# Product intake decisions bind one approver login to one exact immutable snapshot set.
+# Product intake submissions bind one atomic package to one exact snapshot set.
 pending_dossier_v1='{"schema_version":1,"product_type":"software","mission":"Approval-gated intake v1","requirements":["review before execution"],"acceptance_criteria":["decision is bound to exact versions"],"lifecycle":{"state":"pending_approval"}}'
 pending_dossier_v2='{"schema_version":1,"product_type":"software","mission":"Approval-gated intake v2","requirements":["review revised scope before execution"],"acceptance_criteria":["decision is bound to exact versions"],"lifecycle":{"state":"pending_approval"}}'
 intake_mission_v1='{"mission_id":"tradix-intake-approval","project_key":"tradix","version":1,"title":"Approval-gated intake v1","objective":"Prove an approval decision is bound to immutable snapshots.","acceptance_criteria":["Decision records exact snapshot versions"],"constraints":["No dispatch"],"risk_class":"low","approval_required":true}'
@@ -585,50 +585,79 @@ if [[ "$dossier_v3" != "3" || "$dossier_v4" != "4" || "$intake_mission_1" != "1"
   exit 1
 fi
 
-rejected_approval=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_approver_tradix; SELECT factory.record_intake_approval('tradix-intake-approval',3,1,1,'rejected','Scope needs revision','tradix-intake-decision-v1'); RESET SESSION AUTHORIZATION")
-rejected_retry=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_approver_tradix; SELECT factory.record_intake_approval('tradix-intake-approval',3,1,1,'rejected','Scope needs revision','tradix-intake-decision-v1'); RESET SESSION AUTHORIZATION")
+intake_v1=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_intake(3,'tradix-intake-approval',1,1,'tradix-intake-submission-v1'); RESET SESSION AUTHORIZATION")
+intake_v1_retry=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_intake(3,'tradix-intake-approval',1,1,'tradix-intake-submission-v1'); RESET SESSION AUTHORIZATION")
+intake_v2=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_intake(4,'tradix-intake-approval',2,2,'tradix-intake-submission-v2'); RESET SESSION AUTHORIZATION")
+if [[ -z "$intake_v1" || "$intake_v1" != "$intake_v1_retry" || -z "$intake_v2" || "$intake_v1" == "$intake_v2" ]]; then
+  echo "FAIL: intake submission registration or idempotency is incorrect"
+  exit 1
+fi
+if [[ "$(psql -qAt -c "SELECT created_by_login::text || ':' || dossier_version_no::text || ':' || mission_version_no::text || ':' || plan_version_no::text FROM factory.intake_submissions WHERE intake_id='$intake_v1'")" != "factory_rt_tradix:3:1:1" ]]; then
+  echo "FAIL: intake submission did not persist its exact snapshot references and runtime identity"
+  exit 1
+fi
+expect_failure "intake submission idempotency key rejects changed snapshot sets" "product intake idempotency key reused with different snapshot set" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_intake(4,'tradix-intake-approval',2,2,'tradix-intake-submission-v1')"
+expect_failure "active dossier cannot be registered as a pending intake" "snapshot set is not a pending approval-gated intake" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_intake(1,'tradix-intake-approval',1,1,'tradix-active-dossier-intake')"
+
+rejected_approval=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_approver_tradix; SELECT factory.record_intake_approval('$intake_v1','rejected','Scope needs revision','tradix-intake-decision-v1'); RESET SESSION AUTHORIZATION")
+rejected_retry=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_approver_tradix; SELECT factory.record_intake_approval('$intake_v1','rejected','Scope needs revision','tradix-intake-decision-v1'); RESET SESSION AUTHORIZATION")
 if [[ -z "$rejected_approval" || "$rejected_approval" != "$rejected_retry" ]]; then
   echo "FAIL: approval decision retry was not idempotent"
   exit 1
 fi
-if [[ "$(psql -qAt -c "SELECT decision || ':' || decided_by_login::text || ':' || dossier_version_no::text || ':' || mission_version_no::text || ':' || plan_version_no::text FROM factory.intake_approvals WHERE approval_id='$rejected_approval'")" != "rejected:factory_approver_tradix:3:1:1" ]]; then
-  echo "FAIL: rejection audit did not capture the authentic approval login and exact versions"
+if [[ "$(psql -qAt -c "SELECT decision || ':' || decided_by_login::text || ':' || intake_id::text FROM factory.intake_approvals WHERE approval_id='$rejected_approval'")" != "rejected:factory_approver_tradix:$intake_v1" ]]; then
+  echo "FAIL: rejection audit did not capture the authentic approval login and intake identity"
   exit 1
 fi
 echo "PASS: intake rejection is immutable, version-bound, and idempotent"
 
-approved_approval=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_approver_tradix; SELECT factory.record_intake_approval('tradix-intake-approval',4,2,2,'approved','Reviewed exact revised scope','tradix-intake-decision-v2'); RESET SESSION AUTHORIZATION")
+approved_approval=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_approver_tradix; SELECT factory.record_intake_approval('$intake_v2','approved','Reviewed exact revised scope','tradix-intake-decision-v2'); RESET SESSION AUTHORIZATION")
 if [[ -z "$approved_approval" ]]; then
   echo "FAIL: revised intake approval was not recorded"
   exit 1
 fi
-if [[ "$(psql -qAt -c "SELECT decision || ':' || decided_by_login::text || ':' || dossier_version_no::text || ':' || mission_version_no::text || ':' || plan_version_no::text FROM factory.intake_approvals WHERE approval_id='$approved_approval'")" != "approved:factory_approver_tradix:4:2:2" ]]; then
-  echo "FAIL: approval audit did not bind the exact revised snapshot versions"
+if [[ "$(psql -qAt -c "SELECT decision || ':' || decided_by_login::text || ':' || intake_id::text FROM factory.intake_approvals WHERE approval_id='$approved_approval'")" != "approved:factory_approver_tradix:$intake_v2" ]]; then
+  echo "FAIL: approval audit did not bind the exact revised intake submission"
   exit 1
 fi
-expect_failure "one snapshot set cannot receive a second final decision" "this exact intake snapshot set already has a final decision" \
-  "SET SESSION AUTHORIZATION factory_approver_tradix; SELECT factory.record_intake_approval('tradix-intake-approval',4,2,2,'rejected','Try to reverse an immutable decision','tradix-intake-decision-v2-reverse')"
+expect_failure "one intake submission cannot receive a second final decision" "this intake submission already has a final decision" \
+  "SET SESSION AUTHORIZATION factory_approver_tradix; SELECT factory.record_intake_approval('$intake_v2','rejected','Try to reverse an immutable decision','tradix-intake-decision-v2-reverse')"
 expect_failure "approval idempotency key cannot be reused for different intent" "intake approval idempotency key reused with different intent" \
-  "SET SESSION AUTHORIZATION factory_approver_tradix; SELECT factory.record_intake_approval('tradix-intake-approval',4,2,2,'rejected','Changed decision','tradix-intake-decision-v2')"
-expect_failure "active dossier cannot be approved as a pending intake" "snapshot set is not an approval-gated intake" \
-  "SET SESSION AUTHORIZATION factory_approver_tradix; SELECT factory.record_intake_approval('tradix-foundation',1,1,1,'approved','Not pending approval','tradix-active-dossier-approval')"
+  "SET SESSION AUTHORIZATION factory_approver_tradix; SELECT factory.record_intake_approval('$intake_v2','rejected','Changed decision','tradix-intake-decision-v2')"
+expect_failure "approval cannot target another product intake" "intake submission not found for this approval identity" \
+  "SET SESSION AUTHORIZATION factory_approver_info_engine; SELECT factory.record_intake_approval('$intake_v2','approved','Cross-product attempt','info-engine-forged-approval')"
 expect_failure "runtime cannot invoke the intake approval function" "permission denied for function record_intake_approval" \
-  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_intake_approval('tradix-intake-approval',4,2,2,'approved','Forged runtime approval','tradix-runtime-forged-approval')"
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_intake_approval('$intake_v2','approved','Forged runtime approval','tradix-runtime-forged-approval')"
 expect_failure "approval identity cannot directly insert intake decisions" "permission denied" \
-  "SET SESSION AUTHORIZATION factory_approver_tradix; INSERT INTO factory.intake_approvals (project_id,mission_id,dossier_version_no,mission_version_no,plan_version_no,decision,rationale,idempotency_key,decided_by_login) VALUES ('11111111-1111-4111-8111-111111111111','tradix-intake-approval',4,2,2,'approved','direct insert','direct-approval-write','factory_approver_tradix')"
+  "SET SESSION AUTHORIZATION factory_approver_tradix; INSERT INTO factory.intake_approvals (project_id,intake_id,decision,rationale,idempotency_key,decided_by_login) VALUES ('11111111-1111-4111-8111-111111111111','$intake_v2','approved','direct insert','direct-approval-write','factory_approver_tradix')"
 expect_failure "runtime cannot directly insert intake decisions" "permission denied" \
-  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.intake_approvals (project_id,mission_id,dossier_version_no,mission_version_no,plan_version_no,decision,rationale,idempotency_key,decided_by_login) VALUES ('11111111-1111-4111-8111-111111111111','tradix-intake-approval',4,2,2,'approved','direct insert','runtime-direct-approval','factory_rt_tradix')"
+  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.intake_approvals (project_id,intake_id,decision,rationale,idempotency_key,decided_by_login) VALUES ('11111111-1111-4111-8111-111111111111','$intake_v2','approved','direct insert','runtime-direct-approval','factory_rt_tradix')"
 expect_failure "intake approval records reject UPDATE" "Rows in factory.intake_approvals are append-only" \
   "UPDATE factory.intake_approvals SET rationale='tampered' WHERE approval_id='$approved_approval'"
 expect_failure "intake approval records reject DELETE" "Rows in factory.intake_approvals are append-only" \
   "DELETE FROM factory.intake_approvals WHERE approval_id='$approved_approval'"
 expect_failure "intake approval records reject TRUNCATE" "Rows in factory.intake_approvals are append-only" \
   "TRUNCATE factory.intake_approvals"
+expect_failure "intake submissions reject UPDATE" "Rows in factory.intake_submissions are append-only" \
+  "UPDATE factory.intake_submissions SET idempotency_key='tampered' WHERE intake_id='$intake_v1'"
+expect_failure "intake submissions reject DELETE" "Rows in factory.intake_submissions are append-only" \
+  "DELETE FROM factory.intake_submissions WHERE intake_id='$intake_v1'"
+expect_failure "intake submissions reject TRUNCATE" "Rows in factory.intake_submissions are append-only" \
+  "TRUNCATE factory.intake_submissions, factory.intake_approvals"
+expect_failure "approval authority cannot directly insert intake submissions" "permission denied" \
+  "SET SESSION AUTHORIZATION factory_approver_tradix; INSERT INTO factory.intake_submissions (project_id,idempotency_key,dossier_version_no,mission_id,mission_version_no,plan_version_no,created_by_login) VALUES ('11111111-1111-4111-8111-111111111111','approval-direct-intake',4,'tradix-intake-approval',2,2,'factory_approver_tradix')"
+expect_failure "runtime cannot directly insert intake submissions" "permission denied" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.intake_submissions (project_id,idempotency_key,dossier_version_no,mission_id,mission_version_no,plan_version_no,created_by_login) VALUES ('11111111-1111-4111-8111-111111111111','runtime-direct-intake',4,'tradix-intake-approval',2,2,'factory_rt_tradix')"
+if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT count(*) FROM factory.intake_submissions; RESET SESSION AUTHORIZATION")" != "0" ]]; then
+  echo "FAIL: another product runtime can read TRADIX intake submissions"
+  exit 1
+fi
 if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_info_engine; SELECT count(*) FROM factory.intake_approvals; RESET SESSION AUTHORIZATION")" != "0" ]]; then
   echo "FAIL: another product runtime can read TRADIX intake approvals"
   exit 1
 fi
 echo "PASS: approval authority is separate, project-isolated, and cannot be forged by runtime"
-
 
 echo "All factory ledger SQL integration checks passed."
