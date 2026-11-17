@@ -12,7 +12,7 @@ class CPIIERegistryTests(unittest.TestCase):
             "retailer-terms", "retailer-x", "retailer",
             "https://EXAMPLE.com/terms#section", "Official terms",
         ))
-        self.doc = self.registry.record_document("retailer-terms", "Terms v1")
+        self.doc = self.registry.record_document("retailer-terms", "Terms v1\nProduct data may be displayed.")
         self.evidence = self.registry.record_evidence(
             self.doc.document_id, "section 4", "Product data may be displayed."
         )
@@ -35,6 +35,84 @@ class CPIIERegistryTests(unittest.TestCase):
     def test_non_https_source_is_rejected(self):
         with self.assertRaises(ValueError):
             canonicalize_url("http://example.com/terms")
+
+    def test_evidence_excerpt_must_exist_in_exact_document_snapshot(self):
+        with self.assertRaisesRegex(ValueError, "must appear"):
+            self.registry.record_evidence(
+                self.doc.document_id, "section 99", "Fabricated permission text"
+            )
+
+    def test_document_snapshots_are_immutable_at_database_layer(self):
+        with self.assertRaisesRegex(Exception, "document snapshots are immutable"):
+            self.registry.connection.execute(
+                "UPDATE documents SET content='tampered' WHERE document_id=?",
+                (self.doc.document_id,),
+            )
+        self.registry.connection.rollback()
+        with self.assertRaisesRegex(Exception, "document snapshots are immutable"):
+            self.registry.connection.execute(
+                "DELETE FROM documents WHERE document_id=?", (self.doc.document_id,)
+            )
+        self.registry.connection.rollback()
+        row = self.registry.connection.execute(
+            "SELECT content FROM documents WHERE document_id=?", (self.doc.document_id,)
+        ).fetchone()
+        self.assertIn("Product data may be displayed.", row["content"])
+
+    def test_evidence_records_are_immutable_at_database_layer(self):
+        with self.assertRaisesRegex(Exception, "evidence records are immutable"):
+            self.registry.connection.execute(
+                "UPDATE evidence SET excerpt='tampered' WHERE evidence_id=?",
+                (self.evidence,),
+            )
+        self.registry.connection.rollback()
+        with self.assertRaisesRegex(Exception, "evidence records are immutable"):
+            self.registry.connection.execute(
+                "DELETE FROM evidence WHERE evidence_id=?", (self.evidence,)
+            )
+        self.registry.connection.rollback()
+
+    def test_rule_review_is_audited_by_database_trigger(self):
+        self.propose()
+        self.registry.connection.execute(
+            "UPDATE rules SET state='VERIFIED', reviewer='direct-reviewer', "
+            "reviewed_at='2026-11-17T12:00:00+00:00' WHERE rule_id='rule-1'"
+        )
+        self.registry.connection.commit()
+        history = self.registry.get_review_history("rule-1")
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["previous_state"], "NEEDS_REVIEW")
+        self.assertEqual(history[0]["decision"], "VERIFIED")
+        self.assertEqual(history[0]["reviewer"], "direct-reviewer")
+
+    def test_rule_content_cannot_be_changed_after_proposal(self):
+        self.propose()
+        with self.assertRaisesRegex(Exception, "rule content is immutable"):
+            self.registry.connection.execute(
+                "UPDATE rules SET statement='tampered' WHERE rule_id='rule-1'"
+            )
+        self.registry.connection.rollback()
+        with self.assertRaisesRegex(Exception, "rule records are append-only"):
+            self.registry.connection.execute("DELETE FROM rules WHERE rule_id='rule-1'")
+        self.registry.connection.rollback()
+
+    def test_rule_expiry_requires_timezone_aware_iso_timestamp(self):
+        with self.assertRaisesRegex(ValueError, "timezone-aware"):
+            self.registry.propose_rule(
+                "bad-expiry", self.doc.document_id, self.evidence,
+                "catalog.display", "Temporary policy", "not-a-date",
+            )
+        with self.assertRaisesRegex(ValueError, "timezone offset"):
+            self.registry.propose_rule(
+                "naive-expiry", self.doc.document_id, self.evidence,
+                "catalog.display", "Temporary policy", "2030-01-01T00:00:00",
+            )
+
+    def test_document_timestamp_requires_timezone(self):
+        with self.assertRaisesRegex(ValueError, "timezone offset"):
+            self.registry.record_document(
+                "retailer-terms", "Terms with naive time", "2026-11-17T12:00:00"
+            )
 
     def test_document_hash_and_duplicate_are_deterministic(self):
         first = self.doc
