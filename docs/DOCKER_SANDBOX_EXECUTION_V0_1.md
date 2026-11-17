@@ -8,7 +8,8 @@
 
 For each script, the factory executor starts a fresh container with:
 
-- no network (`--network none`);
+- no network (`--network none`), with both IPv4 and IPv6 default-route absence checked by the runtime probe;
+- private IPC and cgroup namespaces (`--ipc=private`, `--cgroupns=private`);
 - read-only container root filesystem;
 - product directory mounted read-only;
 - non-root UID/GID 65532;
@@ -19,7 +20,9 @@ For each script, the factory executor starts a fresh container with:
 - 256 MiB memory limit, with swap capped to the same amount;
 - one CPU quota;
 - 256 file descriptors and 10 MiB maximum file size;
-- a 16 MiB `noexec`, `nosuid`, `nodev` temporary filesystem;
+- a 16 MiB `noexec`, `nosuid`, `nodev` temporary filesystem for `/tmp`, plus a private 16 MiB Docker shared-memory mount at `/dev/shm`;
+- zero effective Linux capabilities, verified from `/proc/self/status`;
+- `NoNewPrivs=1`, verified from `/proc/self/status`;
 - only `NODE_ENV` and `HOME` passed into the container;
 - 15-second stage timeout and 1 MiB combined output cap.
 
@@ -40,6 +43,6 @@ The executor does not fall back from `docker-sandbox` to `trusted-node`.
 
 ## Verification
 
-The sandbox probe product checks non-root execution, absent application secrets, read-only workspace, writable ephemeral temporary storage, and the absence of a default IPv4 route. CI must run this product through the real factory executor against disposable PostgreSQL before this backend is considered verified.
+The sandbox probe product checks non-root execution, zero effective capabilities, `NoNewPrivs=1`, absent application secrets, read-only workspace, bounded ephemeral `/tmp` and shared memory, and the absence of a default IPv4 route and active non-loopback IPv6 egress routes. CI must run this product through the real factory executor against disposable PostgreSQL before this backend is considered verified.
 
 No Neon/Production migration, deployment, or paid service is authorized by this implementation.
