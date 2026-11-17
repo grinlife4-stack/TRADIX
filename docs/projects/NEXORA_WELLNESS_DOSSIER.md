@@ -18,7 +18,7 @@
 
 ## Approved brand asset
 
-**Approved original brand master:** `NEXORA-Official-Logo-Original.jpeg` (the user's original gold Tree of Life mark on deep navy, with the NEXORA wordmark). The approved master was recovered from the user's prior conversation attachment and visually verified. It has not yet been committed to the repository; do not substitute generated artwork or unverified files. Repository integration of this exact source image remains pending.
+**Approved repository brand asset:** `projects/NEXORA/assets/brand/NEXORA-Official-Logo.png` (gold Tree of Life mark on deep navy, with the NEXORA wordmark). The file is committed on the NEXORA working branch and its blob SHA was verified. The logo is approved for product use. Integration into the app header, player artwork, and PWA icons remains pending; do not substitute generated artwork or temporary lettermarks.
 
 ## 1. Product decision
 
@@ -174,14 +174,24 @@ No phase is considered complete without a working artifact and recorded test evi
 | Product direction | Independent sleep and wellness product; scope validation pending |
 | Product model | Not fixed; validate against user needs and market evidence |
 | Execution priority | Fastest path to first usable build |
-| Project workspace | `projects/NEXORA/` in the TRADIX repository; source import and verification pending |
-| MVP prototype | A 0.4.0 QA report exists in project records; source import and current-build verification remain pending |
+| Project workspace | `projects/NEXORA/` in the TRADIX repository; brand asset committed; application source import pending |
+| MVP prototype | NEXORA 0.5.1 archive found in Library; 23/23 automated smoke tests and syntax checks pass; source import into this repository remains pending |
 | Content assets | Not selected; rights must be verified |
-| iPad/audio test | Not performed |
+| iPad/audio test | Physical iPad/iPhone Safari, background audio, accessibility, and HTTPS deployment remain unverified |
 | Backend | Not selected; minimize for first release |
 | Payments/subscriptions | Not connected |
 | Production release | Not authorized |
 
-## 12. Change control
+## 12. Latest source verification — 2026-11-18
+
+- Latest available source archive: `NEXORA-0.5.1.zip` (6,642,045 bytes), currently in the user's ChatGPT Library; it is not yet committed to this repository.
+- SHA-256: `33cace591cd000cafdaebf7093a8a818d62e140beddf6d9c6a8815adfd4b4098`.
+- Archive integrity: ZIP test passed; 22 entries.
+- Automated Node smoke tests: 23/23 passed; JavaScript syntax checks passed.
+- The archive supports English, French, and Spanish, including all 30 written guided-practice days in those languages.
+- The archive still uses the temporary `n` mark and does not include the approved repository logo. Logo integration and PWA icon replacement are still required.
+- Physical-device/browser acceptance testing and production deployment remain unverified.
+
+## 13. Change control
 
 This file is the TRADIX-level project index and governance record. Product source code, audio assets, content-rights records, user data, and release artifacts belong in the dedicated `projects/NEXORA/` workspace, with project-specific access and release boundaries. Keep the first release narrow and executable. Any expansion beyond the MVP requires evidence that it is necessary, not merely attractive.
