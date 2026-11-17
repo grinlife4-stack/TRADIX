@@ -98,7 +98,7 @@ class PolicyMonitorTests(unittest.TestCase):
         self.assertIn("offline", self.monitor.history("policy")[0].error)
 
     def test_monitor_history_is_included_in_registry_audit_snapshot(self):
-        self.opener.side_effect = OSError("offline")
+        self.opener.open.side_effect = OSError("offline")
         self.monitor.check_source("policy", allowed_hosts={"policy.example.org"})
         snapshot = self.registry.export_snapshot()
         self.assertIn('"monitor_checks"', snapshot)
