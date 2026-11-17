@@ -103,8 +103,14 @@ async function runNodeScript(productRoot, script, label, leaseGuard) {
         chunks.push(chunk);
       });
     }
-    child.on("error", error => finish(error));
+    child.on("error", error => {
+      terminateChildTree(child);
+      finish(error);
+    });
     child.on("close", code => {
+      // Product stages are one-shot jobs. Do not leave detached descendants
+      // running after the stage leader exits successfully.
+      terminateChildTree(child);
       const out = Buffer.concat(stdout).toString("utf8");
       const err = Buffer.concat(stderr).toString("utf8");
       if (code !== 0) {
