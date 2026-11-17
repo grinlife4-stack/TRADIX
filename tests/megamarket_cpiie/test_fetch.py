@@ -1,4 +1,10 @@
+import http.server
+import shutil
+import socket
 import ssl
+import subprocess
+import tempfile
+import threading
 import unittest
 from email.message import Message
 from unittest.mock import Mock, patch
@@ -259,6 +265,124 @@ class OfficialSourceFetcherTests(unittest.TestCase):
                     handler.redirect_request(
                         request, None, 302, "Found", {}, target
                     )
+
+
+    def _run_real_tls_fetch(self, hostname, *, trust_certificate):
+        if not shutil.which("openssl"):
+            self.skipTest("OpenSSL CLI is required for local TLS integration tests")
+
+        with tempfile.TemporaryDirectory() as directory:
+            cert_path = f"{directory}/server-cert.pem"
+            key_path = f"{directory}/server-key.pem"
+            subprocess.run(
+                [
+                    "openssl", "req", "-x509", "-newkey", "rsa:2048",
+                    "-nodes", "-keyout", key_path, "-out", cert_path,
+                    "-days", "365", "-subj", "/CN=policy.example.org",
+                    "-addext", "subjectAltName=DNS:policy.example.org",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            class Handler(http.server.BaseHTTPRequestHandler):
+                def do_GET(self):
+                    body = b"<html>verified TLS policy</html>"
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+
+                def log_message(self, *args):
+                    pass
+
+            server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            server_context.load_cert_chain(certfile=cert_path, keyfile=key_path)
+            server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+            server.socket = server_context.wrap_socket(server.socket, server_side=True)
+            port = server.server_address[1]
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+
+            source_id = f"tls-{hostname}"
+            self.registry.register_source(Source(
+                source_id, "company-a", "affiliate-terms",
+                f"https://{hostname}:{port}/terms", "TLS integration fixture",
+            ))
+
+            client_context = (
+                ssl.create_default_context(cafile=cert_path)
+                if trust_certificate
+                else ssl.create_default_context()
+            )
+            self.assertTrue(client_context.check_hostname)
+            self.assertEqual(client_context.verify_mode, ssl.CERT_REQUIRED)
+
+            original_getaddrinfo = socket.getaddrinfo
+            original_create_connection = socket.create_connection
+            pinned_destinations = []
+
+            def fake_getaddrinfo(host, *args, **kwargs):
+                if host == hostname:
+                    return [(socket.AF_INET, socket.SOCK_STREAM, 6, "",
+                             ("8.8.8.8", 443))]
+                return original_getaddrinfo(host, *args, **kwargs)
+
+            def route_pinned_ip_to_local_server(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
+                                                source_address=None, **kwargs):
+                host, target_port = address
+                if host == "8.8.8.8":
+                    pinned_destinations.append(host)
+                    address = ("127.0.0.1", target_port)
+                return original_create_connection(
+                    address, timeout, source_address, **kwargs
+                )
+
+            try:
+                with (
+                    patch(
+                        "products.megamarket.cpiie.fetch.socket.getaddrinfo",
+                        side_effect=fake_getaddrinfo,
+                    ),
+                    patch(
+                        "products.megamarket.cpiie.fetch.socket.create_connection",
+                        side_effect=route_pinned_ip_to_local_server,
+                    ),
+                    patch(
+                        "ssl._create_default_https_context",
+                        return_value=client_context,
+                    ),
+                ):
+                    receipt = OfficialSourceFetcher(
+                        self.registry, timeout=3, max_bytes=1024
+                    ).fetch(source_id, allowed_hosts={hostname})
+                self.assertEqual(pinned_destinations, ["8.8.8.8"])
+                return receipt
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def test_real_https_accepts_trusted_certificate_and_matching_hostname(self):
+        receipt = self._run_real_tls_fetch(
+            "policy.example.org", trust_certificate=True
+        )
+        self.assertEqual(receipt.status_code, 200)
+        self.assertIn("verified TLS policy", receipt.document.body)
+
+    def test_real_https_rejects_untrusted_certificate_authority(self):
+        with self.assertRaises(FetchError):
+            self._run_real_tls_fetch(
+                "policy.example.org", trust_certificate=False
+            )
+
+    def test_real_https_rejects_certificate_hostname_mismatch(self):
+        with self.assertRaises(FetchError):
+            self._run_real_tls_fetch(
+                "wrong.example.org", trust_certificate=True
+            )
 
 
 if __name__ == "__main__":
