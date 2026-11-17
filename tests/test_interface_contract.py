@@ -155,3 +155,47 @@ def test_factory_need_project_must_match_message_project():
 def test_message_rejects_timestamp_without_timezone():
     with pytest.raises(InterfaceContractError, match="timezone-aware"):
         message(created_at="2026-11-17T19:00:00")
+
+
+
+def test_message_body_is_deeply_immutable_after_validation():
+    payload = {
+        "text": "Create a bounded product mission.",
+        "metadata": {"labels": ["reviewed"]},
+    }
+    item = message(body=payload)
+
+    payload["text"] = "tampered"
+    payload["metadata"]["labels"].append("injected")
+
+    assert item.body["text"] == "Create a bounded product mission."
+    assert item.body["metadata"]["labels"] == ("reviewed",)
+    with pytest.raises(TypeError):
+        item.body["text"] = "tampered"
+    with pytest.raises(TypeError):
+        item.body["metadata"]["new"] = "value"
+    with pytest.raises(AttributeError):
+        item.body["metadata"]["labels"].append("injected")
+
+
+def test_message_rejects_non_json_payload_values():
+    with pytest.raises(InterfaceContractError, match="JSON-compatible"):
+        message(body={"text": "valid text", "unsafe": object()})
+
+
+def test_message_rejects_non_finite_json_numbers():
+    with pytest.raises(InterfaceContractError, match="non-finite"):
+        message(body={"text": "valid text", "score": float("nan")})
+
+
+def test_message_rejects_non_string_json_object_keys():
+    with pytest.raises(InterfaceContractError, match="keys must be strings"):
+        message(body={"text": "valid text", 7: "invalid key"})
+
+
+def test_message_rejects_excessively_nested_payloads():
+    nested = {"value": "deep"}
+    for _ in range(34):
+        nested = {"child": nested}
+    with pytest.raises(InterfaceContractError, match="maximum nesting depth"):
+        message(body={"text": "valid text", "metadata": nested})
