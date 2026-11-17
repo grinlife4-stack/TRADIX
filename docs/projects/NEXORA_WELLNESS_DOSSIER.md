@@ -174,8 +174,8 @@ No phase is considered complete without a working artifact and recorded test evi
 | Product direction | Independent sleep and wellness PWA; English, French, and Spanish release scope |
 | Product model | Not fixed; validate against user needs and market evidence |
 | Execution priority | Fastest path to first usable build |
-| Project workspace | `projects/NEXORA/` in the TRADIX repository; brand asset committed; application source import pending |
-| MVP prototype | NEXORA 0.5.1 archive found in Library; 23/23 automated smoke tests and syntax checks pass; source import into this repository remains pending |
+| Project workspace | `projects/NEXORA/` in the TRADIX repository; approved brand asset committed; app source package prepared but not yet imported |
+| MVP prototype | NEXORA 0.5.3 source package prepared locally; 25/25 automated smoke tests pass; full app source import into this repository remains pending |
 | Content assets | Three synthesized prototype ambience tracks; production-quality audio and commercial content rights remain pending |
 | iPad/audio test | Physical iPad/iPhone Safari, background audio, accessibility, and HTTPS deployment remain unverified |
 | Backend | Not selected; minimize for first release |
@@ -184,13 +184,13 @@ No phase is considered complete without a working artifact and recorded test evi
 
 ## 12. Latest source verification — 2026-11-18
 
-- Latest source baseline: `NEXORA-0.5.1.zip` (6,642,045 bytes), currently in the user's ChatGPT Library; it is not yet committed to this repository.
+- Source baseline: `NEXORA-0.5.1.zip`; local candidate advanced to `NEXORA-0.5.3-source-package.zip`.
 - Baseline SHA-256: `33cace591cd000cafdaebf7093a8a818d62e140beddf6d9c6a8815adfd4b4098`; ZIP integrity passed (22 entries); baseline automated smoke tests: 23/23 passed.
-- A local `NEXORA-0.5.2` candidate was generated from that baseline to correct stale PWA manifest metadata (`lang=en`, `dir=ltr`) and the HTML description, and to bump the service-worker cache to v8.
+- Local `NEXORA-0.5.2` corrected stale PWA manifest metadata (`lang=en`, `dir=ltr`). Local `NEXORA-0.5.3` integrates the approved logo into header/player references and an SVG PWA icon shell, and bumps the service-worker cache to v9.
 - Candidate SHA-256: `4cf1fe5163c01bb516df0ac6c4a11b361fb539208594d022dcd6da87d66c3c6e`; ZIP integrity passed (19 files); automated smoke tests: 24/24 passed.
-- The 0.5.2 candidate is a local test artifact only; it is not yet committed to the repository or approved as a release.
+- The 0.5.3 source package is a local test artifact only; full source import into the repository remains pending. It is not a production release.
 - The archive supports English, French, and Spanish, including all 30 written guided-practice days in those languages.
-- The archive still uses the temporary `n` mark and does not include the approved repository logo. Logo integration and PWA icon replacement are still required.
+- The 0.5.3 app source now references the approved shared logo in header/player and SVG PWA icon. A square iOS touch-icon derivative remains pending.
 - Physical-device/browser acceptance testing and production deployment remain unverified.
 
 ## 13. Change control
