@@ -10,9 +10,9 @@
 
 The repository currently contains product specifications, a provider-neutral CPIIE Python package, tests and CI. It does **not** yet contain a deployable MegaMarket storefront, customer API, product catalog service, production database configuration, user authentication, affiliate-link service, or deployment environment for MegaMarket.
 
-The CPIIE package supports source registration, controlled HTTPS fetching, bounded discovery, on-demand monitoring, immutable document snapshots, evidence records, human-labelled policy review, policy evaluation and deterministic audit export. Its tests are synthetic/code-level validation; they do not establish retailer authority, legal permission, live data rights, commercial approval or production reliability.
+The CPIIE package supports source registration, controlled HTTPS fetching, bounded discovery, on-demand monitoring, immutable document snapshots, evidence records, scoped reviewer-assertion verification contracts, policy evaluation and deterministic audit export. The reviewer contract is fail-closed, but no production identity-provider adapter is configured; therefore no real reviewer can yet authorize a rule. Its tests use a deterministic test double and are synthetic/code-level validation; they do not establish retailer authority, legal permission, live data rights, commercial approval or production reliability.
 
-The last verified CPIIE CI run is GitHub Actions run #44096498988 (run #556), successful on commit `0603cf2cadc2683a5e64191995213d0def37d61d`, with 88 passed and 4 subtests passed. This result applies only to that exact commit.
+The reviewer-identity implementation is currently verified by GitHub Actions run #567 (`44098947275`), successful on commit `c8d84a21b291befb843495c597d4c8b7c356a2b5`, with 91 passed and 4 subtests passed. This result applies only to that exact commit. Earlier failing runs belong to earlier intermediate commits and are not the final validation.
 
 ## 2. Non-negotiable operating boundaries
 
@@ -37,11 +37,11 @@ The last verified CPIIE CI run is GitHub Actions run #44096498988 (run #556), su
 - Do not describe SQLite triggers as cryptographic tamper protection.
 
 ### Gate B — Reviewer identity and authority
-- Replace free-form reviewer labels as a source of authority.
-- Define stable reviewer principals, authentication, revocation, role and scope.
-- Bind each review to the company/program, capability, source document hash, evidence IDs, policy version and timestamp.
-- A reviewer must not approve a policy outside their explicitly granted scope.
-- Until a trusted identity and authority mechanism is implemented and tested, no review may be treated as commercial authorization.
+- Implemented in code: free-form reviewer labels no longer authorize reviews; a trusted verifier contract must validate signed assertions and exact company/capability/decision scope.
+- Implemented in code: each review stores issuer, subject, key ID, assertion ID, scoped claims, authentication window and a signed authorization receipt; evaluations re-verify the receipt and fail closed on missing, invalid, expired or revoked receipts.
+- Implemented in code: direct SQL review updates without a complete receipt are rejected by the SQLite guard; legacy approvals without receipts remain blocked.
+- Tested with a deterministic test double only. This is not a production identity provider.
+- **Still blocked:** select and configure a real identity provider, implement cryptographic signature/JWKS validation, issuer/audience/key-rotation/revocation handling, and provision secrets/keys outside the repository. No real reviewer authentication or commercial authorization is active.
 
 ### Gate C — Tamper-evident audit
 - Define canonical event serialization and a versioned hash-chain format.
@@ -99,7 +99,7 @@ The read-only pilot is acceptable only when:
 
 ## 5. Immediate implementation sequence
 
-1. Add authenticated reviewer principal and scoped authority model; keep authorization fail-closed by default.
+1. [x] Add fail-closed reviewer assertion contract and scoped authority checks. [ ] Connect a production identity provider and validate its signatures, audience, key rotation and revocation before enabling real reviews.
 2. Add signed, independently anchored audit-chain export and tamper tests.
 3. Add a documented shadow-mode command and deterministic sample dataset.
 4. Add source-by-source rights metadata and freshness policy.
