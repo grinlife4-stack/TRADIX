@@ -191,7 +191,13 @@ class CPIIERegistryTests(unittest.TestCase):
                     reviewed_at TEXT
                 )
             """)
-            connection.execute(\n                "INSERT INTO rules VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",\n                ("legacy-rule", "legacy-doc", "legacy-evidence", "legacy.cap",\n                 "Legacy policy", "VERIFIED", None, "legacy reviewer",\n                 "2026-11-17T00:00:00+00:00"),\n            )\n            connection.commit()\n            connection.close()\n\n            migrated = CPIIERegistry(database.name)
+            connection.execute(
+                "INSERT INTO rules VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ("legacy-rule", "legacy-doc", "legacy-evidence", "legacy.cap",
+                 "Legacy policy", "VERIFIED", None, "legacy reviewer",
+                 "2026-11-17T00:00:00+00:00"),
+            )
+            connection.commit()\n            connection.close()\n\n            migrated = CPIIERegistry(database.name)
             try:
                 columns = {
                     row["name"] for row in migrated.connection.execute("PRAGMA table_info(rules)")
