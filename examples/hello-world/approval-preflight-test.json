@@ -2,6 +2,7 @@
   "schema_version": 1,
   "execution_mode": "trusted-node",
   "product_dir": ".",
+  "dossier_idempotency_key": "hello-world-approval-preflight-dossier-v1",
   "dossier": {
     "schema_version": 1,
     "product_type": "service",
