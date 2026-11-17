@@ -100,7 +100,7 @@ def test_message_rejects_invalid_identifier():
 
 def test_interface_ai_clarification_answer_must_contain_text():
     with pytest.raises(InterfaceContractError, match="requires body.text"):
-        message(message_type=MessageType.CLARIFICATION_ANSWER, body={})
+        message(message_type=MessageType.CLARIFICATION_ANSWER, body={"unexpected": True})
 
 
 def test_need_rejects_non_boolean_progress_flag():
@@ -117,7 +117,7 @@ def test_need_rejects_non_boolean_progress_flag():
 
 def test_user_input_requires_text():
     with pytest.raises(InterfaceContractError, match="requires body.text"):
-        message(sender=Sender.USER, message_type=MessageType.USER_INPUT, body={})
+        message(sender=Sender.USER, message_type=MessageType.USER_INPUT, body={"unexpected": True})
 
 
 def test_message_rejects_non_iso_timestamp():
