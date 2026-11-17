@@ -73,6 +73,18 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _parse_aware_timestamp(value: str, field: str) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field} must be a timezone-aware ISO-8601 timestamp")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{field} must be a timezone-aware ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{field} must include a timezone offset")
+    return parsed.astimezone(timezone.utc)
+
+
 def canonicalize_url(url: str) -> str:
     """Accept HTTPS URLs only; normalize host and remove fragments/default port."""
     parts = urlsplit(url.strip())
@@ -166,6 +178,48 @@ class CPIIERegistry:
         );
         CREATE INDEX IF NOT EXISTS rule_review_history_rule_idx
             ON rule_review_history(rule_id, review_id);
+        CREATE TRIGGER IF NOT EXISTS source_no_delete
+            BEFORE DELETE ON sources
+            BEGIN SELECT RAISE(ABORT, 'source registry is append-only'); END;
+        CREATE TRIGGER IF NOT EXISTS documents_no_update
+            BEFORE UPDATE ON documents
+            BEGIN SELECT RAISE(ABORT, 'document snapshots are immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS documents_no_delete
+            BEFORE DELETE ON documents
+            BEGIN SELECT RAISE(ABORT, 'document snapshots are immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS evidence_no_update
+            BEFORE UPDATE ON evidence
+            BEGIN SELECT RAISE(ABORT, 'evidence records are immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS evidence_no_delete
+            BEFORE DELETE ON evidence
+            BEGIN SELECT RAISE(ABORT, 'evidence records are immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS rules_content_immutable
+            BEFORE UPDATE ON rules
+            WHEN OLD.document_id IS NOT NEW.document_id
+              OR OLD.evidence_id IS NOT NEW.evidence_id
+              OR OLD.capability IS NOT NEW.capability
+              OR OLD.statement IS NOT NEW.statement
+              OR OLD.expires_at IS NOT NEW.expires_at
+            BEGIN SELECT RAISE(ABORT, 'rule content is immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS rules_no_delete
+            BEFORE DELETE ON rules
+            BEGIN SELECT RAISE(ABORT, 'rule records are append-only'); END;
+        CREATE TRIGGER IF NOT EXISTS rules_review_fields_guard
+            BEFORE UPDATE OF state, reviewer, reviewed_at ON rules
+            WHEN NEW.state NOT IN ('VERIFIED', 'CONFLICT', 'EXPIRED')
+              OR NEW.reviewer IS NULL OR length(trim(NEW.reviewer)) = 0
+              OR NEW.reviewed_at IS NULL OR length(trim(NEW.reviewed_at)) = 0
+            BEGIN SELECT RAISE(ABORT, 'rule review requires a valid decision, reviewer and timestamp'); END;
+        CREATE TRIGGER IF NOT EXISTS rules_review_history_append
+            AFTER UPDATE OF state, reviewer, reviewed_at ON rules
+            WHEN OLD.state IS NOT NEW.state
+              OR OLD.reviewer IS NOT NEW.reviewer
+              OR OLD.reviewed_at IS NOT NEW.reviewed_at
+            BEGIN
+                INSERT INTO rule_review_history
+                    (rule_id, previous_state, decision, reviewer, reviewed_at)
+                VALUES (NEW.rule_id, OLD.state, NEW.state, NEW.reviewer, NEW.reviewed_at);
+            END;
         CREATE TRIGGER IF NOT EXISTS rule_review_history_no_update
             BEFORE UPDATE ON rule_review_history
             BEGIN SELECT RAISE(ABORT, 'review history is append-only'); END;
@@ -227,6 +281,7 @@ class CPIIERegistry:
         version = latest + 1
         document_id = hashlib.sha256(f"{source_id}:{digest}".encode()).hexdigest()
         timestamp = fetched_at or utc_now()
+        _parse_aware_timestamp(timestamp, "fetched_at")
         self.connection.execute(
             "INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?)",
             (document_id, source_id, timestamp, digest, content, version),
@@ -237,10 +292,13 @@ class CPIIERegistry:
     def record_evidence(self, document_id: str, locator: str, excerpt: str) -> str:
         if not locator.strip() or not excerpt.strip():
             raise ValueError("evidence locator and excerpt are required")
-        if not self.connection.execute(
-            "SELECT 1 FROM documents WHERE document_id=?", (document_id,)
-        ).fetchone():
+        document = self.connection.execute(
+            "SELECT content FROM documents WHERE document_id=?", (document_id,)
+        ).fetchone()
+        if not document:
             raise KeyError(f"unknown document: {document_id}")
+        if excerpt not in document["content"]:
+            raise ValueError("evidence excerpt must appear in the exact cited document snapshot")
         evidence_id = hashlib.sha256(
             f"{document_id}:{locator}:{excerpt}".encode()
         ).hexdigest()
@@ -256,6 +314,8 @@ class CPIIERegistry:
                      expires_at: str | None = None) -> Rule:
         if not all(x.strip() for x in (rule_id, capability, statement)):
             raise ValueError("rule id, capability and statement are required")
+        if expires_at is not None:
+            _parse_aware_timestamp(expires_at, "expires_at")
         evidence = self.connection.execute(
             "SELECT document_id FROM evidence WHERE evidence_id=?", (evidence_id,)
         ).fetchone()
@@ -309,12 +369,7 @@ class CPIIERegistry:
                 "UPDATE rules SET state=?, reviewer=?, reviewed_at=? WHERE rule_id=?",
                 (decision.value, reviewer, timestamp, rule_id),
             )
-            self.connection.execute(
-                """INSERT INTO rule_review_history
-                   (rule_id, previous_state, decision, reviewer, reviewed_at)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (rule_id, current["state"], decision.value, reviewer, timestamp),
-            )
+            # SQLite trigger appends the matching review-history event atomically.
             self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -348,6 +403,7 @@ class CPIIERegistry:
             return Evaluation(capability, CapabilityState.BLOCKED_NO_POLICY, (),
                               "no reviewed policy evidence exists")
         current = now or utc_now()
+        current_dt = _parse_aware_timestamp(current, "now")
         # A rule is tied to the exact document snapshot it was reviewed against.
         # Any newer snapshot from that source invalidates the old review until
         # the changed policy has been examined and new evidence is approved.
@@ -365,8 +421,12 @@ class CPIIERegistry:
         if any(row["state"] == RuleState.CONFLICT.value for row in rows):
             return Evaluation(capability, CapabilityState.BLOCKED_CONFLICT, ids,
                               "conflicting policy evidence requires review")
-        if any(row["state"] == RuleState.EXPIRED.value or
-               (row["expires_at"] and row["expires_at"] <= current) for row in rows):
+        if any(
+            row["state"] == RuleState.EXPIRED.value
+            or (row["expires_at"] and
+                _parse_aware_timestamp(row["expires_at"], "expires_at") <= current_dt)
+            for row in rows
+        ):
             return Evaluation(capability, CapabilityState.BLOCKED_EXPIRED, ids,
                               "policy evidence is expired")
         if max_age_seconds is not None:
@@ -376,9 +436,9 @@ class CPIIERegistry:
                 "SELECT DISTINCT d.fetched_at FROM documents d JOIN rules r ON r.document_id=d.document_id WHERE r.capability=?",
                 (capability,),
             ).fetchall()
-            now_dt = datetime.fromisoformat(current)
             for doc in docs:
-                if now_dt - datetime.fromisoformat(doc["fetched_at"]) > timedelta(seconds=max_age_seconds):
+                fetched_dt = _parse_aware_timestamp(doc["fetched_at"], "fetched_at")
+                if current_dt - fetched_dt > timedelta(seconds=max_age_seconds):
                     return Evaluation(capability, CapabilityState.BLOCKED_EXPIRED, ids, "source snapshot is stale")
         if any(row["state"] != RuleState.VERIFIED.value for row in rows):
             return Evaluation(capability, CapabilityState.BLOCKED_REVIEW, ids,
