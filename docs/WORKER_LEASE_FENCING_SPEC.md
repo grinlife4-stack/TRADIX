@@ -30,7 +30,7 @@ A lease table alone is insufficient. Every write path that can change execution 
 The migration must provide narrowly scoped SECURITY DEFINER functions:
 
 - `acquire_task_lease(task_id, attempt_id, worker_id, ttl_seconds)` returns the fencing token and expiry. It locks the task, verifies product ownership and attempt state, rejects a different live owner, and performs a monotonic token increment on first acquisition or takeover.
-- `renew_task_lease(task_id, attempt_id, worker_id, fencing_token, ttl_seconds)` extends only the exact live lease. It must not revive an expired lease.
+- `renew_task_lease(task_id, attempt_id, worker_id, fencing_token, ttl_seconds)` extends only the exact live lease for a running attempt. It must not revive an expired lease or extend a completed attempt.
 - `assert_task_lease(task_id, attempt_id, worker_id, fencing_token)` is an internal helper callable only by the trusted function owner.
 - Fenced lifecycle transition, evidence, and attempt-finish APIs require the fencing token and invoke the lease assertion before any idempotency lookup or write.
 - The previous unfenced runtime write functions must be revoked from runtime roles. No compatibility path may bypass fencing.
