@@ -12,7 +12,7 @@ The repository currently contains product specifications, a provider-neutral CPI
 
 The CPIIE package supports source registration, controlled HTTPS fetching, bounded discovery, on-demand monitoring, immutable document snapshots, evidence records, scoped reviewer-assertion verification contracts, policy evaluation and deterministic audit export. The reviewer contract is fail-closed, requires the `policy_reviewer` role, and binds signed assertions to a canonical hash of the exact company, source, document hash/version, evidence ID, rule text/effect/expiry, capability and decision. It prevents cross-rule receipt replay. No production identity-provider adapter is configured; therefore no real reviewer can yet authorize a rule. Its tests use a deterministic test double and are synthetic/code-level validation; they do not establish retailer authority, legal permission, live data rights, commercial approval or production reliability.
 
-The reviewer-identity implementation is currently verified by GitHub Actions run #571 (`44099472148`), successful on commit `4d911173f80747b795f9a37aa4d542cf1a30ae6f`, with 92 passed and 4 subtests passed. This result applies only to that exact commit. The next test addition covers cross-rule receipt replay and will receive its own SHA-matched CI result.
+The reviewer-identity implementation is currently verified by GitHub Actions run #574 (`44099615869`), successful on branch commit `9c378679bc86a2d22c92cdc815f18c938dc55876`, with 93 passed and 4 subtests passed. The reviewer security code and cross-rule replay test are covered by run #573 (`44099578315`) on implementation commit `953c94f981e80d5834c695a025c4d366e6ba0828`, also successful with 93 passed and 4 subtests passed.
 
 ## 2. Non-negotiable operating boundaries
 
