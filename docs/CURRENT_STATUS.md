@@ -45,7 +45,7 @@ A green disposable-database CI run is not evidence that any of these missing cap
 - The superseded software-only master plan was moved to `docs/archive/`; its content was preserved.
 - The architecture baseline was renamed to `docs/FACTORY_ARCHITECTURE_BASELINE_V1_2.md`, matching its declared version 1.2.
 - The large historical log remains in `docs/PROJECT_STATUS.md`; this file is now the concise current snapshot.
-- Maintenance changes are documentation-only. No runtime tests were run on this branch, and no maintenance-branch CI result is claimed.
+- Maintenance changes are documentation and package-metadata only (the package description now matches the general-purpose factory scope). No runtime code, schema, migration, workflow, or test was changed. No runtime tests were run on this branch, and no maintenance-branch CI result is claimed.
 
 ## 5. Next engineering gates
 
