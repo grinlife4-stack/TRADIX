@@ -72,6 +72,14 @@ fi
 
 # The restricted product runtime is exercised by the manifest-driven executor step in CI.
 psql -c "GRANT factory_onboarding_authority TO factory_rt_onboarding WITH SET FALSE, INHERIT FALSE" >/dev/null
+if [[ "$(psql -qAt -c "SELECT pg_catalog.pg_has_role('factory_rt_onboarding','factory_onboarding_authority','SET')")" != "f" ]]; then
+  echo "FAIL: onboarding authority marker must not be SETtable"
+  exit 1
+fi
+if [[ "$(psql -qAt -c "SELECT pg_catalog.pg_has_role('factory_rt_tradix','factory_onboarding_authority','MEMBER')")" != "f" ]]; then
+  echo "FAIL: ordinary product runtime unexpectedly has onboarding authority"
+  exit 1
+fi
 psql -c "ALTER ROLE factory_rt_onboarding PASSWORD 'ci-only-onboarding-password'" >/dev/null
 
 psql <<'SQL'
