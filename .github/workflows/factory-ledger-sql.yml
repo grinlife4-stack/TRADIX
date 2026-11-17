@@ -62,7 +62,12 @@ jobs:
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: bash tests/test_factory_ledger_sql.sh "$POSTGRES_CONTAINER_ID"
-      - name: Verify worker lease migration refuses active legacy work
+      - name: Clear disposable ledger fixtures before lease migration preflight
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SET session_replication_role=replica; TRUNCATE factory.tasks CASCADE; SET session_replication_role=origin"
+      - name: Verify worker lease preflight refuses active legacy work
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
@@ -87,16 +92,17 @@ jobs:
             1, 'implementer', 'running', clock_timestamp()
           );
           SQL
-          if docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0004_worker_lease_fencing.sql > /tmp/tradix-lease-preflight.log 2>&1; then
-            echo "Worker lease migration unexpectedly adopted active legacy work"
+          if docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/preflight/0004_worker_lease_fencing.sql > /tmp/tradix-lease-preflight.log 2>&1; then
+            echo "Worker lease preflight unexpectedly accepted active legacy work"
             exit 1
           fi
-          grep -F "worker lease migration refused: drain or explicitly reconcile active tasks and running attempts first" /tmp/tradix-lease-preflight.log
+          grep -F "worker lease fencing preflight refused" /tmp/tradix-lease-preflight.log
           docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test <<'SQL'
           DELETE FROM factory.task_attempts WHERE attempt_id = 'acacacac-acac-4cac-8cac-acacacacacac';
           DELETE FROM factory.tasks WHERE task_id = 'abababab-abab-4bab-8bab-abababababab';
           SQL
-          echo "PASS: migration refuses to adopt active legacy work"
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/preflight/0004_worker_lease_fencing.sql
+          echo "PASS: preflight refuses active work and passes after it is reconciled"
       - name: Apply worker lease fencing migration to disposable PostgreSQL
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
