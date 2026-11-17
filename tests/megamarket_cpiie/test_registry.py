@@ -116,7 +116,7 @@ class CPIIERegistryTests(unittest.TestCase):
 
     def test_document_hash_and_duplicate_are_deterministic(self):
         first = self.doc
-        duplicate = self.registry.record_document("retailer-terms", "Terms v1")
+        duplicate = self.registry.record_document("retailer-terms", "Terms v1\\nProduct data may be displayed.")
         self.assertEqual(first.content_sha256, duplicate.content_sha256)
         self.assertFalse(duplicate.changed)
         self.assertEqual(first.version, duplicate.version)
@@ -298,7 +298,7 @@ class CPIIERegistryTests(unittest.TestCase):
             old_doc = old_registry.record_document(
                 "old-source", "Old terms", "2020-01-01T00:00:00+00:00"
             )
-            evidence = old_registry.record_evidence(old_doc.document_id, "s1", "Old excerpt")
+            evidence = old_registry.record_evidence(old_doc.document_id, "s1", "Old terms")
             old_registry.propose_rule(
                 "old-rule", old_doc.document_id, evidence,
                 "catalog.old", "Old permission",
