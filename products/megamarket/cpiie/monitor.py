@@ -164,6 +164,46 @@ class PolicyMonitor:
         )
         return result
 
+
+    def recover_pending(self, source_id: str | None = None) -> int:
+        """Close orphaned STARTED checks after an operator confirms no worker is active.
+
+        This is explicit rather than automatic so a second live process cannot
+        incorrectly classify another process's in-flight check as interrupted.
+        The original STARTED event is preserved; recovery appends a terminal
+        FAILED event and never edits history.
+        """
+        db = self.registry.connection
+        if source_id is None:
+            rows = db.execute(
+                """SELECT s.check_id, s.source_id, s.checked_at
+                   FROM monitor_checks s
+                   WHERE s.status='STARTED'
+                     AND NOT EXISTS (
+                         SELECT 1 FROM monitor_checks t
+                         WHERE t.check_id=s.check_id AND t.event_id>s.event_id
+                     )
+                   ORDER BY s.event_id"""
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """SELECT s.check_id, s.source_id, s.checked_at
+                   FROM monitor_checks s
+                   WHERE s.source_id=? AND s.status='STARTED'
+                     AND NOT EXISTS (
+                         SELECT 1 FROM monitor_checks t
+                         WHERE t.check_id=s.check_id AND t.event_id>s.event_id
+                     )
+                   ORDER BY s.event_id""",
+                (source_id,),
+            ).fetchall()
+        for row in rows:
+            self._append_event(
+                row["check_id"], row["source_id"], row["checked_at"], "FAILED",
+                error="INTERRUPTED: no terminal receipt was committed",
+            )
+        return len(rows)
+
     def check_all(self, *, allowed_hosts: set[str]) -> tuple[MonitorResult, ...]:
         rows = self.registry.connection.execute(
             "SELECT source_id FROM sources ORDER BY source_id"
