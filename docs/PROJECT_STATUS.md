@@ -306,3 +306,15 @@ The product dossier API and mission/plan API are separately tested write paths, 
 - [Factory first-run demo — 43938660753](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938660753): success.
 - [Factory ledger + SQL/HTTP integration — 43938660763](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938660763): success, including the mission-plan API atomic-intake integration tests.
 - No Neon migration, Production write, main-branch update, deployment, secret change, paid resource, or PR merge was performed.
+
+
+## 19. Canonical integration path and next operational gap (2026-11-17)
+
+- PR #3 was retargeted to `main` and remains Draft/open. It is the single canonical integration PR: https://github.com/grinlife4-stack/TRADIX/pull/3
+- PR #2 and PR #4 were closed as superseded. Their branches and commits were not deleted. PR #3 contains the stronger persistent PostgreSQL-backed lifecycle, executor, evidence/approval gates, and the verified first-run path.
+- On PR #3 head `ef3786607fb825b7f119e7d52541c10529efedd6`, the latest observed GitHub Actions runs all completed successfully: Python tests `43938849739`, factory first-run `43938849723`, and factory-ledger SQL/HTTP integration `43938849718`.
+- PR #3 has no submitted reviews or inline review threads. GitHub reported `mergeable=false` immediately after retargeting; do not merge until mergeability is recalculated and an independent review confirms the complete diff.
+- Created working branch `factory/worker-lease-recovery-v0-1` from the PR #3 head for the next implementation slice. No database, Neon branch, Production, main branch, secrets, deployment, or paid service was changed.
+- The next substantive runtime gap is atomic worker ownership: attempt claiming, expiring leases, heartbeat, monotonically increasing fencing tokens, stale-worker write rejection, bounded retries, and restart/takeover tests. This must be implemented as one coherent database-enforced path; a lease table without fencing enforcement is not an operational fix.
+- Existing task attempts are currently created with status `running`, and current lifecycle/evidence/finish functions do not require a lease token. Any lease implementation must close those bypass paths and update the executor/tests together before it can be called operational.
+- No worker lease implementation is claimed complete in this update.
