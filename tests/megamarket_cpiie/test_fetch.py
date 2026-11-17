@@ -370,7 +370,7 @@ class OfficialSourceFetcherTests(unittest.TestCase):
             "policy.example.org", trust_certificate=True
         )
         self.assertEqual(receipt.status_code, 200)
-        self.assertIn("verified TLS policy", receipt.document.body)
+        self.assertIn("verified TLS policy", self.registry.connection.execute(\n            "SELECT content FROM documents WHERE document_id=?",\n            (receipt.document.document_id,),\n        ).fetchone()[0])
 
     def test_real_https_rejects_untrusted_certificate_authority(self):
         with self.assertRaises(FetchError):
