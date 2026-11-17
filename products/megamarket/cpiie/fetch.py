@@ -183,6 +183,10 @@ class OfficialSourceFetcher:
             raise FetchError(f"invalid or incomplete HTTP response: {exc}") from exc
         except URLError as exc:
             raise FetchError(f"source fetch failed: {exc.reason}") from exc
+        except (TimeoutError, OSError) as exc:
+            # Read-time socket failures (including timeouts) can occur after
+            # opener.open() succeeds; keep the fetcher's public error contract.
+            raise FetchError(f"source connection or response read failed: {exc}") from exc
 
         document = self.registry.record_document(source_id, text)
         return FetchReceipt(source_id, url, final_url, status, content_type,
