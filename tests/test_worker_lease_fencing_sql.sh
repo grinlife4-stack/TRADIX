@@ -51,8 +51,8 @@ expect_runtime_failure() {
 task_id="55555555-5555-4555-8555-555555555555"
 attempt_id="66666666-6666-4666-8666-666666666666"
 next_attempt_id="77777777-7777-4777-8777-777777777777"
-race_task_id="88888888-8888-4888-8888-888888888888"
-race_attempt_id="99999999-9999-4999-8999-999999999999"
+race_task_id="f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f1f1"
+race_attempt_id="e1e1e1e1-e1e1-41e1-81e1-e1e1e1e1e1e1"
 lock_task_id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 lock_attempt_id="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
