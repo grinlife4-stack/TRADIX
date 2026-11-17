@@ -119,6 +119,10 @@ BEGIN
         RAISE EXCEPTION 'task already has a live lease';
     END IF;
 
+    IF FOUND AND v_lease.attempt_id <> p_attempt_id THEN
+        RAISE EXCEPTION 'expired lease belongs to another attempt; explicit attempt recovery required';
+    END IF;
+
     INSERT INTO factory.task_lease_counters(task_id, last_token)
     VALUES (p_task_id, 1)
     ON CONFLICT (task_id)
