@@ -214,8 +214,10 @@ REVOKE ALL ON FUNCTION factory.record_intake_approval(
 GRANT EXECUTE ON FUNCTION factory.record_intake_approval(
     TEXT, INTEGER, INTEGER, INTEGER, TEXT, TEXT, TEXT
 ) TO factory_approval_authority;
+GRANT CREATE ON SCHEMA factory TO factory_executor_owner;
 ALTER FUNCTION factory.record_intake_approval(
     TEXT, INTEGER, INTEGER, INTEGER, TEXT, TEXT, TEXT
 ) OWNER TO factory_executor_owner;
+REVOKE CREATE ON SCHEMA factory FROM factory_executor_owner;
 
 COMMIT;
