@@ -273,7 +273,12 @@ class CPIIERegistry:
 
     def evaluate(self, capability: str, now: str | None = None, max_age_seconds: int | None = None) -> Evaluation:
         rows = self.connection.execute(
-            "SELECT rule_id, state, expires_at FROM rules WHERE capability=? ORDER BY rule_id",
+            """SELECT r.rule_id, r.state, r.expires_at, r.document_id,
+                      d.source_id
+               FROM rules r
+               JOIN documents d ON d.document_id=r.document_id
+               WHERE r.capability=?
+               ORDER BY r.rule_id""",
             (capability,),
         ).fetchall()
         ids = tuple(row["rule_id"] for row in rows)
@@ -281,6 +286,20 @@ class CPIIERegistry:
             return Evaluation(capability, CapabilityState.BLOCKED_NO_POLICY, (),
                               "no reviewed policy evidence exists")
         current = now or utc_now()
+        # A rule is tied to the exact document snapshot it was reviewed against.
+        # Any newer snapshot from that source invalidates the old review until
+        # the changed policy has been examined and new evidence is approved.
+        for row in rows:
+            latest = self.connection.execute(
+                """SELECT document_id FROM documents
+                   WHERE source_id=? ORDER BY version DESC LIMIT 1""",
+                (row["source_id"],),
+            ).fetchone()
+            if not latest or latest["document_id"] != row["document_id"]:
+                return Evaluation(
+                    capability, CapabilityState.BLOCKED_REVIEW, ids,
+                    "a newer source snapshot exists; policy rules require re-review",
+                )
         if any(row["state"] == RuleState.CONFLICT.value for row in rows):
             return Evaluation(capability, CapabilityState.BLOCKED_CONFLICT, ids,
                               "conflicting policy evidence requires review")
