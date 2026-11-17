@@ -27,7 +27,7 @@ INSERT INTO memory_gateway_tokens(project_id, token_hash)
 SELECT project_id, decode('1bc2479c6e54b8ea89ba43fea4e60c8a6cb3c1ce12f651a7dd2998e0270f6d2b','hex')
 FROM memory_projects WHERE project_key='other-project';
 INSERT INTO memory_gateway_tokens(project_id, token_hash, revoked_at)
-SELECT project_id, decode('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','hex'), now()
+SELECT project_id, decode('3227b49cb5c69320c01d0ac00e76e5602f97608c825c7311e850b6decc82f7c3','hex'), now()
 FROM memory_projects WHERE project_key='tradix';
 
 DO $$
