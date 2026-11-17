@@ -24,11 +24,18 @@ class RuleState(StrEnum):
     EXPIRED = "EXPIRED"
 
 
+class PolicyEffect(StrEnum):
+    ALLOW = "ALLOW"
+    DENY = "DENY"
+    UNSPECIFIED = "UNSPECIFIED"
+
+
 class CapabilityState(StrEnum):
     BLOCKED_NO_POLICY = "BLOCKED_NO_POLICY"
     BLOCKED_REVIEW = "BLOCKED_REVIEW"
     BLOCKED_CONFLICT = "BLOCKED_CONFLICT"
     BLOCKED_EXPIRED = "BLOCKED_EXPIRED"
+    BLOCKED_POLICY_DENY = "BLOCKED_POLICY_DENY"
     ALLOWED = "ALLOWED"
 
 
@@ -57,6 +64,7 @@ class Rule:
     document_id: str
     capability: str
     statement: str
+    effect: PolicyEffect
     state: RuleState
     expires_at: str | None
 
@@ -162,6 +170,7 @@ class CPIIERegistry:
             evidence_id TEXT NOT NULL REFERENCES evidence(evidence_id),
             capability TEXT NOT NULL,
             statement TEXT NOT NULL,
+            effect TEXT NOT NULL DEFAULT 'UNSPECIFIED' CHECK (effect IN ('ALLOW', 'DENY', 'UNSPECIFIED')),
             state TEXT NOT NULL,
             expires_at TEXT,
             reviewer TEXT,
@@ -199,6 +208,7 @@ class CPIIERegistry:
               OR OLD.evidence_id IS NOT NEW.evidence_id
               OR OLD.capability IS NOT NEW.capability
               OR OLD.statement IS NOT NEW.statement
+              OR OLD.effect IS NOT NEW.effect
               OR OLD.expires_at IS NOT NEW.expires_at
             BEGIN SELECT RAISE(ABORT, 'rule content is immutable'); END;
         CREATE TRIGGER IF NOT EXISTS rules_no_delete
@@ -227,6 +237,13 @@ class CPIIERegistry:
             BEFORE DELETE ON rule_review_history
             BEGIN SELECT RAISE(ABORT, 'review history is append-only'); END;
         """)
+        rule_columns = {
+            row["name"] for row in self.connection.execute("PRAGMA table_info(rules)")
+        }
+        if "effect" not in rule_columns:
+            self.connection.execute(
+                "ALTER TABLE rules ADD COLUMN effect TEXT NOT NULL DEFAULT 'UNSPECIFIED'"
+            )
         self.connection.commit()
 
     def register_source(self, source: Source) -> Source:
@@ -311,7 +328,8 @@ class CPIIERegistry:
 
     def propose_rule(self, rule_id: str, document_id: str, evidence_id: str,
                      capability: str, statement: str,
-                     expires_at: str | None = None) -> Rule:
+                     expires_at: str | None = None,
+                     effect: PolicyEffect | None = None) -> Rule:
         if not all(x.strip() for x in (rule_id, capability, statement)):
             raise ValueError("rule id, capability and statement are required")
         if expires_at is not None:
@@ -322,21 +340,24 @@ class CPIIERegistry:
         if not evidence or evidence["document_id"] != document_id:
             raise ValueError("evidence must belong to the cited document")
         existing = self.connection.execute(
-            """SELECT document_id, evidence_id, capability, statement, expires_at
+            """SELECT document_id, evidence_id, capability, statement, expires_at, effect
                FROM rules WHERE rule_id=?""",
             (rule_id,),
         ).fetchone()
-        proposed = (document_id, evidence_id, capability, statement, expires_at)
+        policy_effect = PolicyEffect(effect).value if effect is not None else PolicyEffect.UNSPECIFIED.value
+        proposed = (document_id, evidence_id, capability, statement, expires_at, policy_effect)
         if existing:
             recorded = tuple(existing[key] for key in (
-                "document_id", "evidence_id", "capability", "statement", "expires_at"
+                "document_id", "evidence_id", "capability", "statement", "expires_at", "effect"
             ))
             if recorded != proposed:
                 raise ValueError("rule_id already exists with different rule content")
             return self.get_rule(rule_id)
         self.connection.execute(
-            """INSERT INTO rules VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)""",
-            (rule_id, document_id, evidence_id, capability, statement,
+            """INSERT INTO rules
+               (rule_id, document_id, evidence_id, capability, statement, effect, state, expires_at, reviewer, reviewed_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)""",
+            (rule_id, document_id, evidence_id, capability, statement, policy_effect,
              RuleState.NEEDS_REVIEW.value, expires_at),
         )
         self.connection.commit()
@@ -349,7 +370,7 @@ class CPIIERegistry:
         if not row:
             raise KeyError(rule_id)
         return Rule(row["rule_id"], row["document_id"], row["capability"],
-                    row["statement"], RuleState(row["state"]), row["expires_at"])
+                    row["statement"], PolicyEffect(row["effect"]), RuleState(row["state"]), row["expires_at"])
 
     def review_rule(self, rule_id: str, reviewer: str,
                     decision: RuleState) -> Rule:
@@ -390,7 +411,7 @@ class CPIIERegistry:
 
     def evaluate(self, capability: str, now: str | None = None, max_age_seconds: int | None = None) -> Evaluation:
         rows = self.connection.execute(
-            """SELECT r.rule_id, r.state, r.expires_at, r.document_id,
+            """SELECT r.rule_id, r.state, r.effect, r.expires_at, r.document_id,
                       d.source_id
                FROM rules r
                JOIN documents d ON d.document_id=r.document_id
@@ -443,8 +464,14 @@ class CPIIERegistry:
         if any(row["state"] != RuleState.VERIFIED.value for row in rows):
             return Evaluation(capability, CapabilityState.BLOCKED_REVIEW, ids,
                               "one or more rules have not been manually verified")
+        if any(row["effect"] == PolicyEffect.UNSPECIFIED.value for row in rows):
+            return Evaluation(capability, CapabilityState.BLOCKED_REVIEW, ids,
+                              "one or more verified rules lack an explicit ALLOW or DENY effect")
+        if any(row["effect"] == PolicyEffect.DENY.value for row in rows):
+            return Evaluation(capability, CapabilityState.BLOCKED_POLICY_DENY, ids,
+                              "at least one verified policy rule explicitly denies this capability")
         return Evaluation(capability, CapabilityState.ALLOWED, ids,
-                          "all registered rules are manually verified and current")
+                          "all current verified rules explicitly allow this capability")
 
     def export_snapshot(self) -> str:
         """Deterministic JSON snapshot for audit; excludes document body/secrets."""
