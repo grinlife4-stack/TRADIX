@@ -136,7 +136,7 @@ async function runDockerSandboxScript(productRoot, relativeScript, label, leaseG
     "--env", "NODE_ENV=test",
     "--env", "HOME=/tmp",
     image,
-    "node", containerScript
+    containerScript
   ];
 
   return await new Promise((resolvePromise, reject) => {
