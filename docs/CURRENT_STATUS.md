@@ -18,6 +18,7 @@
 - PR #2 and PR #4 are closed and unmerged; they are superseded, not release artifacts.
 - PR #5 (blanket pending-approval restriction) was closed without merge after CI showed it broke the trusted Hello World onboarding executor. It is a rejected experiment, not an accepted fix.
 - PR #7 adds a dedicated `factory_onboarding_authority` marker: ordinary product runtimes may write only `pending_approval` dossiers; the isolated onboarding runner retains its tested first-run path. PR #7 is open, Draft, and unmerged. Exact head `a345f9b194ff3f9d96c7fbc13022e583f5de03c1`; Python and PostgreSQL/HTTP CI both passed on that head.
+- PR #8 adds committed npm lockfiles and changes the Node integration workflow to `npm ci`. It is open, Draft, and unmerged. Exact head `412ddd3f9a49ed5467684da7937efe20345ec822`; Python tests and full PostgreSQL/HTTP integration CI both passed on that head.
 - `main` was not changed by the maintenance work. Its protection status was reported as disabled during inspection; do not assume branch protection enforces review or CI gates.
 
 ## 2. Implemented and verified boundaries
@@ -53,13 +54,13 @@ A green disposable-database CI run is not evidence that any of these missing cap
 - The superseded software-only master plan was moved to `docs/archive/`; its content was preserved.
 - The architecture baseline was renamed to `docs/FACTORY_ARCHITECTURE_BASELINE_V1_2.md`, matching its declared version 1.2.
 - The large historical log remains in `docs/PROJECT_STATUS.md`; this file is now the concise current snapshot.
-- Maintenance changes are documentation and package-metadata only (the package description now matches the general-purpose factory scope). No runtime code, schema, migration, workflow, or test was changed. No runtime tests were run on this branch, and no maintenance-branch CI result is claimed.
+- Maintenance changes include documentation organization, package metadata, generated-file exclusions, three npm lockfiles, and the Node integration workflow's switch to `npm ci`. No runtime source code, database schema/migration, credentials, or deployment was changed. PR #8's Python and PostgreSQL/HTTP CI passed on its exact head.
 
 ## 6. Next engineering gates
 
 1. Implement worker ownership, leases, fencing, and stale-write rejection as one database-enforced lifecycle path; close all bypass writes and test concurrency, expiry, crash, and takeover.
 2. Add the explicit approval-decision path; only approved, version-matched plans may become executable tasks.
-3. Complete dependency reproducibility: generate and commit package lockfiles for each independently deployable Node package, then change CI from `npm install` to `npm ci`. Do not hand-author lockfiles.
+3. Pin or lock the Python development and storage dependency sets; `pyproject.toml` still uses open-ended lower bounds for `pytest`, `setuptools`, and `boto3`.
 4. Prove backup and restore, not merely object-store connectivity.
 5. Add a real isolation boundary before any untrusted product code can execute.
 6. Obtain independent review of PR #3, re-check exact-head CI and mergeability, then decide whether it is ready to leave Draft.
