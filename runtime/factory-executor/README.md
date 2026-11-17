@@ -27,7 +27,7 @@ The database identity is authoritative. The manifest cannot select or override a
 1. Record or retrieve the product dossier through its task-scoped idempotency key; accept the product's current monotonically increasing dossier version.
 2. Create or retrieve the task using its product-scoped task key.
 3. Create or retrieve the attempt using its task-scoped idempotency key. New attempts remain `queued`.
-4. Refuse execution when a task requires human approval and the exact attempt/scope has no approved `begin_implementation` decision. This preflight happens before lease acquisition.
+4. Refuse execution when a task requires human approval and the exact attempt/scope has no approved `begin_implementation` decision. This preflight happens before lease acquisition, and PostgreSQL independently enforces the same exact-attempt/scope approval check inside the acquisition function.
 5. Acquire a task lease. PostgreSQL issues a monotonically increasing fencing token bound to the task, attempt, and worker ID; acquisition changes the attempt to `running`.
 6. Renew the lease every 10 seconds against a 60-second TTL. Each renewal query has a 5-second client timeout. If renewal fails, terminate the entire child process tree and refuse to start another stage.
 7. Run the product and test scripts with a 15-second timeout and a combined 1 MiB output cap per script.
