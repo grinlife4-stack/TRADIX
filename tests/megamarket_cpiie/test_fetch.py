@@ -1,6 +1,6 @@
 import unittest
 from email.message import Message
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from products.megamarket.cpiie import CPIIERegistry, Source
 from products.megamarket.cpiie.fetch import FetchError, OfficialSourceFetcher, _SameHostRedirectHandler
@@ -119,6 +119,32 @@ class OfficialSourceFetcherTests(unittest.TestCase):
     def test_unknown_source_is_rejected(self):
         with self.assertRaises(KeyError):
             self.fetcher.fetch("missing", allowed_hosts={"policy.example.org"})
+
+    def test_dns_resolution_rejects_private_addresses(self):
+        private_answer = (None, None, None, None, ("10.0.0.8", 443))
+        with patch("products.megamarket.cpiie.fetch.socket.getaddrinfo",
+                   return_value=[private_answer]):
+            with self.assertRaises(FetchError):
+                OfficialSourceFetcher._resolve_public_ip("policy.example.org")
+
+    def test_dns_resolution_pins_public_address(self):
+        public_answer = (None, None, None, None, ("8.8.8.8", 443))
+        with patch("products.megamarket.cpiie.fetch.socket.getaddrinfo",
+                   return_value=[public_answer]):
+            self.assertEqual(
+                OfficialSourceFetcher._resolve_public_ip("policy.example.org"),
+                "8.8.8.8",
+            )
+
+    def test_redirect_handler_rejects_port_change(self):
+        handler = _SameHostRedirectHandler()
+        request = Mock()
+        request.full_url = "https://policy.example.org/terms"
+        with self.assertRaises(FetchError):
+            handler.redirect_request(
+                request, None, 302, "Found", {},
+                "https://policy.example.org:8443/terms",
+            )
 
 
 if __name__ == "__main__":
