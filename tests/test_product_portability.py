@@ -83,6 +83,19 @@ def test_provider_specific_dependency_requires_a_replacement_plan():
     assert any("replacement_plan" in error for error in errors)
 
 
+def test_windows_absolute_evidence_paths_are_rejected_on_posix():
+    manifest = load_manifest()
+    manifest["source"].update({
+        "status": "verified",
+        "evidence_sha256": EVIDENCE_SHA,
+        "evidence_path": "C:\\\\private\\\\evidence.json",
+    })
+
+    errors = validate_manifest(manifest)
+
+    assert "source.evidence_path must be a safe relative path when status is verified" in errors
+
+
 def test_secrets_must_be_excluded_from_source_control_and_exports():
     manifest = load_manifest()
     manifest["secrets"]["export_excluded"] = False
