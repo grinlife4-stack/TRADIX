@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "execution_mode": "trusted-node",
+  "product_dir": ".",
+  "dossier": {
+    "schema_version": 1,
+    "product_type": "service",
+    "mission": "Exercise fail-closed worker behavior when a task lease expires during execution.",
+    "requirements": ["The executor must stop the active child when lease renewal fails."],
+    "acceptance_criteria": ["The active child is terminated before its own completion marker is written."],
+    "lifecycle": {"state": "test"}
+  },
+  "task": {
+    "task_key": "lease-loss-runner-v1",
+    "title": "Verify executor termination after lease loss",
+    "request_text": "Run a deliberately long child process and expire its lease from the CI administrator connection.",
+    "acceptance_criteria": [
+      "The executor detects failed lease renewal.",
+      "The child process is terminated.",
+      "The stale worker cannot finish or transition the task."
+    ],
+    "risk_class": "low",
+    "approval_required": false,
+    "approval_scope": {}
+  },
+  "attempt": {
+    "idempotency_key": "lease-loss-runner-attempt-v1",
+    "worker_role": "implementer",
+    "branch_name": "factory/worker-lease-fencing-v0-1",
+    "metadata": {"test": "lease-loss"}
+  },
+  "scripts": {
+    "run": "run.mjs",
+    "test": "test.mjs",
+    "review": "review.mjs",
+    "health": "health.mjs"
+  }
+}
