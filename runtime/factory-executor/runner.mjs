@@ -244,20 +244,29 @@ async function main() {
         if (this.lost) child.kill("SIGKILL");
       }
     };
-    const heartbeat = setInterval(async () => {
-      if (leaseGuard.lost) return;
-      try {
-        await client.query(
-          "SELECT factory.renew_task_lease($1,$2,$3,$4,$5)",
-          [taskId, attemptId, workerId, lease.token, LEASE_TTL_SECONDS]
-        );
-      } catch (error) {
-        leaseGuard.lost = true;
-        leaseGuard.child?.kill("SIGKILL");
-        process.stderr.write(`FACTORY_EXECUTOR_LEASE_LOST: ${error.message}\\n`);
-      }
+    let heartbeatInFlight = null;
+    const heartbeat = setInterval(() => {
+      if (leaseGuard.lost || heartbeatInFlight) return;
+      heartbeatInFlight = (async () => {
+        try {
+          await client.query(
+            "SELECT factory.renew_task_lease($1,$2,$3,$4,$5)",
+            [taskId, attemptId, workerId, lease.token, LEASE_TTL_SECONDS]
+          );
+        } catch (error) {
+          leaseGuard.lost = true;
+          leaseGuard.child?.kill("SIGKILL");
+          process.stderr.write(`FACTORY_EXECUTOR_LEASE_LOST: ${error.message}\\n`);
+        }
+      })().finally(() => {
+        heartbeatInFlight = null;
+      });
     }, LEASE_HEARTBEAT_MS);
     heartbeat.unref?.();
+    const stopHeartbeat = async () => {
+      clearInterval(heartbeat);
+      if (heartbeatInFlight) await heartbeatInFlight;
+    };
 
     let currentState = "queued";
     try {
@@ -290,6 +299,9 @@ async function main() {
       const healthResult = await runNodeScript(productRoot, healthScript, "product health check", leaseGuard);
       await recordEvidence(client, lease, "health_check", healthResult);
 
+      // Drain any in-flight renewal before finalization. A renewal after lease
+      // release would abort the transaction.
+      await stopHeartbeat();
       // Commit attempt success and the terminal task transition atomically.
       // A failed terminal transition must never leave a succeeded attempt behind.
       await client.query("BEGIN");
@@ -307,6 +319,7 @@ async function main() {
         throw finalizeError;
       }
     } catch (error) {
+      await stopHeartbeat();
       try {
         const attemptState = await client.query(
           "SELECT status FROM factory.task_attempts WHERE task_id=$1 AND attempt_id=$2",
@@ -337,7 +350,7 @@ async function main() {
       }
       throw error;
     } finally {
-      clearInterval(heartbeat);
+      await stopHeartbeat();
     }
 
     const verified = await client.query(
