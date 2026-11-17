@@ -25,6 +25,8 @@ CREATE INDEX IF NOT EXISTS memory_gateway_tokens_project_idx
   ON public.memory_gateway_tokens(project_id) WHERE revoked_at IS NULL;
 
 GRANT USAGE ON SCHEMA public TO memory_gateway_owner, memory_gateway_runtime;
+-- PostgreSQL requires CREATE on the containing schema for function ownership transfer.
+GRANT CREATE ON SCHEMA public TO memory_gateway_owner;
 GRANT SELECT ON public.memory_projects, public.memory_missions, public.memory_decisions,
   public.memory_evidence, public.memory_checkpoints, public.memory_events,
   public.memory_gateway_tokens TO memory_gateway_owner;
@@ -117,6 +119,7 @@ END;
 $function$;
 
 ALTER FUNCTION public.memory_bootstrap_context_for_token(bytea) OWNER TO memory_gateway_owner;
+REVOKE CREATE ON SCHEMA public FROM memory_gateway_owner;
 REVOKE ALL ON FUNCTION public.memory_bootstrap_context_for_token(bytea) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.memory_bootstrap_context_for_token(bytea) TO memory_gateway_runtime;
 
