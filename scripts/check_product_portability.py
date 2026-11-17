@@ -1,6 +1,6 @@
 """Fail-closed design and release gate for product portability manifests.
 
-The design mode checks that a product has documented export, import, dependency,
+Design mode checks that a product has documented export, import, dependency,
 secret, backup, and exit-cost plans. Release mode additionally requires verified
 evidence and a successful restore test on a second isolated target.
 """
@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime
-import hashlib
 import json
+import math
 from pathlib import Path
 import re
-import sys
 from typing import Any
 
 
@@ -115,8 +114,6 @@ def validate_manifest(manifest: Any) -> list[str]:
             if dependency.get("status") not in {"planned", "partial", "verified"}:
                 errors.append(f"{label}.status must be planned, partial, or verified")
             _verified_evidence(dependency, label, errors)
-            if dependency.get("provider_specific") is True and not alternatives and not _nonempty(dependency.get("replacement_plan")):
-                errors.append(f"{label} needs an alternative or replacement plan")
 
     data_assets = manifest.get("data_assets")
     if not isinstance(data_assets, list) or not data_assets:
@@ -181,10 +178,11 @@ def validate_manifest(manifest: Any) -> list[str]:
         amount = exit_cost.get("estimated_amount")
         hours = exit_cost.get("estimated_hours")
         if status in {"estimated", "verified"}:
-            if not isinstance(amount, (int, float)) or isinstance(amount, bool) or amount < 0:
-                errors.append("estimated exit cost requires a non-negative estimated_amount")
-            if not isinstance(hours, (int, float)) or isinstance(hours, bool) or hours < 0:
-                errors.append("estimated exit cost requires non-negative estimated_hours")
+            if not isinstance(amount, (int, float)) or isinstance(amount, bool) or not math.isfinite(amount) or amount < 0:
+                errors.append("estimated exit cost requires a finite non-negative estimated_amount")
+            if not isinstance(hours, (int, float)) or isinstance(hours, bool) or not math.isfinite(hours) or hours < 0:
+                errors.append("estimated exit cost requires finite non-negative estimated_hours")
+            _verified_evidence(exit_cost, "exit_cost", errors)
         elif amount is not None or hours is not None:
             errors.append("unknown exit cost must use null amount and hours")
 
@@ -210,7 +208,7 @@ def release_blockers(manifest: dict[str, Any]) -> list[str]:
 
     backup = manifest.get("backup_restore", {})
     restore_test = backup.get("restore_test", {}) if isinstance(backup, dict) else {}
-    if restore_test.get("status") != "passed":
+    if not isinstance(restore_test, dict) or restore_test.get("status") != "passed":
         blockers.append("restore test has not passed on a second isolated target")
 
     exit_cost = manifest.get("exit_cost", {})
@@ -234,10 +232,8 @@ def assess_portability(manifest: Any, mode: str = "design") -> dict[str, Any]:
     release_ready = design_ready and not blockers
     if mode == "design":
         status = "DESIGN_READY" if design_ready else "INVALID"
-        passed = design_ready
     else:
         status = "RELEASE_READY" if release_ready else "BLOCKED"
-        passed = release_ready
     return {
         "mode": mode,
         "status": status,
