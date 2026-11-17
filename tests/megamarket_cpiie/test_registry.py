@@ -50,7 +50,7 @@ class FakeReviewerVerifier:
 
 class CPIIERegistryTests(unittest.TestCase):
     def setUp(self):
-        self.verifier = TestReviewerVerifier()
+        self.verifier = FakeReviewerVerifier()
         self.registry = CPIIERegistry(reviewer_verifier=self.verifier)
         self.registry.register_source(Source(
             "retailer-terms", "retailer-x", "retailer",
@@ -463,7 +463,7 @@ class CPIIERegistryTests(unittest.TestCase):
         )
 
     def test_stale_source_snapshot_blocks_capability(self):
-        old_registry = CPIIERegistry(reviewer_verifier=TestReviewerVerifier())
+        old_registry = CPIIERegistry(reviewer_verifier=FakeReviewerVerifier())
         try:
             old_registry.register_source(Source(
                 "old-source", "retailer-x", "retailer",
