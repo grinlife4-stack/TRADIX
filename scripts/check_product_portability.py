@@ -207,7 +207,11 @@ def validate_manifest(manifest: Any) -> list[str]:
                 errors.append("estimated exit cost requires a finite non-negative estimated_amount")
             if not isinstance(hours, (int, float)) or isinstance(hours, bool) or not math.isfinite(hours) or hours < 0:
                 errors.append("estimated exit cost requires finite non-negative estimated_hours")
-            _verified_evidence(exit_cost, "exit_cost", errors)
+            if not _valid_sha256(exit_cost.get("evidence_sha256")):
+                errors.append("exit_cost.evidence_sha256 is required when status is estimated or verified")
+            evidence_path = exit_cost.get("evidence_path")
+            if not _nonempty(evidence_path) or Path(evidence_path).is_absolute() or ".." in Path(evidence_path).parts:
+                errors.append("exit_cost.evidence_path must be a safe relative path when status is estimated or verified")
         elif amount is not None or hours is not None:
             errors.append("unknown exit cost must use null amount and hours")
 
