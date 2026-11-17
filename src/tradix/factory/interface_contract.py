@@ -8,7 +8,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+import math
 import re
+from types import MappingProxyType
 from typing import Any, Mapping
 
 
@@ -67,6 +69,31 @@ def _identifier(name: str, value: Any) -> str:
     return value
 
 
+def _freeze_json_value(value: Any, path: str, depth: int = 0) -> Any:
+    """Validate JSON-compatible data and recursively freeze caller-owned containers."""
+    if depth > 32:
+        raise InterfaceContractError(f"{path} exceeds the maximum nesting depth")
+    if value is None or isinstance(value, str) or type(value) in (bool, int):
+        return value
+    if type(value) is float:
+        if not math.isfinite(value):
+            raise InterfaceContractError(f"{path} contains a non-finite number")
+        return value
+    if isinstance(value, Mapping):
+        frozen: dict[str, Any] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise InterfaceContractError(f"{path} object keys must be strings")
+            frozen[key] = _freeze_json_value(item, f"{path}.{key}", depth + 1)
+        return MappingProxyType(frozen)
+    if isinstance(value, (list, tuple)):
+        return tuple(
+            _freeze_json_value(item, f"{path}[{index}]", depth + 1)
+            for index, item in enumerate(value)
+        )
+    raise InterfaceContractError(f"{path} must contain only JSON-compatible values")
+
+
 @dataclass(frozen=True, slots=True)
 class InterfaceMessage:
     """A single auditable message crossing the conversational interface boundary."""
@@ -93,6 +120,7 @@ class InterfaceMessage:
             raise InterfaceContractError("message_type is not permitted for this sender")
         if not isinstance(self.body, Mapping) or not self.body:
             raise InterfaceContractError("body must be a non-empty object")
+        object.__setattr__(self, "body", _freeze_json_value(self.body, "body"))
         if not isinstance(self.created_at, str) or not self.created_at.strip() or len(self.created_at) > 40:
             raise InterfaceContractError("created_at must be a non-empty timestamp string")
         try:
