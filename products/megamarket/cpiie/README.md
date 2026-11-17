@@ -75,6 +75,26 @@ Every human review decision is recorded in `rule_review_history` with the prior 
 
 A fetched document is evidence, not permission. Candidate role suggestions are not legal interpretations. New rules remain `NEEDS_REVIEW`. A rule review is accepted only when the registry is configured with a trusted `ReviewerVerifier` adapter and receives a signed assertion that proves the issuer, signature, audience, key status, authentication time, expiry, subject, company, capability, and decision scope. The verifier must issue a durable signed authorization receipt and re-verify it during each evaluation, including revocation. A reviewer label or local ID is never authentication. Legacy approvals without receipts remain blocked. The repository currently defines the verifier contract and fail-closed enforcement, but **does not yet include a production identity-provider adapter**; therefore the production registry must be initialized without a verifier and all reviews remain blocked until that adapter is implemented and independently configured. The included test verifier is a test double only and must never be used in production. A verified rule must separately declare a structured `ALLOW` or `DENY` effect; the natural-language statement is retained as evidence context and is never parsed as the decision effect. A missing/unknown effect blocks evaluation, and any verified `DENY` takes precedence over every `ALLOW`. The engine does not infer that an API is enabled, an affiliate application is accepted, or commercial content rights exist. Evidence excerpts must match the cited snapshot exactly. SQLite triggers protect records from ordinary UPDATE/DELETE statements, but they are not a cryptographic tamper-proof ledger against an operator who can alter the database file or drop triggers. `ALLOWED` remains an internal policy-engine result, not a live commercial authorization. Do not use it to enable affiliate operations until a production identity provider, policy completeness checks, and independently anchored tamper-evident audit evidence are implemented.
 
+## Tamper-evident audit ledger (new, isolated core)
+
+`audit_ledger.py` provides a versioned canonical-JSON event format, monotonically increasing sequence numbers, SHA-256 hash chaining, chain verification, and signed export/verification through an injected external signer interface. The event table rejects ordinary SQL UPDATE/DELETE statements. Verification fails closed for missing/duplicate/reordered sequence numbers, broken previous-hash links, altered payloads, malformed timestamps, missing keys, invalid signatures, and exports that do not extend a supplied independently retained prior anchor.
+
+Minimal use:
+
+```python
+import sqlite3
+from products.megamarket.cpiie.audit_ledger import AuditLedger, verify_signed_export
+
+db = sqlite3.connect("megamarket-policy.sqlite3")
+ledger = AuditLedger(db)
+ledger.append("source.registered", {"source_id": "source-1"})
+head = ledger.verify()
+signed = ledger.signed_export(external_signer)  # signer/key held outside this DB
+verified_head = verify_signed_export(signed, trusted_verifier, prior_anchor)
+```
+
+The signer is deliberately an injected contract. No production KMS/HSM adapter, private key, external retention service, or independent anchor is configured in this repository. The test signer is HMAC-based and test-only; it is not suitable for production because symmetric verification keys can also sign. The new ledger module is currently a standalone primitive and is **not yet wired into every CPIIE registry mutation/evaluation**. Therefore it does not yet satisfy the complete audit coverage gate and must not be treated as operational evidence until integration and external anchoring are completed. SQLite triggers remain bypassable by an operator controlling the database file.
+
 ## Explicitly not implemented
 
 - No recursive crawling, sitemap discovery, scheduled background polling, or automatic source registration.
