@@ -106,6 +106,21 @@ fi
 
 expect_identity_failure "factory_rt_info_engine" "another product cannot renew TRADIX lease" "lease is missing, expired, or owned by another worker" \
   "SELECT factory.renew_task_lease('$task_id','$attempt_id','lease-worker-old',$token1,30)"
+expect_identity_failure "factory_rt_info_engine" "another product cannot acquire TRADIX lease" "task not found for this product runtime" \
+  "SELECT factory.acquire_task_lease('$task_id','$attempt_id','foreign-worker',30)"
+expect_runtime_failure "wrong worker cannot renew a lease" "lease is missing, expired, or owned by another worker" \
+  "SELECT factory.renew_task_lease('$task_id','$attempt_id','different-worker',$token1,5)"
+expect_runtime_failure "wrong attempt cannot renew a lease" "lease is missing, expired, or owned by another worker" \
+  "SELECT factory.renew_task_lease('$task_id','$next_attempt_id','lease-worker-old',$token1,5)"
+wrong_token=$((token1 + 1))
+expect_runtime_failure "wrong fencing token cannot renew a lease" "lease is missing, expired, or owned by another worker" \
+  "SELECT factory.renew_task_lease('$task_id','$attempt_id','lease-worker-old',$wrong_token,5)"
+renewed_until="$(runtime_psql "SELECT factory.renew_task_lease('$task_id','$attempt_id','lease-worker-old',$token1,5)")"
+if [[ -z "$renewed_until" ]]; then
+  echo "FAIL: current owner could not renew its lease"
+  exit 1
+fi
+echo "PASS: current owner can renew the exact live lease"
 
 runtime_psql "SELECT factory.transition_task_fenced('$task_id',$token1,'lease-worker-old','planned','task.planned','agent','ci-old-worker','lease-ci-idempotency','$attempt_id','{}'::jsonb)" >/dev/null
 echo "PASS: lease owner can perform a fenced transition"
