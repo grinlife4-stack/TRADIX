@@ -154,9 +154,13 @@ class OfficialSourceFetcher:
                 content_type = headers.get_content_type().lower()
                 if content_type not in _ALLOWED_CONTENT_TYPES:
                     raise FetchError(f"unsupported content type: {content_type}")
-                length = headers.get("Content-Length")
-                if length and int(length) > self.max_bytes:
-                    raise FetchError("document exceeds configured size limit")
+                length_values = headers.get_all("Content-Length", [])
+                try:
+                    lengths = [int(value) for value in length_values]
+                except ValueError as exc:
+                    raise FetchError("invalid Content-Length header") from exc
+                if lengths and (len(set(lengths)) != 1 or lengths[0] > self.max_bytes):
+                    raise FetchError("missing, conflicting, or oversized Content-Length")
                 payload = response.read(self.max_bytes + 1)
                 if len(payload) > self.max_bytes:
                     raise FetchError("document exceeds configured size limit")
