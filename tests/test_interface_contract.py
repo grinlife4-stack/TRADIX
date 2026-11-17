@@ -180,6 +180,8 @@ def test_message_body_is_deeply_immutable_after_validation():
         item.body["text"] = "tampered"
     with pytest.raises(TypeError):
         item.body["metadata"]["new"] = "value"
+    with pytest.raises(TypeError):
+        item.body.__ior__({"injected": "value"})
     with pytest.raises(AttributeError):
         item.body["metadata"]["labels"].append("injected")
 
