@@ -356,6 +356,7 @@ GRANT EXECUTE ON FUNCTION factory.release_task_lease(UUID, UUID, TEXT, BIGINT) T
 
 GRANT CREATE ON SCHEMA factory TO factory_executor_owner;
 
+REVOKE ALL ON FUNCTION factory.assert_task_lease(UUID, UUID, TEXT, BIGINT) FROM PUBLIC, factory_runtime;
 ALTER FUNCTION factory.acquire_task_lease(UUID, UUID, TEXT, INTEGER) OWNER TO factory_executor_owner;
 ALTER FUNCTION factory.renew_task_lease(UUID, UUID, TEXT, BIGINT, INTEGER) OWNER TO factory_executor_owner;
 ALTER FUNCTION factory.assert_task_lease(UUID, UUID, TEXT, BIGINT) OWNER TO factory_executor_owner;
@@ -364,7 +365,6 @@ ALTER FUNCTION factory.record_task_evidence_fenced(UUID, UUID, TEXT, BIGINT, TEX
 ALTER FUNCTION factory.finish_task_attempt_fenced(UUID, UUID, TEXT, BIGINT, TEXT) OWNER TO factory_executor_owner;
 ALTER FUNCTION factory.release_task_lease(UUID, UUID, TEXT, BIGINT) OWNER TO factory_executor_owner;
 
-REVOKE ALL ON FUNCTION factory.assert_task_lease(UUID, UUID, TEXT, BIGINT) FROM PUBLIC, factory_runtime;
 REVOKE ALL ON FUNCTION factory.queue_new_task_attempt() FROM PUBLIC;
 REVOKE CREATE ON SCHEMA factory FROM factory_executor_owner;
 
