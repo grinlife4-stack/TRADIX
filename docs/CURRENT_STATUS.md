@@ -54,7 +54,7 @@ A green disposable-database CI run is not evidence that any of these missing cap
 - The superseded software-only master plan was moved to `docs/archive/`; its content was preserved.
 - The architecture baseline was renamed to `docs/FACTORY_ARCHITECTURE_BASELINE_V1_2.md`, matching its declared version 1.2.
 - The large historical log remains in `docs/PROJECT_STATUS.md`; this file is now the concise current snapshot.
-- Maintenance changes include documentation organization, package metadata, generated-file exclusions, three npm lockfiles, and the Node integration workflow's switch to `npm ci`. No runtime source code, database schema/migration, credentials, or deployment was changed. PR #8's Python and PostgreSQL/HTTP CI passed on its exact head.
+- Maintenance changes include documentation organization, package metadata, generated-file exclusions, three npm lockfiles, and the Node integration workflow's switch to `npm ci`. No runtime source code, database schema/migration, credentials, or deployment was changed. PR #8's Python and PostgreSQL/HTTP CI passed on code-bearing head `412ddd3f9a49ed5467684da7937efe20345ec822`; later commits only update status documentation.
 
 ## 6. Next engineering gates
 
@@ -69,5 +69,5 @@ A green disposable-database CI run is not evidence that any of these missing cap
 
 - No Neon schema migration or Production database write was performed.
 - No secrets or repository permissions were changed.
-- No deployment, merge, paid resource, or worker execution was initiated.
+- No deployment, merge, paid resource, or production worker execution was initiated. CI did execute the bounded Hello World fixture.
 - Historical implementation and CI details remain in [`PROJECT_STATUS.md`](PROJECT_STATUS.md); use this file for current state and inspect live GitHub refs before acting.
