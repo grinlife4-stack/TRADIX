@@ -102,6 +102,18 @@ class CPIIERegistryTests(unittest.TestCase):
             self.registry.record_document("retailer-terms", "Terms v2").version, 2
         )
 
+    def test_source_identity_is_immutable_at_database_layer(self):
+        with self.assertRaisesRegex(Exception, "source identity is immutable"):
+            self.registry.connection.execute(
+                "UPDATE sources SET url='https://example.com/changed' "
+                "WHERE source_id='retailer-terms'"
+            )
+        self.registry.connection.rollback()
+        source = self.registry.connection.execute(
+            "SELECT url FROM sources WHERE source_id='retailer-terms'"
+        ).fetchone()
+        self.assertEqual(source["url"], "https://example.com/terms")
+
     def test_source_company_and_role_are_immutable(self):
         for company_id, role in (("other-company", "retailer"),
                                  ("retailer-x", "affiliate-policy")):
