@@ -272,7 +272,12 @@ async function handle(request, response) {
       dispatch_authorized: false,
       task_creation: "not_performed",
       resource_reservation: "not_performed",
-      versions,
+      intake_id: versions.intake_id,
+      versions: {
+        dossier_version: versions.dossier_version,
+        mission_version: versions.mission_version,
+        plan_version: versions.plan_version
+      },
       mission_id: input.mission.mission_id
     });
   }
