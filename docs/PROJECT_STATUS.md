@@ -328,7 +328,7 @@ The product dossier API and mission/plan API are separately tested write paths, 
 - Initial dependency review found no safe basis to delete the four workflows or the two demo paths: each currently exercises a distinct check (Python contract tests, deterministic Python first-run, PostgreSQL-backed Hello World executor/API integration, and manual B2 connectivity verification). The two API services also expose different product-dossier versus mission/plan responsibilities; merging them without a full boundary review would be premature.
 - Remaining follow-up review items: review stale historical status entries and stacked-PR references; inspect API shared boilerplate and package installation/lockfile strategy. These are review candidates, not approved deletions.
 - Verification: Git tree confirms the old active path is absent and the archived path exists. No runtime tests were run because this change only relocates and labels documentation. CI has not yet been run for this maintenance branch.
-- Current maintenance branch head after the documentation move: `b523b236d6cf91ef8700da7ae8810da1b8fc2287`.
+- Commit that removed the old active documentation path: `b523b236d6cf91ef8700da7ae8810da1b8fc2287`. The subsequent status-recording commit was `fc42a5e6ece732e9758b18e249b3ed0938d850fb`; later maintenance commits are recorded in Git history.
 - No PR was opened, no merge was performed, and no production or Neon operation occurred.
 
 
@@ -337,6 +337,6 @@ The product dossier API and mission/plan API are separately tested write paths, 
 - Renamed the active architecture baseline from `docs/FACTORY_ARCHITECTURE_BASELINE_V1_1.md` to `docs/FACTORY_ARCHITECTURE_BASELINE_V1_2.md`.
 - The document already declared version 1.2 in its opening metadata and included the general-purpose, independent-product amendments in sections 16–18. The old V1_1 filename was therefore misleading.
 - Preserved the historical section 15 declaration of baseline version 1.1; it records the earlier baseline before the version 1.2 amendments and was not rewritten as if version 1.2 had always existed.
-- Repository-wide review of the current maintenance branch found no other active file references to the old filename. The status entry was updated to remove this resolved audit item.
+- Reviewed the current documentation set, scripts, workflow definitions, and runtime README files for references to the old filename; no additional active references were found. The status entry was updated to remove this resolved audit item.
 - No runtime code, schema, migration, workflow, test, credential, database, deployment, or paid service was changed by this documentation-only correction.
 - Runtime tests were not run for this rename. The Git tree and commit will be checked after the change.
