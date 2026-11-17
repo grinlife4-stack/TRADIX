@@ -52,3 +52,36 @@ The connected GitHub toolset in this session exposes repository inspection and G
 ## Scope restrictions
 
 MegaMarket/CPIIE remains development-only, manually invoked, and read-only. No retailer or affiliate account, external write, order, payment, email, deployment, or commercial workflow is authorized by this migration manifest.
+
+
+## Completed source-tree and history inspection (2026-11-17)
+
+- Recursive Git tree inspected at exact source HEAD `5b80cfbaf46d9f7ae5290b8a458e12ac7b9ce034`; GitHub returned `truncated=false`.
+- The PR #35 commits endpoint was paginated: page 1 returned 100 commits, page 2 returned 3, and page 3 returned 0. **Total PR commits: 103.** The final commit is the exact source HEAD above. The first returned commit's parent is `511d09c13ed215896114e64a62bd3fcc308f9263`; the final commit's parent is `e2a2ac772f932ac6fb286fc4c3df78098651139f`. The API response gives a continuous parent chain through the listed commits.
+- Source tree contains exactly 22 product-owned paths already listed above, plus the TRADIX factory files described below. Product file list was verified against the recursive tree, not inferred from the manifest.
+
+## Root-level migration classification
+
+| Source path | Decision | Reason |
+|---|---|---|
+| `products/megamarket/**` (8 docs + 6 CPIIE files) | INCLUDE | MegaMarket-owned documentation and implementation |
+| `tests/megamarket_cpiie/**` (7 tests) | INCLUDE | Product-owned test suite |
+| `.gitignore` | ADAPT | Generic Python ignores are reusable; inspect and retain only relevant entries |
+| `.github/workflows/tests.yml` | ADAPT | Generic Python/pytest workflow is reusable, but must run against MegaMarket's own project metadata and tests |
+| `pyproject.toml` | RECREATE, DO NOT COPY | Current package is named `tradix`; its metadata and pytest `testpaths = ["tests"]` describe the factory repository. Create MegaMarket-specific package metadata and explicit test configuration after deciding package layout |
+| `README.md` | REWRITE | Current file identifies TRADIX as the public project entry point |
+| `.github/workflows/verify-backblaze-b2.yml` | EXCLUDE | Factory storage verification workflow, unrelated to MegaMarket |
+| `scripts/verify_backblaze_b2.py` | EXCLUDE | Factory storage utility |
+| `src/tradix/**` | EXCLUDE | TRADIX factory implementation |
+| `docs/AUTONOMOUS_SOFTWARE_FACTORY_MASTER_PLAN.md`, `docs/BACKBLAZE_B2_SETUP.md`, `docs/architecture/**` | EXCLUDE | Factory-level plans, setup, and repository-boundary/migration records |
+
+### Dependency and test findings
+
+- The source `pyproject.toml` declares project name `tradix`, Python `>=3.11`, no runtime dependencies, and optional `dev = ["pytest>=8.0"]` plus `storage = ["boto3>=1.34"]`.
+- The CPIIE files in the product subtree use the Python standard library in the reviewed source. Do not carry the TRADIX `storage` extra or boto3 into MegaMarket without a demonstrated product requirement.
+- Existing generic test workflow uses Python 3.12, installs `-e ".[dev]"`, and runs `python -m pytest -q`. Reuse only after the new MegaMarket `pyproject.toml` has been authored and a clean destination checkout proves the install/test path.
+- Do not copy the Backblaze workflow or factory storage code into MegaMarket.
+
+## Migration readiness update
+
+The source inventory, all 103 PR commits, and root-level ownership classification are now inspected. This closes the earlier uncertainty about PR history count and root configuration scope. It does **not** perform migration: the destination repository is still absent, so no import, destination hash comparison, clean checkout, or destination CI has occurred.
