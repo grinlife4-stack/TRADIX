@@ -1,5 +1,10 @@
 BEGIN;
 
+-- Block new task/attempt writes from racing the preflight and migration.
+-- Lock order matches worker acquisition: task first, then attempt.
+LOCK TABLE factory.tasks IN SHARE ROW EXCLUSIVE MODE;
+LOCK TABLE factory.task_attempts IN SHARE ROW EXCLUSIVE MODE;
+
 -- Migration owner temporarily bypasses forced RLS only inside this transaction
 -- so the preflight sees every project's legacy work. Restore FORCE before commit.
 ALTER TABLE factory.tasks NO FORCE ROW LEVEL SECURITY;
