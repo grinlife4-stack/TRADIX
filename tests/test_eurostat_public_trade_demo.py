@@ -10,7 +10,7 @@ HEADER = (
     "PRODUCT,FLOW,TIME_PERIOD,INDICATORS,OBS_VALUE,OBS_STATUS,UNIT_MULT\n"
 )
 ROWS = (
-    "data,DS-045409,Trade data,I,A,DE,FR,1001,1,2020,VALUE_IN_EUROS,1200,,0\n"
+    "data,DS-045409,Trade data,I,A,DE,FR,8703,1,2020,VALUE_IN_EUROS,1200,,0\n"
     "data,DS-045409,Trade data,I,A,DE,FR,1001,1,2021,VALUE_IN_EUROS,1500,,0\n"
 )
 
@@ -50,7 +50,7 @@ def test_rejects_duplicate_years():
 
 
 def test_rejects_non_csv_or_error_document():
-    with pytest.raises(ValueError, match="expected SDMX-CSV"):
+    with pytest.raises(ValueError, match="Unexpected Eurostat response"):
         parse_sdmx_csv(b"<error>NO_RESULTS</error>", 2020, 2025)
 
 
