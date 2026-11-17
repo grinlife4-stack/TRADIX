@@ -171,12 +171,12 @@ No phase is considered complete without a working artifact and recorded test evi
 
 | Item | Status |
 |---|---|
-| Product direction | Independent sleep and wellness product; scope validation pending |
+| Product direction | Independent sleep and wellness PWA; English, French, and Spanish release scope |
 | Product model | Not fixed; validate against user needs and market evidence |
 | Execution priority | Fastest path to first usable build |
 | Project workspace | `projects/NEXORA/` in the TRADIX repository; brand asset committed; application source import pending |
 | MVP prototype | NEXORA 0.5.1 archive found in Library; 23/23 automated smoke tests and syntax checks pass; source import into this repository remains pending |
-| Content assets | Not selected; rights must be verified |
+| Content assets | Three synthesized prototype ambience tracks; production-quality audio and commercial content rights remain pending |
 | iPad/audio test | Physical iPad/iPhone Safari, background audio, accessibility, and HTTPS deployment remain unverified |
 | Backend | Not selected; minimize for first release |
 | Payments/subscriptions | Not connected |
