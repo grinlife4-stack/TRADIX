@@ -21,7 +21,11 @@
         "name": "Hello World executable",
         "format": "Node.js"
       }
-    ]
+    ],
+    "portability": {
+      "manifest": "portability.json",
+      "status": "planned"
+    }
   },
   "task": {
     "task_key": "hello-world-runner-v1",
