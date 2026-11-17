@@ -9,6 +9,9 @@ description = "Modular Intelligence & Decision Engine"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.scripts]
+mega-market = "mega_market.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 storage = ["boto3>=1.34"]
