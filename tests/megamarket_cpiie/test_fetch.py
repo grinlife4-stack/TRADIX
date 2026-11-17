@@ -309,7 +309,7 @@ class OfficialSourceFetcherTests(unittest.TestCase):
             source_id = f"tls-{hostname}"
             self.registry.register_source(Source(
                 source_id, "company-a", "affiliate-terms",
-                f"https://{hostname}:{port}/terms", "TLS integration fixture",
+                f"https://{hostname}/terms", "TLS integration fixture",
             ))
 
             client_context = (
@@ -335,7 +335,7 @@ class OfficialSourceFetcherTests(unittest.TestCase):
                 host, target_port = address
                 if host == "8.8.8.8":
                     pinned_destinations.append(host)
-                    address = ("127.0.0.1", target_port)
+                    address = ("127.0.0.1", port)
                 return original_create_connection(
                     address, timeout, source_address, **kwargs
                 )
