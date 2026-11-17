@@ -6,7 +6,7 @@ assert.notEqual(process.getuid(), 0, "sandbox must not run as root");
 
 const status = readFileSync("/proc/self/status", "utf8");
 const effectiveCapabilities = status.match(/^CapEff:\s+([0-9a-f]+)$/m)?.[1];
-const noNewPrivileges = status.match(/^NoNewPrivs:\s+(\\d+)$/m)?.[1];
+const noNewPrivileges = status.match(/^NoNewPrivs:\s+(\d+)$/m)?.[1];
 assert.ok(effectiveCapabilities, "effective Linux capabilities must be inspectable");
 assert.match(effectiveCapabilities, /^0+$/, "sandbox must have zero effective Linux capabilities");
 assert.equal(noNewPrivileges, "1", "no-new-privileges must be enforced");
