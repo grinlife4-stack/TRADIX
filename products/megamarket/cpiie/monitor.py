@@ -37,6 +37,7 @@ class PolicyMonitor:
 
     def _migrate_monitor_checks(self) -> None:
         db = self.registry.connection
+        db.execute("BEGIN IMMEDIATE")
         db.execute("""
             CREATE TABLE IF NOT EXISTS cpiie_schema_migrations (
                 version INTEGER PRIMARY KEY,
