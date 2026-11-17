@@ -51,10 +51,10 @@ if docker exec -i "$container_id" psql -X -v ON_ERROR_STOP=1 -U postgres -d trad
   echo "duplicate idempotency key unexpectedly succeeded" >&2; exit 1
 fi
 
-if docker exec -i "$container_id" psql -X -v ON_ERROR_STOP=1 -U memory_gateway_ci -d tradix_test -c "SELECT * FROM public.memory_projects" >/dev/null 2>&1; then
+if docker exec -e PGPASSWORD=ci-only-memory-gateway-password -i "$container_id" psql -X -v ON_ERROR_STOP=1 -U memory_gateway_ci -d tradix_test -c "SELECT * FROM public.memory_projects" >/dev/null 2>&1; then
   echo "runtime login unexpectedly read project table directly" >&2; exit 1
 fi
-result=$(docker exec -i "$container_id" psql -X -qAt -v ON_ERROR_STOP=1 -U memory_gateway_ci -d tradix_test -c "SELECT public.memory_bootstrap_context_for_token(decode('1033fb9607c4fb10b39df080baf1f1b2c8aa0c3de777d279d9f10b506369512f','hex'))->'project'->>'project_key'")
+result=$(docker exec -e PGPASSWORD=ci-only-memory-gateway-password -i "$container_id" psql -X -qAt -v ON_ERROR_STOP=1 -U memory_gateway_ci -d tradix_test -c "SELECT public.memory_bootstrap_context_for_token(decode('1033fb9607c4fb10b39df080baf1f1b2c8aa0c3de777d279d9f10b506369512f','hex'))->'project'->>'project_key'")
 test "$result" = "tradix" || { echo "runtime token lookup failed: $result"; exit 1; }
 
 echo "memory gateway SQL: project scope, least privilege, append-only, and token checks passed"
