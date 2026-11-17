@@ -206,7 +206,7 @@ def verify_evidence_files(manifest: Any, base_dir: Path | None) -> list[str]:
     def walk(value: Any, label: str) -> None:
         if isinstance(value, dict):
             status = value.get("status")
-            requires_evidence = status == "verified" or status == "passed"
+            requires_evidence = status in {"verified", "estimated", "passed"}
             if requires_evidence and "evidence_sha256" in value:
                 relative_path = value.get("evidence_path")
                 if not _nonempty(relative_path):
