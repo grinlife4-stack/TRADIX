@@ -16,6 +16,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24.22.3"
+      - name: Install schema validation dependencies
+        run: npm install --prefix runtime/product-dossier-api --ignore-scripts --no-audit --no-fund
+      - name: Validate hardware inventory and resource request schemas
+        run: node runtime/product-dossier-api/test-hardware-schema.mjs
       - run: node --test runtime/factory-executor/gvisor-runtime.test.mjs
       - run: bash -n tests/gvisor_runtime_integration.sh
       - run: bash -n tests/gvisor_worker_preflight.sh

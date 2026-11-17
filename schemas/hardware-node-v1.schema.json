@@ -1,0 +1,574 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tradix.invalid/schemas/hardware-node-v1.schema.json",
+  "title": "TRADIX Hardware Node Inventory v1",
+  "description": "A verified or quarantined compute-node inventory. Hardware facts and allocatable capacity are deliberately distinct.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "node_id",
+    "status",
+    "observed_at",
+    "source",
+    "host",
+    "cpu",
+    "memory",
+    "accelerators",
+    "storage",
+    "network",
+    "runtime",
+    "health"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "node_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$"
+    },
+    "status": {
+      "enum": [
+        "discovered",
+        "quarantined",
+        "verified",
+        "available",
+        "draining",
+        "offline"
+      ]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_version",
+        "inventory_sha256"
+      ],
+      "properties": {
+        "agent_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "inventory_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "signature_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "architecture"
+      ],
+      "properties": {
+        "os": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kernel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "architecture": {
+          "type": "string",
+          "enum": [
+            "x86_64",
+            "aarch64",
+            "armv7",
+            "riscv64",
+            "unknown"
+          ]
+        },
+        "hostname_alias": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9._-]{1,80}$"
+        },
+        "vendor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "cpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "physical_cores",
+        "logical_threads",
+        "allocatable_millicores",
+        "features"
+      ],
+      "properties": {
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "physical_cores": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "logical_threads": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "allocatable_millicores": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "numa_nodes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_bytes",
+        "available_bytes",
+        "reserved_bytes",
+        "allocatable_bytes"
+      ],
+      "properties": {
+        "total_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "available_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reserved_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "allocatable_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "technology": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ecc": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "accelerators": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "device_id",
+          "kind",
+          "vendor",
+          "model",
+          "memory_total_bytes",
+          "memory_free_bytes",
+          "memory_reserved_bytes",
+          "supported_apis",
+          "health"
+        ],
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "enum": [
+              "gpu",
+              "npu",
+              "tpu",
+              "fpga",
+              "other"
+            ]
+          },
+          "vendor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "architecture": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "memory_total_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "memory_free_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "memory_reserved_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "supported_apis": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "driver_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runtime_versions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "health": {
+            "enum": [
+              "unknown",
+              "healthy",
+              "degraded",
+              "failed"
+            ]
+          }
+        }
+      }
+    },
+    "storage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "volume_id",
+          "kind",
+          "total_bytes",
+          "free_bytes",
+          "allocatable_bytes",
+          "ephemeral",
+          "health"
+        ],
+        "properties": {
+          "volume_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "enum": [
+              "nvme",
+              "ssd",
+              "hdd",
+              "network",
+              "ramdisk",
+              "other"
+            ]
+          },
+          "total_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "free_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "allocatable_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "filesystem": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mount_alias": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ephemeral": {
+            "type": "boolean"
+          },
+          "health": {
+            "enum": [
+              "unknown",
+              "healthy",
+              "degraded",
+              "failed"
+            ]
+          }
+        }
+      }
+    },
+    "network": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "interface_id",
+          "kind",
+          "link_mbps",
+          "health"
+        ],
+        "properties": {
+          "interface_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "enum": [
+              "ethernet",
+              "wifi",
+              "infiniband",
+              "virtual",
+              "other"
+            ]
+          },
+          "link_mbps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "duplex": {
+            "enum": [
+              "full",
+              "half",
+              "unknown"
+            ]
+          },
+          "health": {
+            "enum": [
+              "unknown",
+              "healthy",
+              "degraded",
+              "failed"
+            ]
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "container_runtime",
+        "sandbox_profiles"
+      ],
+      "properties": {
+        "container_runtime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "container_runtime_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sandbox_profiles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "process",
+              "docker",
+              "gvisor",
+              "microvm",
+              "other"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "os_kernel_compatible": {
+          "type": "boolean"
+        }
+      }
+    },
+    "power": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "power_telemetry": {
+          "enum": [
+            "available",
+            "unavailable",
+            "unknown"
+          ]
+        },
+        "estimated_idle_watts": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "measured_load_watts": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "thermal_telemetry": {
+          "enum": [
+            "available",
+            "unavailable",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "overall",
+        "last_heartbeat_at",
+        "checks"
+      ],
+      "properties": {
+        "overall": {
+          "enum": [
+            "unknown",
+            "healthy",
+            "degraded",
+            "failed"
+          ]
+        },
+        "last_heartbeat_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "status"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "status": {
+                "enum": [
+                  "unknown",
+                  "passed",
+                  "failed",
+                  "warning"
+                ]
+              },
+              "evidence_ref": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "labels": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9._-]{1,64}$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 2000
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

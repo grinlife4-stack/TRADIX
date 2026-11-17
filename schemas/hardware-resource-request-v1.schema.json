@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tradix.invalid/schemas/hardware-resource-request-v1.schema.json",
+  "title": "TRADIX Hardware Resource Request v1",
+  "description": "Portable workload resource requirements. Requests capabilities, never a specific vendor or physical host.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "task_id",
+    "runtime_profile",
+    "cpu",
+    "memory",
+    "accelerators",
+    "storage",
+    "network",
+    "limits",
+    "security"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "runtime_profile": {
+      "type": "string",
+      "enum": [
+        "process",
+        "docker",
+        "gvisor",
+        "microvm"
+      ]
+    },
+    "cpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_millicores",
+        "max_millicores"
+      ],
+      "properties": {
+        "architecture": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "x86_64",
+              "aarch64",
+              "armv7",
+              "riscv64"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "required_features": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "min_millicores": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_millicores": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ram_bytes",
+        "hard_limit"
+      ],
+      "properties": {
+        "ram_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "hard_limit": {
+          "type": "boolean"
+        }
+      }
+    },
+    "accelerators": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "count",
+          "min_memory_bytes",
+          "required_api"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "gpu",
+              "npu",
+              "tpu",
+              "fpga",
+              "other"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "min_memory_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "required_api": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required_architecture": {
+            "type": "string"
+          },
+          "required_features": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scratch_bytes",
+        "persistent_bytes"
+      ],
+      "properties": {
+        "scratch_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "persistent_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "min_iops": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "min_throughput_mbps": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile"
+      ],
+      "properties": {
+        "profile": {
+          "enum": [
+            "none",
+            "restricted_egress",
+            "approved_service_access"
+          ]
+        },
+        "policy_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wall_time_seconds",
+        "max_processes",
+        "max_output_bytes",
+        "lease_ttl_seconds"
+      ],
+      "properties": {
+        "wall_time_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_processes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "lease_ttl_seconds": {
+          "type": "integer",
+          "minimum": 5
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "untrusted_code",
+        "require_read_only_source",
+        "secrets_profile"
+      ],
+      "properties": {
+        "untrusted_code": {
+          "type": "boolean"
+        },
+        "require_read_only_source": {
+          "type": "boolean"
+        },
+        "secrets_profile": {
+          "enum": [
+            "none",
+            "task_scoped",
+            "approved_runtime"
+          ]
+        }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "same_node_group": {
+          "type": "string",
+          "minLength": 1
+        },
+        "anti_affinity_group": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowed_node_labels": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9._-]{1,64}$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
