@@ -389,8 +389,19 @@ class CPIIERegistry:
     def export_snapshot(self) -> str:
         """Deterministic JSON snapshot for audit; excludes document body/secrets."""
         result = {}
-        for table in ("sources", "documents", "evidence", "rules", "rule_review_history"):
-            columns = "document_id, source_id, fetched_at, content_sha256, version" if table == "documents" else "*"
-            rows = self.connection.execute(f"SELECT {columns} FROM {table} ORDER BY 1").fetchall()
+        tables = ["sources", "documents", "evidence", "rules", "rule_review_history"]
+        monitor_exists = self.connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='monitor_checks'"
+        ).fetchone()
+        if monitor_exists:
+            tables.append("monitor_checks")
+        for table in tables:
+            columns = (
+                "document_id, source_id, fetched_at, content_sha256, version"
+                if table == "documents" else "*"
+            )
+            rows = self.connection.execute(
+                f"SELECT {columns} FROM {table} ORDER BY 1"
+            ).fetchall()
             result[table] = [dict(row) for row in rows]
         return json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
