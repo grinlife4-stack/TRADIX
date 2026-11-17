@@ -29,21 +29,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Generate npm lockfiles for independent Node packages
-        run: |
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --prefix runtime/factory-executor
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --prefix runtime/mission-plan-api
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --prefix runtime/product-dossier-api
-      - name: Upload generated npm lockfiles
-        uses: actions/upload-artifact@v4
-        with:
-          name: tradix-node-lockfiles
-          path: |
-            runtime/factory-executor/package-lock.json
-            runtime/mission-plan-api/package-lock.json
-            runtime/product-dossier-api/package-lock.json
-          if-no-files-found: error
-          retention-days: 3
       - name: Provision non-privileged schema migration identity
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
@@ -73,9 +58,9 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: bash tests/test_factory_ledger_sql.sh "$POSTGRES_CONTAINER_ID"
       - name: Install product dossier API dependencies
-        run: npm install --prefix runtime/product-dossier-api --ignore-scripts --no-audit --no-fund
+        run: npm ci --prefix runtime/product-dossier-api --ignore-scripts --no-audit --no-fund
       - name: Install factory executor dependencies
-        run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
+        run: npm ci --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
       - name: Execute Hello World through the product runtime
         env:
           DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
@@ -119,7 +104,7 @@ jobs:
           curl --silent --fail http://127.0.0.1:8788/health >/dev/null || { cat /tmp/product-dossier-api.log; exit 1; }
           PRODUCT_DOSSIER_API_URL=http://127.0.0.1:8788 PRODUCT_DOSSIER_API_KEY="$PRODUCT_DOSSIER_API_KEY" node tests/test_product_dossier_api.mjs || { cat /tmp/product-dossier-api.log; exit 1; }
       - name: Install mission plan API dependencies
-        run: npm install --prefix runtime/mission-plan-api --ignore-scripts --no-audit --no-fund
+        run: npm ci --prefix runtime/mission-plan-api --ignore-scripts --no-audit --no-fund
       - name: Run isolated mission and task-plan API integration test
         env:
           DATABASE_URL: postgresql://factory_rt_tradix:ci-only-factory-dossier-password@127.0.0.1:5432/tradix_test?sslmode=disable
