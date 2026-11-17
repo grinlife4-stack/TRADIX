@@ -36,6 +36,7 @@
         "format": { "type": "string", "minLength": 1 },
         "export_procedure": { "type": "string", "minLength": 1 },
         "import_procedure": { "type": "string", "minLength": 1 },
+        "evidence_path": { "type": "string", "minLength": 1 },
         "evidence_sha256": { "$ref": "#/$defs/sha256" }
       }
     },
@@ -53,6 +54,7 @@
           "items": { "type": "string", "minLength": 1 }
         },
         "build_definition": { "type": "string", "minLength": 1 },
+        "evidence_path": { "type": "string", "minLength": 1 },
         "evidence_sha256": { "$ref": "#/$defs/sha256" }
       }
     },
@@ -73,7 +75,8 @@
             "items": { "type": "string", "minLength": 1 }
           },
           "status": { "enum": ["planned", "partial", "verified"] },
-          "evidence_sha256": { "$ref": "#/$defs/sha256" }
+          "evidence_path": { "type": "string", "minLength": 1 },
+        "evidence_sha256": { "$ref": "#/$defs/sha256" }
         }
       }
     },
@@ -91,7 +94,8 @@
           "import_procedure": { "type": "string", "minLength": 1 },
           "integrity_method": { "type": "string", "minLength": 1 },
           "status": { "enum": ["planned", "partial", "verified"] },
-          "evidence_sha256": { "$ref": "#/$defs/sha256" }
+          "evidence_path": { "type": "string", "minLength": 1 },
+        "evidence_sha256": { "$ref": "#/$defs/sha256" }
         }
       }
     },
@@ -105,6 +109,7 @@
         "export_procedure": { "type": "string", "minLength": 1 },
         "import_procedure": { "type": "string", "minLength": 1 },
         "integrity_method": { "type": "string", "minLength": 1 },
+        "evidence_path": { "type": "string", "minLength": 1 },
         "evidence_sha256": { "$ref": "#/$defs/sha256" }
       }
     },
@@ -117,6 +122,7 @@
         "source_control_excluded": { "type": "boolean" },
         "export_excluded": { "type": "boolean" },
         "rebind_procedure": { "type": "string", "minLength": 1 },
+        "evidence_path": { "type": "string", "minLength": 1 },
         "evidence_sha256": { "$ref": "#/$defs/sha256" }
       }
     },
@@ -136,9 +142,11 @@
             "status": { "enum": ["not_run", "passed", "failed"] },
             "target": { "type": ["string", "null"] },
             "tested_at": { "type": ["string", "null"], "format": "date-time" },
-            "evidence_sha256": { "$ref": "#/$defs/sha256" }
+            "evidence_path": { "type": "string", "minLength": 1 },
+        "evidence_sha256": { "$ref": "#/$defs/sha256" }
           }
         },
+        "evidence_path": { "type": "string", "minLength": 1 },
         "evidence_sha256": { "$ref": "#/$defs/sha256" }
       }
     },
@@ -152,6 +160,7 @@
         "estimated_amount": { "type": ["number", "null"], "minimum": 0 },
         "estimated_hours": { "type": ["number", "null"], "minimum": 0 },
         "notes": { "type": "string", "minLength": 1 },
+        "evidence_path": { "type": "string", "minLength": 1 },
         "evidence_sha256": { "$ref": "#/$defs/sha256" }
       }
     }
