@@ -63,7 +63,7 @@ class CPIIERegistryTests(unittest.TestCase):
 
     def review(self, rule_id, reviewer, decision):
         if not reviewer.strip():
-            return self.review(rule_id, reviewer, decision)
+            return self.registry.review_rule(rule_id, reviewer, decision)
         row = self.registry.connection.execute(
             """SELECT r.capability, s.company_id FROM rules r
                JOIN documents d ON d.document_id=r.document_id
@@ -204,27 +204,27 @@ class CPIIERegistryTests(unittest.TestCase):
     def test_rule_cannot_be_verified_without_reviewer(self):
         self.propose()
         with self.assertRaises(ValueError):
-            self.registry.review_rule("rule-1", "", RuleState.VERIFIED)
+            self.review("rule-1", "", RuleState.VERIFIED)
 
     def test_verified_rule_without_explicit_effect_remains_blocked(self):
         self.registry.propose_rule(
             "unspecified-rule", self.doc.document_id, self.evidence,
             "catalog.unspecified", "A statement without a structured effect.",
         )
-        self.registry.review_rule("unspecified-rule", "reviewer", RuleState.VERIFIED)
+        self.review("unspecified-rule", "reviewer", RuleState.VERIFIED)
         result = self.registry.evaluate("catalog.unspecified")
         self.assertEqual(result.state, CapabilityState.BLOCKED_REVIEW)
         self.assertIn("lack an explicit", result.reason)
 
     def test_explicit_deny_blocks_even_when_other_rule_allows(self):
         self.propose("allow-rule", "catalog.mixed")
-        self.registry.review_rule("allow-rule", "reviewer-a", RuleState.VERIFIED)
+        self.review("allow-rule", "reviewer-a", RuleState.VERIFIED)
         self.registry.propose_rule(
             "deny-rule", self.doc.document_id, self.evidence,
             "catalog.mixed", "Do not display product data.",
             effect=PolicyEffect.DENY,
         )
-        self.registry.review_rule("deny-rule", "reviewer-b", RuleState.VERIFIED)
+        self.review("deny-rule", "reviewer-b", RuleState.VERIFIED)
         result = self.registry.evaluate("catalog.mixed")
         self.assertEqual(result.state, CapabilityState.BLOCKED_POLICY_DENY)
         self.assertIn("explicitly denies", result.reason)
@@ -284,12 +284,12 @@ class CPIIERegistryTests(unittest.TestCase):
     def test_reviewer_authority_is_company_and_capability_scoped(self):
         self.propose()
         with self.assertRaisesRegex(ReviewerAuthenticationError, "company"):
-            self.registry.review_rule(
+            self.review(
                 "rule-1", "reviewer|other-company|catalog.display|VERIFIED",
                 RuleState.VERIFIED,
             )
         with self.assertRaisesRegex(ReviewerAuthenticationError, "capability"):
-            self.registry.review_rule(
+            self.review(
                 "rule-1", "reviewer|retailer-x|catalog.delete|VERIFIED",
                 RuleState.VERIFIED,
             )
@@ -322,7 +322,7 @@ class CPIIERegistryTests(unittest.TestCase):
 
     def test_verified_rule_allows_its_capability(self):
         self.propose()
-        self.registry.review_rule("rule-1", "human-reviewer", RuleState.VERIFIED)
+        self.review("rule-1", "human-reviewer", RuleState.VERIFIED)
         self.assertEqual(
             self.registry.evaluate("catalog.display").state,
             CapabilityState.ALLOWED,
@@ -330,7 +330,7 @@ class CPIIERegistryTests(unittest.TestCase):
 
     def test_newer_source_snapshot_invalidates_old_policy_approval(self):
         self.propose()
-        self.registry.review_rule("rule-1", "human-reviewer", RuleState.VERIFIED)
+        self.review("rule-1", "human-reviewer", RuleState.VERIFIED)
         self.assertEqual(
             self.registry.evaluate("catalog.display").state,
             CapabilityState.ALLOWED,
@@ -386,8 +386,8 @@ class CPIIERegistryTests(unittest.TestCase):
 
     def test_review_history_records_each_decision_in_order(self):
         self.propose()
-        self.registry.review_rule("rule-1", " reviewer-a ", RuleState.VERIFIED)
-        self.registry.review_rule("rule-1", "reviewer-b", RuleState.CONFLICT)
+        self.review("rule-1", " reviewer-a ", RuleState.VERIFIED)
+        self.review("rule-1", "reviewer-b", RuleState.CONFLICT)
         history = self.registry.get_review_history("rule-1")
         self.assertEqual(len(history), 2)
         self.assertEqual(history[0]["previous_state"], RuleState.NEEDS_REVIEW.value)
@@ -399,7 +399,7 @@ class CPIIERegistryTests(unittest.TestCase):
 
     def test_review_history_is_append_only(self):
         self.propose()
-        self.registry.review_rule("rule-1", "reviewer", RuleState.VERIFIED)
+        self.review("rule-1", "reviewer", RuleState.VERIFIED)
         with self.assertRaisesRegex(Exception, "append-only"):
             self.registry.connection.execute(
                 "UPDATE rule_review_history SET reviewer='tampered' WHERE rule_id='rule-1'"
@@ -415,14 +415,14 @@ class CPIIERegistryTests(unittest.TestCase):
 
     def test_review_history_is_included_in_audit_snapshot(self):
         self.propose()
-        self.registry.review_rule("rule-1", "reviewer", RuleState.VERIFIED)
+        self.review("rule-1", "reviewer", RuleState.VERIFIED)
         snapshot = self.registry.export_snapshot()
         self.assertIn('"rule_review_history"', snapshot)
         self.assertIn('"reviewer"', snapshot)
 
     def test_conflict_blocks_capability(self):
         self.propose()
-        self.registry.review_rule("rule-1", "human-reviewer", RuleState.CONFLICT)
+        self.review("rule-1", "human-reviewer", RuleState.CONFLICT)
         self.assertEqual(
             self.registry.evaluate("catalog.display").state,
             CapabilityState.BLOCKED_CONFLICT,
@@ -433,7 +433,7 @@ class CPIIERegistryTests(unittest.TestCase):
             "rule-exp", self.doc.document_id, self.evidence,
             "catalog.display", "Temporary permission", "2020-01-01T00:00:00+00:00",
         )
-        self.registry.review_rule("rule-exp", "human-reviewer", RuleState.VERIFIED)
+        self.review("rule-exp", "human-reviewer", RuleState.VERIFIED)
         self.assertEqual(
             self.registry.evaluate("catalog.display").state,
             CapabilityState.BLOCKED_EXPIRED,
