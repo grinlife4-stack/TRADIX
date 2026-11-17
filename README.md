@@ -1,6 +1,6 @@
 # TRADIX
 
-Modular Intelligence & Decision Engine.
+General-purpose production factory.
 
 TRADIX is a general-purpose production factory. Each product has an independent dossier, lifecycle, and evidence trail.
 
