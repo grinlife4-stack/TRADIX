@@ -2,23 +2,32 @@
 
 ## Purpose
 
-This is the first executable vertical slice of Mega Market. It is a local, deterministic analysis core. It does not crawl websites, call marketplace APIs, contact suppliers, publish listings, place orders, accept payments, exchange currencies, or transfer crypto-assets.
+This is the first executable, deterministic analysis core. It is side-effect free. It does not crawl websites, call marketplace APIs, contact suppliers, publish listings, place orders, accept payments, exchange currencies, or transfer crypto-assets.
 
 ## Implemented
 
-- Per-unit economics using Python `Decimal`, with no implicit float conversion or currency conversion.
+- Per-unit economics using Python Decimal only.
 - Explicit inputs for selling price, supplier cost, shipping, marketplace fee, payment fee, advertising, tax, and a returns reserve.
 - Currency consistency validation. Mixed-currency inputs fail closed and must be converted by a separately audited FX adapter before calculation.
 - Evidence provenance and freshness checks.
-- Required evidence categories: demand signal, market price, supplier offer, shipping quote, direct-fulfillment authorization, and compliance review.
-- Candidate outcomes: `hold`, `reject`, or `eligible_for_manual_pilot`.
-- A candidate can never trigger a live operation through this package.
+- Required evidence categories: market price, supplier offer, shipping quote, direct-fulfillment authorization, and compliance review, plus the structured demand assessment.
+- Candidate outcomes: hold, reject, or eligible for manual pilot.
+- A candidate cannot trigger a live operation through this package.
+
+## Demand gate
+
+The candidate decision core consumes the structured demand assessment. By default, either fresh verified direct-sales observations or fresh verified proxy observations can qualify a candidate for a bounded manual pilot. A stricter policy can require direct sales observations only.
+
+Estimates alone, missing observations, stale assessments, and future-dated assessments fail closed. A proxy-only result is not evidence of sales volume; it can only support a small manual validation pilot. The decision output states this limitation.
 
 ## Decision semantics
 
-`eligible_for_manual_pilot` means only that the supplied unit economics meet the configured threshold and every required evidence category has at least one fresh, verified record. It is not a purchase authorization, supplier approval, legal opinion, or proof that demand estimates are accurate.
+Eligible for manual pilot means only that:
+- configured unit-economics thresholds are met;
+- all required market, supplier, shipping, fulfillment, and compliance evidence is fresh and verified;
+- the structured demand assessment is fresh and contains verified observed metrics.
 
-Default evidence freshness is 24 hours. The policy is configurable. Evidence timestamps must be timezone-aware. Unverified, stale, missing, or future-dated evidence prevents eligibility.
+It is not a purchase authorization, supplier approval, legal opinion, or proof that demand estimates are accurate. Human review and separate operational approval remain mandatory.
 
 ## Financial semantics
 
@@ -32,9 +41,9 @@ The calculation does not silently round. Currency-specific rounding belongs at a
 
 ## Not implemented yet
 
-- Market/source connectors and API permission registry.
-- Product identity matching and deduplication.
-- Demand estimation and confidence calibration.
+- Live market/source connectors and API permission registry persistence.
+- Product identity matching and deduplication beyond conservative exact identifiers.
+- Demand forecasting, calibrated probabilities, and confidence intervals.
 - Supplier discovery, contract verification, and service-level monitoring.
 - Country-specific tax, consumer-protection, customs, and product-compliance rules.
 - FX conversion adapter and provenance.

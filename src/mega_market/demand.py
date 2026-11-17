@@ -112,6 +112,11 @@ class DemandAssessment:
     estimate_metrics: tuple[str, ...]
     observed_source_ids: tuple[str, ...]
     estimated_source_ids: tuple[str, ...]
+    assessed_at: datetime
+
+    def __post_init__(self) -> None:
+        if self.assessed_at.tzinfo is None or self.assessed_at.utcoffset() is None:
+            raise ValueError("assessed_at must be timezone-aware")
 
 
 def assess_demand(
@@ -180,4 +185,5 @@ def assess_demand(
         estimate_metrics=estimates,
         observed_source_ids=tuple(sorted({item.source_id for item in usable if item.metric in OBSERVED_METRICS})),
         estimated_source_ids=tuple(sorted({item.source_id for item in usable if item.metric in ESTIMATED_METRICS})),
+        assessed_at=now,
     )

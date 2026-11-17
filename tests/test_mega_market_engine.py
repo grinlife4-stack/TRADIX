@@ -6,10 +6,13 @@ import pytest
 from mega_market import (
     Candidate,
     CandidatePolicy,
+    DemandObservation,
+    DemandPolicy,
     Evidence,
     EvidencePolicy,
     Money,
     UnitEconomicsInput,
+    assess_demand,
     assess_evidence,
     calculate_unit_economics,
     evaluate_candidate,
@@ -54,6 +57,30 @@ def complete_evidence(now: datetime) -> tuple[Evidence, ...]:
             reference=f"fixture://evidence/{item}",
         )
         for index, item in enumerate(required)
+    )
+
+
+def demand_assessment(now: datetime, metric: str = "bestseller_rank"):
+    observation = DemandObservation(
+        product_identity_key="product-1",
+        source_id="market-source",
+        source_record_id="record-1",
+        market_code="DE",
+        metric=metric,  # type: ignore[arg-type]
+        value=Decimal("25"),
+        unit="provider-unit",
+        observed_at=now - timedelta(minutes=5),
+        window_start=now - timedelta(hours=1),
+        window_end=now - timedelta(minutes=5),
+        verified=True,
+        reference="fixture://demand/record-1",
+    )
+    return assess_demand(
+        (observation,),
+        "product-1",
+        "DE",
+        DemandPolicy(),
+        now,
     )
 
 
@@ -118,27 +145,71 @@ def test_evidence_gate_rejects_naive_timestamps() -> None:
         Evidence("demand_signal", "source", datetime(2026, 11, 17), True)
 
 
-def test_candidate_is_held_without_evidence() -> None:
+def test_candidate_is_held_without_evidence_or_demand_assessment() -> None:
     now = datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
     result = evaluate_candidate(Candidate("sku-1", economics()), CandidatePolicy(), now)
     assert result.status == "hold"
     assert "required evidence is missing" in result.reasons
 
 
-def test_candidate_can_only_become_eligible_for_manual_pilot() -> None:
+def test_candidate_can_be_eligible_with_fresh_proxy_evidence_for_manual_pilot() -> None:
     now = datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
-    candidate = Candidate("sku-2", economics(), complete_evidence(now))
+    candidate = Candidate(
+        "sku-2",
+        economics(),
+        complete_evidence(now),
+        demand_assessment(now),
+    )
     result = evaluate_candidate(candidate, CandidatePolicy(), now)
     assert result.status == "eligible_for_manual_pilot"
     assert result.evidence.ready is True
-    assert "manual review" in result.reasons[0]
+    assert result.demand_status == "proxy_observations_only"
+    assert "bounded manual pilot" in result.reasons[0]
+
+
+def test_candidate_requires_direct_sales_when_policy_demands_it() -> None:
+    now = datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+    policy = CandidatePolicy(minimum_demand_evidence="direct_sales_only")
+    result = evaluate_candidate(
+        Candidate("sku-3", economics(), complete_evidence(now), demand_assessment(now)),
+        policy,
+        now,
+    )
+    assert result.status == "hold"
+    assert "direct sales observations" in result.reasons[0]
+
+
+def test_estimates_only_cannot_pass_candidate_gate() -> None:
+    now = datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+    candidate = Candidate(
+        "sku-4",
+        economics(),
+        complete_evidence(now),
+        demand_assessment(now, metric="estimated_units_sold"),
+    )
+    result = evaluate_candidate(candidate, CandidatePolicy(), now)
+    assert result.status == "hold"
+    assert "observed demand evidence" in result.reasons[0]
+
+
+def test_stale_demand_assessment_cannot_pass_candidate_gate() -> None:
+    now = datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
+    candidate = Candidate(
+        "sku-5",
+        economics(),
+        complete_evidence(now),
+        demand_assessment(now - timedelta(hours=2)),
+    )
+    result = evaluate_candidate(candidate, CandidatePolicy(), now)
+    assert result.status == "hold"
+    assert "demand assessment is stale" in result.reasons[0]
 
 
 def test_candidate_is_rejected_when_margin_is_below_policy() -> None:
     now = datetime(2026, 11, 17, 12, 0, tzinfo=timezone.utc)
     policy = CandidatePolicy(minimum_net_margin=Decimal("0.20"))
     result = evaluate_candidate(
-        Candidate("sku-3", economics(), complete_evidence(now)),
+        Candidate("sku-6", economics(), complete_evidence(now), demand_assessment(now)),
         policy,
         now,
     )
