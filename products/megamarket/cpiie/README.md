@@ -11,7 +11,8 @@ This provider-neutral engine is isolated under `products/megamarket/cpiie`; it i
 - Record immutable document snapshots with SHA-256 hashes and per-source versions.
 - Discover candidate policy links from one caller-supplied HTML page. Discovery is bounded, same-origin only, and only proposes candidates; it does not fetch or register them.
 - Suggest candidate roles such as terms, affiliate terms, API docs, feed specs, brand guidelines, privacy, disclosure, country restrictions, and support.
-- Poll registered sources on demand and persist success/failure history, content hash, version, and change status.
+- Poll registered sources on demand and persist success/failure history, content hash, version, and change status. Monitor history is append-only at the SQLite layer, constrained against malformed status records, and included in the audit snapshot.
+- Validate redirect ports and HTTP framing metadata; reject negative, conflicting, or oversized Content-Length values and normalize incomplete HTTP responses as fetch failures.
 - Record evidence locators and excerpts tied to an exact document snapshot.
 - Propose policy rules. Every new rule starts as `NEEDS_REVIEW`.
 - Require an explicit human reviewer to mark a rule `VERIFIED`, `CONFLICT`, or `EXPIRED`.
@@ -52,7 +53,7 @@ for result in results:
 history = monitor.history("company-a-affiliate-terms", limit=20)
 ```
 
-Monitoring is explicit and on-demand. This code does not create a background scheduler or silently poll company websites. A caller must choose the timing and provide the allowlist. Failed checks are recorded and do not replace the last successful document snapshot. A changed hash creates a new immutable document version; unchanged content reuses the existing version.
+Monitoring is explicit and on-demand. This code does not create a background scheduler or silently poll company websites. A caller must choose the timing and provide the allowlist. Failed checks are recorded and do not replace the last successful document snapshot. A changed hash creates a new immutable document version; unchanged content reuses the existing version. Monitor history cannot be updated or deleted through SQLite, and malformed success/failure records are rejected. Audit exports include monitor history when monitoring has been initialized.
 
 ## Source identity and review audit
 
