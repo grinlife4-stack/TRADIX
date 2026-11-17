@@ -166,3 +166,18 @@ Reuses the current immutable image and executor lifecycle while switching the OC
 - Existing Docker sandbox remains the only implemented sandbox backend.
 - This document is a design proposal, not an implementation or verification record.
 - The next coding task, after this design is reviewed, is a minimal adapter contract plus manifest validation and fail-closed unit tests. Runtime integration must wait for a disposable Linux worker with a pinned, preconfigured `runsc`.
+
+
+## 12. Real-worker integration probe
+
+The normal GitHub-hosted CI job cannot establish that a real `runsc` runtime is installed. A prepared disposable Linux x86_64 worker must run the explicit integration probe:
+
+```bash
+docker build --pull --file runtime/factory-executor/sandbox/Dockerfile --tag tradix-node-sandbox:24.22.3 .
+export FACTORY_SANDBOX_IMAGE="$(docker image inspect --format '{{.Id}}' tradix-node-sandbox:24.22.3)"
+bash tests/gvisor_runtime_integration.sh
+```
+
+The probe checks Docker runtime registration, exact local image identity, starts a bounded no-network container with `--runtime=runsc`, verifies `HostConfig.Runtime` reports `runsc`, and checks its output and exit status. It cleans up its container even on failure.
+
+This probe is intentionally not run on an arbitrary hosted or shared runner. The worker must be dedicated and disposable, have gVisor installed from a pinned and integrity-verified release by an administrator, and have Docker configured for `runsc`. Passing this probe is necessary but not sufficient for production approval; the complete factory lifecycle and security acceptance suite must also run through gVisor.
