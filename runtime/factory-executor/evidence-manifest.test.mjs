@@ -21,12 +21,13 @@ const env = {
 test("writes a deterministic manifest with per-file hashes and PR metadata", async () => {
   const root = await mkdtemp(join(tmpdir(), "tradix-evidence-"));
   try {
-    await mkdir(join(root, "nested"));
-    await writeFile(join(root, "nested", "test.txt"), "verified-output\n");
+    const evidence = join(root, "evidence");
+    await mkdir(join(evidence, "nested"), { recursive: true });
+    await writeFile(join(evidence, "nested", "test.txt"), "verified-output\n");
     const eventPath = join(root, "event.json");
     await writeFile(eventPath, JSON.stringify({ pull_request: { number: 22 } }));
     const result = await buildEvidenceManifest({
-      directory: join(root, "evidence"),
+      directory: evidence,
       env: { ...env, GITHUB_EVENT_PATH: eventPath },
       now: new Date("2026-11-17T10:00:00.000Z")
     });
