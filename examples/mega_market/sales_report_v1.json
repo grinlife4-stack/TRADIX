@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "report_id": "synthetic-demo-report-2026-11",
+  "source_id": "demo-sales-source",
+  "permission_reference": "fixture://demo/permission",
+  "market_code": "DE",
+  "generated_at": "2026-11-17T00:00:00Z",
+  "period_start": "2026-11-01T00:00:00Z",
+  "period_end": "2026-11-16T23:59:59Z",
+  "coverage_complete": true,
+  "records": [
+    {
+      "record_id": "demo-line-units",
+      "product_identity_key": "gtin:04006381333931",
+      "metric": "units_sold",
+      "value": "18",
+      "unit": "units"
+    },
+    {
+      "record_id": "demo-line-transactions",
+      "product_identity_key": "gtin:04006381333931",
+      "metric": "transaction_count",
+      "value": "12",
+      "unit": "transactions"
+    }
+  ]
+}
