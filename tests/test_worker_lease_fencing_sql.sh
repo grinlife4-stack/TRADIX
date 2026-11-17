@@ -167,7 +167,7 @@ SELECT factory.record_task_evidence_fenced(
   'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
   1, 'text/plain', 'test_report', 'write held open across expiry', '{}'::jsonb
 );
-SELECT pg_sleep(8);
+SELECT pg_sleep(10);
 COMMIT;
 SQL
 ) >/tmp/tradix-lease-write-lock.log 2>&1 &
@@ -182,7 +182,7 @@ if [[ -z "$lock_token_new" || "$lock_token_new" -le "$lock_token_old" ]]; then
   cat /tmp/tradix-lease-write-lock.log
   exit 1
 fi
-if [[ "$lock_elapsed_ms" -lt 1000 ]]; then
+if [[ "$lock_elapsed_ms" -lt 2500 ]]; then
   echo "FAIL: takeover was not serialized behind the in-flight fenced write"
   echo "elapsed_ms=$lock_elapsed_ms"
   cat /tmp/tradix-lease-write-lock.log
