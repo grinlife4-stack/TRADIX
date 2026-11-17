@@ -62,8 +62,6 @@ export default {
         [digest]
       );
       const context = result.rows[0]?.context ?? null;
-      // Constant-time digest comparison is performed by PostgreSQL bytea equality
-      // only after the API hashes a fixed-length token; no raw token reaches SQL.
       if (!context) return json({ error: "unauthorized" }, 401);
       return json(context);
     } catch (error) {
