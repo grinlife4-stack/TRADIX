@@ -133,6 +133,22 @@ if [[ "$approval_state" != "queued/queued/0" ]]; then
 fi
 echo "PASS: unapproved work remains queued without a lease"
 
+expect_identity_failure "factory_approver_tradix" "human approval identity cannot acquire a worker lease" "session identity is not an isolated product runtime" \
+  "SELECT factory.acquire_task_lease('$approval_task_id','$approval_attempt_id','approver-worker',30)"
+identity_psql "factory_approver_tradix" "INSERT INTO factory.task_approvals (task_id,attempt_id,approval_round,action,decision,decided_by,rationale,decision_scope) VALUES ('$approval_task_id','$approval_attempt_id',1,'begin_implementation','approved','ci-human-approver','explicit approval test','{"scope":"exact-attempt"}'::jsonb)"
+approval_token="$(runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$approval_task_id','$approval_attempt_id','approved-worker',30)")"
+if [[ -z "$approval_token" ]]; then
+  echo "FAIL: exact approved attempt did not acquire a lease"
+  exit 1
+fi
+runtime_psql "BEGIN; SELECT factory.transition_task_fenced('$approval_task_id',$approval_token,'approved-worker','planned','task.planned','agent','approved-worker','approval-plan','$approval_attempt_id','{}'::jsonb); SELECT factory.transition_task_fenced('$approval_task_id',$approval_token,'approved-worker','implementing','task.implementing','agent','approved-worker','approval-implement','$approval_attempt_id','{}'::jsonb); SELECT factory.finish_task_attempt_fenced('$approval_task_id','$approval_attempt_id','approved-worker',$approval_token,'failed'); SELECT factory.transition_task_fenced('$approval_task_id',$approval_token,'approved-worker','failed','task.failed','agent','approved-worker','approval-finish','$approval_attempt_id','{}'::jsonb); SELECT factory.release_task_lease('$approval_task_id','$approval_attempt_id','approved-worker',$approval_token); COMMIT" >/dev/null
+approval_final_state="$(psql -c "SELECT t.status || '/' || a.status || '/' || (SELECT count(*) FROM factory.task_leases l WHERE l.task_id=t.task_id)::text FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_id='$approval_task_id'")"
+if [[ "$approval_final_state" != "failed/failed/0" ]]; then
+  echo "FAIL: approved attempt did not complete the controlled lifecycle: $approval_final_state"
+  exit 1
+fi
+echo "PASS: exact human approval permits controlled lease acquisition and execution"
+
 token1="$(runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$task_id','$attempt_id','lease-worker-old',5)")"
 if [[ -z "$token1" ]]; then
   echo "FAIL: first worker did not receive a fencing token"
