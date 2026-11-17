@@ -248,6 +248,14 @@ class CPIIERegistry:
             BEFORE UPDATE OF effect ON rules
             WHEN OLD.effect IS NOT NEW.effect
             BEGIN SELECT RAISE(ABORT, 'rule content is immutable'); END;
+        CREATE TRIGGER IF NOT EXISTS rules_effect_guard_insert
+            BEFORE INSERT ON rules
+            WHEN NEW.effect NOT IN ('ALLOW', 'DENY', 'UNSPECIFIED')
+            BEGIN SELECT RAISE(ABORT, 'invalid policy effect'); END;
+        CREATE TRIGGER IF NOT EXISTS rules_effect_guard_update
+            BEFORE UPDATE OF effect ON rules
+            WHEN NEW.effect NOT IN ('ALLOW', 'DENY', 'UNSPECIFIED')
+            BEGIN SELECT RAISE(ABORT, 'invalid policy effect'); END;
         """)
         self.connection.commit()
 
@@ -469,7 +477,7 @@ class CPIIERegistry:
         if any(row["state"] != RuleState.VERIFIED.value for row in rows):
             return Evaluation(capability, CapabilityState.BLOCKED_REVIEW, ids,
                               "one or more rules have not been manually verified")
-        if any(row["effect"] == PolicyEffect.UNSPECIFIED.value for row in rows):
+        if any(row["effect"] not in (PolicyEffect.ALLOW.value, PolicyEffect.DENY.value) for row in rows):
             return Evaluation(capability, CapabilityState.BLOCKED_REVIEW, ids,
                               "one or more verified rules lack an explicit ALLOW or DENY effect")
         if any(row["effect"] == PolicyEffect.DENY.value for row in rows):
