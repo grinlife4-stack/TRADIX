@@ -25,7 +25,7 @@ const dossier = {
   mission: "API integration dossier fixture",
   requirements: ["persist through the controlled dossier writer"],
   acceptance_criteria: ["same idempotency key returns the same version"],
-  lifecycle: { state: "active" },
+  lifecycle: { state: "pending_approval" },
   resource_plan: { execution: "isolated" }
 };
 const idempotencyKey = `dossier-api-ci-${Date.now()}`;
@@ -81,5 +81,17 @@ const wrongProductType = await fetch(`${base}/v1/dossier`, {
 });
 assert.equal(wrongProductType.status, 422);
 assert.deepEqual(await wrongProductType.json(), { error: "invalid_product_dossier" });
+
+const activeBypass = await fetch(`${base}/v1/dossier`, {
+  method: "POST",
+  headers: {
+    authorization: `Bearer ${key}`,
+    "content-type": "application/json",
+    "idempotency-key": `${idempotencyKey}-active-bypass`
+  },
+  body: JSON.stringify({ ...dossier, lifecycle: { state: "active" } })
+});
+assert.equal(activeBypass.status, 422);
+assert.deepEqual(await activeBypass.json(), { error: "invalid_product_dossier" });
 
 console.log("product dossier API integration checks passed");

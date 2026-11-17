@@ -71,6 +71,15 @@ if [[ "$(psql -At -c "SELECT count(*) FROM factory.project_identities WHERE proj
 fi
 
 # The restricted product runtime is exercised by the manifest-driven executor step in CI.
+psql -c "GRANT factory_onboarding_authority TO factory_rt_onboarding WITH SET FALSE, INHERIT FALSE" >/dev/null
+if [[ "$(psql -qAt -c "SELECT pg_catalog.pg_has_role('factory_rt_onboarding','factory_onboarding_authority','SET')")" != "f" ]]; then
+  echo "FAIL: onboarding authority marker must not be SETtable"
+  exit 1
+fi
+if [[ "$(psql -qAt -c "SELECT pg_catalog.pg_has_role('factory_rt_tradix','factory_onboarding_authority','MEMBER')")" != "f" ]]; then
+  echo "FAIL: ordinary product runtime unexpectedly has onboarding authority"
+  exit 1
+fi
 psql -c "ALTER ROLE factory_rt_onboarding PASSWORD 'ci-only-onboarding-password'" >/dev/null
 
 psql <<'SQL'
@@ -414,8 +423,8 @@ expect_failure "runtime cannot truncate ledger tables" "permission denied" \
 
 
 # Product dossier snapshots are versioned, project-scoped, idempotent, and append-only.
-dossier_v1='{"schema_version":1,"product_type":"software","mission":"TRADIX dossier isolation test","requirements":["independent product record"],"acceptance_criteria":["versioned and isolated"],"lifecycle":{"state":"active"}}'
-dossier_v2='{"schema_version":1,"product_type":"software","mission":"TRADIX dossier revision two","requirements":["independent product record","revision history"],"acceptance_criteria":["versioned and isolated"],"lifecycle":{"state":"active"}}'
+dossier_v1='{"schema_version":1,"product_type":"software","mission":"TRADIX dossier isolation test","requirements":["independent product record"],"acceptance_criteria":["versioned and isolated"],"lifecycle":{"state":"pending_approval"}}'
+dossier_v2='{"schema_version":1,"product_type":"software","mission":"TRADIX dossier revision two","requirements":["independent product record","revision history"],"acceptance_criteria":["versioned and isolated"],"lifecycle":{"state":"pending_approval"}}'
 
 first_dossier_version=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '$dossier_v1'::jsonb, 'tradix-dossier-v1'); RESET SESSION AUTHORIZATION")
 retry_dossier_version=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '$dossier_v1'::jsonb, 'tradix-dossier-v1'); RESET SESSION AUTHORIZATION")
@@ -426,7 +435,7 @@ if [[ "$first_dossier_version" != "1" || "$retry_dossier_version" != "1" || "$se
 fi
 echo "PASS: product dossier snapshots are versioned and idempotent"
 
-physical_dossier='{"schema_version":1,"product_type":"physical","mission":"Independent physical product dossier","requirements":["no Git repository required"],"acceptance_criteria":["physical product dossier can be versioned"],"lifecycle":{"state":"active"},"resource_plan":{"equipment":[]}}'
+physical_dossier='{"schema_version":1,"product_type":"physical","mission":"Independent physical product dossier","requirements":["no Git repository required"],"acceptance_criteria":["physical product dossier can be versioned"],"lifecycle":{"state":"pending_approval"},"resource_plan":{"equipment":[]}}'
 physical_version=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_physical_goods; SELECT factory.record_product_dossier('44444444-4444-4444-8444-444444444444', '$physical_dossier'::jsonb, 'physical-dossier-v1'); RESET SESSION AUTHORIZATION")
 if [[ "$physical_version" != "1" ]]; then
   echo "FAIL: physical product without a Git repository could not receive its own dossier"
@@ -445,8 +454,10 @@ echo "PASS: physical product dossier creation and cross-product isolation"
 
 expect_failure "runtime cannot write a dossier for another project" "not authorized for this product dossier" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('22222222-2222-4222-8222-222222222222', '$dossier_v1'::jsonb, 'cross-project-dossier')"
+expect_failure "ordinary runtime cannot activate a dossier without onboarding authority" "only the isolated factory onboarding authority may create an active dossier" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '{\"schema_version\":1,\"product_type\":\"software\",\"mission\":\"unauthorized active dossier\",\"requirements\":[\"x\"],\"acceptance_criteria\":[\"y\"],\"lifecycle\":{\"state\":\"active\"}}'::jsonb, 'active-dossier-bypass')"
 expect_failure "dossier product type must match its registered product" "dossier product_type does not match the registered product" \
-  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '{\"schema_version\":1,\"product_type\":\"physical\",\"mission\":\"wrong type\",\"requirements\":[\"x\"],\"acceptance_criteria\":[\"y\"],\"lifecycle\":{}}'::jsonb, 'wrong-product-type')"
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '{\"schema_version\":1,\"product_type\":\"physical\",\"mission\":\"wrong type\",\"requirements\":[\"x\"],\"acceptance_criteria\":[\"y\"],\"lifecycle\":{\"state\":\"pending_approval\"}}'::jsonb, 'wrong-product-type')"
 expect_failure "dossier must include required minimum fields" "product dossier does not satisfy the minimum schema" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '{\"schema_version\":1,\"product_type\":\"software\",\"requirements\":[\"x\"],\"acceptance_criteria\":[\"y\"],\"lifecycle\":{}}'::jsonb, 'missing-mission')"
 

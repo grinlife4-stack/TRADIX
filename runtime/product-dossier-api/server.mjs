@@ -86,6 +86,8 @@ function mapDatabaseError(error) {
   if (message.includes("idempotency key reused with different content")) return [409, "idempotency_conflict"];
   if (
     message.includes("minimum schema") ||
+    message.includes("product dossier lifecycle state") ||
+    message.includes("only the isolated factory onboarding authority") ||
     message.includes("product_type does not match") ||
     message.includes("invalid product dossier arguments")
   ) return [422, "invalid_product_dossier"];

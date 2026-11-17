@@ -36,11 +36,12 @@ npm start
 - `GET /v1/dossier/versions?limit=20`: newest versions, limit 1–100.
 - `POST /v1/dossier`: append a new dossier version or return the existing version for an exact idempotent retry. Requires `Idempotency-Key` and a JSON dossier body.
 
-The POST body follows `schemas/product-dossier-v1.schema.json`. The `project_id` field is forbidden because product identity is server-bound. Product type must match the database registry. A reused idempotency key with different content returns HTTP 409.
+The POST body follows `schemas/product-dossier-v1.schema.json`. The `project_id` field is forbidden because product identity is server-bound. Product type must match the database registry. Ordinary product runtime identities may only append dossiers in `pending_approval`; attempting to write `active` returns HTTP 422. Activation is reserved for the separately provisioned factory onboarding authority and is not available through this API. A reused idempotency key with different content returns HTTP 409.
 
 ## Authority and limits
 
 - Writes call only `factory.record_product_dossier`; the runtime LOGIN has no direct table-write privilege.
+- The database function enforces lifecycle authorization, so direct SQL calls cannot bypass the API's pending-approval restriction.
 - Dossier versions are append-only and isolated by forced RLS.
 - The API does not create products, change identity mappings, record human approvals, manage credentials, deploy software, or run production migrations.
 - Product-specific operational data and binary artifacts remain in their own systems; the dossier is the versioned product specification and planning record.

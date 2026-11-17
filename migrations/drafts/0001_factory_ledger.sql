@@ -93,6 +93,7 @@ BEGIN
               WHEN v_runtime THEN 'factory_runtime'::NAME
               ELSE 'factory_approval_authority'::NAME
           END
+          AND granted_role.rolname <> 'factory_onboarding_authority'::NAME
     ) THEN
         RAISE EXCEPTION 'project identity has an unexpected role membership';
     END IF;
@@ -760,6 +761,16 @@ BEGIN
         RAISE EXCEPTION 'product dossier does not satisfy the minimum schema';
     END IF;
 
+    IF jsonb_typeof(p_dossier #> '{lifecycle,state}') IS DISTINCT FROM 'string'
+       OR p_dossier #>> '{lifecycle,state}' NOT IN ('pending_approval', 'active') THEN
+        RAISE EXCEPTION 'product dossier lifecycle state must be pending_approval or active';
+    END IF;
+
+    IF p_dossier #>> '{lifecycle,state}' = 'active'
+       AND NOT pg_catalog.pg_has_role(session_user, 'factory_onboarding_authority', 'MEMBER') THEN
+        RAISE EXCEPTION 'only the isolated factory onboarding authority may create an active dossier';
+    END IF;
+
     PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_project_id::text, 0));
 
     SELECT product_type INTO v_product_type
@@ -834,8 +845,13 @@ BEGIN
         WHERE rolname = 'factory_identity_admin'
           AND NOT rolcanlogin AND NOT rolinherit AND NOT rolsuper
           AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolbypassrls
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_roles
+        WHERE rolname = 'factory_onboarding_authority'
+          AND NOT rolcanlogin AND NOT rolinherit AND NOT rolsuper
+          AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolbypassrls
     ) THEN
-        RAISE EXCEPTION 'approval or identity-admin role missing or unsafe; run the role bootstrap';
+        RAISE EXCEPTION 'approval, identity-admin, or onboarding role missing or unsafe; run the role bootstrap';
     END IF;
 
     IF NOT pg_catalog.pg_has_role(CURRENT_USER, 'factory_executor_owner', 'SET') THEN
@@ -975,6 +991,7 @@ CREATE POLICY project_identity_self ON factory.project_identities
                     JOIN pg_catalog.pg_roles granted_role ON granted_role.oid = m.roleid
                     WHERE pg_catalog.pg_get_userbyid(m.member) = session_user
                       AND granted_role.rolname <> 'factory_runtime'
+                      AND granted_role.rolname <> 'factory_onboarding_authority'
                 )
             )
             OR

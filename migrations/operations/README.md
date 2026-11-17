@@ -29,7 +29,9 @@ Run `create_product_logins.sql` as a trusted administrator with `CREATEROLE`, su
 
 The script creates roles without passwords. Set credentials out-of-band using your approved secret manager. If using psql interactively, use its `\\password role_name` command; never put passwords in SQL files, command arguments, chat, Git, or shell history.
 
-The runtime role must inherit only `factory_runtime`; the approval role must inherit only `factory_approval_authority`. The provisioner must be NOINHERIT and receive only SET-only membership in `factory_identity_admin`.
+The ordinary product runtime role must inherit only `factory_runtime`; the approval role must inherit only `factory_approval_authority`. The provisioner must be NOINHERIT and receive only SET-only membership in `factory_identity_admin`.
+
+The factory's own trusted onboarding runner is a separate system identity, not a normal product API identity. After registering its dedicated system product and mapping its runtime LOGIN, a trusted administrator may grant that LOGIN membership in `factory_onboarding_authority` with `SET FALSE, INHERIT FALSE`. This marker grants no inherited SQL privileges and cannot be activated with `SET ROLE`; the SECURITY DEFINER dossier writer checks membership against the immutable session login. Only this isolated runner identity may create an `active` dossier directly for the controlled first-run path. Never grant this marker role to ordinary product runtimes, and never use the onboarding LOGIN in a Product Dossier API instance. Ordinary product dossier writes must remain `pending_approval` until the separate approval-decision path exists.
 
 ## Step 2: register the product
 
