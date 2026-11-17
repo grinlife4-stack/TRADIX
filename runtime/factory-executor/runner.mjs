@@ -10,7 +10,7 @@ const MAX_OUTPUT_BYTES = 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 15000;
 const EXECUTOR_ID = "tradix-factory-executor-v0.1";
 const LEASE_TTL_SECONDS = 60;
-const LEASE_HEARTBEAT_MS = 15000;
+const LEASE_HEARTBEAT_MS = 10000;
 
 function fail(message) {
   throw new Error(message);
