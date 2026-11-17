@@ -1,5 +1,20 @@
 BEGIN;
 
+-- Do not silently adopt in-flight work that predates lease ownership.
+-- Operators must drain or explicitly reconcile these tasks before rollout.
+DO $lease_rollout_preflight$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM factory.task_attempts WHERE status = 'running'
+    ) OR EXISTS (
+        SELECT 1 FROM factory.tasks
+        WHERE status IN ('planned','implementing','testing','review','candidate','deployed_test')
+    ) THEN
+        RAISE EXCEPTION 'cannot enable worker lease fencing while non-queued work exists; drain or reconcile active attempts first';
+    END IF;
+END;
+$lease_rollout_preflight$;
+
 -- Worker leases and monotonic fencing tokens.
 -- This migration is forward-only. It does not grant any runtime direct table access.
 
