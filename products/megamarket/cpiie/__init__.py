@@ -6,6 +6,7 @@ reviewed rules. It deliberately performs no network access or external actions.
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import re
 import sqlite3
@@ -79,9 +80,18 @@ def canonicalize_url(url: str) -> str:
         raise ValueError("official source URL must use HTTPS")
     if parts.username or parts.password:
         raise ValueError("credentials are not allowed in source URLs")
-    host = parts.hostname.encode("idna").decode("ascii").lower()
-    if not re.fullmatch(r"[a-z0-9.-]+", host):
-        raise ValueError("invalid source hostname")
+    host = parts.hostname.encode("idna").decode("ascii").lower().rstrip(".")
+    if not re.fullmatch(r"[a-z0-9.-]+", host) or "." not in host:
+        raise ValueError("source must use a fully qualified public hostname")
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        raise ValueError("IP-literal source URLs are not allowed")
+    if host == "localhost" or host.endswith((".localhost", ".local", ".internal",
+                                              ".test", ".invalid", ".onion")):
+        raise ValueError("local or reserved source hostname is not allowed")
     port = parts.port
     netloc = host if port in (None, 443) else f"{host}:{port}"
     path = parts.path or "/"
