@@ -1,10 +1,9 @@
-# NEXORA — Calm-Pattern Wellness App
+# NEXORA — Sleep & Wellness App
 
 **Project ID:** NEXORA-WELLNESS  
 **Working product name:** NEXORA (subject to name, domain, trademark, and store checks)  
 **Product category:** Sleep, relaxation, mindfulness, and guided meditation  
-**Reference product:** Calm  
-**Direction:** User-approved; execute a close functional/business-model adaptation without copying protected material  
+**Direction:** Independent product definition; validate scope and business assumptions through NEXORA-specific research and testing  
 **Dossier status:** Execution-first MVP definition  
 **Date:** 2026-11-17  
 **Control record:** TRADIX repository  
@@ -12,13 +11,13 @@
 **Product runtime:** Not deployed  
 **Commercial status:** Not launched
 
-> The purpose of NEXORA is to get the first usable product running quickly by following an already successful product model. This is not an open-ended search for a novel wellness concept. Reuse familiar, proven product patterns while creating original branding, code, content, and assets. This dossier does not authorize paid services, production launch, or collection of unnecessary sensitive data.
+> The purpose of NEXORA is to define and deliver a focused, usable sleep and wellness product. Product decisions must be based on user needs, technical feasibility, legal requirements, and evidence gathered for NEXORA. This dossier does not authorize paid services, production launch, or collection of unnecessary sensitive data.
 
 ## 1. Product decision
 
-NEXORA will build a Calm-style consumer wellness application.
+NEXORA will build an independent consumer application focused on sleep, relaxation, mindfulness, and guided meditation. The precise feature set must be validated against user needs and delivery constraints.
 
-The product should provide the familiar core experience:
+The initial product hypothesis includes the following capabilities, subject to prioritization and validation:
 - Sleep stories and sleep audio.
 - Relaxing music and ambient soundscapes.
 - Guided meditation.
@@ -27,7 +26,7 @@ The product should provide the familiar core experience:
 - Favorites, recently played, and simple user progress.
 - Free entry experience and a premium content membership, once payment and legal requirements are ready.
 
-Do not spend time searching for a different product category or inventing a new wellness methodology. The task is to reproduce the useful product structure and user journey with original implementation and legally usable content.
+Do not copy a competitor's product structure or assume that another company's feature set, user journey, or business model is right for NEXORA. Prioritize only capabilities supported by user evidence and a realistic first-release scope.
 
 ## 2. Execution principle
 
@@ -80,8 +79,7 @@ Do not spend time searching for a different product category or inventing a new 
 
 ## 5. Content and intellectual property
 
-- Calm is a reference for product structure and user experience, not a source of assets.
-- Never copy Calm's recordings, scripts, text, artwork, branding, or protected UI assets.
+- Create original product identity, interface, recordings, scripts, text, and artwork. Do not copy competitors' protected branding, content, or UI assets.
 - Use original content or commercially licensed content with documented rights for intended territories and distribution channels.
 - Each asset must have a record of creator/source, license, allowed use, territory, attribution requirement, expiry/revocation status, and file hash.
 - Start with a small library; content volume must not block the first functioning product.
@@ -103,10 +101,7 @@ The first technical spike must focus only on the risks that can block the MVP: i
 
 ## 7. Monetization
 
-Follow the familiar Calm-style model:
-- Free tier with a limited but genuinely usable starter experience.
-- Premium monthly and annual membership for the broader library and programs.
-- Subscription activation is deferred until pricing, payment provider, cancellation, refund, tax, and consumer-law requirements are verified for the launch market.
+Treat monetization as an unvalidated business hypothesis, not a fixed product decision. Evaluate free access, one-time purchases, subscriptions, partnerships, or other suitable models using customer research and unit economics. Do not select or implement a payment model until pricing, demand, provider availability, cancellation, refund, tax, and consumer-law requirements are verified for the launch market.
 
 Do not build a complex billing system before the core app works. Do not present subscription screens as functional before payment integration is real.
 
@@ -117,7 +112,6 @@ Track revenue and unit economics after real users exist:
 - Net revenue after store/payment fees and content costs.
 - Acquisition cost and payback period when acquisition spending begins.
 
-Calm's revenue is evidence that the category can support a business; it is not a forecast for NEXORA.
 
 ## 8. Privacy, safety, and legal boundaries
 
@@ -170,8 +164,8 @@ No phase is considered complete without a working artifact and recorded test evi
 
 | Item | Status |
 |---|---|
-| Product direction | Approved: Calm-style sleep, relaxation, meditation app |
-| Product model | Follow proven Calm structure; no new concept exploration |
+| Product direction | Independent sleep and wellness product; scope validation pending |
+| Product model | Not fixed; validate against user needs and market evidence |
 | Execution priority | Fastest path to first usable build |
 | Product repository | Not created |
 | MVP code | Not started |
