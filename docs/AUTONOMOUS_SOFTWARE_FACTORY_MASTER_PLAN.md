@@ -166,3 +166,21 @@ Do not mark a task DONE or VERIFIED based on intention, generated code, or an un
 ## 9. Change-control rule for this document
 
 This file is the durable master checklist, not a chat summary. Update task status only when supported by evidence. Add dated execution notes or link to immutable commits, PRs, CI runs, and deployment IDs. Preserve unresolved items; do not silently remove them. Keep project-specific technical specifications in their own project repositories and link them here rather than copying them into a shared document.
+
+
+## 10. Dated product status transfer — MegaMarket / CPIIE (2026-11-17)
+
+**Control-plane summary:** MegaMarket remains an isolated product namespace. CPIIE work is recorded in its product branch and PR; it must not be merged into the generic TRADIX factory core.
+
+- **Current maturity:** Level 2 — tested technical prototype. Work has entered Level 3 (security and independent audit), but Level 3 is not complete.
+- **Current PR:** [PR #35 — CPIIE read-only core](https://github.com/grinlife4-stack/TRADIX/pull/35). Status at transfer: open, Draft, unmerged.
+- **Exact tested revision:** `a55134bc8a0fb9c6c2545ff7d1f0a5eb440fe3a9`.
+- **CI evidence:** [Run #575 / 44099775173](https://github.com/grinlife4-stack/TRADIX/actions/runs/44099775173), completed successfully on that exact SHA: 93 tests passed and 4 subtests passed.
+- **Implemented scope:** read-only evidence/policy registry foundation; reviewer-authentication contract; reviewer role and exact company/capability/context binding; signed receipt verification contract; fail-closed behavior for absent/invalid/revoked/expired receipts; review history metadata; SQLite guard triggers; tests for scope, replay, revocation, missing verifier, and direct SQL bypass.
+- **Critical gaps:** no production identity-provider adapter is connected; no independent signed append-only audit ledger/export/anchor has been completed; SQLite triggers are not tamper-proof; no live vendor/store or affiliate integration has been performed; no real commercial workflow has been authorized or executed.
+- **Interpretation:** the 93+4 passing tests demonstrate the tested code behavior only. They do not establish production readiness, legal permission, live data quality, commercial viability, or revenue.
+- **Operational gate:** keep CPIIE development/read-only. Do not enable reviews against real business decisions, affiliate registration, vendor API mutation, orders, purchases, payments, email, or commercial operation until the independent audit ledger and a real identity-provider integration are implemented and verified, followed by authorized real-data validation.
+- **Next product action:** complete an append-only hash-chained audit ledger with canonical serialization, signature verification, independent external anchoring, and tamper/replay/missing-key tests. Then select and integrate a real identity provider only with explicit approval.
+- **Project-specific source of truth:** implementation details, tests, and operationalization plan remain in [PR #35](https://github.com/grinlife4-stack/TRADIX/pull/35) and its branch `feat/megamarket-cpiie-readonly-core-2026-11-17`. This master plan records only the control-plane status and links to the product work.
+
+This entry is a status transfer, not an approval to merge PR #35 or to start commercial operations.
