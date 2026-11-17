@@ -15,7 +15,9 @@ CREATE TABLE factory.task_leases (
     fencing_token BIGINT NOT NULL CHECK (fencing_token > 0),
     expires_at TIMESTAMPTZ NOT NULL,
     acquired_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
-    renewed_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+    renewed_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    FOREIGN KEY (attempt_id, task_id)
+        REFERENCES factory.task_attempts(attempt_id, task_id) ON DELETE RESTRICT
 );
 
 REVOKE ALL ON factory.task_lease_counters, factory.task_leases FROM PUBLIC, factory_runtime;
