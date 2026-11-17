@@ -299,10 +299,26 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, factory, pg_temp
 AS $transition_fenced$
+DECLARE
+    v_attempt_status TEXT;
 BEGIN
     PERFORM factory.assert_task_lease(
         p_task_id, p_attempt_id, p_worker_id, p_fencing_token
     );
+    SELECT status INTO v_attempt_status
+    FROM factory.task_attempts
+    WHERE task_id = p_task_id AND attempt_id = p_attempt_id;
+
+    IF v_attempt_status = 'running' THEN
+        NULL;
+    ELSIF (v_attempt_status = 'succeeded' AND p_to_state = 'verified')
+       OR (v_attempt_status = 'failed' AND p_to_state = 'failed')
+       OR (v_attempt_status = 'cancelled' AND p_to_state = 'cancelled') THEN
+        NULL;
+    ELSE
+        RAISE EXCEPTION 'task transition is not permitted for attempt status %', v_attempt_status;
+    END IF;
+
     RETURN factory.transition_task(
         p_task_id, p_to_state, p_event_type, p_actor_type, p_actor_ref,
         p_idempotency_key, p_attempt_id, p_payload
@@ -329,10 +345,21 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, factory, pg_temp
 AS $evidence_fenced$
+DECLARE
+    v_attempt_status TEXT;
 BEGIN
     PERFORM factory.assert_task_lease(
         p_task_id, p_attempt_id, p_worker_id, p_fencing_token
     );
+    SELECT status INTO v_attempt_status
+    FROM factory.task_attempts
+    WHERE task_id = p_task_id AND attempt_id = p_attempt_id
+    FOR UPDATE;
+
+    IF v_attempt_status IS DISTINCT FROM 'running' THEN
+        RAISE EXCEPTION 'evidence can only be recorded for a running attempt';
+    END IF;
+
     RETURN factory.record_task_evidence(
         p_task_id, p_attempt_id, p_artifact_type, p_object_uri, p_sha256,
         p_byte_size, p_content_type, p_evidence_type, p_description, p_metadata
