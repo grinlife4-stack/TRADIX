@@ -448,7 +448,7 @@ expect_failure "runtime dossier writes cannot bypass the pending-approval gate" 
 expect_failure "runtime cannot write a dossier for another project" "not authorized for this product dossier" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('22222222-2222-4222-8222-222222222222', '$dossier_v1'::jsonb, 'cross-project-dossier')"
 expect_failure "dossier product type must match its registered product" "dossier product_type does not match the registered product" \
-  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '{\"schema_version\":1,\"product_type\":\"physical\",\"mission\":\"wrong type\",\"requirements\":[\"x\"],\"acceptance_criteria\":[\"y\"],\"lifecycle\":{}}'::jsonb, 'wrong-product-type')"
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '{\"schema_version\":1,\"product_type\":\"physical\",\"mission\":\"wrong type\",\"requirements\":[\"x\"],\"acceptance_criteria\":[\"y\"],\"lifecycle\":{\"state\":\"pending_approval\"}}'::jsonb, 'wrong-product-type')"
 expect_failure "dossier must include required minimum fields" "product dossier does not satisfy the minimum schema" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.record_product_dossier('11111111-1111-4111-8111-111111111111', '{\"schema_version\":1,\"product_type\":\"software\",\"requirements\":[\"x\"],\"acceptance_criteria\":[\"y\"],\"lifecycle\":{}}'::jsonb, 'missing-mission')"
 
