@@ -231,8 +231,9 @@ async function main() {
       "SELECT factory.record_product_dossier((SELECT project_id FROM factory.project_identities WHERE role_name=session_user AND identity_kind='runtime'), $1::jsonb, $2) AS version",
       [JSON.stringify(dossier), `${taskKey}:dossier-v1`]
     );
-    if (Number(dossierResult.rows[0]?.version) !== 1) {
-      fail("Product dossier version 1 was not confirmed");
+    const dossierVersion = Number(dossierResult.rows[0]?.version);
+    if (!Number.isInteger(dossierVersion) || dossierVersion < 1) {
+      fail("A valid product dossier version was not confirmed");
     }
 
     const taskResult = await client.query(
