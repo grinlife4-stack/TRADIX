@@ -50,6 +50,36 @@ class OfficialSourceFetcherTests(unittest.TestCase):
             self.fetcher.fetch("policy", allowed_hosts=set())
         self.opener.open.assert_not_called()
 
+    def test_fetch_rejects_allowlist_suffix_spoof(self):
+        with self.assertRaises(FetchError):
+            self.fetcher.fetch(
+                "policy", allowed_hosts={"policy.example.org.attacker.invalid"}
+            )
+        self.opener.open.assert_not_called()
+
+    def test_read_timeout_is_normalized_to_fetch_error(self):
+        class TimeoutResponse(FakeResponse):
+            def read(self, limit=-1):
+                raise TimeoutError("simulated socket read timeout")
+
+        self.opener.open.return_value = TimeoutResponse()
+        with self.assertRaisesRegex(FetchError, "response read failed"):
+            self.fetcher.fetch(
+                "policy", allowed_hosts={"policy.example.org"}
+            )
+
+    def test_read_oserror_is_normalized_to_fetch_error(self):
+        class BrokenResponse(FakeResponse):
+            def read(self, limit=-1):
+                raise OSError("simulated connection reset")
+
+        self.opener.open.return_value = BrokenResponse()
+        with self.assertRaisesRegex(FetchError, "response read failed"):
+            self.fetcher.fetch(
+                "policy", allowed_hosts={"policy.example.org"}
+            )
+
+
     def test_fetch_records_snapshot_and_receipt(self):
         self.opener.open.return_value = FakeResponse()
         receipt = self.fetcher.fetch(
@@ -151,6 +181,14 @@ class OfficialSourceFetcherTests(unittest.TestCase):
             with self.assertRaises(FetchError):
                 OfficialSourceFetcher._resolve_public_ip("policy.example.org")
 
+    def test_dns_resolution_rejects_mixed_public_and_private_answers(self):
+        public_answer = (None, None, None, None, ("8.8.8.8", 443))
+        private_answer = (None, None, None, None, ("192.168.1.10", 443))
+        with patch("products.megamarket.cpiie.fetch.socket.getaddrinfo",
+                   return_value=[public_answer, private_answer]):
+            with self.assertRaises(FetchError):
+                OfficialSourceFetcher._resolve_public_ip("policy.example.org")
+
     def test_dns_resolution_pins_public_address(self):
         public_answer = (None, None, None, None, ("8.8.8.8", 443))
         with patch("products.megamarket.cpiie.fetch.socket.getaddrinfo",
@@ -169,6 +207,20 @@ class OfficialSourceFetcherTests(unittest.TestCase):
                 request, None, 302, "Found", {},
                 "https://policy.example.org:8443/terms",
             )
+
+    def test_redirect_handler_rejects_userinfo_and_host_suffix_spoof(self):
+        handler = _SameHostRedirectHandler()
+        request = Mock()
+        request.full_url = "https://policy.example.org/terms"
+        for target in (
+            "https://user@policy.example.org/terms",
+            "https://policy.example.org.attacker.invalid/terms",
+        ):
+            with self.subTest(target=target):
+                with self.assertRaises(FetchError):
+                    handler.redirect_request(
+                        request, None, 302, "Found", {}, target
+                    )
 
 
 if __name__ == "__main__":
