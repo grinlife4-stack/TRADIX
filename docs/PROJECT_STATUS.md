@@ -325,3 +325,15 @@ The product dossier API and mission/plan API are separately tested write paths, 
 - Important limit: the database approval authority is implemented and tested, but a human-facing approval interface and individual human authentication/control-plane integration are not yet implemented. A database login identifies the approval principal; it does not, by itself, prove which person used a shared credential.
 - Approval records do not create executable tasks, authorize dispatch, reserve resources, deploy, or start autonomous execution. An approved intake is only a recorded decision.
 - No Neon migration, Production write, main-branch update, deployment, secret change, paid resource, or PR merge was performed.
+
+
+## 10. Conversational AI interface foundation (2026-11-17)
+
+- Added `docs/AI_INTERFACE_ARCHITECTURE.md`: conversational AI is the primary user interface; TRADIX remains the durable authority for state, policy, capabilities, execution, and evidence.
+- Added provider-neutral message contract in `src/tradix/factory/interface_contract.py` and versioned JSON Schema in `schemas/ai-interface-message-v1.schema.json`.
+- Added structured factory-need records for missing information, capability, resource, policy decision, reserved approval, and blocked dependency.
+- Added sender/type restrictions: interface AI can submit mission proposals, status/capability queries, and clarification answers; it cannot emit factory results or approvals. Factory results and needs have distinct message types.
+- Added unit tests for project scoping, message identity, sender/type authorization, malformed needs, and timestamp validation.
+- The protocol is a contract foundation, not a deployed conversational gateway. No live model provider, durable inbox/outbox, Neon migration, deployment, production write, or merge was performed.
+- The existing intake API still records proposed snapshots and stops at its current pending-approval boundary. The new interface contract does not bypass it.
+- Latest branch head and CI must be refreshed before claiming verification.
