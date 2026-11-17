@@ -1,4 +1,4 @@
-# Mega Market Demand Evidence v0.1
+# Mega Market Demand Evidence v0.2
 
 ## Purpose
 
@@ -10,22 +10,22 @@ Represent demand-related observations without collapsing incomparable metrics in
 - transaction_count
 - units_sold
 
-These are treated as direct sales observations only when the source record is fresh, verified, and has a provenance reference. Their availability does not establish that the same sales volume will repeat.
+These are the only metric classes accepted by the commercial decision gate. To pass the current prototype's manual-pilot gate, at least one observation must be fresh, verified, positive, and have a provenance reference. A zero-only record does not qualify.
 
-### Proxy observations
+### Discovery-only proxy observations
 - bestseller_rank
 - search_interest_index
 - review_count
 - stockout_rate
 
-These can indicate attention, ranking, review activity, or availability pressure. None is a direct unit-sales count. Rank is ordinal and provider/category-specific; search indices are provider-specific; review counts are not equivalent to purchases.
+These can help discover and prioritize products for investigation. They are not direct unit-sales counts and cannot pass the commercial decision gate.
 
 ### Estimates
 - estimated_units_sold
 - estimated_revenue
 - advertising_attributed_sales_estimate
 
-These remain estimates even when the source record is verified as a genuine estimate. Verification confirms provenance, not that the estimate equals actual sales.
+These remain estimates even when the source record is verified as a genuine estimate. Verification confirms provenance, not that the estimate equals actual sales. Estimates cannot pass the commercial decision gate.
 
 ## Implemented controls
 
@@ -38,8 +38,10 @@ These remain estimates even when the source record is verified as a genuine esti
 - Classification into direct sales observations, proxy observations, estimates only, or insufficient evidence.
 - Original metric observations are preserved individually. No cross-metric addition, universal demand score, or sales-volume inference is performed.
 
-## Interpretation
+## Interpretation and limits
 
-The status is an evidence classification, not a recommendation to buy, list, or stock a product. Even direct sales observations require market context, period comparability, refunds/cancellations treatment, and source coverage analysis before forecasting.
+A positive direct-sales observation establishes only that a source reports sales in a stated period. It does not prove that the same sales volume will repeat.
 
-A later forecasting model must be trained and validated against actual outcomes for the target market and category. It must publish calibration error and confidence intervals and must not silently promote estimates to observed facts.
+The current prototype does not yet enforce a market/category-specific minimum number of units, observation-window duration, source coverage, treatment of cancellations/refunds, or seasonality. These requirements must be set and validated for the chosen marketplace and category before scaling or automated purchasing/listing.
+
+The assessment is an evidence classification, not a forecast or an authorization to buy, list, or stock a product.

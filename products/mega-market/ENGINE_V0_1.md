@@ -1,8 +1,8 @@
-# Mega Market Analysis Core v0.1
+# Mega Market Analysis Core v0.2
 
 ## Purpose
 
-This is the first executable, deterministic analysis core. It is side-effect free. It does not crawl websites, call marketplace APIs, contact suppliers, publish listings, place orders, accept payments, exchange currencies, or transfer crypto-assets.
+This is a deterministic, side-effect-free analysis core. It does not crawl websites, call marketplace APIs, contact suppliers, publish listings, place orders, accept payments, exchange currencies, or transfer crypto-assets.
 
 ## Implemented
 
@@ -10,24 +10,29 @@ This is the first executable, deterministic analysis core. It is side-effect fre
 - Explicit inputs for selling price, supplier cost, shipping, marketplace fee, payment fee, advertising, tax, and a returns reserve.
 - Currency consistency validation. Mixed-currency inputs fail closed and must be converted by a separately audited FX adapter before calculation.
 - Evidence provenance and freshness checks.
-- Required evidence categories: market price, supplier offer, shipping quote, direct-fulfillment authorization, and compliance review, plus the structured demand assessment.
+- Required evidence categories: market price, supplier offer, shipping quote, direct-fulfillment authorization, and compliance review, plus structured demand evidence.
 - Candidate outcomes: hold, reject, or eligible for manual pilot.
 - A candidate cannot trigger a live operation through this package.
 
-## Demand gate
+## Demand evidence and decision gate
 
-The candidate decision core consumes the structured demand assessment. By default, either fresh verified direct-sales observations or fresh verified proxy observations can qualify a candidate for a bounded manual pilot. A stricter policy can require direct sales observations only.
+Demand signals have two distinct jobs:
 
-Estimates alone, missing observations, stale assessments, and future-dated assessments fail closed. A proxy-only result is not evidence of sales volume; it can only support a small manual validation pilot. The decision output states this limitation.
+1. Discovery: rank, search interest, reviews, stockout rate, and third-party sales estimates may help find products worth investigating. They do not establish actual sales.
+2. Commercial qualification: only fresh, verified, positive direct-sales observations (transaction_count or units_sold) can pass the demand gate for a bounded manual pilot.
+
+Proxy metrics and estimates are never substitutes for sales records. Missing, zero-only, stale, unverified, or future-dated direct-sales evidence leaves the candidate on hold.
+
+A positive sales observation is not proof that the volume will repeat. The current prototype does not yet enforce market-specific minimum units, observation-window length, source coverage, refunds/cancellations treatment, or seasonality. Those thresholds must be defined and validated for the chosen marketplace and category before any scaled or automated operation.
 
 ## Decision semantics
 
-Eligible for manual pilot means only that:
+eligible_for_manual_pilot means only that:
 - configured unit-economics thresholds are met;
 - all required market, supplier, shipping, fulfillment, and compliance evidence is fresh and verified;
-- the structured demand assessment is fresh and contains verified observed metrics.
+- at least one fresh, verified, positive direct-sales observation is present.
 
-It is not a purchase authorization, supplier approval, legal opinion, or proof that demand estimates are accurate. Human review and separate operational approval remain mandatory.
+It is not a purchase authorization, supplier approval, legal opinion, forecast, or authorization to scale. Human review and separate operational approval remain mandatory.
 
 ## Financial semantics
 
