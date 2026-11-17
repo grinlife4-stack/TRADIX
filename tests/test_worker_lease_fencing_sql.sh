@@ -161,6 +161,8 @@ if [[ "$same_worker_token" != "$token1" ]]; then
 fi
 echo "PASS: repeated acquisition by the same live worker is idempotent"
 
+expect_runtime_failure "running attempt cannot mark its task verified" "task transition is not permitted for attempt status running and target state verified" \
+  "SELECT factory.transition_task_fenced('$task_id',$token1,'lease-worker-old','verified','task.verified','agent','lease-worker-old','premature-verified','$attempt_id','{}'::jsonb)"
 expect_identity_failure "factory_rt_info_engine" "another product cannot renew TRADIX lease" "lease is missing, expired, or owned by another worker" \
   "SELECT factory.renew_task_lease('$task_id','$attempt_id','lease-worker-old',$token1,30)"
 expect_identity_failure "factory_rt_info_engine" "another product cannot acquire TRADIX lease" "task not found for this product runtime" \
