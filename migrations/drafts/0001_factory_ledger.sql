@@ -760,6 +760,13 @@ BEGIN
         RAISE EXCEPTION 'product dossier does not satisfy the minimum schema';
     END IF;
 
+    -- Runtime dossier writes are intake proposals only. A runtime caller must
+    -- not promote a product to an active lifecycle state without a separate,
+    -- approval-controlled writer path.
+    IF p_dossier #>> '{lifecycle,state}' IS DISTINCT FROM 'pending_approval' THEN
+        RAISE EXCEPTION 'product dossier lifecycle must remain pending_approval until an approval-controlled writer exists';
+    END IF;
+
     PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_project_id::text, 0));
 
     SELECT product_type INTO v_product_type
