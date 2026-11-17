@@ -16,6 +16,8 @@ from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
+from .reviewer_auth import ReviewerVerifier, authorize_review, verify_review_receipt
+
 
 class RuleState(StrEnum):
     NEEDS_REVIEW = "NEEDS_REVIEW"
@@ -123,7 +125,9 @@ def canonicalize_url(url: str) -> str:
 class CPIIERegistry:
     """SQLite-backed registry. No fetching, scraping, or outbound interaction."""
 
-    def __init__(self, database: str | Path = ":memory:") -> None:
+    def __init__(self, database: str | Path = ":memory:",
+                 reviewer_verifier: ReviewerVerifier | None = None) -> None:
+        self.reviewer_verifier = reviewer_verifier
         self.connection = sqlite3.connect(str(database))
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
@@ -174,7 +178,17 @@ class CPIIERegistry:
             state TEXT NOT NULL,
             expires_at TEXT,
             reviewer TEXT,
-            reviewed_at TEXT
+            reviewed_at TEXT,
+            reviewer_issuer TEXT,
+            reviewer_subject TEXT,
+            reviewer_key_id TEXT,
+            reviewer_assertion_id TEXT,
+            reviewer_company_id TEXT,
+            reviewer_capabilities TEXT,
+            reviewer_decisions TEXT,
+            reviewer_authenticated_at TEXT,
+            reviewer_expires_at TEXT,
+            reviewer_receipt TEXT
         );
         CREATE INDEX IF NOT EXISTS rules_capability_idx ON rules(capability);
         CREATE TABLE IF NOT EXISTS rule_review_history (
@@ -183,7 +197,17 @@ class CPIIERegistry:
             previous_state TEXT NOT NULL,
             decision TEXT NOT NULL,
             reviewer TEXT NOT NULL,
-            reviewed_at TEXT NOT NULL
+            reviewed_at TEXT NOT NULL,
+            reviewer_issuer TEXT,
+            reviewer_subject TEXT,
+            reviewer_key_id TEXT,
+            reviewer_assertion_id TEXT,
+            reviewer_company_id TEXT,
+            reviewer_capabilities TEXT,
+            reviewer_decisions TEXT,
+            reviewer_authenticated_at TEXT,
+            reviewer_expires_at TEXT,
+            reviewer_receipt TEXT
         );
         CREATE INDEX IF NOT EXISTS rule_review_history_rule_idx
             ON rule_review_history(rule_id, review_id);
@@ -243,6 +267,69 @@ class CPIIERegistry:
             self.connection.execute(
                 "ALTER TABLE rules ADD COLUMN effect TEXT NOT NULL DEFAULT 'UNSPECIFIED'"
             )
+        # Migrate existing databases. Legacy reviewer labels are deliberately
+        # left without signed receipts and therefore cannot authorize evaluation.
+        review_columns = (
+            "reviewer_issuer", "reviewer_subject", "reviewer_key_id",
+            "reviewer_assertion_id", "reviewer_company_id", "reviewer_capabilities",
+            "reviewer_decisions", "reviewer_authenticated_at", "reviewer_expires_at",
+            "reviewer_receipt",
+        )
+        for table in ("rules", "rule_review_history"):
+            present = {
+                row["name"] for row in self.connection.execute(f"PRAGMA table_info({table})")
+            }
+            for column in review_columns:
+                if column not in present:
+                    self.connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+        self.connection.executescript("""
+        DROP TRIGGER IF EXISTS rules_review_fields_guard;
+        DROP TRIGGER IF EXISTS rules_review_history_append;
+        CREATE TRIGGER rules_review_fields_guard
+            BEFORE UPDATE OF state, reviewer, reviewed_at,
+                reviewer_issuer, reviewer_subject, reviewer_key_id,
+                reviewer_assertion_id, reviewer_company_id, reviewer_capabilities,
+                reviewer_decisions, reviewer_authenticated_at, reviewer_expires_at,
+                reviewer_receipt ON rules
+            WHEN NEW.state NOT IN ('VERIFIED', 'CONFLICT', 'EXPIRED')
+              OR NEW.reviewer IS NULL OR length(trim(NEW.reviewer)) = 0
+              OR NEW.reviewed_at IS NULL OR length(trim(NEW.reviewed_at)) = 0
+              OR NEW.reviewer_issuer IS NULL OR length(trim(NEW.reviewer_issuer)) = 0
+              OR NEW.reviewer_subject IS NULL OR length(trim(NEW.reviewer_subject)) = 0
+              OR NEW.reviewer_key_id IS NULL OR length(trim(NEW.reviewer_key_id)) = 0
+              OR NEW.reviewer_assertion_id IS NULL OR length(trim(NEW.reviewer_assertion_id)) = 0
+              OR NEW.reviewer_company_id IS NULL OR length(trim(NEW.reviewer_company_id)) = 0
+              OR NEW.reviewer_capabilities IS NULL OR length(trim(NEW.reviewer_capabilities)) = 0
+              OR NEW.reviewer_decisions IS NULL OR length(trim(NEW.reviewer_decisions)) = 0
+              OR NEW.reviewer_authenticated_at IS NULL OR length(trim(NEW.reviewer_authenticated_at)) = 0
+              OR NEW.reviewer_expires_at IS NULL OR length(trim(NEW.reviewer_expires_at)) = 0
+              OR NEW.reviewer_receipt IS NULL OR length(trim(NEW.reviewer_receipt)) = 0
+            BEGIN SELECT RAISE(ABORT, 'review requires authenticated reviewer authority receipt'); END;
+        CREATE TRIGGER rules_review_history_append
+            AFTER UPDATE OF state, reviewer, reviewed_at,
+                reviewer_issuer, reviewer_subject, reviewer_key_id,
+                reviewer_assertion_id, reviewer_company_id, reviewer_capabilities,
+                reviewer_decisions, reviewer_authenticated_at, reviewer_expires_at,
+                reviewer_receipt ON rules
+            WHEN OLD.state IS NOT NEW.state
+              OR OLD.reviewer IS NOT NEW.reviewer
+              OR OLD.reviewed_at IS NOT NEW.reviewed_at
+              OR OLD.reviewer_receipt IS NOT NEW.reviewer_receipt
+            BEGIN
+                INSERT INTO rule_review_history
+                    (rule_id, previous_state, decision, reviewer, reviewed_at,
+                     reviewer_issuer, reviewer_subject, reviewer_key_id,
+                     reviewer_assertion_id, reviewer_company_id, reviewer_capabilities,
+                     reviewer_decisions, reviewer_authenticated_at, reviewer_expires_at,
+                     reviewer_receipt)
+                VALUES
+                    (NEW.rule_id, OLD.state, NEW.state, NEW.reviewer, NEW.reviewed_at,
+                     NEW.reviewer_issuer, NEW.reviewer_subject, NEW.reviewer_key_id,
+                     NEW.reviewer_assertion_id, NEW.reviewer_company_id, NEW.reviewer_capabilities,
+                     NEW.reviewer_decisions, NEW.reviewer_authenticated_at, NEW.reviewer_expires_at,
+                     NEW.reviewer_receipt);
+            END;
+        """)
         self.connection.executescript("""
         CREATE TRIGGER IF NOT EXISTS rules_effect_immutable
             BEFORE UPDATE OF effect ON rules
@@ -385,25 +472,46 @@ class CPIIERegistry:
         return Rule(row["rule_id"], row["document_id"], row["capability"],
                     row["statement"], PolicyEffect(row["effect"]), RuleState(row["state"]), row["expires_at"])
 
-    def review_rule(self, rule_id: str, reviewer: str,
+    def review_rule(self, rule_id: str, reviewer_assertion: str,
                     decision: RuleState) -> Rule:
-        if not reviewer.strip():
-            raise ValueError("a named reviewer is required")
+        """Record a review only when a trusted verifier proves scoped authority.
+
+        The second argument is a signed assertion, never a free-form reviewer name.
+        """
         if decision not in (RuleState.VERIFIED, RuleState.CONFLICT, RuleState.EXPIRED):
             raise ValueError("review decision must be VERIFIED, CONFLICT or EXPIRED")
-        reviewer = reviewer.strip()
+        current = self.connection.execute(
+            """SELECT r.capability, s.company_id FROM rules r
+               JOIN documents d ON d.document_id=r.document_id
+               JOIN sources s ON s.source_id=d.source_id WHERE r.rule_id=?""",
+            (rule_id,),
+        ).fetchone()
+        if current is None:
+            raise KeyError(rule_id)
+        verified = authorize_review(
+            self.reviewer_verifier, reviewer_assertion,
+            company_id=current["company_id"], capability=current["capability"],
+            decision=decision.value,
+        )
         timestamp = utc_now()
+        values = (
+            decision.value, verified.subject, timestamp,
+            verified.issuer, verified.subject, verified.key_id, verified.assertion_id,
+            verified.company_id,
+            json.dumps(sorted(verified.capabilities), separators=(",", ":")),
+            json.dumps(sorted(verified.decisions), separators=(",", ":")),
+            verified.authenticated_at, verified.expires_at, verified.receipt, rule_id,
+        )
         try:
-            current = self.connection.execute(
-                "SELECT state FROM rules WHERE rule_id=?", (rule_id,)
-            ).fetchone()
-            if current is None:
-                raise KeyError(rule_id)
             self.connection.execute(
-                "UPDATE rules SET state=?, reviewer=?, reviewed_at=? WHERE rule_id=?",
-                (decision.value, reviewer, timestamp, rule_id),
+                """UPDATE rules SET state=?, reviewer=?, reviewed_at=?,
+                   reviewer_issuer=?, reviewer_subject=?, reviewer_key_id=?,
+                   reviewer_assertion_id=?, reviewer_company_id=?, reviewer_capabilities=?,
+                   reviewer_decisions=?, reviewer_authenticated_at=?, reviewer_expires_at=?,
+                   reviewer_receipt=? WHERE rule_id=?""",
+                values,
             )
-            # SQLite trigger appends the matching review-history event atomically.
+            # The matching review history row is appended atomically by SQLite.
             self.connection.commit()
         except Exception:
             self.connection.rollback()
@@ -425,9 +533,12 @@ class CPIIERegistry:
     def evaluate(self, capability: str, now: str | None = None, max_age_seconds: int | None = None) -> Evaluation:
         rows = self.connection.execute(
             """SELECT r.rule_id, r.state, r.effect, r.expires_at, r.document_id,
-                      d.source_id
+                      r.reviewer_issuer, r.reviewer_subject, r.reviewer_key_id,
+                      r.reviewer_assertion_id, r.reviewer_company_id, r.reviewer_receipt,
+                      d.source_id, s.company_id
                FROM rules r
                JOIN documents d ON d.document_id=r.document_id
+               JOIN sources s ON s.source_id=d.source_id
                WHERE r.capability=?
                ORDER BY r.rule_id""",
             (capability,),
@@ -438,6 +549,21 @@ class CPIIERegistry:
                               "no reviewed policy evidence exists")
         current = now or utc_now()
         current_dt = _parse_aware_timestamp(current, "now")
+        # A persisted review is trusted only while its signed authorization receipt
+        # can be re-verified by the configured identity provider. Names/labels and
+        # legacy rows never authorize a positive decision.
+        for row in rows:
+            if not verify_review_receipt(
+                self.reviewer_verifier, row["reviewer_receipt"],
+                issuer=row["reviewer_issuer"], subject=row["reviewer_subject"],
+                key_id=row["reviewer_key_id"], assertion_id=row["reviewer_assertion_id"],
+                company_id=row["company_id"], capability=capability,
+                decision=row["state"], now=current_dt,
+            ):
+                return Evaluation(
+                    capability, CapabilityState.BLOCKED_REVIEW, ids,
+                    "reviewer identity or scoped authorization receipt is missing, invalid, revoked, or expired",
+                )
         # A rule is tied to the exact document snapshot it was reviewed against.
         # Any newer snapshot from that source invalidates the old review until
         # the changed policy has been examined and new evidence is approved.
