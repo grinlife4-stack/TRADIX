@@ -188,6 +188,15 @@ BEGIN
       AND worker_id = p_worker_id
       AND fencing_token = p_fencing_token
       AND expires_at > clock_timestamp()
+      AND EXISTS (
+          SELECT 1
+          FROM factory.tasks t
+          JOIN factory.project_identities i
+            ON i.project_id = t.project_id
+           AND i.role_name = session_user
+           AND i.identity_kind = 'runtime'
+          WHERE t.task_id = p_task_id
+      )
     RETURNING expires_at INTO v_expires_at;
 
     IF NOT FOUND THEN
