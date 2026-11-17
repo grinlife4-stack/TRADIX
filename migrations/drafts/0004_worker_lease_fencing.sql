@@ -141,6 +141,17 @@ BEGIN
     IF v_attempt.status NOT IN ('queued','running') THEN
         RAISE EXCEPTION 'only queued or running attempts can acquire a lease';
     END IF;
+    IF v_task.approval_required AND NOT EXISTS (
+        SELECT 1
+        FROM factory.task_approvals ap
+        WHERE ap.task_id = p_task_id
+          AND ap.attempt_id = p_attempt_id
+          AND ap.action = 'begin_implementation'
+          AND ap.decision = 'approved'
+          AND ap.decision_scope = v_task.approval_scope
+    ) THEN
+        RAISE EXCEPTION 'human approval required for this attempt and decision scope';
+    END IF;
 
     SELECT * INTO v_lease
     FROM factory.task_leases
