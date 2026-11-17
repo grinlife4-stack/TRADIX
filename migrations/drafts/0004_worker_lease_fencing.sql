@@ -193,6 +193,10 @@ BEGIN
       AND EXISTS (
           SELECT 1
           FROM factory.tasks t
+          JOIN factory.task_attempts a
+            ON a.task_id = t.task_id
+           AND a.attempt_id = p_attempt_id
+           AND a.status = 'running'
           JOIN factory.project_identities i
             ON i.project_id = t.project_id
            AND i.role_name = session_user
