@@ -217,6 +217,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, factory, pg_temp
 AS $assert_lease$
+DECLARE
+    v_project_id UUID;
 BEGIN
     IF NOT pg_catalog.pg_has_role(session_user, 'factory_runtime', 'MEMBER')
        OR pg_catalog.pg_has_role(session_user, 'factory_approval_authority', 'MEMBER')
@@ -224,22 +226,36 @@ BEGIN
         RAISE EXCEPTION 'session identity is not an isolated product runtime';
     END IF;
 
-    IF NOT EXISTS (
-        SELECT 1
-        FROM factory.task_leases l
-        JOIN factory.task_attempts a
-          ON a.task_id = l.task_id AND a.attempt_id = l.attempt_id
-        JOIN factory.tasks t ON t.task_id = l.task_id
-        JOIN factory.project_identities i
-          ON i.project_id = t.project_id
-         AND i.role_name = session_user
-         AND i.identity_kind = 'runtime'
-        WHERE l.task_id = p_task_id
-          AND l.attempt_id = p_attempt_id
-          AND l.worker_id = p_worker_id
-          AND l.fencing_token = p_fencing_token
-          AND l.expires_at > clock_timestamp()
-    ) THEN
+    -- Lock order is task first, then lease. acquire_task_lease uses the same
+    -- order. Holding the task lock through the wrapper's transaction prevents
+    -- a takeover between lease validation and the delegated write.
+    SELECT t.project_id INTO v_project_id
+    FROM factory.tasks t
+    JOIN factory.project_identities i
+      ON i.project_id = t.project_id
+     AND i.role_name = session_user
+     AND i.identity_kind = 'runtime'
+    WHERE t.task_id = p_task_id
+    FOR UPDATE OF t;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'valid task lease and fencing token required';
+    END IF;
+
+    PERFORM 1
+    FROM factory.task_leases l
+    JOIN factory.task_attempts a
+      ON a.task_id = l.task_id AND a.attempt_id = l.attempt_id
+    WHERE l.task_id = p_task_id
+      AND l.attempt_id = p_attempt_id
+      AND l.worker_id = p_worker_id
+      AND l.fencing_token = p_fencing_token
+      AND l.expires_at > clock_timestamp()
+      AND a.attempt_id = p_attempt_id
+      AND a.task_id = p_task_id
+    FOR UPDATE OF l;
+
+    IF NOT FOUND THEN
         RAISE EXCEPTION 'valid task lease and fencing token required';
     END IF;
 END;
