@@ -172,3 +172,17 @@ The bidirectional protocol is specified in `docs/AI_INTERFACE_ARCHITECTURE.md`, 
 Routine, reversible work within a standing project/resource policy should not require repeated approval. Reserved boundaries remain production changes, destructive operations, sensitive access, irreversible external effects, out-of-policy spending, and material scope changes. Model output is untrusted input and cannot approve itself or change policy.
 
 This section defines the target architecture. The current branch contains validated protocol contracts and tests only; no conversational gateway, live model provider, durable message queue, or autonomous dispatcher is deployed.
+
+
+## 12. Freedom, independence, and portability
+
+The factory-wide requirements are defined in `docs/FREEDOM_AND_PORTABILITY_CHARTER.md`. In summary:
+
+- TRADIX is owner-directed and provider-neutral; AI interfaces, model providers, storage, databases, compute, and hosting are replaceable capabilities.
+- Each product remains an isolated dossier and operational scope. Shared capabilities are reused only through versioned interfaces with compatibility, license, security, provenance, and verification checks.
+- The factory is intended to produce multiple categories of products and services; software is not its scope limit.
+- Routine reversible work inside explicit standing policy should proceed autonomously. Reserved authority boundaries remain enforced and auditable.
+- Portability includes source, schemas, migrations, database state, event history, dossiers, artifacts, configuration, and secure identity re-enrollment. Secrets are handled separately through secure transfer.
+- A complete restore to a different isolated environment, followed by integrity verification, is required before portability can be claimed as achieved.
+
+The exact owner identity and the proposed two-email emergency replacement mechanism remain deferred. This architecture section does not finalize or implement them. These are target requirements; they are not claims that TRADIX is already autonomous, vendor-independent, or fully recoverable.
