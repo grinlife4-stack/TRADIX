@@ -67,7 +67,11 @@ def parse_sdmx_csv(payload: bytes, start_year: int, end_year: int) -> dict:
         "TIME_PERIOD", "INDICATORS", "OBS_VALUE",
     }
     if not reader.fieldnames or not required.issubset(set(reader.fieldnames)):
-        raise ValueError("Eurostat response is not the expected SDMX-CSV structure")
+        preview = text[:1200].replace("\\n", " ")
+        raise ValueError(
+            f"Unexpected Eurostat response. headers={reader.fieldnames!r}; "
+            f"preview={preview!r}"
+        )
 
     observations = []
     missing_value_rows = 0
