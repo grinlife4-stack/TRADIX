@@ -13,6 +13,12 @@
 
 > The purpose of NEXORA is to define and deliver a focused, usable sleep and wellness product. Product decisions must be based on user needs, technical feasibility, legal requirements, and evidence gathered for NEXORA. This dossier does not authorize paid services, production launch, or collection of unnecessary sensitive data.
 
+## Approved brand asset
+
+![NEXORA approved original logo](assets/nexora/nexora-official-logo.jpg)
+
+The image above is the approved original NEXORA brand logo. It is a brand identity asset, not a screenshot of the running application interface.
+
 ## 1. Product decision
 
 NEXORA will build an independent consumer application focused on sleep, relaxation, mindfulness, and guided meditation. The precise feature set must be validated against user needs and delivery constraints.
