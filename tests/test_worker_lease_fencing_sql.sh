@@ -57,6 +57,8 @@ lock_task_id="f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f2f2"
 lock_attempt_id="e2e2e2e2-e2e2-42e2-82e2-e2e2e2e2e2e2"
 rollback_task_id="f3f3f3f3-f3f3-43f3-83f3-f3f3f3f3f3f3"
 rollback_attempt_id="e3e3e3e3-e3e3-43e3-83e3-e3e3e3e3e3e3"
+approval_task_id="f4f4f4f4-f4f4-44f4-84f4-f4f4f4f4f4f4"
+approval_attempt_id="e4e4e4e4-e4e4-44e4-84e4-e4e4e4e4e4e4"
 
 psql <<SQL
 INSERT INTO factory.tasks (
@@ -102,6 +104,18 @@ INSERT INTO factory.tasks (
 );
 INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
 VALUES ('$rollback_attempt_id', '$rollback_task_id', 1, 'implementer');
+INSERT INTO factory.tasks (
+  task_id, project_id, task_key, title, request_text, acceptance_criteria,
+  risk_class, approval_required, approval_scope
+) VALUES (
+  '$approval_task_id', '11111111-1111-4111-8111-111111111111',
+  'lease-approval-required-ci', 'Lease approval required CI',
+  'Prove the database lease API enforces human approval.',
+  '["approval required before lease"]'::jsonb,
+  'high', true, '{"scope":"exact-attempt"}'::jsonb
+);
+INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
+VALUES ('$approval_attempt_id', '$approval_task_id', 1, 'implementer');
 SQL
 
 if [[ "$(psql -c "SELECT status FROM factory.task_attempts WHERE attempt_id='$attempt_id'")" != "queued" ]]; then
@@ -109,6 +123,15 @@ if [[ "$(psql -c "SELECT status FROM factory.task_attempts WHERE attempt_id='$at
   exit 1
 fi
 echo "PASS: attempt creation remains queued until lease acquisition"
+
+expect_runtime_failure "database refuses lease acquisition without exact human approval" "human approval required for this attempt and decision scope" \
+  "SELECT factory.acquire_task_lease('$approval_task_id','$approval_attempt_id','unapproved-worker',30)"
+approval_state="$(psql -c "SELECT t.status || '/' || a.status || '/' || (SELECT count(*) FROM factory.task_leases l WHERE l.task_id=t.task_id)::text FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_id='$approval_task_id'")"
+if [[ "$approval_state" != "queued/queued/0" ]]; then
+  echo "FAIL: rejected unapproved lease acquisition changed state: $approval_state"
+  exit 1
+fi
+echo "PASS: unapproved work remains queued without a lease"
 
 token1="$(runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$task_id','$attempt_id','lease-worker-old',5)")"
 if [[ -z "$token1" ]]; then
