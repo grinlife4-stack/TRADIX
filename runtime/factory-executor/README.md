@@ -20,11 +20,11 @@ The database identity is authoritative. The manifest cannot select or override a
 - `execution_mode: "trusted-node"`
 - product directory constrained beneath the manifest directory
 - four relative `.mjs` scripts: run, test, review, health
-- product dossier, task definition, and idempotency keys
+- product dossier, task definition, a stable top-level `dossier_idempotency_key`, and a task-scoped attempt idempotency key
 
 ## Execution path
 
-1. Record or retrieve the product dossier through its task-scoped idempotency key; accept the product's current monotonically increasing dossier version.
+1. Record or retrieve the product dossier through the manifest's stable product-scoped `dossier_idempotency_key`; this identity is independent of `task.task_key`, so multiple tasks can reference the same unchanged dossier version.
 2. Create or retrieve the task using its product-scoped task key.
 3. Create or retrieve the attempt using its task-scoped idempotency key. New attempts remain `queued`.
 4. Refuse execution when a task requires human approval and the exact attempt/scope has no approved `begin_implementation` decision. This preflight happens before lease acquisition, and PostgreSQL independently enforces the same exact-attempt/scope approval check inside the acquisition function.
