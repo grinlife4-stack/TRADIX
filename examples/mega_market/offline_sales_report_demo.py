@@ -143,7 +143,7 @@ def main() -> int:
         "decision_reasons": list(decision.reasons),
         "warning": (
             "Synthetic fixture only. eligible_for_manual_pilot is a simulated "
-            "analysis result, not permission to buy, list, sell, pay, or scale."
+            "analysis result, not an authorization to buy, list, sell, pay, or scale."
         ),
     }
     print(json.dumps(result, ensure_ascii=False, indent=2))
