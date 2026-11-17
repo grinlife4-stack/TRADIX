@@ -1,15 +1,54 @@
+import hashlib
 import sqlite3
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 
 from products.megamarket.cpiie import (
     CPIIERegistry, CapabilityState, PolicyEffect, RuleState, Source, canonicalize_url,
 )
+from products.megamarket.cpiie.reviewer_auth import (
+    ReviewerAuthenticationError, VerifiedReviewer,
+)
+
+
+class TestReviewerVerifier:
+    """Deterministic test double only; never use as a production identity provider."""
+
+    def __init__(self):
+        self.revoked_receipts = set()
+
+    def verify_assertion(self, assertion):
+        parts = assertion.split("|")
+        if len(parts) != 4 or not all(parts):
+            raise ValueError("invalid test assertion")
+        subject, company_id, capability, decision = parts
+        now = datetime.now(timezone.utc)
+        return VerifiedReviewer(
+            issuer="https://test-issuer.invalid",
+            subject=subject,
+            key_id="test-key",
+            assertion_id=hashlib.sha256(assertion.encode()).hexdigest(),
+            company_id=company_id,
+            capabilities=(capability,),
+            decisions=(decision,),
+            authenticated_at=(now - timedelta(seconds=1)).isoformat(),
+            expires_at=(now + timedelta(hours=1)).isoformat(),
+            receipt="test-receipt:" + assertion,
+        )
+
+    def verify_receipt(self, receipt):
+        if receipt in self.revoked_receipts or not receipt.startswith("test-receipt:"):
+            return None
+        return self.verify_assertion(receipt[len("test-receipt:"):])
+
+
 
 
 class CPIIERegistryTests(unittest.TestCase):
     def setUp(self):
-        self.registry = CPIIERegistry()
+        self.verifier = TestReviewerVerifier()
+        self.registry = CPIIERegistry(reviewer_verifier=self.verifier)
         self.registry.register_source(Source(
             "retailer-terms", "retailer-x", "retailer",
             "https://EXAMPLE.com/terms#section", "Official terms",
@@ -21,6 +60,18 @@ class CPIIERegistryTests(unittest.TestCase):
 
     def tearDown(self):
         self.registry.close()
+
+    def review(self, rule_id, reviewer, decision):
+        if not reviewer.strip():
+            return self.review(rule_id, reviewer, decision)
+        row = self.registry.connection.execute(
+            """SELECT r.capability, s.company_id FROM rules r
+               JOIN documents d ON d.document_id=r.document_id
+               JOIN sources s ON s.source_id=d.source_id WHERE r.rule_id=?""",
+            (rule_id,),
+        ).fetchone()
+        assertion = f"{reviewer}|{row['company_id']}|{row['capability']}|{decision.value}"
+        return self.registry.review_rule(rule_id, assertion, decision)
 
     def propose(self, rule_id="rule-1", capability="catalog.display"):
         return self.registry.propose_rule(
@@ -75,18 +126,21 @@ class CPIIERegistryTests(unittest.TestCase):
             )
         self.registry.connection.rollback()
 
-    def test_rule_review_is_audited_by_database_trigger(self):
+    def test_direct_sql_cannot_bypass_authenticated_review(self):
         self.propose()
-        self.registry.connection.execute(
-            "UPDATE rules SET state='VERIFIED', reviewer='direct-reviewer', "
-            "reviewed_at='2026-11-17T12:00:00+00:00' WHERE rule_id='rule-1'"
-        )
-        self.registry.connection.commit()
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "authenticated reviewer authority"):
+            self.registry.connection.execute(
+                "UPDATE rules SET state='VERIFIED', reviewer='direct-reviewer', "
+                "reviewed_at='2026-11-17T12:00:00+00:00' WHERE rule_id='rule-1'"
+            )
+        self.registry.connection.rollback()
+        self.review("rule-1", "authorized-reviewer", RuleState.VERIFIED)
         history = self.registry.get_review_history("rule-1")
         self.assertEqual(len(history), 1)
         self.assertEqual(history[0]["previous_state"], "NEEDS_REVIEW")
         self.assertEqual(history[0]["decision"], "VERIFIED")
-        self.assertEqual(history[0]["reviewer"], "direct-reviewer")
+        self.assertEqual(history[0]["reviewer"], "authorized-reviewer")
+        self.assertTrue(history[0]["reviewer_receipt"])
 
     def test_rule_content_cannot_be_changed_after_proposal(self):
         self.propose()
@@ -226,6 +280,45 @@ class CPIIERegistryTests(unittest.TestCase):
             )
         self.registry.connection.rollback()
         self.assertEqual(self.registry.get_rule("rule-1").effect, PolicyEffect.ALLOW)
+
+    def test_reviewer_authority_is_company_and_capability_scoped(self):
+        self.propose()
+        with self.assertRaisesRegex(ReviewerAuthenticationError, "company"):
+            self.registry.review_rule(
+                "rule-1", "reviewer|other-company|catalog.display|VERIFIED",
+                RuleState.VERIFIED,
+            )
+        with self.assertRaisesRegex(ReviewerAuthenticationError, "capability"):
+            self.registry.review_rule(
+                "rule-1", "reviewer|retailer-x|catalog.delete|VERIFIED",
+                RuleState.VERIFIED,
+            )
+
+    def test_review_fails_closed_without_trusted_identity_verifier(self):
+        self.propose()
+        self.registry.reviewer_verifier = None
+        with self.assertRaisesRegex(ReviewerAuthenticationError, "no trusted reviewer"):
+            self.review("rule-1", "reviewer", RuleState.VERIFIED)
+        self.assertEqual(
+            self.registry.evaluate("catalog.display").state,
+            CapabilityState.BLOCKED_REVIEW,
+        )
+
+    def test_revoked_reviewer_receipt_blocks_previously_verified_policy(self):
+        self.propose()
+        self.review("rule-1", "reviewer", RuleState.VERIFIED)
+        self.assertEqual(
+            self.registry.evaluate("catalog.display").state,
+            CapabilityState.ALLOWED,
+        )
+        receipt = self.registry.connection.execute(
+            "SELECT reviewer_receipt FROM rules WHERE rule_id='rule-1'"
+        ).fetchone()["reviewer_receipt"]
+        self.verifier.revoked_receipts.add(receipt)
+        self.assertEqual(
+            self.registry.evaluate("catalog.display").state,
+            CapabilityState.BLOCKED_REVIEW,
+        )
 
     def test_verified_rule_allows_its_capability(self):
         self.propose()
@@ -367,7 +460,7 @@ class CPIIERegistryTests(unittest.TestCase):
         )
 
     def test_stale_source_snapshot_blocks_capability(self):
-        old_registry = CPIIERegistry()
+        old_registry = CPIIERegistry(reviewer_verifier=TestReviewerVerifier())
         try:
             old_registry.register_source(Source(
                 "old-source", "retailer-x", "retailer",
@@ -381,7 +474,9 @@ class CPIIERegistryTests(unittest.TestCase):
                 "old-rule", old_doc.document_id, evidence,
                 "catalog.old", "Old permission",
             )
-            old_registry.review_rule("old-rule", "reviewer", RuleState.VERIFIED)
+            old_registry.review_rule(
+                "old-rule", "reviewer|retailer-x|catalog.old|VERIFIED", RuleState.VERIFIED
+            )
             result = old_registry.evaluate(
                 "catalog.old", now="2026-11-17T00:00:00+00:00",
                 max_age_seconds=86400,
