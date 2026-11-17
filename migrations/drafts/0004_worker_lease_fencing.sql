@@ -341,15 +341,18 @@ BEGIN
 END;
 $release_lease$;
 
--- The legacy APIs remain callable only by the trusted function owner so the
--- fenced wrappers can delegate after validating the lease. Runtime logins
--- must use the fenced entry points exclusively.
+-- The legacy APIs are already owned by factory_executor_owner from 0001.
+-- Switch to that owner explicitly before changing their ACLs; the migration
+-- login has SET-only membership and must not inherit those privileges.
+GRANT CREATE ON SCHEMA factory TO factory_executor_owner;
+SET ROLE factory_executor_owner;
 REVOKE ALL ON FUNCTION factory.transition_task(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB)
     FROM PUBLIC, factory_runtime;
 REVOKE ALL ON FUNCTION factory.record_task_evidence(UUID, UUID, TEXT, TEXT, TEXT, BIGINT, TEXT, TEXT, TEXT, JSONB)
     FROM PUBLIC, factory_runtime;
 REVOKE ALL ON FUNCTION factory.finish_task_attempt(UUID, UUID, TEXT)
     FROM PUBLIC, factory_runtime;
+RESET ROLE;
 
 GRANT EXECUTE ON FUNCTION factory.acquire_task_lease(UUID, UUID, TEXT, INTEGER) TO factory_runtime;
 GRANT EXECUTE ON FUNCTION factory.renew_task_lease(UUID, UUID, TEXT, BIGINT, INTEGER) TO factory_runtime;
@@ -357,8 +360,6 @@ GRANT EXECUTE ON FUNCTION factory.transition_task_fenced(UUID, BIGINT, TEXT, TEX
 GRANT EXECUTE ON FUNCTION factory.record_task_evidence_fenced(UUID, UUID, TEXT, BIGINT, TEXT, TEXT, TEXT, BIGINT, TEXT, TEXT, TEXT, JSONB) TO factory_runtime;
 GRANT EXECUTE ON FUNCTION factory.finish_task_attempt_fenced(UUID, UUID, TEXT, BIGINT, TEXT) TO factory_runtime;
 GRANT EXECUTE ON FUNCTION factory.release_task_lease(UUID, UUID, TEXT, BIGINT) TO factory_runtime;
-
-GRANT CREATE ON SCHEMA factory TO factory_executor_owner;
 
 REVOKE ALL ON FUNCTION factory.assert_task_lease(UUID, UUID, TEXT, BIGINT) FROM PUBLIC, factory_runtime;
 ALTER FUNCTION factory.acquire_task_lease(UUID, UUID, TEXT, INTEGER) OWNER TO factory_executor_owner;
