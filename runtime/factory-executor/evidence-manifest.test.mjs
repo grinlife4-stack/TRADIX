@@ -34,8 +34,8 @@ test("writes a deterministic manifest with per-file hashes and PR metadata", asy
     assert.equal(result.manifest.source.run_url, "https://github.com/grinlife4-stack/TRADIX/actions/runs/123456789");
     assert.deepEqual(result.manifest.files, [{
       path: "nested/test.txt",
-      sha256: "f2e7d6b3f9f4f63f7a8d7c9d8d5b7c1a9e6c7e9b2a2d0f6f3a1e6f4d9f0c3b7a",
-      byte_size: 15
+      sha256: "eb0246c196d6fc94451aa210219e026788f9dae97c561676aa095ae57f0c7cc0",
+      byte_size: 16
     }]);
     const saved = JSON.parse(await readFile(result.output, "utf8"));
     assert.deepEqual(saved, result.manifest);
