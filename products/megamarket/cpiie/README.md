@@ -14,6 +14,10 @@ This provider-neutral engine is isolated under `products/megamarket/cpiie`; it i
 - Poll registered sources on demand and persist success/failure history, content hash, version, and change status. Monitor history is append-only at the SQLite layer, constrained against malformed status records, and included in the audit snapshot.
 - Validate redirect ports and HTTP framing metadata; reject negative, conflicting, or oversized Content-Length values and normalize incomplete HTTP responses as fetch failures.
 - Record evidence locators and excerpts tied to an exact document snapshot.
+- Require every evidence excerpt to occur verbatim in the exact cited document snapshot.
+- Enforce document-snapshot, evidence-record, and rule-content immutability with SQLite triggers; source identity is also protected and source records cannot be deleted.
+- Append rule-review history from a database trigger in the same transaction as the review-state change, including direct SQL state changes that satisfy the review guard.
+- Require timezone-aware ISO-8601 timestamps for document fetch times and rule expiry; compare parsed UTC instants rather than timestamp strings.
 - Propose policy rules. Every new rule starts as `NEEDS_REVIEW`.
 - Require an explicit human reviewer to mark a rule `VERIFIED`, `CONFLICT`, or `EXPIRED`.
 - Fail closed when policy is absent, unreviewed, conflicting, expired, or older than a caller-configured freshness limit.
@@ -59,11 +63,11 @@ Monitoring is explicit and on-demand. This code does not create a background sch
 
 A registered `source_id` has an immutable identity tuple: company, role, and canonical URL. Re-registering the same ID with a different company, role, or URL is rejected; register a new ID for a different source. The display title may be refreshed without changing source identity.
 
-Every human review decision is recorded in `rule_review_history` with the prior state, decision, reviewer, and timestamp. History is append-only at the SQLite layer, exposed through `get_review_history(rule_id)`, and included in the deterministic audit snapshot. A failed review transaction rolls back both the rule update and its history entry.
+Every human review decision is recorded in `rule_review_history` with the prior state, decision, reviewer, and timestamp. History is append-only at the SQLite layer, exposed through `get_review_history(rule_id)`, and included in the deterministic audit snapshot. A failed review transaction rolls back both the rule update and its history entry. The database trigger also creates the history row for qualifying direct SQL review updates, so a caller cannot update the review state without a matching history row through ordinary SQL statements.
 
 ## Policy review boundary
 
-A fetched document is evidence, not permission. Candidate role suggestions are not legal interpretations. New rules remain `NEEDS_REVIEW`; only an identified human reviewer can mark a rule verified. The engine does not infer that an API is enabled, an affiliate application is accepted, or commercial content rights exist.
+A fetched document is evidence, not permission. Candidate role suggestions are not legal interpretations. New rules remain `NEEDS_REVIEW`; only an identified human reviewer can mark a rule verified. The engine does not infer that an API is enabled, an affiliate application is accepted, or commercial content rights exist. Evidence excerpts must match the cited snapshot exactly. SQLite triggers protect records from ordinary UPDATE/DELETE statements, but they are not a cryptographic tamper-proof ledger against an operator who can alter the database file or drop triggers. Capability evaluation currently treats a fully verified rule set as `ALLOWED`; it does not parse the natural-language statement into structured allow/deny effects. Do not use `ALLOWED` as a live commercial authorization until that structured policy-effect model and reviewer identity controls are implemented.
 
 ## Explicitly not implemented
 
