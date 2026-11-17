@@ -31,6 +31,27 @@ function assertNodeScript(value, label) {
   return value;
 }
 
+function terminateChildTree(child) {
+  if (!child?.pid) return;
+  if (process.platform === "win32") {
+    const killer = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+      windowsHide: true,
+      stdio: "ignore"
+    });
+    killer.on("error", () => child.kill("SIGKILL"));
+    killer.on("close", code => {
+      if (code !== 0) child.kill("SIGKILL");
+    });
+    return;
+  }
+  try {
+    // POSIX detached children are process-group leaders; kill the whole group.
+    process.kill(-child.pid, "SIGKILL");
+  } catch {
+    child.kill("SIGKILL");
+  }
+}
+
 async function runNodeScript(productRoot, script, label, leaseGuard) {
   if (leaseGuard?.lost) fail("task lease lost; refusing to start another stage");
   const scriptPath = await realpath(resolve(productRoot, assertNodeScript(script, label)));
@@ -44,6 +65,7 @@ async function runNodeScript(productRoot, script, label, leaseGuard) {
       cwd: productRoot,
       shell: false,
       windowsHide: true,
+      detached: process.platform !== "win32",
       env: {
         PATH: process.env.PATH ?? "",
         NODE_ENV: "test",
@@ -58,7 +80,7 @@ async function runNodeScript(productRoot, script, label, leaseGuard) {
     leaseGuard?.registerChild?.(child);
     if (leaseGuard?.lost) child.kill("SIGKILL");
     const timer = setTimeout(() => {
-      child.kill("SIGKILL");
+      terminateChildTree(child);
       finish(new Error(`${label} exceeded ${COMMAND_TIMEOUT_MS}ms`));
     }, COMMAND_TIMEOUT_MS);
 
@@ -74,7 +96,7 @@ async function runNodeScript(productRoot, script, label, leaseGuard) {
       stream.on("data", chunk => {
         bytes += chunk.length;
         if (bytes > MAX_OUTPUT_BYTES) {
-          child.kill("SIGKILL");
+          terminateChildTree(child);
           finish(new Error(`${label} output exceeded ${MAX_OUTPUT_BYTES} bytes`));
           return;
         }
@@ -244,7 +266,7 @@ async function main() {
       child: null,
       registerChild(child) {
         this.child = child;
-        if (this.lost) child.kill("SIGKILL");
+        if (this.lost) terminateChildTree(child);
       }
     };
     let heartbeatInFlight = null;
@@ -252,13 +274,14 @@ async function main() {
       if (leaseGuard.lost || heartbeatInFlight) return;
       heartbeatInFlight = (async () => {
         try {
-          await client.query(
-            "SELECT factory.renew_task_lease($1,$2,$3,$4,$5)",
-            [taskId, attemptId, workerId, lease.token, LEASE_TTL_SECONDS]
-          );
+          await client.query({
+            text: "SELECT factory.renew_task_lease($1,$2,$3,$4,$5)",
+            values: [taskId, attemptId, workerId, lease.token, LEASE_TTL_SECONDS],
+            query_timeout: 5000
+          });
         } catch (error) {
           leaseGuard.lost = true;
-          leaseGuard.child?.kill("SIGKILL");
+          terminateChildTree(leaseGuard.child);
           process.stderr.write(`FACTORY_EXECUTOR_LEASE_LOST: ${error.message}\\n`);
         }
       })().finally(() => {
