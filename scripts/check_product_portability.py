@@ -33,6 +33,13 @@ def _valid_sha256(value: Any) -> bool:
     return isinstance(value, str) and SHA256_RE.fullmatch(value) is not None
 
 
+def _safe_relative_path(value: Any) -> bool:
+    if not _nonempty(value) or "\\" in value or value.startswith("/") or re.match(r"^[A-Za-z]:", value):
+        return False
+    path = Path(value)
+    return not path.is_absolute() and ".." not in path.parts
+
+
 def _aware_datetime(value: Any) -> bool:
     if not _nonempty(value):
         return False
@@ -56,7 +63,7 @@ def _verified_evidence(section: dict[str, Any], label: str, errors: list[str]) -
         if not _valid_sha256(section.get("evidence_sha256")):
             errors.append(f"{label}.evidence_sha256 is required when status is verified")
         evidence_path = section.get("evidence_path")
-        if not _nonempty(evidence_path) or Path(evidence_path).is_absolute() or ".." in Path(evidence_path).parts:
+        if not _safe_relative_path(evidence_path):
             errors.append(f"{label}.evidence_path must be a safe relative path when status is verified")
 
 
@@ -232,7 +239,7 @@ def verify_evidence_files(manifest: Any, base_dir: Path | None) -> list[str]:
                 relative_path = value.get("evidence_path")
                 if not _nonempty(relative_path):
                     errors.append(f"{label}.evidence_path is missing")
-                elif Path(relative_path).is_absolute() or ".." in Path(relative_path).parts:
+                elif not _safe_relative_path(relative_path):
                     errors.append(f"{label}.evidence_path escapes the manifest directory")
                 else:
                     evidence_file = (root / relative_path).resolve()
