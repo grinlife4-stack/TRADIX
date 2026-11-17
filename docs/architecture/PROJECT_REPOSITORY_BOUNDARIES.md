@@ -49,3 +49,31 @@ After the destination repository exists and its visibility/access policy is conf
 ## Repository creation limitation
 
 The connected GitHub actions currently available in this session can inspect and modify existing repositories and branches, but do not expose a repository-creation/import operation. Therefore the destination repository has not been created by this change. The source remains intact; migration is explicitly blocked until the destination repository is created and accessible.
+
+## Cumulative capability-growth model
+
+TRADIX is not merely a coordinator that distributes work to independent products. It is a continuously improving software factory whose reusable capabilities can grow through the work performed in its project portfolio.
+
+The intended feedback loop is:
+
+1. TRADIX provides the current set of shared, versioned factory capabilities to a selected project through explicit interfaces.
+2. The project develops and validates its own product-specific solution in its own repository and environment.
+3. When that work produces a capability that is genuinely reusable beyond the originating product, the capability is proposed for promotion into TRADIX.
+4. The candidate is generalized, reviewed, tested independently, documented, versioned, and checked for security, licensing, operational cost, and backward compatibility.
+5. Once accepted, TRADIX publishes the capability through a stable interface. Other projects may adopt it independently and at a controlled version.
+6. Feedback from later projects can improve the shared capability through the same controlled process.
+
+### Promotion boundary
+
+- A project-specific feature, business rule, dataset, credential, or runtime workflow stays with that project.
+- Only a capability with demonstrated cross-project value may be promoted to the factory.
+- Promotion must not create a hard runtime dependency that prevents an independent product from operating when TRADIX is unavailable.
+- Shared capabilities must have an owner, version, interface contract, tests, changelog, compatibility policy, and deprecation path.
+- A capability is not considered reusable merely because it could theoretically be reused. Require at least one concrete use case outside its originating project, or a documented factory-level need, before making it core.
+- Failed experiments and unproven abstractions remain in the originating project until evidence justifies promotion.
+
+### Growth and isolation are complementary
+
+Project independence does not mean that projects cannot contribute to the factory. It means that contribution is deliberate and controlled rather than achieved by mixing repositories or importing product code wholesale.
+
+The target is cumulative learning without shared failure domains: projects can strengthen TRADIX, and TRADIX can accelerate later projects, while each product retains control of its own source, data, runtime, release decisions, and operational risks.
