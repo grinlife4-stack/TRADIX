@@ -1,11 +1,32 @@
 import unittest
+from email.message import Message
 from unittest.mock import Mock
 
 from products.megamarket.cpiie import CPIIERegistry, Source
 from products.megamarket.cpiie.fetch import OfficialSourceFetcher
 from products.megamarket.cpiie.monitor import PolicyMonitor
 
-from test_fetch import FakeResponse
+class FakeResponse:
+    def __init__(self, body=b"terms", final_url="https://policy.example.org/terms"):
+        self.body = body
+        self.status = 200
+        self.final_url = final_url
+        self.headers = Message()
+        self.headers["Content-Type"] = "text/plain; charset=utf-8"
+        self.headers["Content-Length"] = str(len(body))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def geturl(self):
+        return self.final_url
+
+    def read(self, limit=-1):
+        return self.body[:limit]
+
 
 
 class PolicyMonitorTests(unittest.TestCase):
