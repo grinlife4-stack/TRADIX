@@ -845,8 +845,13 @@ BEGIN
         WHERE rolname = 'factory_identity_admin'
           AND NOT rolcanlogin AND NOT rolinherit AND NOT rolsuper
           AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolbypassrls
+    ) OR NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_roles
+        WHERE rolname = 'factory_onboarding_authority'
+          AND NOT rolcanlogin AND NOT rolinherit AND NOT rolsuper
+          AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolbypassrls
     ) THEN
-        RAISE EXCEPTION 'approval or identity-admin role missing or unsafe; run the role bootstrap';
+        RAISE EXCEPTION 'approval, identity-admin, or onboarding role missing or unsafe; run the role bootstrap';
     END IF;
 
     IF NOT pg_catalog.pg_has_role(CURRENT_USER, 'factory_executor_owner', 'SET') THEN
@@ -986,6 +991,7 @@ CREATE POLICY project_identity_self ON factory.project_identities
                     JOIN pg_catalog.pg_roles granted_role ON granted_role.oid = m.roleid
                     WHERE pg_catalog.pg_get_userbyid(m.member) = session_user
                       AND granted_role.rolname <> 'factory_runtime'
+                      AND granted_role.rolname <> 'factory_onboarding_authority'
                 )
             )
             OR
