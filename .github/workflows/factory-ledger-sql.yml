@@ -1,0 +1,311 @@
+name: factory-ledger-sql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-schema:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tradix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tradix_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Provision non-privileged schema migration identity
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test <<'SQL'
+          CREATE ROLE tradix_migrator LOGIN NOCREATEROLE;
+          GRANT CREATE ON DATABASE tradix_test TO tradix_migrator;
+          SQL
+      - name: Provision cluster-level factory roles as administrator
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/bootstrap/0001_factory_roles.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "GRANT factory_executor_owner TO tradix_migrator WITH SET TRUE, INHERIT FALSE"
+      - name: Apply factory ledger draft as non-superuser without CREATEROLE
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0001_factory_ledger.sql
+      - name: Apply mission and task-plan version migration to disposable PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0002_mission_plan_versions.sql
+      - name: Apply intake approval decision migration to disposable PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0003_intake_approval_decisions.sql
+      - name: Test factory ledger and register the Hello World demo product
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: bash tests/test_factory_ledger_sql.sh "$POSTGRES_CONTAINER_ID"
+      - name: Clear disposable ledger fixtures before lease migration preflight
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SET session_replication_role=replica; TRUNCATE factory.tasks CASCADE; SET session_replication_role=origin"
+      - name: Verify worker lease preflight refuses active legacy work
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test <<'SQL'
+          INSERT INTO factory.tasks (
+            task_id, project_id, task_key, title, request_text,
+            acceptance_criteria, risk_class, approval_required, status
+          ) VALUES (
+            'abababab-abab-4bab-8bab-abababababab',
+            '11111111-1111-4111-8111-111111111111',
+            'lease-migration-preflight-ci',
+            'Legacy active task preflight',
+            'Verify migration refuses to adopt active work.',
+            '["active work must be drained"]'::jsonb,
+            'low', false, 'implementing'
+          );
+          INSERT INTO factory.task_attempts (
+            attempt_id, task_id, attempt_number, worker_role, status, started_at
+          ) VALUES (
+            'acacacac-acac-4cac-8cac-acacacacacac',
+            'abababab-abab-4bab-8bab-abababababab',
+            1, 'implementer', 'running', clock_timestamp()
+          );
+          SQL
+          if docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/preflight/0004_worker_lease_fencing.sql > /tmp/tradix-lease-preflight.log 2>&1; then
+            echo "Worker lease preflight unexpectedly accepted active legacy work"
+            exit 1
+          fi
+          grep -F "worker lease fencing preflight refused" /tmp/tradix-lease-preflight.log
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test <<'SQL'
+          DELETE FROM factory.task_attempts WHERE attempt_id = 'acacacac-acac-4cac-8cac-acacacacacac';
+          DELETE FROM factory.tasks WHERE task_id = 'abababab-abab-4bab-8bab-abababababab';
+          SQL
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/preflight/0004_worker_lease_fencing.sql
+          echo "PASS: preflight refuses active work and passes after it is reconciled"
+      - name: Apply worker lease fencing migration to disposable PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0004_worker_lease_fencing.sql
+      - name: Test worker lease fencing and stale-worker rejection
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: bash tests/test_worker_lease_fencing_sql.sh "$POSTGRES_CONTAINER_ID"
+      - name: Install product dossier API dependencies
+        run: npm install --prefix runtime/product-dossier-api --ignore-scripts --no-audit --no-fund
+      - name: Install factory executor dependencies
+        run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
+      - name: Execute Hello World through the product runtime
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: node runtime/factory-executor/runner.mjs examples/hello-world/product.json
+      - name: Verify factory executor idempotent retry
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: |
+          set -euo pipefail
+          output=$(node runtime/factory-executor/runner.mjs examples/hello-world/product.json)
+          printf '%s\n' "$output"
+          grep -Eq '^ALREADY VERIFIED task=.* attempt=.* events=7 evidence=3$' <<< "$output"
+      - name: Verify product dossier identity is independent from task identity
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+          const manifest = JSON.parse(await readFile('examples/hello-world/product.json', 'utf8'));
+          manifest.task.task_key = 'hello-world-independent-task-v1';
+          manifest.attempt.idempotency_key = 'hello-world-independent-attempt-v1';
+          await writeFile('examples/hello-world/.independent-task.product.json', JSON.stringify(manifest));
+          NODE
+          node runtime/factory-executor/runner.mjs examples/hello-world/.independent-task.product.json
+          rm -f examples/hello-world/.independent-task.product.json
+          result=$(docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SELECT (SELECT count(*) FROM factory.product_dossier_versions d JOIN factory.project_identities i USING (project_id) WHERE i.role_name='factory_rt_onboarding' AND d.idempotency_key='hello-world-product-dossier-v1')::text || '/' || (SELECT count(*) FROM factory.tasks WHERE task_key IN ('hello-world-runner-v1','hello-world-independent-task-v1'))::text")
+          test "$result" = "1/2" || { echo "FAIL: expected one product dossier version shared by two distinct tasks, got $result"; exit 1; }
+          echo "PASS: product dossier identity is independent from task identity"
+      - name: Verify high-risk execution is blocked before lease acquisition without approval
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          if node runtime/factory-executor/runner.mjs examples/hello-world/approval-preflight-test.json > /tmp/factory-approval-preflight.log 2>&1; then
+            echo "FAIL: unapproved high-risk task unexpectedly executed"
+            cat /tmp/factory-approval-preflight.log
+            exit 1
+          fi
+          cat /tmp/factory-approval-preflight.log
+          grep -F "Human approval is required for this task and attempt" /tmp/factory-approval-preflight.log
+          result=$(docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SELECT CASE WHEN t.status='queued' AND a.status='queued' AND NOT EXISTS (SELECT 1 FROM factory.task_leases l WHERE l.task_id=t.task_id) THEN 'PASS' ELSE 'FAIL' END FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_key='hello-world-approval-preflight-v1' AND a.idempotency_key='hello-world-approval-preflight-attempt-v1'")
+          test "$result" = "PASS" || { echo "FAIL: approval preflight changed task/attempt state or acquired a lease"; exit 1; }
+          echo "PASS: unapproved high-risk task remains queued without a lease"
+      - name: Verify executor terminates a child after lease loss
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: |
+          set -euo pipefail
+          rm -f /tmp/tradix-lease-loss-child-survived /tmp/tradix-lease-loss-grandchild-survived /tmp/tradix-lease-loss-child.pid /tmp/tradix-lease-loss-grandchild.pid /tmp/tradix-lease-loss-runner.log
+          node runtime/factory-executor/runner.mjs examples/lease-loss/product.json > /tmp/tradix-lease-loss-runner.log 2>&1 &
+          runner_pid=$!
+          task_id=""
+          for attempt in $(seq 1 100); do
+            task_id=$(docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -U postgres -d tradix_test -c "SELECT t.task_id FROM factory.tasks t JOIN factory.task_leases l ON l.task_id=t.task_id WHERE t.task_key='lease-loss-runner-v1' AND t.status='implementing' LIMIT 1")
+            if [[ -n "$task_id" ]]; then
+              docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "UPDATE factory.task_leases SET expires_at=clock_timestamp()-interval '1 second' WHERE task_id='$task_id'"
+              break
+            fi
+            sleep 0.2
+          done
+          if [[ -z "$task_id" ]]; then
+            kill "$runner_pid" 2>/dev/null || true
+            cat /tmp/tradix-lease-loss-runner.log
+            echo "Lease-loss fixture never acquired its task lease"
+            exit 1
+          fi
+          set +e
+          wait "$runner_pid"
+          runner_status=$?
+          set -e
+          if [[ "$runner_status" -eq 0 ]]; then
+            cat /tmp/tradix-lease-loss-runner.log
+            echo "Executor unexpectedly succeeded after losing its lease"
+            exit 1
+          fi
+          grep -q "FACTORY_EXECUTOR_LEASE_LOST" /tmp/tradix-lease-loss-runner.log || { cat /tmp/tradix-lease-loss-runner.log; echo "Executor did not report lease loss"; exit 1; }
+          child_pid=$(cat /tmp/tradix-lease-loss-child.pid)
+          if kill -0 "$child_pid" 2>/dev/null; then
+            echo "Child process $child_pid is still alive after lease loss"
+            exit 1
+          fi
+          if [[ -e /tmp/tradix-lease-loss-child-survived ]]; then
+            echo "Child process survived after the executor lost its lease"
+            exit 1
+          fi
+          grandchild_pid=$(cat /tmp/tradix-lease-loss-grandchild.pid)
+          if kill -0 "$grandchild_pid" 2>/dev/null; then
+            echo "Grandchild process $grandchild_pid is still alive after lease loss"
+            exit 1
+          fi
+          if [[ -e /tmp/tradix-lease-loss-grandchild-survived ]]; then
+            echo "Grandchild process survived after the executor lost its lease"
+            exit 1
+          fi
+          state=$(docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -U postgres -d tradix_test -c "SELECT t.status || '/' || a.status FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_key='lease-loss-runner-v1' LIMIT 1")
+          if [[ "$state" != "implementing/running" ]]; then
+            echo "Stale worker changed state after losing its lease: $state"
+            exit 1
+          fi
+          echo "PASS: lease loss terminated the child and blocked stale cleanup writes"
+          if node runtime/factory-executor/runner.mjs examples/lease-loss/product.json > /tmp/tradix-lease-recovery-refused.log 2>&1; then
+            echo "Executor unexpectedly resumed an interrupted stage without checkpoints"
+            exit 1
+          fi
+          grep -F "refusing implicit recovery or duplicate execution" /tmp/tradix-lease-recovery-refused.log
+          recovered_state=$(docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -U postgres -d tradix_test -c "SELECT t.status || '/' || a.status FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_key='lease-loss-runner-v1' LIMIT 1")
+          if [[ "$recovered_state" != "implementing/running" ]]; then
+            echo "Refused recovery changed the interrupted task state: $recovered_state"
+            exit 1
+          fi
+          echo "PASS: runner refuses unsafe automatic stage recovery"
+      - name: Upload factory execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello-world-factory-evidence
+          path: /tmp/tradix-factory-executor/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Validate product dossier JSON Schema across product categories
+        run: npm run --prefix runtime/product-dossier-api test:schema
+      - name: Run isolated product dossier API integration test
+        env:
+          DATABASE_URL: postgresql://factory_rt_tradix:ci-only-factory-dossier-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          PRODUCT_DOSSIER_API_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          NODE_ENV: test
+          PORT: "8788"
+        run: |
+          node runtime/product-dossier-api/server.mjs > /tmp/product-dossier-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8788/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:8788/health >/dev/null || { cat /tmp/product-dossier-api.log; exit 1; }
+          PRODUCT_DOSSIER_API_URL=http://127.0.0.1:8788 PRODUCT_DOSSIER_API_KEY="$PRODUCT_DOSSIER_API_KEY" node tests/test_product_dossier_api.mjs || { cat /tmp/product-dossier-api.log; exit 1; }
+      - name: Install mission plan API dependencies
+        run: npm install --prefix runtime/mission-plan-api --ignore-scripts --no-audit --no-fund
+      - name: Run isolated mission and task-plan API integration test
+        env:
+          DATABASE_URL: postgresql://factory_rt_tradix:ci-only-factory-dossier-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          MISSION_PLAN_API_KEY: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          NODE_ENV: test
+          PORT: "8789"
+        run: |
+          node runtime/mission-plan-api/server.mjs > /tmp/mission-plan-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8789/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:8789/health >/dev/null || { cat /tmp/mission-plan-api.log; exit 1; }
+          MISSION_PLAN_API_URL=http://127.0.0.1:8789 MISSION_PLAN_API_KEY="$MISSION_PLAN_API_KEY" node tests/test_mission_plan_api.mjs || { cat /tmp/mission-plan-api.log; exit 1; }
+      - name: Apply memory gateway migration to disposable PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/0001_memory_gateway.sql
+      - name: Test memory gateway schema and invariants
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: bash tests/test_memory_gateway_sql.sh "$POSTGRES_CONTAINER_ID"
+      - name: Run memory gateway HTTP integration test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/tradix_test?sslmode=disable
+          MEMORY_GATEWAY_API_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          PORT: "8787"
+        run: |
+          node runtime/memory-gateway/server.mjs > /tmp/memory-gateway.log 2>&1 &
+          gateway_pid=$!
+          trap 'kill "$gateway_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8787/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:8787/health >/dev/null || { cat /tmp/memory-gateway.log; exit 1; }
+          node tests/test_memory_gateway_integration.mjs || { cat /tmp/memory-gateway.log; exit 1; }

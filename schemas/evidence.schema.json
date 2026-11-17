@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://factory.local/schemas/evidence.schema.json",
+  "title": "EvidenceReference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evidence_id",
+    "project_id",
+    "kind",
+    "uri",
+    "content_hash",
+    "verification_status",
+    "created_at"
+  ],
+  "properties": {
+    "evidence_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "enum": [
+        "COMMIT",
+        "TEST_RESULT",
+        "BUILD_LOG",
+        "DEPLOYMENT",
+        "DOCUMENT",
+        "ARTIFACT",
+        "EXTERNAL_RECORD"
+      ]
+    },
+    "uri": {
+      "type": "string",
+      "minLength": 1
+    },
+    "content_hash": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "verification_status": {
+      "enum": [
+        "UNVERIFIED",
+        "VERIFIED",
+        "REJECTED",
+        "EXPIRED"
+      ]
+    },
+    "related_decisions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "related_tasks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

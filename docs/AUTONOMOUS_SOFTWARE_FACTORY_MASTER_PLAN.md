@@ -1,9 +1,9 @@
 # Autonomous Software Factory — Master Execution Plan
 
-**Document status:** Working baseline, version 0.1  
+**Document status:** Preflight status correction, version 0.2  
 **Created:** 2026-11-15  
 **Control repository:** `grinlife4-stack/TRADIX`  
-**Branch:** `factory/phase-0-blueprint`  
+**Branch:** `factory/preflight-status-2026-11-15`  
 **Operating rule:** This document is the durable project ledger. Do not rely on chat memory as the source of truth.
 
 ## 1. Mission
@@ -53,7 +53,7 @@ Workers must not be able to silently approve their own work. Agents should recei
 ### Systems of record
 - GitHub: source code, branches, pull requests, reviews, CI, and immutable commit references.
 - Neon: structured operational state, task metadata, approvals, execution records, and audit events.
-- Backblaze B2: S3-compatible object-storage target; the user created a private bucket and supplied its endpoint/region. Adapter code is being added on the isolated factory branch; runtime credentials and live connectivity remain unverified.
+- Backblaze B2: S3-compatible object-storage target; private bucket `tradix-factory-storage` verified from GitHub-hosted runner. Authenticated bucket listing and object write/read-back both passed in workflow run `43745900128`. This verifies connectivity only, not the factory artifact lifecycle or backup/restore.
 - Railway: candidate runtime for API/worker deployment; account connection is verified, but no factory service is deployed yet.
 - Sentry: optional error monitoring; not connected or configured yet.
 
@@ -80,11 +80,11 @@ Use a provider-independent adapter. Do not hard-code the factory to one model ve
 | Component | Verified state | Important limitation |
 |---|---|---|
 | GitHub | Connected; access to `grinlife4-stack/TRADIX` verified; push permission available | TRADIX currently has only a minimal package and smoke-test baseline; CI success is not proof of factory capability |
-| Neon | Connected; project `TRADIX NEON` identified | Seven memory-related tables were previously created only on a temporary branch; production schema and migration status must be re-inspected before use |
+| Neon | Connected; production branch is ready and contains no application tables; isolated temporary branch contains seven `memory_*` tables | Those tables are project-memory structures, not yet approved as the factory task ledger; no factory schema or production migration has been performed |
 | Cloudflare | Connected; authenticated account identity verified | Not selected as the current object-storage target; keep the connector for other Cloudflare services |
-| Backblaze B2 | User reports private bucket `tradix-factory-storage`, region `us-east-005`, encryption enabled; endpoint metadata supplied | S3 adapter and verification script added on the isolated branch; runtime secrets are not configured and live API access has not been tested |
+| Backblaze B2 | Private bucket `tradix-factory-storage`, region `us-east-005`; GitHub Actions run `43745900128` passed authenticated listing and object write/read-back | Connectivity verified from an ephemeral GitHub runner only; no persistent runtime artifact lifecycle or backup/restore test yet |
 | Railway | Connected; authenticated user and personal workspace verified | Workspace currently reports zero projects; no service or deployment exists |
-| Sentry | Not connected | Defer until a runtime service exists |
+| Sentry | No Sentry connector tools exposed in the current tool inventory | Defer until a runtime service exists; revisit plugin availability later |
 | Model provider adapter | Not implemented | Select providers only after defining security, cost, and fallback requirements |
 
 Never place credentials in this public repository. The repository is public.
@@ -95,23 +95,23 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `VERIFIED`.
 
 ### Phase 0 — Establish the control record
 - [x] Create this master plan on an isolated Git branch.
-- [ ] Open a pull request for review; do not merge automatically.
-- [ ] Establish a durable task/event schema and an append-only execution ledger.
-- [ ] Define task IDs, state transitions, evidence references, and approval records.
+- [x] Open a pull request for review; PR merge remains a human-controlled action. (Historical PR #1 merged; this status-correction PR is separate.)
+- [ ] Establish a factory-specific durable task/event schema and append-only execution ledger; do not reuse the temporary memory tables without a deliberate schema review.
+- [x] Define initial task envelope and state-transition contract in `src/tradix/factory/task_contract.py`; persistence and approval records remain unimplemented.
 
 ### Phase 1 — Verify infrastructure and boundaries
-- [ ] Re-inspect GitHub repository settings, branch rules, and CI workflow.
-- [ ] Inspect Neon production and temporary branch schemas separately; do not migrate production.
+- [x] Re-inspect GitHub repository branches, rulesets, and CI workflow. No repository rulesets are configured; `main` is not protected.
+- [x] Inspect Neon production and temporary branch schemas separately; production has no user tables; temporary branch has seven `memory_*` tables. No migration performed.
 - [x] Select Backblaze B2 instead of Cloudflare R2; user-created private bucket and endpoint metadata recorded.
-- [ ] Add the five B2 settings as encrypted GitHub Actions repository secrets and run the manual read-only then write/read-back verification workflow; do not place secrets in source files or chat.
-- [ ] Inspect Railway workspace, billing/trial limits, regions, persistent storage, and deployment model.
+- [x] Verify the five B2 settings through the manual GitHub Actions workflow without exposing secret values. Run `43745900128` completed successfully; read/list and write/read-back passed. The test object was retained by design.
+- [x] Inspect published Railway pricing and workspace/project inventory. Public pricing lists Free at $0 with a 30-day $5 trial then a $1/month free tier; Hobby has a $5/month minimum and Pro $20/month. Account-specific plan/credits are not exposed by the connector. No project/service exists; cloud-agent connector listing returned an account capability error.
 - [ ] Decide whether Railway is acceptable for the first non-production runtime; compare alternatives before committing.
-- [ ] Define secret storage and runtime-to-Neon/R2 connectivity without exposing secret values.
+- [ ] Define secret storage and runtime-to-Neon/B2 connectivity without exposing secret values.
 - [ ] Defer Sentry until the first service can emit telemetry.
 
 ### Phase 2 — Build the smallest vertical slice
-- [ ] Select one tiny, reversible task in a non-production branch.
-- [ ] Implement a task state machine: queued → planned → implementing → testing → review → candidate → deployed-test → verified; with blocked/failed/cancelled terminal handling.
+- [x] Select the first bounded task: validate task envelopes and enforce evidence-gated state transitions (pure Python, no external services).
+- [x] Implement a pure state-transition contract with blocked/failed/cancelled handling; orchestration, retries, and persistence remain outside this first code slice.
 - [ ] Implement a worker that reads task input and repository state but cannot deploy to production.
 - [ ] Implement branch-scoped code changes and pull-request creation.
 - [ ] Implement CI evidence collection and independent diff review.
@@ -143,11 +143,11 @@ Statuses: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `DONE`, `VERIFIED`.
 
 ## 7. Immediate next actions
 
-1. Review and merge this plan through a pull request; do not merge without user approval.
-2. Inspect the actual TRADIX repository files and workflow to establish the real baseline.
-3. Review Railway workspace and pricing constraints; no project/service currently exists.
-4. Configure B2 secrets in an approved runtime and run the documented connectivity test; this is blocked until a runtime is approved.
-5. Inspect Neon production schema read-only and continue the first vertical-slice design.
+1. Review the status-correction pull request; do not merge without user approval.
+2. Select the first bounded, reversible software task and define exact acceptance criteria.
+3. Resolve the persistent execution/runtime choice and model-provider credentials/cost before attempting autonomous multi-step execution.
+4. Keep Neon production untouched; use an isolated branch for any schema prototype.
+5. Implement a minimal task intake → isolated branch → CI → independent review → evidence report loop before adding deployment.
 
 ## 8. Required status report format
 
@@ -166,3 +166,53 @@ Do not mark a task DONE or VERIFIED based on intention, generated code, or an un
 ## 9. Change-control rule for this document
 
 This file is the durable master checklist, not a chat summary. Update task status only when supported by evidence. Add dated execution notes or link to immutable commits, PRs, CI runs, and deployment IDs. Preserve unresolved items; do not silently remove them. Keep project-specific technical specifications in their own project repositories and link them here rather than copying them into a shared document.
+
+
+## 10. Preflight evidence update — 2026-11-15
+
+- Repository: `grinlife4-stack/TRADIX`; `main` remains at `d778e6e5c15eea353355d38c681b49a00dca1da7` at the time of inspection.
+- Branches observed before this documentation PR: `main`, `factory/phase-0-blueprint`; the new documentation branch is `factory/preflight-status-2026-11-15`. No rulesets returned by GitHub rulesets endpoint; the observed branches report `protected=false`.
+- Pull request #1 is closed and merged. Its CI run `43739714859` passed.
+- B2 workflow run `43745900128` completed successfully. Job logs confirmed `WRITE_TEST=true`, `B2_AUTH_AND_BUCKET_READ=PASS`, `OBJECTS_VISIBLE_IN_SAMPLE=0`, and `B2_WRITE_AND_READBACK=PASS`. The unique health-check object remains in the bucket because version retention is enabled.
+- Neon project `royal-art-56263739`: production branch `br-lingering-hall-bdh0g9if` is ready and has zero application tables; temporary branch `br-bitter-firefly-bd1jt928` is ready and has seven `memory_*` tables. Both branch records report `protected=false`. No production writes or migrations were performed.
+- Railway is connected; workspace `Grin Life's Projects` has zero projects. `whoami` exposes no plan/credit details. Published pricing: Free $0 (30-day trial with $5 credits, then $1/month per pricing page), Hobby $5/month minimum, Pro $20/month minimum; actual resource and agent model usage can add charges. The agent-connector listing was not available to this account; do not assume it can provide an execution environment.
+- GitHub connector exposes branch/file/commit/PR write operations. It does not expose a direct workflow-dispatch operation in the current tool inventory. CI can still run automatically on a PR or push according to workflow triggers.
+- Sentry connector tools were not present in the current tool inventory.
+- No model-provider API credential or persistent orchestrator has been verified. ChatGPT subscription access must not be treated as an API key or an included external model budget.
+- Documentation correction is proposed in draft PR #2: https://github.com/grinlife4-stack/TRADIX/pull/2. It does not deploy a service, alter database schemas, change secrets, modify branch protection, or merge to `main`.
+
+- Public Railway pricing references checked: https://railway.com/pricing and https://docs.railway.com/pricing/free-trial. Account-specific trial eligibility, remaining credits, billing method, and spending caps remain unverified; no Railway resource was created.
+
+
+## 11. First code slice — task contract
+
+The first implementation slice is deliberately provider-free and persistence-free. It establishes strict task-envelope validation and a finite state-transition graph with evidence gates. It does not call an LLM, create branches, write Neon, upload B2 artifacts, or deploy services. Those are later integrations and must not be represented as already working.
+
+The temporary Neon branch's seven `memory_*` tables were inspected at the column/constraint level. They represent project memory, work items, artifacts, conversations, decisions, aliases, and memory events. They are not yet accepted as the factory's operational ledger: the event table has no demonstrated append-only enforcement, and the work-item model does not provide the full execution/approval/evidence semantics. Production remains untouched.
+
+The next integration gate is to prove this contract in CI, then design a separate factory ledger schema and an actual execution adapter. The current GitHub Actions workflow runs tests only; it is not an autonomous code-generation agent.
+
+
+## 12. Code slice execution record — 2026-11-15
+
+- Added `src/tradix/factory/task_contract.py` and package initializer; the contract is pure Python and performs no external I/O.
+- Added `tests/test_task_contract.py` for task validation, fail-closed unknown fields, risk approval, legal transitions, and evidence gates.
+- Added `docs/FIRST_VERTICAL_SLICE_SPEC.md` to state the scope and explicit exclusions.
+- Hardened direct construction and transition calls against invalid runtime types.
+- CI runs for earlier commits in this PR passed (`43747264790`, `43747257944`, `43747255688`). The latest hardening commit `572c44d47c695884521a1719478f02769c666144` is awaiting its own CI result at the time of this note.
+- No Neon writes, B2 writes, service creation, secret changes, deployment, or merge to `main` occurred in this code slice.
+
+- Added `migrations/drafts/0001_factory_ledger.sql` and `docs/NEON_FACTORY_LEDGER_SCHEMA.md` as review-only schema artifacts. The draft includes append-only triggers (including TRUNCATE protection), idempotency keys, and composite task/attempt/artifact foreign keys. It has not been SQL-validated or executed; no Neon branch was created.
+- CI run `43747315591` confirmed `23 passed in 0.04s` for the Python code slice. Later docs/schema commits are being checked by the same tests; no SQL integration test is configured.
+
+- Approval-gate hardening: `transition_task` now blocks a task flagged for approval from entering `implementing` until an explicit `approved` decision is supplied. `validate_approval` also rejects missing/rejected approval for production deployment, destructive migration, secret change, permission change, and irreversible-operation actions. These are pure policy functions; no runtime caller exists yet, so integration remains a future gate.
+
+- Latest Python CI evidence before the SQL-draft-only refinements: run `43747838605` passed with `28 passed in 0.04s`. The subsequent SQL and schema-document commits still require their own CI run; that workflow only exercises Python tests and does not validate SQL syntax.
+
+- Added a provider-neutral `ModelAdapter` protocol, bounded request/response records, and a strict JSON plan parser. Model output remains untrusted data; the adapter contract exposes no tool execution. Unit tests use a fake provider only. No live provider SDK, API key, model call, or billing is configured.
+
+- Added `docs/MODEL_PROVIDER_DECISION.md`: GitHub Models is retired; Gemini's free tier permits product-improvement use of submitted content; Hugging Face free inference credit is only $0.10/month; ChatGPT and API billing are separate; Groq free limits are account/model-specific. No provider selected, no API key configured, and no paid usage enabled.
+
+- Added `.github/workflows/factory-ledger-sql.yml` and `tests/test_factory_ledger_sql.sh`. Run `43748128262` applied the draft to an ephemeral PostgreSQL 17 service and passed 16 negative integrity checks, including risk/approval constraints, cross-task and cross-attempt foreign keys, idempotency uniqueness, and UPDATE/DELETE/TRUNCATE rejection. This is disposable CI only, not a Neon migration.
+
+- Final verification for current PR head `90ff75249ad1ae87175c04c2a15120b5df111eee`: Python CI run `43748190319` passed with `40 passed in 0.05s`; PostgreSQL 17 schema CI run `43748190409` passed with all 16 negative integrity checks. The SQL ran only inside the disposable GitHub Actions service container.

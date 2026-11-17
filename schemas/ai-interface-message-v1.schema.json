@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://factory.local/schemas/ai-interface-message-v1.schema.json",
+  "title": "TRADIX AI Interface Message v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["message_id", "conversation_id", "project_key", "correlation_id", "sender", "message_type", "body", "created_at"],
+  "properties": {
+    "message_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$"},
+    "conversation_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$"},
+    "project_key": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,39}$"},
+    "correlation_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$"},
+    "reply_to": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$"},
+    "sender": {"enum": ["user", "interface_ai", "factory"]},
+    "message_type": {"enum": ["user_input", "mission_proposal", "status_query", "capability_query", "clarification_answer", "factory_need", "status_update", "result", "blocked"]},
+    "body": {"type": "object", "minProperties": 1},
+    "created_at": {"type": "string", "format": "date-time", "minLength": 1, "maxLength": 40}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"sender": {"const": "user"}}, "required": ["sender"]},
+      "then": {"properties": {"message_type": {"const": "user_input"}}}
+    },
+    {
+      "if": {"properties": {"sender": {"const": "interface_ai"}}, "required": ["sender"]},
+      "then": {"properties": {"message_type": {"enum": ["mission_proposal", "status_query", "capability_query", "clarification_answer"]}}}
+    },
+    {
+      "if": {"properties": {"sender": {"const": "factory"}}, "required": ["sender"]},
+      "then": {"properties": {"message_type": {"enum": ["factory_need", "status_update", "result", "blocked"]}}}
+    },
+    {
+      "if": {"properties": {"message_type": {"enum": ["user_input", "mission_proposal", "clarification_answer"]}}, "required": ["message_type"]},
+      "then": {"properties": {"body": {"type": "object", "required": ["text"], "properties": {"text": {"type": "string", "minLength": 1, "maxLength": 12000}}}}}
+    },
+    {
+      "if": {"properties": {"message_type": {"enum": ["status_query", "capability_query"]}}, "required": ["message_type"]},
+      "then": {"properties": {"body": {"type": "object", "required": ["query"], "properties": {"query": {"type": "string", "minLength": 1, "maxLength": 2000}}}}}
+    },
+    {
+      "if": {"properties": {"message_type": {"enum": ["status_update", "result", "blocked"]}}, "required": ["message_type"]},
+      "then": {"properties": {"body": {"type": "object", "required": ["summary"], "properties": {"summary": {"type": "string", "minLength": 1, "maxLength": 12000}}}}}
+    },
+    {
+      "if": {"properties": {"message_type": {"const": "factory_need"}}, "required": ["message_type"]},
+      "then": {
+        "properties": {
+          "body": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["need_id", "project_key", "category", "question", "reason"],
+            "properties": {
+              "need_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$"},
+              "project_key": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,39}$"},
+              "category": {"enum": ["missing_information", "capability", "resource", "policy_decision", "reserved_approval", "blocked_dependency"]},
+              "question": {"type": "string", "minLength": 1, "maxLength": 4000},
+              "reason": {"type": "string", "minLength": 1, "maxLength": 4000},
+              "priority": {"enum": ["low", "normal", "high", "critical"]},
+              "blocks_progress": {"type": "boolean"},
+              "mission_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$"}
+            }
+          }
+        }
+      }
+    }
+  ]
+}
