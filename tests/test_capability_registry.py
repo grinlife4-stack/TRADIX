@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -137,7 +138,7 @@ def test_duplicate_version_and_invalid_version_are_rejected(tmp_path: Path) -> N
         )
 
     registry.propose(sample_capability(), actor="reviewer")
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.IntegrityError):
         registry.propose(sample_capability(), actor="reviewer")
 
 
@@ -150,3 +151,36 @@ def test_empty_required_fields_fail_closed(tmp_path: Path) -> None:
             ),
             actor="reviewer",
         )
+
+
+
+def test_lifecycle_history_is_visible_and_ordered(tmp_path: Path) -> None:
+    registry = CapabilityRegistry(tmp_path / "registry.sqlite")
+    registry.propose(sample_capability(), actor="proposer")
+    registry.promote(
+        "artifact-manifest", "1.0.0", complete_review(), actor="approver"
+    )
+
+    history = registry.history("artifact-manifest", "1.0.0")
+    assert [event["status"] for event in history] == ["proposed", "accepted"]
+    assert [event["actor"] for event in history] == ["proposer", "approver"]
+
+
+def test_sqlite_triggers_block_ordinary_record_mutation(tmp_path: Path) -> None:
+    db = tmp_path / "registry.sqlite"
+    registry = CapabilityRegistry(db)
+    registry.propose(sample_capability(), actor="reviewer")
+
+    connection = sqlite3.connect(db)
+    try:
+        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+            connection.execute(
+                "UPDATE capabilities SET record_json = '{}' "
+                "WHERE capability_id = 'artifact-manifest'"
+            )
+        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+            connection.execute(
+                "DELETE FROM capability_events WHERE capability_id = 'artifact-manifest'"
+            )
+    finally:
+        connection.close()
