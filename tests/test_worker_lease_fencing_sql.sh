@@ -28,6 +28,7 @@ expect_runtime_failure() {
 
 task_id="55555555-5555-4555-8555-555555555555"
 attempt_id="66666666-6666-4666-8666-666666666666"
+next_attempt_id="77777777-7777-4777-8777-777777777777"
 
 psql <<SQL
 INSERT INTO factory.tasks (
@@ -40,7 +41,9 @@ INSERT INTO factory.tasks (
 );
 INSERT INTO factory.task_attempts (
   attempt_id, task_id, attempt_number, worker_role
-) VALUES ('$attempt_id', '$task_id', 1, 'implementer');
+ ) VALUES
+ ('$attempt_id', '$task_id', 1, 'implementer'),
+ ('$next_attempt_id', '$task_id', 2, 'implementer');
 SQL
 
 if [[ "$(psql -c "SELECT status FROM factory.task_attempts WHERE attempt_id='$attempt_id'")" != "queued" ]]; then
@@ -62,6 +65,8 @@ expect_runtime_failure "a second worker cannot acquire a live lease" "task alrea
   "SELECT factory.acquire_task_lease('$task_id','$attempt_id','lease-worker-new',5)"
 
 sleep 6
+expect_runtime_failure "expired lease cannot silently switch to a different attempt" "expired lease belongs to another attempt" \
+  "SELECT factory.acquire_task_lease('$task_id','$next_attempt_id','lease-worker-new',30)"
 token2="$(runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$task_id','$attempt_id','lease-worker-new',30)")"
 if [[ -z "$token2" || "$token2" -le "$token1" ]]; then
   echo "FAIL: takeover did not issue a strictly increasing fencing token"
