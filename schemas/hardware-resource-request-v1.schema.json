@@ -261,34 +261,5 @@
         }
       }
     }
-  },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "cpu": {
-            "properties": {
-              "min_millicores": {
-                "type": "integer"
-              },
-              "max_millicores": {
-                "type": "integer"
-              }
-            }
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "cpu": {
-            "properties": {
-              "max_millicores": {
-                "minimum": 1
-              }
-            }
-          }
-        }
-      }
-    }
-  ]
+  }
 }
