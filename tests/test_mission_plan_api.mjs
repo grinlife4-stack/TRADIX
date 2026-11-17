@@ -173,12 +173,15 @@ assert.equal(acceptedIntakeBody.intake_status, "pending_human_approval");
 assert.equal(acceptedIntakeBody.dispatch_authorized, false);
 assert.equal(acceptedIntakeBody.task_creation, "not_performed");
 assert.equal(acceptedIntakeBody.resource_reservation, "not_performed");
+assert.match(acceptedIntakeBody.intake_id, /^[0-9a-f-]{36}$/);
 assert.ok(Number.isInteger(acceptedIntakeBody.versions.dossier_version) && acceptedIntakeBody.versions.dossier_version > 0);
 assert.equal(acceptedIntakeBody.versions.mission_version, 1);
 assert.equal(acceptedIntakeBody.versions.plan_version, 1);
 const intakeRetry = await postIntake(makeIntake(1, "Requirement after rollback"));
 assert.equal(intakeRetry.status, 200);
-assert.deepEqual((await intakeRetry.json()).versions, acceptedIntakeBody.versions);
+const intakeRetryBody = await intakeRetry.json();
+assert.deepEqual(intakeRetryBody.versions, acceptedIntakeBody.versions);
+assert.equal(intakeRetryBody.intake_id, acceptedIntakeBody.intake_id);
 const invalidApprovalGate = await postIntake({
   ...makeIntake(),
   mission: { ...makeIntake().mission, approval_required: false }
