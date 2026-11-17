@@ -62,6 +62,15 @@ jobs:
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: bash tests/test_factory_ledger_sql.sh "$POSTGRES_CONTAINER_ID"
+      - name: Apply worker lease fencing migration to disposable PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0004_worker_lease_fencing.sql
+      - name: Test worker lease fencing and stale-worker rejection
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: bash tests/test_worker_lease_fencing_sql.sh "$POSTGRES_CONTAINER_ID"
       - name: Install product dossier API dependencies
         run: npm install --prefix runtime/product-dossier-api --ignore-scripts --no-audit --no-fund
       - name: Install factory executor dependencies
