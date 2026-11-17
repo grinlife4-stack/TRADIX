@@ -110,6 +110,19 @@ def test_verified_component_requires_sha256_evidence():
     assert "source.evidence_sha256 is required when status is verified" in errors
 
 
+def test_verified_evidence_paths_cannot_escape_the_manifest_directory():
+    manifest = load_manifest()
+    manifest["source"].update({
+        "status": "verified",
+        "evidence_path": "../outside.json",
+        "evidence_sha256": EVIDENCE_SHA,
+    })
+
+    errors = validate_manifest(manifest)
+
+    assert "source.evidence_path must be a safe relative path when status is verified" in errors
+
+
 def test_passed_restore_requires_target_timestamp_and_evidence():
     manifest = load_manifest()
     manifest["backup_restore"]["restore_test"] = {
