@@ -107,6 +107,37 @@ class CPIIERegistryTests(unittest.TestCase):
             self.registry.export_snapshot(), self.registry.export_snapshot()
         )
 
+    def test_stale_source_snapshot_blocks_capability(self):
+        old_registry = CPIIERegistry()
+        try:
+            old_registry.register_source(Source(
+                "old-source", "retailer-x", "retailer",
+                "https://example.org/old-terms", "Old terms",
+            ))
+            old_doc = old_registry.record_document(
+                "old-source", "Old terms", "2020-01-01T00:00:00+00:00"
+            )
+            evidence = old_registry.record_evidence(old_doc.document_id, "s1", "Old excerpt")
+            old_registry.propose_rule(
+                "old-rule", old_doc.document_id, evidence,
+                "catalog.old", "Old permission",
+            )
+            old_registry.review_rule("old-rule", "reviewer", RuleState.VERIFIED)
+            result = old_registry.evaluate(
+                "catalog.old", now="2026-11-17T00:00:00+00:00",
+                max_age_seconds=86400,
+            )
+            self.assertEqual(result.state, CapabilityState.BLOCKED_EXPIRED)
+            self.assertIn("stale", result.reason)
+        finally:
+            old_registry.close()
+
+    def test_audit_snapshot_does_not_export_document_body(self):
+        self.propose()
+        snapshot = self.registry.export_snapshot()
+        self.assertNotIn('"content"', snapshot)
+        self.assertNotIn("Terms v1", snapshot)
+
 
 if __name__ == "__main__":
     unittest.main()
