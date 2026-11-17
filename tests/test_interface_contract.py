@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from tradix.factory.interface_contract import (
@@ -170,6 +172,10 @@ def test_message_body_is_deeply_immutable_after_validation():
 
     assert item.body["text"] == "Create a bounded product mission."
     assert item.body["metadata"]["labels"] == ("reviewed",)
+    assert json.loads(json.dumps(item.body)) == {
+        "text": "Create a bounded product mission.",
+        "metadata": {"labels": ["reviewed"]},
+    }
     with pytest.raises(TypeError):
         item.body["text"] = "tampered"
     with pytest.raises(TypeError):
