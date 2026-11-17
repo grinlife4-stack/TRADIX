@@ -78,7 +78,7 @@ async function runNodeScript(productRoot, script, label, leaseGuard) {
     let bytes = 0;
     let settled = false;
     leaseGuard?.registerChild?.(child);
-    if (leaseGuard?.lost) child.kill("SIGKILL");
+    if (leaseGuard?.lost) terminateChildTree(child);
     const timer = setTimeout(() => {
       terminateChildTree(child);
       finish(new Error(`${label} exceeded ${COMMAND_TIMEOUT_MS}ms`));
