@@ -1,0 +1,8 @@
+{
+  "name": "multi-market-dropship-product",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test domain/*.test.js"
+  }
+}
