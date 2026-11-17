@@ -182,3 +182,20 @@ TRADIX follows the rule **USE ESTABLISHED STANDARDS ONLY**.
 - Record the concrete requirement, chosen standard, alternatives, security implications, and selection rationale in the relevant project documentation.
 
 This is a standing architectural principle, not a separate product or implementation project. Apply it at the point of need.
+
+## 11. Best-of-breed and vendor-independent architecture
+
+TRADIX follows **BEST-OF-BREED, VENDOR-INDEPENDENT ORCHESTRATION** as a foundational architecture rule.
+
+- Select, combine, and orchestrate the best suitable existing software, models, services, and infrastructure. Rebuild mature capabilities only when a documented technical, security, cost, or control reason justifies it.
+- Prefer free and open-source options when they meet the required quality, security, license, maintenance, and operational criteria. Evaluate total cost: source availability does not remove hosting, compute, API/model usage, storage, support, migration, or maintenance costs.
+- No vendor, model, platform, database, storage provider, runtime, or tool may become an exclusive dependency or an unmitigated single point of failure.
+- Keep TRADIX core policy, project state, credentials, audit history, and data contracts under TRADIX-controlled and portable boundaries.
+- Integrate through documented, established interfaces. Isolate provider-specific behavior behind replaceable adapters; do not let an adapter become a proprietary protocol.
+- Route each task by required capability and verified quality, not by vendor name. Maintain a capability/provider registry with versions, license and commercial-use constraints, health/access state, cost limits, security scope, portability, alternatives, limitations, and verification evidence.
+- Design for health checks, bounded retries, graceful degradation, and controlled failover. Before switching providers, verify contract compatibility, state and data integrity, audit continuity, and least-privilege permissions.
+- A replacement must not automatically inherit secrets, broader permissions, or access to other project namespaces. Existing human approval gates remain in force.
+- For critical capabilities, maintain at least one viable tested alternative or a documented recovery path where practical. Verify replacements with contract tests and periodic replacement drills.
+- If no safe compatible alternative exists, fail closed and report the exact dependency. Never claim provider independence merely because an adapter interface exists.
+
+**Implementation status:** This change establishes the mandatory policy. Provider registry, adapters, automated routing/failover, portability checks, and replacement drills remain implementation work and must be reported as PLANNED until tested.

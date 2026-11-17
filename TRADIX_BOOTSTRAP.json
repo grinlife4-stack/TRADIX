@@ -413,5 +413,69 @@
     "data_contracts": "Use standard formats and validation mechanisms such as JSON and JSON Schema where suitable. Project-specific data schemas are data contracts, not new communication protocols.",
     "decision_record": "Record the requirement, selected standard, alternatives considered, security implications, and reason for selection in the relevant project documentation.",
     "prohibition": "Do not create a TRADIX-specific replacement for an established communication standard."
+  },
+  "vendor_independence_policy": {
+    "governing_rule": "BEST_OF_BREED_VENDOR_INDEPENDENT_ORCHESTRATION",
+    "authority": "FOUNDATIONAL_ARCHITECTURE_RULE",
+    "mission": "Select, combine, and orchestrate the best suitable existing software, models, services, and infrastructure without exclusive dependence on any provider.",
+    "selection": {
+      "priority": "Best fit for the required capability, security, reliability, interoperability, maintainability, and total operating cost.",
+      "free_and_open_source": "Prefer free and open-source options when they satisfy required quality, security, license, maintenance, and operational criteria.",
+      "total_cost": "Evaluate hosting, compute, model/API usage, storage, support, maintenance, migration, and operational costs; free source code does not mean zero operating cost.",
+      "reuse": "Do not rebuild mature existing capabilities without a concrete technical, security, cost, or control reason.",
+      "composition": "Combine multiple tools/providers when the measured result is better and the added complexity is justified."
+    },
+    "independence": {
+      "no_exclusive_vendor_dependency": true,
+      "avoid_unmitigated_single_points_of_failure": true,
+      "core_policy_and_project_state_controlled_by_tradix": true,
+      "data_and_audit_records_portable": true,
+      "provider_specific_logic_confined_to_replaceable_adapters": true,
+      "integration_interfaces": "DOCUMENTED_ESTABLISHED_STANDARDS_AND_STABLE_CONTRACTS"
+    },
+    "capability_routing": {
+      "choose_by": "REQUIRED_CAPABILITY_AND_VERIFIED_QUALITY",
+      "not_by": "VENDOR_NAME_OR_DEFAULT_BRAND",
+      "registry_required": true,
+      "registry_fields": [
+        "provider_or_tool",
+        "capabilities",
+        "versions",
+        "license_and_commercial_use",
+        "health_and_access_state",
+        "cost_limits",
+        "security_scope",
+        "data_portability",
+        "known_limitations",
+        "alternatives",
+        "verification_evidence"
+      ]
+    },
+    "continuity_and_replacement": {
+      "required": "HEALTH_CHECKS_BOUNDED_RETRIES_GRACEFUL_DEGRADATION_AND_CONTROLLED_FAILOVER",
+      "before_switch": [
+        "verify_contract_compatibility",
+        "preserve_task_and_project_state",
+        "verify_data_integrity",
+        "preserve_audit_history",
+        "recheck_permissions_and_secret_scope"
+      ],
+      "permission_rule": "A replacement must not inherit broader permissions, credentials, or data access automatically.",
+      "critical_capabilities": "Maintain at least one tested viable alternative or a documented recovery path where practical.",
+      "verification": [
+        "provider_contract_tests",
+        "periodic_replacement_drills",
+        "restore_and_portability_tests"
+      ],
+      "no_safe_replacement": "FAIL_CLOSED_AND_REPORT_EXACT_DEPENDENCY"
+    },
+    "security_constraints": {
+      "fail_closed": true,
+      "least_privilege": true,
+      "no_secret_export_to_replacement_without_explicit_authorization": true,
+      "fallback_must_not_bypass_approval_gates": true,
+      "external_side_effects_remain_subject_to_existing_human_approval_policy": true
+    },
+    "status": "POLICY_DEFINED_IMPLEMENTATION_AND_PROVIDER_REGISTRY_NOT_YET_VERIFIED"
   }
 }
