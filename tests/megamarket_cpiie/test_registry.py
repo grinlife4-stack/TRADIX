@@ -17,6 +17,7 @@ class FakeReviewerVerifier:
 
     def __init__(self):
         self.revoked_receipts = set()
+        self.receipts = {}
 
     def verify_assertion(self, assertion):
         parts = assertion.split("|")
@@ -24,7 +25,7 @@ class FakeReviewerVerifier:
             raise ValueError("invalid test assertion")
         subject, company_id, capability, decision = parts
         now = datetime.now(timezone.utc)
-        return VerifiedReviewer(
+        reviewer = VerifiedReviewer(
             issuer="https://test-issuer.invalid",
             subject=subject,
             key_id="test-key",
@@ -36,11 +37,13 @@ class FakeReviewerVerifier:
             expires_at=(now + timedelta(hours=1)).isoformat(),
             receipt="test-receipt:" + assertion,
         )
+        self.receipts[reviewer.receipt] = reviewer
+        return reviewer
 
     def verify_receipt(self, receipt):
-        if receipt in self.revoked_receipts or not receipt.startswith("test-receipt:"):
+        if receipt in self.revoked_receipts:
             return None
-        return self.verify_assertion(receipt[len("test-receipt:"):])
+        return self.receipts.get(receipt)
 
 
 
