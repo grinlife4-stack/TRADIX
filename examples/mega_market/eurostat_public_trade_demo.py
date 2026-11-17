@@ -39,7 +39,7 @@ def build_request_url(start_year: int, end_year: int) -> str:
         raise ValueError("year range must be ordered and within 1990..2100")
     key = (
         f"{QUERY['frequency']}.{QUERY['reporter']}.{QUERY['partner']}."
-        f"{QUERY['product']}.{QUERY['flow']}..{QUERY['indicator']}"
+        f"{QUERY['product']}.{QUERY['flow']}.{QUERY['indicator']}"
     )
     params = urllib.parse.urlencode({
         "format": "SDMX-CSV",
