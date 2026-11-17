@@ -89,6 +89,51 @@ jobs:
           output=$(node runtime/factory-executor/runner.mjs examples/hello-world/product.json)
           printf '%s\n' "$output"
           grep -Eq '^ALREADY VERIFIED task=.* attempt=.* events=7 evidence=3$' <<< "$output"
+      - name: Verify executor terminates a child after lease loss
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: |
+          set -euo pipefail
+          rm -f /tmp/tradix-lease-loss-child-survived /tmp/tradix-lease-loss-runner.log
+          node runtime/factory-executor/runner.mjs examples/lease-loss/product.json > /tmp/tradix-lease-loss-runner.log 2>&1 &
+          runner_pid=$!
+          task_id=""
+          for attempt in $(seq 1 100); do
+            task_id=$(docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -U postgres -d tradix_test -c "SELECT t.task_id FROM factory.tasks t JOIN factory.task_leases l ON l.task_id=t.task_id WHERE t.task_key='lease-loss-runner-v1' AND t.status='implementing' LIMIT 1")
+            if [[ -n "$task_id" ]]; then
+              docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "UPDATE factory.task_leases SET expires_at=clock_timestamp()-interval '1 second' WHERE task_id='$task_id'"
+              break
+            fi
+            sleep 0.2
+          done
+          if [[ -z "$task_id" ]]; then
+            kill "$runner_pid" 2>/dev/null || true
+            cat /tmp/tradix-lease-loss-runner.log
+            echo "Lease-loss fixture never acquired its task lease"
+            exit 1
+          fi
+          set +e
+          wait "$runner_pid"
+          runner_status=$?
+          set -e
+          if [[ "$runner_status" -eq 0 ]]; then
+            cat /tmp/tradix-lease-loss-runner.log
+            echo "Executor unexpectedly succeeded after losing its lease"
+            exit 1
+          fi
+          grep -q "FACTORY_EXECUTOR_LEASE_LOST" /tmp/tradix-lease-loss-runner.log || { cat /tmp/tradix-lease-loss-runner.log; echo "Executor did not report lease loss"; exit 1; }
+          if [[ -e /tmp/tradix-lease-loss-child-survived ]]; then
+            echo "Child process survived after the executor lost its lease"
+            exit 1
+          fi
+          state=$(docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -U postgres -d tradix_test -c "SELECT t.status || '/' || a.status FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_key='lease-loss-runner-v1' LIMIT 1")
+          if [[ "$state" != "implementing/running" ]]; then
+            echo "Stale worker changed state after losing its lease: $state"
+            exit 1
+          fi
+          echo "PASS: lease loss terminated the child and blocked stale cleanup writes"
       - name: Upload factory execution evidence
         if: always()
         uses: actions/upload-artifact@v4
