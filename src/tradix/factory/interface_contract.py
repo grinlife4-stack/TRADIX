@@ -10,7 +10,6 @@ from datetime import datetime
 from enum import Enum
 import math
 import re
-from types import MappingProxyType
 from typing import Any, Mapping
 
 
@@ -20,6 +19,25 @@ _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$")
 
 class InterfaceContractError(ValueError):
     """Raised when an interface message or factory need is invalid."""
+
+
+class _FrozenDict(dict):
+    """JSON-encoder-compatible dictionary that blocks ordinary mutation."""
+
+    def __init__(self, values: Mapping[str, Any]) -> None:
+        dict.__init__(self, values)
+
+    @staticmethod
+    def _immutable(*args: Any, **kwargs: Any) -> None:
+        raise TypeError("validated interface payloads are immutable")
+
+    __setitem__ = _immutable
+    __delitem__ = _immutable
+    clear = _immutable
+    pop = _immutable
+    popitem = _immutable
+    setdefault = _immutable
+    update = _immutable
 
 
 class Sender(str, Enum):
@@ -85,7 +103,7 @@ def _freeze_json_value(value: Any, path: str, depth: int = 0) -> Any:
             if not isinstance(key, str):
                 raise InterfaceContractError(f"{path} object keys must be strings")
             frozen[key] = _freeze_json_value(item, f"{path}.{key}", depth + 1)
-        return MappingProxyType(frozen)
+        return _FrozenDict(frozen)
     if isinstance(value, (list, tuple)):
         return tuple(
             _freeze_json_value(item, f"{path}[{index}]", depth + 1)
