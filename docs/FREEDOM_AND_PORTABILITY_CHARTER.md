@@ -73,6 +73,8 @@ Deferred decisions remain deferred until the owner explicitly decides them. In p
 
 ## 9. Acceptance criteria
 
+A first machine-enforced contract now exists in `schemas/product-portability-v1.schema.json`, with a deterministic design/release checker at `scripts/check_product_portability.py`. The Hello World manifest is intentionally marked `planned`: it passes design validation, while release validation remains blocked until real export/import work, file-backed evidence, a second-host restore test, and an evidenced exit-cost estimate exist. This gate is an enforcement scaffold, not proof that the portability goals have been achieved.
+
 The freedom and portability goals are not considered achieved until tests demonstrate that:
 
 1. a conversational AI provider can be replaced without losing factory state;
