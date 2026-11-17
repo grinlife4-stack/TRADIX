@@ -1,46 +1,26 @@
 """Metric-specific demand evidence; deliberately no cross-metric score or aggregation."""
-
 from __future__ import annotations
-
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 import re
 from typing import Literal
 
-
 DemandMetric = Literal[
-    "transaction_count",
-    "units_sold",
-    "bestseller_rank",
-    "search_interest_index",
-    "review_count",
-    "stockout_rate",
-    "estimated_units_sold",
-    "estimated_revenue",
+    "transaction_count", "units_sold", "bestseller_rank", "search_interest_index",
+    "review_count", "stockout_rate", "estimated_units_sold", "estimated_revenue",
     "advertising_attributed_sales_estimate",
 ]
-
-OBSERVED_METRICS = frozenset(
-    {
-        "transaction_count",
-        "units_sold",
-        "bestseller_rank",
-        "search_interest_index",
-        "review_count",
-        "stockout_rate",
-    }
-)
-ESTIMATED_METRICS = frozenset(
-    {
-        "estimated_units_sold",
-        "estimated_revenue",
-        "advertising_attributed_sales_estimate",
-    }
-)
+OBSERVED_METRICS = frozenset({
+    "transaction_count", "units_sold", "bestseller_rank",
+    "search_interest_index", "review_count", "stockout_rate",
+})
+ESTIMATED_METRICS = frozenset({
+    "estimated_units_sold", "estimated_revenue", "advertising_attributed_sales_estimate",
+})
 DIRECT_SALES_METRICS = frozenset({"transaction_count", "units_sold"})
 _MARKET_CODE = re.compile(r"^[A-Z]{2}$")
-
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 @dataclass(frozen=True, slots=True)
 class DemandObservation:
@@ -56,6 +36,9 @@ class DemandObservation:
     window_end: datetime
     verified: bool
     reference: str | None = None
+    permission_reference: str | None = None
+    raw_payload_sha256: str | None = None
+    coverage_complete: bool = False
 
     def __post_init__(self) -> None:
         if not self.product_identity_key.strip():
@@ -81,26 +64,34 @@ class DemandObservation:
             raise ValueError("window_start cannot be after window_end")
         if self.window_end > self.observed_at:
             raise ValueError("measurement window cannot end after observed_at")
-        if self.verified and (self.reference is None or not self.reference.strip()):
-            raise ValueError("verified observations require a provenance reference")
-
+        if self.raw_payload_sha256 is not None and not _SHA256.fullmatch(self.raw_payload_sha256):
+            raise ValueError("raw_payload_sha256 must be a lowercase SHA-256 hex digest")
+        if self.permission_reference is not None and not self.permission_reference.strip():
+            raise ValueError("permission_reference cannot be empty")
+        if not isinstance(self.coverage_complete, bool):
+            raise TypeError("coverage_complete must be a boolean")
+        if self.verified:
+            if self.reference is None or not self.reference.strip():
+                raise ValueError("verified observations require a provenance reference")
+            if self.permission_reference is None:
+                raise ValueError("verified observations require a source permission reference")
+            if self.raw_payload_sha256 is None:
+                raise ValueError("verified observations require a raw payload SHA-256")
+            if not self.coverage_complete:
+                raise ValueError("verified observations require complete report coverage")
 
 @dataclass(frozen=True, slots=True)
 class DemandPolicy:
     max_age: timedelta = timedelta(hours=24)
-
     def __post_init__(self) -> None:
         if self.max_age <= timedelta(0):
             raise ValueError("max_age must be greater than zero")
 
-
 @dataclass(frozen=True, slots=True)
 class DemandAssessment:
     status: Literal[
-        "direct_sales_observations_available",
-        "proxy_observations_only",
-        "estimates_only",
-        "insufficient_evidence",
+        "direct_sales_observations_available", "proxy_observations_only",
+        "estimates_only", "insufficient_evidence",
     ]
     usable_observations: tuple[DemandObservation, ...]
     stale_metrics: tuple[str, ...]
@@ -113,11 +104,9 @@ class DemandAssessment:
     observed_source_ids: tuple[str, ...]
     estimated_source_ids: tuple[str, ...]
     assessed_at: datetime
-
     def __post_init__(self) -> None:
         if self.assessed_at.tzinfo is None or self.assessed_at.utcoffset() is None:
             raise ValueError("assessed_at must be timezone-aware")
-
 
 def assess_demand(
     observations: tuple[DemandObservation, ...],
@@ -126,8 +115,7 @@ def assess_demand(
     policy: DemandPolicy,
     now: datetime,
 ) -> DemandAssessment:
-    """Classify available evidence without inventing a demand score or sales volume."""
-
+    """Classify evidence without inventing a demand score or sales volume."""
     if not product_identity_key.strip():
         raise ValueError("product_identity_key cannot be empty")
     if not _MARKET_CODE.fullmatch(market_code):
@@ -135,34 +123,26 @@ def assess_demand(
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("now must be timezone-aware")
 
-    relevant = tuple(
-        item
-        for item in observations
-        if item.product_identity_key == product_identity_key and item.market_code == market_code
-    )
+    relevant = tuple(item for item in observations
+                     if item.product_identity_key == product_identity_key and item.market_code == market_code)
     ignored = len(observations) - len(relevant)
-
     stale: set[str] = set()
     unverified: set[str] = set()
     future: set[str] = set()
     usable: list[DemandObservation] = []
-
     for item in relevant:
         if item.observed_at > now or item.window_end > now:
             future.add(item.metric)
-            continue
-        if now - item.observed_at > policy.max_age:
+        elif now - item.observed_at > policy.max_age:
             stale.add(item.metric)
-            continue
-        if not item.verified:
+        elif not item.verified:
             unverified.add(item.metric)
-            continue
-        usable.append(item)
+        else:
+            usable.append(item)
 
     direct = tuple(sorted({item.metric for item in usable if item.metric in DIRECT_SALES_METRICS}))
     proxy = tuple(sorted({item.metric for item in usable if item.metric in OBSERVED_METRICS and item.metric not in DIRECT_SALES_METRICS}))
     estimates = tuple(sorted({item.metric for item in usable if item.metric in ESTIMATED_METRICS}))
-
     if direct:
         status = "direct_sales_observations_available"
     elif proxy:
@@ -171,18 +151,12 @@ def assess_demand(
         status = "estimates_only"
     else:
         status = "insufficient_evidence"
-
     usable.sort(key=lambda item: (item.metric, item.source_id, item.source_record_id))
     return DemandAssessment(
-        status=status,
-        usable_observations=tuple(usable),
-        stale_metrics=tuple(sorted(stale)),
-        unverified_metrics=tuple(sorted(unverified)),
-        future_metrics=tuple(sorted(future)),
-        ignored_other_product_or_market=ignored,
-        direct_sales_metrics=direct,
-        proxy_metrics=proxy,
-        estimate_metrics=estimates,
+        status=status, usable_observations=tuple(usable),
+        stale_metrics=tuple(sorted(stale)), unverified_metrics=tuple(sorted(unverified)),
+        future_metrics=tuple(sorted(future)), ignored_other_product_or_market=ignored,
+        direct_sales_metrics=direct, proxy_metrics=proxy, estimate_metrics=estimates,
         observed_source_ids=tuple(sorted({item.source_id for item in usable if item.metric in OBSERVED_METRICS})),
         estimated_source_ids=tuple(sorted({item.source_id for item in usable if item.metric in ESTIMATED_METRICS})),
         assessed_at=now,
