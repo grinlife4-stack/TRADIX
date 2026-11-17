@@ -17,7 +17,7 @@ ROWS = (
 
 def test_builds_a_narrow_comext_query():
     url = build_request_url(2020, 2025)
-    assert "/DS-045409/A.DE.FR.1001.1..VALUE_IN_EUROS?" in url
+    assert "/DS-045409/A.DE.FR.1001.1.VALUE_IN_EUROS?" in url
     assert "startPeriod=2020" in url
     assert "endPeriod=2025" in url
 
