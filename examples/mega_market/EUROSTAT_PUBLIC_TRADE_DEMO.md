@@ -8,7 +8,7 @@ This is a live-data demonstration of the MegaMarket ingestion and evidence path.
 - Dataset: DS-045409, EU trade since 1988 by HS2-4-6 and CN8
 - Reporter: Germany (DE)
 - Partner: France (FR)
-- Product: HS 1001, wheat and meslin
+- Product: HS 8703, motor cars and other motor vehicles
 - Flow: imports
 - Frequency: annual
 - Indicator: value in euros
