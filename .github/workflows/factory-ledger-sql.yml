@@ -114,6 +114,8 @@ jobs:
         run: bash tests/test_worker_lease_fencing_sql.sh "$POSTGRES_CONTAINER_ID"
       - name: Install product dossier API dependencies
         run: npm install --prefix runtime/product-dossier-api --ignore-scripts --no-audit --no-fund
+      - name: Validate hardware inventory and resource request schemas
+        run: node runtime/product-dossier-api/test-hardware-schema.mjs
       - name: Install factory executor dependencies
         run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
       - name: Build the pinned Docker sandbox image
