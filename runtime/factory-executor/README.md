@@ -26,14 +26,20 @@ The database identity is authoritative. The manifest cannot select or override a
 
 1. Record dossier version 1 through the runtime dossier function.
 2. Create or retrieve the task using its product-scoped task key.
-3. Create or retrieve the attempt using its task-scoped idempotency key.
-4. Run the product and test scripts with a 15-second timeout and a combined 1 MiB output cap per script.
-5. Record test, review, and health evidence with SHA-256 digests.
-6. Move the task through the controlled event-ledger transitions.
-7. Mark attempt success and task `verified` in one database transaction.
-8. On an exact retry after verification, validate the attempt, seven lifecycle events, and three evidence records before returning success.
+3. Create or retrieve the attempt using its task-scoped idempotency key. New attempts remain `queued`.
+4. Acquire a task lease. PostgreSQL issues a monotonically increasing fencing token bound to the task, attempt, and worker ID; acquisition changes the attempt to `running`.
+5. Renew the lease every 15 seconds against a 60-second TTL. If renewal fails, terminate the active child process and refuse to start another stage.
+6. Run the product and test scripts with a 15-second timeout and a combined 1 MiB output cap per script.
+7. Record test, review, and health evidence with SHA-256 digests.
+8. Route every transition, evidence write, and attempt completion through a fenced database function. A stale worker is rejected before idempotency replay or mutation.
+9. Mark attempt success, transition the task to `verified`, and release the lease in one database transaction.
+10. On an exact retry after verification, validate the attempt, seven lifecycle events, and three evidence records before returning success.
 
-Task, attempt, evidence, and lifecycle writes use narrowly scoped SECURITY DEFINER database functions. The product runtime cannot write those tables directly.
+Task, attempt, evidence, lifecycle, and lease writes use narrowly scoped SECURITY DEFINER database functions. The product runtime cannot write those tables or call the legacy unfenced write APIs directly.
+
+## Recovery boundary
+
+The runner intentionally refuses to resume an interrupted task from an intermediate lifecycle state. It does not yet have durable stage checkpoints or proof that re-running a product script is side-effect safe. The database supports lease takeover for the same attempt after expiry, but automatic stage-level resume is not implemented. This is a deliberate fail-closed boundary, not a recovery feature.
 
 ## Security boundary
 
