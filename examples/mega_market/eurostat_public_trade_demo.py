@@ -22,13 +22,13 @@ API_BASE = "https://ec.europa.eu/eurostat/api/comext/dissemination/sdmx/2.1/data
 SOURCE_PAGE = "https://ec.europa.eu/eurostat/databrowser/view/DS-045409/default/table?lang=en"
 REUSE_POLICY = "https://ec.europa.eu/eurostat/help/copyright-notice"
 
-# Engineering sample only: annual German imports of HS 1001 (wheat and meslin)
+# Engineering sample only: annual German imports of HS 8703 (motor cars and other motor vehicles)
 # reported against France, 2020-2025. This is not a launch-market decision.
 QUERY = {
     "frequency": "A",
     "reporter": "DE",
     "partner": "FR",
-    "product": "1001",
+    "product": "8703",
     "flow": "1",  # Eurostat Comext code 1 = imports.
     "indicator": "VALUE_IN_EUROS",
 }
@@ -140,8 +140,8 @@ def parse_sdmx_csv(payload: bytes, start_year: int, end_year: int) -> dict:
             "frequency": "annual",
             "reporter": "DE",
             "partner": "FR",
-            "product_code": "1001",
-            "product_label": "Wheat and meslin (HS 1001)",
+            "product_code": "8703",
+            "product_label": "Motor cars and other motor vehicles (HS 8703)",
             "flow": "imports",
             "indicator": "VALUE_IN_EUROS",
         },
