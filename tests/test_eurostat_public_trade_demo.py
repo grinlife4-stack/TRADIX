@@ -11,13 +11,13 @@ HEADER = (
 )
 ROWS = (
     "data,DS-045409,Trade data,I,A,DE,FR,8703,1,2020,VALUE_IN_EUROS,1200,,0\n"
-    "data,DS-045409,Trade data,I,A,DE,FR,1001,1,2021,VALUE_IN_EUROS,1500,,0\n"
+    "data,DS-045409,Trade data,I,A,DE,FR,8703,1,2021,VALUE_IN_EUROS,1500,,0\n"
 )
 
 
 def test_builds_a_narrow_comext_query():
     url = build_request_url(2020, 2025)
-    assert "/DS-045409/A.DE.FR.1001.1.VALUE_IN_EUROS?" in url
+    assert "/DS-045409/A.DE.FR.8703.1.VALUE_IN_EUROS?" in url
     assert "startPeriod=2020" in url
     assert "endPeriod=2025" in url
 
@@ -38,7 +38,7 @@ def test_normalizes_trade_observation_shape_without_float():
 
 
 def test_rejects_a_different_partner_in_response():
-    wrong = ROWS.replace(",FR,1001,", ",US,1001,")
+    wrong = ROWS.replace(",FR,8703,", ",US,8703,")
     with pytest.raises(ValueError, match="PARTNER"):
         parse_sdmx_csv((HEADER + wrong).encode(), 2020, 2025)
 
@@ -56,7 +56,7 @@ def test_rejects_non_csv_or_error_document():
 
 def test_rejects_empty_numeric_result():
     empty_rows = (
-        "data,DS-045409,Trade data,I,A,DE,FR,1001,1,2020,VALUE_IN_EUROS,..,,0\n"
+        "data,DS-045409,Trade data,I,A,DE,FR,8703,1,2020,VALUE_IN_EUROS,..,,0\n"
     )
     with pytest.raises(ValueError, match="no numeric observations"):
         parse_sdmx_csv((HEADER + empty_rows).encode(), 2020, 2025)
