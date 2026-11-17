@@ -29,6 +29,8 @@ expect_runtime_failure() {
 task_id="55555555-5555-4555-8555-555555555555"
 attempt_id="66666666-6666-4666-8666-666666666666"
 next_attempt_id="77777777-7777-4777-8777-777777777777"
+race_task_id="88888888-8888-4888-8888-888888888888"
+race_attempt_id="99999999-9999-4999-8999-999999999999"
 
 psql <<SQL
 INSERT INTO factory.tasks (
@@ -44,6 +46,16 @@ INSERT INTO factory.task_attempts (
  ) VALUES
  ('$attempt_id', '$task_id', 1, 'implementer'),
  ('$next_attempt_id', '$task_id', 2, 'implementer');
+INSERT INTO factory.tasks (
+  task_id, project_id, task_key, title, request_text, acceptance_criteria,
+  risk_class, approval_required
+) VALUES (
+  '$race_task_id', '11111111-1111-4111-8111-111111111111',
+  'lease-race-ci', 'Lease race CI', 'Only one simultaneous acquirer may win.',
+  '["one lease owner"]'::jsonb, 'low', false
+);
+INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
+VALUES ('$race_attempt_id', '$race_task_id', 1, 'implementer');
 SQL
 
 if [[ "$(psql -c "SELECT status FROM factory.task_attempts WHERE attempt_id='$attempt_id'")" != "queued" ]]; then
@@ -97,3 +109,35 @@ if [[ "$(psql -c "SELECT status FROM factory.task_attempts WHERE attempt_id='$at
   exit 1
 fi
 echo "PASS: current lease owner can finish and release atomically controlled ownership"
+
+expect_runtime_failure "runtime cannot bypass fencing through legacy transition" "permission denied for function transition_task" \
+  "SELECT factory.transition_task('$task_id','blocked','task.blocked','agent','legacy-bypass','legacy-transition','$attempt_id')"
+expect_runtime_failure "runtime cannot bypass fencing through legacy evidence API" "permission denied for function record_task_evidence" \
+  "SELECT factory.record_task_evidence('$task_id','$attempt_id','test_report','ci://legacy/evidence','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',1,'text/plain','test_report')"
+expect_runtime_failure "runtime cannot bypass fencing through legacy finish API" "permission denied for function finish_task_attempt" \
+  "SELECT factory.finish_task_attempt('$task_id','$attempt_id','failed')"
+expect_runtime_failure "runtime cannot inspect or mutate lease tables directly" "permission denied for table task_leases" \
+  "SELECT * FROM factory.task_leases"
+
+(runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$race_task_id','$race_attempt_id','race-worker-a',30)" > /tmp/tradix-race-a.log 2>&1) &
+race_a_pid=$!
+(runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$race_task_id','$race_attempt_id','race-worker-b',30)" > /tmp/tradix-race-b.log 2>&1) &
+race_b_pid=$!
+wait "$race_a_pid" || true
+wait "$race_b_pid" || true
+race_token_a="$(grep -E '^[0-9]+ /tmp/tradix-race-a.log | tail -n 1 || true)"
+race_token_b="$(grep -E '^[0-9]+ /tmp/tradix-race-b.log | tail -n 1 || true)"
+if [[ -n "$race_token_a" && -z "$race_token_b" ]]; then
+  race_worker="race-worker-a"
+  race_token="$race_token_a"
+elif [[ -n "$race_token_b" && -z "$race_token_a" ]]; then
+  race_worker="race-worker-b"
+  race_token="$race_token_b"
+else
+  echo "FAIL: simultaneous acquisition did not produce exactly one winner"
+  cat /tmp/tradix-race-a.log /tmp/tradix-race-b.log
+  exit 1
+fi
+runtime_psql "SELECT factory.finish_task_attempt_fenced('$race_task_id','$race_attempt_id','$race_worker',$race_token,'failed')" >/dev/null
+runtime_psql "SELECT factory.release_task_lease('$race_task_id','$race_attempt_id','$race_worker',$race_token)" >/dev/null
+echo "PASS: concurrent lease acquisition produces exactly one owner"
