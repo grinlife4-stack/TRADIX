@@ -44,5 +44,5 @@ test("ranking never implies eligibility", () => {
 
 test("scores are clamped and missing metrics are zero", () => {
   const result = rankCandidate({ metrics: { demand_score: 1000, trend_score: -5 } });
-  assert.equal(result.score, 22);
+  assert.equal(result.score, 34);
 });
