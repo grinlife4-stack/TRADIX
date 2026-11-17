@@ -10,7 +10,7 @@ from products.megamarket.cpiie.audit_ledger import (
 )
 
 
-class TestSigner:
+class FakeSigner:
     """Test-only signer. Production must inject an asymmetric KMS/HSM-backed signer."""
     def __init__(self, key=b"test-only-key"):
         self.key = key
@@ -26,7 +26,7 @@ class AuditLedgerTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
         self.ledger = AuditLedger(self.db)
-        self.signer = TestSigner()
+        self.signer = FakeSigner()
 
     def tearDown(self):
         self.db.close()
@@ -108,7 +108,7 @@ class AuditLedgerTests(unittest.TestCase):
     def test_rejects_invalid_signature(self):
         self.ledger.append("fixture", {})
         export = self.ledger.signed_export(self.signer)
-        export["signature_base64"] = self.ledger.signed_export(TestSigner(b"wrong"))["signature_base64"]
+        export["signature_base64"] = self.ledger.signed_export(FakeSigner(b"wrong"))["signature_base64"]
         with self.assertRaisesRegex(AuditIntegrityError, "signature is invalid"):
             verify_signed_export(export, self.signer)
 
@@ -117,6 +117,16 @@ class AuditLedgerTests(unittest.TestCase):
         export = self.ledger.signed_export(self.signer)
         with self.assertRaisesRegex(AuditIntegrityError, "does not extend"):
             verify_signed_export(export, self.signer, "f" * 64)
+
+    def test_rejects_replay_of_old_export_after_new_anchor_exists(self):
+        self.ledger.append("first", {})
+        old_export = self.ledger.signed_export(self.signer)
+        old_head = old_export["document"]["head_hash"]
+        self.ledger.append("second", {})
+        current_head = self.ledger.verify()
+        self.assertNotEqual(old_head, current_head)
+        with self.assertRaisesRegex(AuditIntegrityError, "does not extend"):
+            verify_signed_export(old_export, self.signer, current_head)
 
     def test_rejects_tampered_export_count_and_head(self):
         self.ledger.append("fixture", {})
