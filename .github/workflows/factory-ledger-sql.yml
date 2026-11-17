@@ -29,6 +29,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+      - name: Generate npm lockfiles for independent Node packages
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --prefix runtime/factory-executor
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --prefix runtime/mission-plan-api
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --prefix runtime/product-dossier-api
+      - name: Upload generated npm lockfiles
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradix-node-lockfiles
+          path: |
+            runtime/factory-executor/package-lock.json
+            runtime/mission-plan-api/package-lock.json
+            runtime/product-dossier-api/package-lock.json
+          if-no-files-found: error
+          retention-days: 3
       - name: Provision non-privileged schema migration identity
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
