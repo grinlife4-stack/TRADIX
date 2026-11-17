@@ -97,6 +97,14 @@ class PolicyMonitorTests(unittest.TestCase):
         self.registry.connection.rollback()
         self.assertIn("offline", self.monitor.history("policy")[0].error)
 
+    def test_monitor_history_is_included_in_registry_audit_snapshot(self):
+        self.opener.side_effect = OSError("offline")
+        self.monitor.check_source("policy", allowed_hosts={"policy.example.org"})
+        snapshot = self.registry.export_snapshot()
+        self.assertIn('"monitor_checks"', snapshot)
+        self.assertIn('"FAILED"', snapshot)
+        self.assertIn("offline", snapshot)
+
     def test_monitor_history_rejects_invalid_status_shape(self):
         with self.assertRaises(Exception):
             self.registry.connection.execute(
