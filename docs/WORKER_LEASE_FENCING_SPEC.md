@@ -1,6 +1,6 @@
 # Worker Lease and Fencing Contract v0.1
 
-Status: implemented on the draft branch; pending final CI and review  
+Status: implemented on the draft branch; disposable PostgreSQL CI passed; pending human review and a separate rollout decision  
 Target branch: `factory/worker-lease-fencing-v0-1`  
 Base: `factory/executive-runtime-architecture-v0-1`  
 Scope: PostgreSQL task execution ownership and crash recovery. This document does not authorize applying migrations to Neon or Production.
