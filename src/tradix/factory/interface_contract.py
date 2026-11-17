@@ -6,6 +6,7 @@ factory needs. It is not the authority for approvals, policy, or execution.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 import re
 from typing import Any, Mapping
@@ -94,10 +95,18 @@ class InterfaceMessage:
             raise InterfaceContractError("body must be a non-empty object")
         if not isinstance(self.created_at, str) or not self.created_at.strip() or len(self.created_at) > 40:
             raise InterfaceContractError("created_at must be a non-empty timestamp string")
+        try:
+            datetime.fromisoformat(self.created_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise InterfaceContractError("created_at must be an ISO-8601 timestamp") from exc
         if self.reply_to is not None:
             _identifier("reply_to", self.reply_to)
 
-        if self.message_type in (MessageType.MISSION_PROPOSAL, MessageType.CLARIFICATION_ANSWER):
+        if self.message_type in (
+            MessageType.USER_INPUT,
+            MessageType.MISSION_PROPOSAL,
+            MessageType.CLARIFICATION_ANSWER,
+        ):
             if "text" not in self.body:
                 raise InterfaceContractError("this message type requires body.text")
             _required_text("body.text", self.body["text"])
@@ -180,7 +189,7 @@ class FactoryNeed:
                 blocks_progress=value.get("blocks_progress", True),
                 mission_id=value.get("mission_id"),
             )
+        except InterfaceContractError:
+            raise
         except (TypeError, ValueError) as exc:
-            if isinstance(exc, InterfaceContractError):
-                raise
             raise InterfaceContractError("factory need contains an invalid enum or field value") from exc
