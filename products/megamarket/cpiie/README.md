@@ -1,54 +1,69 @@
 # MegaMarket CPIIE read-only core
 
-This is the first executable slice of the Company Policy Intelligence & Interaction Engine. It is isolated under `products/megamarket/cpiie`; it is not part of the generic TRADIX core.
+This provider-neutral engine is isolated under `products/megamarket/cpiie`; it is not part of the generic TRADIX core.
 
 ## Implemented
 
-- Register company-specific official source metadata using HTTPS URLs.
-- Fetch one explicitly registered URL only after its exact hostname is allowlisted by the caller.
+- Register company-specific source metadata using HTTPS URLs.
+- Fetch one registered URL only after its exact hostname is explicitly allowlisted.
 - Reject IP-literal/local source URLs, non-public DNS answers, cross-host or cross-port redirects, unsupported content types, invalid text encodings, empty responses, and documents over the configured byte limit.
-- Pin the HTTPS connection to the validated public DNS address to reduce DNS-rebinding and SSRF risk.
-- Apply request timeouts and a fixed read-only user agent. No cookies, credentials, form submissions, or link crawling.
-- Record document snapshots with SHA-256 hashes and per-source versions.
+- Pin HTTPS connections to a validated public DNS address to reduce DNS-rebinding and SSRF risk.
+- Record immutable document snapshots with SHA-256 hashes and per-source versions.
+- Discover candidate policy links from one caller-supplied HTML page. Discovery is bounded, same-origin only, and only proposes candidates; it does not fetch or register them.
+- Suggest candidate roles such as terms, affiliate terms, API docs, feed specs, brand guidelines, privacy, disclosure, country restrictions, and support.
+- Poll registered sources on demand and persist success/failure history, content hash, version, and change status.
 - Record evidence locators and excerpts tied to an exact document snapshot.
 - Propose policy rules. Every new rule starts as `NEEDS_REVIEW`.
 - Require an explicit human reviewer to mark a rule `VERIFIED`, `CONFLICT`, or `EXPIRED`.
 - Fail closed when policy is absent, unreviewed, conflicting, expired, or older than a caller-configured freshness limit.
 - Export a deterministic audit snapshot without exporting full document bodies.
 
-## Fetching example
+## Bounded discovery example
 
 ```python
-from products.megamarket.cpiie import CPIIERegistry, Source
-from products.megamarket.cpiie.fetch import OfficialSourceFetcher
+from products.megamarket.cpiie.discovery import discover_candidates
 
-registry = CPIIERegistry("megamarket-policy.sqlite3")
-registry.register_source(Source(
-    source_id="company-a-affiliate-terms",
-    company_id="company-a",
-    role="affiliate-terms",
-    url="https://official.example.org/affiliate/terms",
-    title="Official affiliate terms",
-))
-fetcher = OfficialSourceFetcher(registry)
-receipt = fetcher.fetch(
-    "company-a-affiliate-terms",
-    allowed_hosts={"official.example.org"},
+candidates = discover_candidates(
+    html_from_an_already_approved_page,
+    "https://official.example.org/partners",
+    max_candidates=50,
 )
-print(receipt.document.content_sha256, receipt.document.version)
+for candidate in candidates:
+    print(candidate.url, candidate.suggested_roles, candidate.matched_terms)
 ```
 
-The example hostname is illustrative, not a selected retailer or active connection. Host allowlisting is an explicit caller decision and must be grounded in a verified official company domain. The fetcher also rejects non-public DNS results and pins the connection to the validated address.
+Discovery does not establish that a candidate is official, legally usable, or approved. A human/operator must verify the domain and source role, then explicitly register it. Only same-origin links from the supplied page are considered; there is no recursive crawling, sitemap traversal, or external link following.
+
+## On-demand monitoring example
+
+```python
+from products.megamarket.cpiie import CPIIERegistry
+from products.megamarket.cpiie.fetch import OfficialSourceFetcher
+from products.megamarket.cpiie.monitor import PolicyMonitor
+
+registry = CPIIERegistry("megamarket-policy.sqlite3")
+fetcher = OfficialSourceFetcher(registry)
+monitor = PolicyMonitor(registry, fetcher)
+
+results = monitor.check_all(allowed_hosts={"official.example.org"})
+for result in results:
+    print(result.source_id, result.status, result.version, result.changed)
+
+history = monitor.history("company-a-affiliate-terms", limit=20)
+```
+
+Monitoring is explicit and on-demand. This code does not create a background scheduler or silently poll company websites. A caller must choose the timing and provide the allowlist. Failed checks are recorded and do not replace the last successful document snapshot. A changed hash creates a new immutable document version; unchanged content reuses the existing version.
+
+## Policy review boundary
+
+A fetched document is evidence, not permission. Candidate role suggestions are not legal interpretations. New rules remain `NEEDS_REVIEW`; only an identified human reviewer can mark a rule verified. The engine does not infer that an API is enabled, an affiliate application is accepted, or commercial content rights exist.
 
 ## Explicitly not implemented
 
-- No crawling, sitemap discovery, scheduled polling, or automatic source discovery.
+- No recursive crawling, sitemap discovery, scheduled background polling, or automatic source registration.
 - No PDF parsing, LLM extraction, automatic rule verification, or legal interpretation.
-- No company-specific adapters, credentials, OAuth, affiliate links, or account access.
-- No forms, emails, support tickets, API mutations, or other external interaction.
+- No company-specific adapters, credentials, OAuth, affiliate links, account access, forms, emails, support tickets, or API mutations.
 - No retailer, affiliate program, country, or category is selected or assumed.
-
-The fetcher records content retrieved from the registered URL; it does not prove that the URL is authoritative or that a company granted commercial permission. A fetched document is evidence for human review, not authorization.
 
 ## Run tests
 
