@@ -135,7 +135,7 @@ echo "PASS: unapproved work remains queued without a lease"
 
 expect_identity_failure "factory_approver_tradix" "human approval identity cannot acquire a worker lease" "session identity is not an isolated product runtime" \
   "SELECT factory.acquire_task_lease('$approval_task_id','$approval_attempt_id','approver-worker',30)"
-identity_psql "factory_approver_tradix" "INSERT INTO factory.task_approvals (task_id,attempt_id,approval_round,action,decision,decided_by,rationale,decision_scope) VALUES ('$approval_task_id','$approval_attempt_id',1,'begin_implementation','approved','ci-human-approver','explicit approval test','{"scope":"exact-attempt"}'::jsonb)"
+identity_psql "factory_approver_tradix" "INSERT INTO factory.task_approvals (task_id,attempt_id,approval_round,action,decision,decided_by,rationale,decision_scope) VALUES ('$approval_task_id','$approval_attempt_id',1,'begin_implementation','approved','ci-human-approver','explicit approval test',jsonb_build_object('scope','exact-attempt'))"
 approval_token="$(runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$approval_task_id','$approval_attempt_id','approved-worker',30)")"
 if [[ -z "$approval_token" ]]; then
   echo "FAIL: exact approved attempt did not acquire a lease"
