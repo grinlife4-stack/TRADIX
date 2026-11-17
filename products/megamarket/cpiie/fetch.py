@@ -47,8 +47,11 @@ class _SameHostRedirectHandler(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         old = urlsplit(req.full_url)
         new = urlsplit(newurl)
-        old_port = old.port or 443
-        new_port = new.port or 443
+        try:
+            old_port = old.port or 443
+            new_port = new.port or 443
+        except ValueError as exc:
+            raise FetchError("redirect contains an invalid port") from exc
         if (new.scheme.lower() != "https" or not new.hostname
                 or new.hostname.lower() != (old.hostname or "").lower()
                 or new_port != old_port or new.username or new.password):
@@ -159,8 +162,11 @@ class OfficialSourceFetcher:
                     lengths = [int(value) for value in length_values]
                 except ValueError as exc:
                     raise FetchError("invalid Content-Length header") from exc
-                if lengths and (len(set(lengths)) != 1 or lengths[0] > self.max_bytes):
-                    raise FetchError("missing, conflicting, or oversized Content-Length")
+                if lengths and (
+                    len(set(lengths)) != 1 or lengths[0] < 0
+                    or lengths[0] > self.max_bytes
+                ):
+                    raise FetchError("invalid, conflicting, or oversized Content-Length")
                 payload = response.read(self.max_bytes + 1)
                 if len(payload) > self.max_bytes:
                     raise FetchError("document exceeds configured size limit")
@@ -173,6 +179,8 @@ class OfficialSourceFetcher:
                     raise FetchError("document is not valid text in its declared charset") from exc
         except HTTPError as exc:
             raise FetchError(f"source returned HTTP {exc.code}") from exc
+        except http.client.HTTPException as exc:
+            raise FetchError(f"invalid or incomplete HTTP response: {exc}") from exc
         except URLError as exc:
             raise FetchError(f"source fetch failed: {exc.reason}") from exc
 
