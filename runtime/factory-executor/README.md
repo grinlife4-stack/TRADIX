@@ -24,7 +24,7 @@ The database identity is authoritative. The manifest cannot select or override a
 
 ## Execution path
 
-1. Record dossier version 1 through the runtime dossier function.
+1. Record or retrieve the product dossier through its task-scoped idempotency key; accept the product's current monotonically increasing dossier version.
 2. Create or retrieve the task using its product-scoped task key.
 3. Create or retrieve the attempt using its task-scoped idempotency key. New attempts remain `queued`.
 4. Refuse execution when a task requires human approval and the exact attempt/scope has no approved `begin_implementation` decision. This preflight happens before lease acquisition.
