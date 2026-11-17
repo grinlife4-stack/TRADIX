@@ -177,6 +177,16 @@ class PolicyMonitorTests(unittest.TestCase):
             self.assertEqual(registry.connection.execute("SELECT COUNT(*) FROM cpiie_schema_migrations WHERE version=1").fetchone()[0], 1)
             registry.close()
 
+
+    def test_monitor_schema_initialization_is_idempotent(self):
+        self.opener.open.side_effect = OSError("offline")
+        self.monitor.check_source("policy", allowed_hosts={"policy.example.org"})
+        second_monitor = PolicyMonitor(self.registry, self.fetcher)
+        self.assertEqual(second_monitor.history("policy")[0].status, "FAILED")
+        self.assertEqual(
+            self.registry.connection.execute("SELECT COUNT(*) FROM monitor_checks").fetchone()[0], 2
+        )
+
     def test_check_all_uses_registered_sources(self):
         self.opener.open.return_value = FakeResponse()
         results = self.monitor.check_all(allowed_hosts={"policy.example.org"})
