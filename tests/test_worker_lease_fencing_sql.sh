@@ -53,6 +53,8 @@ attempt_id="66666666-6666-4666-8666-666666666666"
 next_attempt_id="77777777-7777-4777-8777-777777777777"
 race_task_id="88888888-8888-4888-8888-888888888888"
 race_attempt_id="99999999-9999-4999-8999-999999999999"
+lock_task_id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+lock_attempt_id="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
 psql <<SQL
 INSERT INTO factory.tasks (
@@ -78,6 +80,16 @@ INSERT INTO factory.tasks (
 );
 INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
 VALUES ('$race_attempt_id', '$race_task_id', 1, 'implementer');
+INSERT INTO factory.tasks (
+  task_id, project_id, task_key, title, request_text, acceptance_criteria,
+  risk_class, approval_required
+) VALUES (
+  '$lock_task_id', '11111111-1111-4111-8111-111111111111',
+  'lease-write-lock-ci', 'Lease write lock CI', 'Serialize stale writes against takeover.',
+  '["write lock serialization"]'::jsonb, 'low', false
+);
+INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
+VALUES ('$lock_attempt_id', '$lock_task_id', 1, 'implementer');
 SQL
 
 if [[ "$(psql -c "SELECT status FROM factory.task_attempts WHERE attempt_id='$attempt_id'")" != "queued" ]]; then
@@ -143,6 +155,42 @@ expect_runtime_failure "runtime cannot bypass fencing through legacy finish API"
   "SELECT factory.finish_task_attempt('$task_id','$attempt_id','failed')"
 expect_runtime_failure "runtime cannot inspect or mutate lease tables directly" "permission denied for table task_leases" \
   "SELECT * FROM factory.task_leases"
+
+lock_token_old="$(runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$lock_task_id','$lock_attempt_id','lock-worker-old',5)")"
+(
+  docker exec -i "$container_id" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test <<SQL
+SET SESSION AUTHORIZATION factory_rt_tradix;
+BEGIN;
+SELECT factory.record_task_evidence_fenced(
+  '$lock_task_id', '$lock_attempt_id', 'lock-worker-old', $lock_token_old,
+  'test_report', 'ci://lease-lock/old-worker',
+  'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+  1, 'text/plain', 'test_report', 'write held open across expiry', '{}'::jsonb
+);
+SELECT pg_sleep(8);
+COMMIT;
+SQL
+) >/tmp/tradix-lease-write-lock.log 2>&1 &
+lock_writer_pid=$!
+sleep 6
+lock_started_ms="$(date +%s%3N)"
+lock_token_new="$(runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$lock_task_id','$lock_attempt_id','lock-worker-new',30)")"
+lock_elapsed_ms=$(( $(date +%s%3N) - lock_started_ms ))
+wait "$lock_writer_pid"
+if [[ -z "$lock_token_new" || "$lock_token_new" -le "$lock_token_old" ]]; then
+  echo "FAIL: takeover did not fence the long-running write transaction"
+  cat /tmp/tradix-lease-write-lock.log
+  exit 1
+fi
+if [[ "$lock_elapsed_ms" -lt 1000 ]]; then
+  echo "FAIL: takeover was not serialized behind the in-flight fenced write"
+  echo "elapsed_ms=$lock_elapsed_ms"
+  cat /tmp/tradix-lease-write-lock.log
+  exit 1
+fi
+expect_runtime_failure "old worker cannot write after serialized takeover" "valid task lease and fencing token required" \
+  "SELECT factory.record_task_evidence_fenced('$lock_task_id','$lock_attempt_id','lock-worker-old',$lock_token_old,'test_report','ci://lease-lock/stale-after','dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',1,'text/plain','test_report')"
+echo "PASS: lease takeover serializes against in-flight evidence writes"
 
 (runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$race_task_id','$race_attempt_id','race-worker-a',30)" > /tmp/tradix-race-a.log 2>&1) &
 race_a_pid=$!
