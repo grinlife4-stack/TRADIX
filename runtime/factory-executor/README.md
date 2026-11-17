@@ -63,3 +63,20 @@ The image must be present before execution. The runner uses `--pull=never`, reje
 The Docker backend disables networking, mounts the product directory read-only, runs as UID/GID 65532, drops Linux capabilities, enables no-new-privileges, uses a read-only root filesystem, caps CPU/memory/processes/output/time, and passes no application secrets. A fresh container is used for each lifecycle script.
 
 See [Docker Sandbox Execution v0.1](../../docs/DOCKER_SANDBOX_EXECUTION_V0_1.md) for the full boundary and limitations. Docker containers share the host kernel; use a dedicated disposable worker and do not treat this as microVM-grade isolation.
+
+
+## Optional gVisor sandbox mode
+
+A third execution mode, `gvisor-sandbox`, is available for explicitly selected manifests on a dedicated Linux x86_64 worker. It uses Docker Engine with the fixed OCI runtime name `runsc`; it does not install or configure gVisor.
+
+Before opening a database connection or acquiring a task lease, the runner:
+1. Confirms the host is Linux x86_64.
+2. Confirms Docker reports a registered `runsc` runtime.
+3. Confirms the local immutable image ID exactly matches `FACTORY_SANDBOX_IMAGE`.
+4. Starts the pinned image's Node binary once with `--runtime=runsc`, no network, a read-only root, no capabilities, and no-new-privileges.
+
+Any failed check stops execution. There is no fallback to Docker's default runtime or `trusted-node`. Every product stage also uses `--runtime=runsc` and retains the Docker sandbox restrictions.
+
+To opt in, set `execution_mode` to `gvisor-sandbox` in a reviewed product manifest and set `FACTORY_SANDBOX_IMAGE` to the exact local image ID. Do not enable this mode until a disposable Linux x86_64 worker has been provisioned and its Docker daemon has been configured by an administrator with a pinned, integrity-verified gVisor release.
+
+The normal CI runner tests the adapter's selection and fail-closed logic; it does not claim to execute the gVisor runtime. A separate integration test on a real runsc-enabled worker is still required. See [the gVisor backend design](../../docs/GVISOR_SANDBOX_BACKEND_V0_1.md).

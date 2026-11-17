@@ -13,6 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.22.3"
+      - run: node --test runtime/factory-executor/gvisor-runtime.test.mjs
+      - run: bash -n tests/gvisor_runtime_integration.sh
+      - run: bash -n tests/gvisor_worker_preflight.sh
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

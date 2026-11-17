@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "run": "node runner.mjs"
+    "run": "node runner.mjs",
+    "test": "node --test gvisor-runtime.test.mjs"
   },
   "dependencies": {
     "pg": "8.16.3"

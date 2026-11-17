@@ -2,7 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { preflightGvisorSandbox } from "./gvisor-runtime.mjs";
 import pg from "pg";
 
 const { Client } = pg;
@@ -102,9 +103,38 @@ async function terminateChildTree(child) {
   }
 }
 
-async function runDockerSandboxScript(productRoot, relativeScript, label, leaseGuard) {
+
+function runDockerPreflight(args, label) {
+  const result = spawnSync("docker", args, {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    timeout: 10000,
+    maxBuffer: 64 * 1024,
+    shell: false,
+    windowsHide: true,
+    env: dockerCliEnv()
+  });
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message ?? result.stderr?.trim() ?? `exit code ${result.status}`;
+    const error = new Error(`${label} failed: ${detail}`);
+    error.code = result.error?.code === "ENOENT" ? "BACKEND_UNAVAILABLE" : "BACKEND_MISCONFIGURED";
+    throw error;
+  }
+  return { stdout: result.stdout ?? "", stderr: result.stderr ?? "", exitCode: result.status };
+}
+
+async function preflightGvisor(image) {
+  return await preflightGvisorSandbox({
+    image,
+    platform: process.platform,
+    arch: process.arch,
+    runCommand: (args, label) => runDockerPreflight(args, label)
+  });
+}
+
+async function runDockerSandboxScript(productRoot, relativeScript, label, leaseGuard, runtimeName = null) {
   if (process.platform !== "linux") {
-    fail("docker-sandbox v0.1 requires a Linux execution host");
+    fail("container sandbox execution requires a Linux execution host");
   }
   const image = process.env.FACTORY_SANDBOX_IMAGE ?? "";
   if (!/^sha256:[a-f0-9]{64}$/.test(image)) {
@@ -117,7 +147,7 @@ async function runDockerSandboxScript(productRoot, relativeScript, label, leaseG
   const containerName = `tradix-${randomUUID()}`;
   const containerScript = `/workspace/${relativeScript.split(sep).join("/")}`;
   const args = [
-    "run", "--rm", "--init", "--pull=never",
+    "run", ...(runtimeName ? [`--runtime=${runtimeName}`] : []), "--rm", "--init", "--pull=never",
     "--name", containerName,
     "--network", "none",
     "--ipc=private",
@@ -214,6 +244,9 @@ async function runNodeScript(productRoot, script, label, leaseGuard, executionMo
   }
   if (executionMode === "docker-sandbox") {
     return await runDockerSandboxScript(productRoot, rel, label, leaseGuard);
+  }
+  if (executionMode === "gvisor-sandbox") {
+    return await runDockerSandboxScript(productRoot, rel, label, leaseGuard, "runsc");
   }
 
   return await new Promise((resolvePromise, reject) => {
@@ -342,11 +375,17 @@ async function main() {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   if (manifest.schema_version !== 1) fail("Unsupported product execution manifest version");
   const executionMode = manifest.execution_mode;
-  if (!["trusted-node", "docker-sandbox"].includes(executionMode)) {
-    fail("Unsupported execution_mode; expected trusted-node or docker-sandbox");
+  if (!["trusted-node", "docker-sandbox", "gvisor-sandbox"].includes(executionMode)) {
+    fail("Unsupported execution_mode; expected trusted-node, docker-sandbox, or gvisor-sandbox");
   }
-  if (executionMode === "docker-sandbox" && !/^sha256:[a-f0-9]{64}$/.test(process.env.FACTORY_SANDBOX_IMAGE ?? "")) {
-    fail("docker-sandbox requires FACTORY_SANDBOX_IMAGE to be an immutable local sha256 image ID");
+  if (["docker-sandbox", "gvisor-sandbox"].includes(executionMode) && !/^sha256:[a-f0-9]{64}$/.test(process.env.FACTORY_SANDBOX_IMAGE ?? "")) {
+    fail(`${executionMode} requires FACTORY_SANDBOX_IMAGE to be an immutable local sha256 image ID`);
+  }
+  // Runtime and exact image preflight happens before database connection,
+  // task creation, or lease acquisition. There is deliberately no fallback.
+  if (executionMode === "gvisor-sandbox") {
+    const preflight = await preflightGvisor(process.env.FACTORY_SANDBOX_IMAGE);
+    process.stdout.write(`PASS gVisor preflight runtime=${preflight.runtime} image=${preflight.imageId} arch=${preflight.architecture}\n`);
   }
 
   const baseDir = await realpath(dirname(manifestPath));
