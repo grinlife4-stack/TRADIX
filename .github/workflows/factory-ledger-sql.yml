@@ -111,7 +111,7 @@ jobs:
           FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
         run: |
           set -euo pipefail
-          rm -f /tmp/tradix-lease-loss-child-survived /tmp/tradix-lease-loss-child.pid /tmp/tradix-lease-loss-runner.log
+          rm -f /tmp/tradix-lease-loss-child-survived /tmp/tradix-lease-loss-grandchild-survived /tmp/tradix-lease-loss-child.pid /tmp/tradix-lease-loss-grandchild.pid /tmp/tradix-lease-loss-runner.log
           node runtime/factory-executor/runner.mjs examples/lease-loss/product.json > /tmp/tradix-lease-loss-runner.log 2>&1 &
           runner_pid=$!
           task_id=""
@@ -146,6 +146,15 @@ jobs:
           fi
           if [[ -e /tmp/tradix-lease-loss-child-survived ]]; then
             echo "Child process survived after the executor lost its lease"
+            exit 1
+          fi
+          grandchild_pid=$(cat /tmp/tradix-lease-loss-grandchild.pid)
+          if kill -0 "$grandchild_pid" 2>/dev/null; then
+            echo "Grandchild process $grandchild_pid is still alive after lease loss"
+            exit 1
+          fi
+          if [[ -e /tmp/tradix-lease-loss-grandchild-survived ]]; then
+            echo "Grandchild process survived after the executor lost its lease"
             exit 1
           fi
           state=$(docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -U postgres -d tradix_test -c "SELECT t.status || '/' || a.status FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_key='lease-loss-runner-v1' LIMIT 1")
