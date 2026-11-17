@@ -524,8 +524,8 @@ class CPIIERegistry:
         ).fetchone():
             raise KeyError(rule_id)
         rows = self.connection.execute(
-            """SELECT review_id, rule_id, previous_state, decision, reviewer, reviewed_at
-               FROM rule_review_history WHERE rule_id=? ORDER BY review_id""",
+            """SELECT * FROM rule_review_history
+               WHERE rule_id=? ORDER BY review_id""",
             (rule_id,),
         ).fetchall()
         return tuple(dict(row) for row in rows)
@@ -553,7 +553,7 @@ class CPIIERegistry:
         # can be re-verified by the configured identity provider. Names/labels and
         # legacy rows never authorize a positive decision.
         for row in rows:
-            if not verify_review_receipt(
+            if row["reviewer_company_id"] != row["company_id"] or not verify_review_receipt(
                 self.reviewer_verifier, row["reviewer_receipt"],
                 issuer=row["reviewer_issuer"], subject=row["reviewer_subject"],
                 key_id=row["reviewer_key_id"], assertion_id=row["reviewer_assertion_id"],
