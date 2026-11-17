@@ -18,7 +18,21 @@
 
 ## Approved brand asset
 
-**Approved repository brand asset:** `projects/NEXORA/assets/brand/NEXORA-Official-Logo.png` (gold Tree of Life mark on deep navy, with the NEXORA wordmark). The file is committed on the NEXORA working branch and its blob SHA was verified. The logo is approved for product use. Integration into the app header, player artwork, and PWA icons remains pending; do not substitute generated artwork or temporary lettermarks.
+**Official primary logo — LOCKED / SOURCE OF TRUTH**
+
+- **Official master file:** `projects/NEXORA/assets/brand/NEXORA-Official-Logo.png`
+- **Repository:** `grinlife4-stack/TRADIX`
+- **Canonical working branch:** `docs/nexora-business-project-dossier-2026-11-17`
+- **Pull request:** [#40](https://github.com/grinlife4-stack/TRADIX/pull/40) (Draft; not merged)
+- **Git blob SHA:** `7f2a39590db755077b0a903cf93056121e0ef1b5`
+
+This exact PNG is hereby designated the **sole official primary logo of the NEXORA project and NEXORA app**. It is the authoritative master for all product, interface, documentation, presentation, web, PWA, and store-brand uses. No generated, redrawn, recreated, traced, substituted, or independently edited logo may be presented as the official NEXORA logo.
+
+**Permitted derivatives:** technical exports made directly from this master for specific platforms (including iOS app icons, PWA icons, and responsive UI placements). Derivatives may change canvas size, pixel dimensions, file format, and transparent padding only as technically required. They must preserve the original artwork, wordmark, colors, proportions, and visual composition. If a platform requires a square icon and the master has a different aspect ratio, fit the complete original artwork within the square canvas; do not crop or redraw it.
+
+**Integrity rule:** retain this master file unchanged. Record the source branch and Git blob SHA for every derivative-generation task, and verify the derivative visually against the master. A derivative is an export, never a replacement for the master.
+
+This designation applies to both the NEXORA project identity and the shipped NEXORA app. It does not imply that the product has launched or that the PR has been merged.
 
 ## 1. Product decision
 
