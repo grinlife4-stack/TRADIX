@@ -1,7 +1,6 @@
 """Explicit, read-only polling for registered CPIIE sources."""
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import dataclass
 from . import CPIIERegistry, utc_now
 from .fetch import FetchError, OfficialSourceFetcher
@@ -30,17 +29,31 @@ class PolicyMonitor:
             raise ValueError("fetcher and monitor must share one registry")
         self.registry = registry
         self.fetcher = fetcher
-        self.registry.connection.execute("""
+        self.registry.connection.executescript("""
             CREATE TABLE IF NOT EXISTS monitor_checks (
                 check_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 source_id TEXT NOT NULL REFERENCES sources(source_id),
                 checked_at TEXT NOT NULL,
-                status TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('SUCCESS', 'FAILED')),
                 version INTEGER,
-                changed INTEGER NOT NULL,
+                changed INTEGER NOT NULL CHECK(changed IN (0, 1)),
                 content_sha256 TEXT,
-                error TEXT
-            )
+                error TEXT,
+                CHECK(
+                    (status = 'SUCCESS' AND version IS NOT NULL
+                     AND content_sha256 IS NOT NULL AND error IS NULL)
+                    OR
+                    (status = 'FAILED' AND version IS NULL
+                     AND content_sha256 IS NULL AND changed = 0
+                     AND error IS NOT NULL)
+                )
+            );
+            CREATE TRIGGER IF NOT EXISTS monitor_checks_no_update
+                BEFORE UPDATE ON monitor_checks
+                BEGIN SELECT RAISE(ABORT, 'monitor history is append-only'); END;
+            CREATE TRIGGER IF NOT EXISTS monitor_checks_no_delete
+                BEFORE DELETE ON monitor_checks
+                BEGIN SELECT RAISE(ABORT, 'monitor history is append-only'); END;
         """)
         self.registry.connection.commit()
 
