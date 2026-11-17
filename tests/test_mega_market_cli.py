@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import subprocess
 
 from mega_market.cli import main
 
@@ -51,3 +52,15 @@ def test_cli_rejects_permission_reference_mismatch(capsys):
     args = arguments("--permission-reference", "fixture://wrong/permission")
     assert main(args) == 2
     assert "does not match the approved source" in capsys.readouterr().err
+
+def test_installed_console_entrypoint_executes_the_fixture():
+    completed = subprocess.run(
+        ["mega-market", *arguments()],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    output = json.loads(completed.stdout)
+    assert output["observation_count"] == 2
+    assert output["commercial_authorization"] is False
