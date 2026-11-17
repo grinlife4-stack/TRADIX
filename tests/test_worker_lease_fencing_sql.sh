@@ -150,12 +150,12 @@ race_a_pid=$!
 race_b_pid=$!
 wait "$race_a_pid" || true
 wait "$race_b_pid" || true
-race_token_a="$(grep -E '^[0-9]+ /tmp/tradix-race-a.log | tail -n 1 || true)"
-race_token_b="$(grep -E '^[0-9]+ /tmp/tradix-race-b.log | tail -n 1 || true)"
-if [[ -n "$race_token_a" && -z "$race_token_b" ]]; then
+race_token_a="$(tail -n 1 /tmp/tradix-race-a.log)"
+race_token_b="$(tail -n 1 /tmp/tradix-race-b.log)"
+if [[ "$race_token_a" =~ ^[0-9]+$ && ! "$race_token_b" =~ ^[0-9]+$ ]]; then
   race_worker="race-worker-a"
   race_token="$race_token_a"
-elif [[ -n "$race_token_b" && -z "$race_token_a" ]]; then
+elif [[ "$race_token_b" =~ ^[0-9]+$ && ! "$race_token_a" =~ ^[0-9]+$ ]]; then
   race_worker="race-worker-b"
   race_token="$race_token_b"
 else
