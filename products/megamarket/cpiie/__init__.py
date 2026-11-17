@@ -226,9 +226,21 @@ class CPIIERegistry:
         ).fetchone()
         if not evidence or evidence["document_id"] != document_id:
             raise ValueError("evidence must belong to the cited document")
+        existing = self.connection.execute(
+            """SELECT document_id, evidence_id, capability, statement, expires_at
+               FROM rules WHERE rule_id=?""",
+            (rule_id,),
+        ).fetchone()
+        proposed = (document_id, evidence_id, capability, statement, expires_at)
+        if existing:
+            recorded = tuple(existing[key] for key in (
+                "document_id", "evidence_id", "capability", "statement", "expires_at"
+            ))
+            if recorded != proposed:
+                raise ValueError("rule_id already exists with different rule content")
+            return self.get_rule(rule_id)
         self.connection.execute(
-            """INSERT INTO rules VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)
-               ON CONFLICT(rule_id) DO NOTHING""",
+            """INSERT INTO rules VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL)""",
             (rule_id, document_id, evidence_id, capability, statement,
              RuleState.NEEDS_REVIEW.value, expires_at),
         )
