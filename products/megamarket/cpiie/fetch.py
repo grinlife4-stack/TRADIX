@@ -6,10 +6,12 @@ Callers must explicitly allow each source hostname before fetching.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from email.message import Message
+import http.client
+import ipaddress
+import socket
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPSHandler, HTTPRedirectHandler, Request, build_opener
 
 from . import CPIIERegistry, Document, Source, canonicalize_url
 
@@ -45,11 +47,44 @@ class _SameHostRedirectHandler(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         old = urlsplit(req.full_url)
         new = urlsplit(newurl)
+        old_port = old.port or 443
+        new_port = new.port or 443
         if (new.scheme.lower() != "https" or not new.hostname
                 or new.hostname.lower() != (old.hostname or "").lower()
-                or new.username or new.password):
+                or new_port != old_port or new.username or new.password):
             raise FetchError("cross-host or non-HTTPS redirect rejected")
         return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS connection pinned to a previously validated public DNS address."""
+
+    def __init__(self, host, pinned_ip, **kwargs):
+        self._pinned_ip = pinned_ip
+        super().__init__(host, **kwargs)
+
+    def connect(self):
+        sock = socket.create_connection(
+            (self._pinned_ip, self.port), self.timeout, self.source_address
+        )
+        if self._tunnel_host:
+            self.sock = sock
+            self._tunnel()
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+
+class _PinnedHTTPSHandler(HTTPSHandler):
+    def __init__(self, pinned_ip):
+        super().__init__()
+        self.pinned_ip = pinned_ip
+
+    def https_open(self, req):
+        return self.do_open(
+            lambda host, **kwargs: _PinnedHTTPSConnection(
+                host, self.pinned_ip, **kwargs
+            ),
+            req,
+        )
 
 
 class OfficialSourceFetcher:
@@ -62,7 +97,21 @@ class OfficialSourceFetcher:
         self.registry = registry
         self.timeout = timeout
         self.max_bytes = max_bytes
-        self.opener = opener or build_opener(_SameHostRedirectHandler())
+        self.opener = opener
+
+    @staticmethod
+    def _resolve_public_ip(host: str) -> str:
+        try:
+            answers = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+        except OSError as exc:
+            raise FetchError("source hostname could not be resolved") from exc
+        addresses = {answer[4][0].split("%", 1)[0] for answer in answers}
+        if not addresses:
+            raise FetchError("source hostname has no addresses")
+        parsed = [ipaddress.ip_address(address) for address in addresses]
+        if any(not address.is_global for address in parsed):
+            raise FetchError("source hostname resolves to a non-public address")
+        return sorted(addresses)[0]
 
     def fetch(self, source_id: str, *, allowed_hosts: set[str]) -> FetchReceipt:
         row = self.registry.connection.execute(
@@ -84,7 +133,13 @@ class OfficialSourceFetcher:
             "Accept-Encoding": "identity",
         }, method="GET")
         try:
-            response = self.opener.open(request, timeout=self.timeout)
+            opener = self.opener
+            if opener is None:
+                pinned_ip = self._resolve_public_ip(host)
+                opener = build_opener(
+                    _PinnedHTTPSHandler(pinned_ip), _SameHostRedirectHandler()
+                )
+            response = opener.open(request, timeout=self.timeout)
             with response:
                 status = getattr(response, "status", 200)
                 if status != 200:
