@@ -36,11 +36,19 @@ const routeLines = readFileSync("/proc/net/route", "utf8").trim().split("\n").sl
 const hasDefaultRoute = routeLines.some(line => line.trim().split(/\s+/)[1] === "00000000");
 assert.equal(hasDefaultRoute, false, "sandbox must not have a default IPv4 route");
 const ipv6Routes = readFileSync("/proc/net/ipv6_route", "utf8").trim().split("\n");
-const hasDefaultIPv6Route = ipv6Routes.some(line => {
+const hasDefaultIPv6EgressRoute = ipv6Routes.some(line => {
   const fields = line.trim().split(/\s+/);
-  return fields[0] === "0".repeat(32) && fields[1] === "00";
+  if (fields.length < 10) return false;
+  const isDefault = fields[0] === "0".repeat(32) && fields[1] === "00";
+  const routeIsUp = (Number.parseInt(fields[8], 16) & 0x1) === 0x1;
+  const isNonLoopback = fields[9] !== "lo";
+  return isDefault && routeIsUp && isNonLoopback;
 });
-assert.equal(hasDefaultIPv6Route, false, "sandbox must not have a default IPv6 route");
+assert.equal(
+  hasDefaultIPv6EgressRoute,
+  false,
+  "sandbox must not have an active non-loopback default IPv6 egress route"
+);
 
 console.log("PASS non-root execution");
 console.log("PASS zero effective Linux capabilities");
