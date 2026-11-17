@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "execution_mode": "trusted-node",
+  "product_dir": ".",
+  "dossier": {
+    "schema_version": 1,
+    "product_type": "service",
+    "mission": "Verify that the factory executor refuses high-risk work without explicit human approval.",
+    "requirements": [
+      "The executor must check approval before acquiring a worker lease or executing product code."
+    ],
+    "acceptance_criteria": [
+      "An unapproved high-risk task remains queued and has no lease."
+    ],
+    "lifecycle": {
+      "state": "active"
+    },
+    "deliverables": [
+      {
+        "name": "Approval preflight verification",
+        "format": "TRADIX factory integration test"
+      }
+    ]
+  },
+  "task": {
+    "task_key": "hello-world-approval-preflight-v1",
+    "title": "Verify approval preflight before worker execution",
+    "request_text": "Ensure high-risk work cannot acquire a lease or execute before human approval.",
+    "acceptance_criteria": [
+      "The runner refuses execution when required approval is missing.",
+      "The task and attempt remain queued and no lease is created."
+    ],
+    "risk_class": "high",
+    "approval_required": true,
+    "approval_scope": {}
+  },
+  "attempt": {
+    "idempotency_key": "hello-world-approval-preflight-attempt-v1",
+    "worker_role": "implementer",
+    "branch_name": "factory/worker-lease-fencing-v0-1",
+    "metadata": {
+      "executor": "tradix-factory-executor-v0.1",
+      "test_case": "approval-preflight"
+    }
+  },
+  "scripts": {
+    "run": "index.mjs",
+    "test": "test.mjs",
+    "review": "review.mjs",
+    "health": "health.mjs"
+  }
+}
