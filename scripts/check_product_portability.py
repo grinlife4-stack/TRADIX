@@ -230,8 +230,10 @@ def assess_portability(manifest: Any, mode: str = "design") -> dict[str, Any]:
     blockers = release_blockers(manifest) if isinstance(manifest, dict) else ["manifest is not an object"]
     design_ready = not errors
     release_ready = design_ready and not blockers
-    if mode == "design":
-        status = "DESIGN_READY" if design_ready else "INVALID"
+    if errors:
+        status = "INVALID"
+    elif mode == "design":
+        status = "DESIGN_READY"
     else:
         status = "RELEASE_READY" if release_ready else "BLOCKED"
     return {
