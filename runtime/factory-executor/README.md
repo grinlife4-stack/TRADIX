@@ -29,7 +29,7 @@ The database identity is authoritative. The manifest cannot select or override a
 3. Create or retrieve the attempt using its task-scoped idempotency key. New attempts remain `queued`.
 4. Refuse execution when a task requires human approval and the exact attempt/scope has no approved `begin_implementation` decision. This preflight happens before lease acquisition.
 5. Acquire a task lease. PostgreSQL issues a monotonically increasing fencing token bound to the task, attempt, and worker ID; acquisition changes the attempt to `running`.
-6. Renew the lease every 10 seconds against a 60-second TTL. If renewal fails, terminate the active child process and refuse to start another stage.
+6. Renew the lease every 10 seconds against a 60-second TTL. Each renewal query has a 5-second client timeout. If renewal fails, terminate the entire child process tree and refuse to start another stage.
 7. Run the product and test scripts with a 15-second timeout and a combined 1 MiB output cap per script.
 8. Record test, review, and health evidence with SHA-256 digests.
 9. Route every transition, evidence write, and attempt completion through a fenced database function. A stale worker is rejected before idempotency replay or mutation.
