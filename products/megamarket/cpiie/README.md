@@ -54,6 +54,12 @@ history = monitor.history("company-a-affiliate-terms", limit=20)
 
 Monitoring is explicit and on-demand. This code does not create a background scheduler or silently poll company websites. A caller must choose the timing and provide the allowlist. Failed checks are recorded and do not replace the last successful document snapshot. A changed hash creates a new immutable document version; unchanged content reuses the existing version.
 
+## Source identity and review audit
+
+A registered `source_id` has an immutable identity tuple: company, role, and canonical URL. Re-registering the same ID with a different company, role, or URL is rejected; register a new ID for a different source. The display title may be refreshed without changing source identity.
+
+Every human review decision is recorded in `rule_review_history` with the prior state, decision, reviewer, and timestamp. History is append-only at the SQLite layer, exposed through `get_review_history(rule_id)`, and included in the deterministic audit snapshot. A failed review transaction rolls back both the rule update and its history entry.
+
 ## Policy review boundary
 
 A fetched document is evidence, not permission. Candidate role suggestions are not legal interpretations. New rules remain `NEEDS_REVIEW`; only an identified human reviewer can mark a rule verified. The engine does not infer that an API is enabled, an affiliate application is accepted, or commercial content rights exist.
