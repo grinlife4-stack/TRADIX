@@ -93,7 +93,9 @@ def canonicalize_url(url: str) -> str:
                                               ".test", ".invalid", ".onion")):
         raise ValueError("local or reserved source hostname is not allowed")
     port = parts.port
-    netloc = host if port in (None, 443) else f"{host}:{port}"
+    if port not in (None, 443):
+        raise ValueError("only the standard HTTPS port is allowed")
+    netloc = host
     path = parts.path or "/"
     return urlunsplit(("https", netloc, path, parts.query, ""))
 
