@@ -119,7 +119,7 @@ async function transition(client, lease, from, to) {
 
 async function recordEvidence(client, lease, type, result) {
   const payload = artifactPayload(result, type);
-  const evidenceDir = resolve(process.env.FACTORY_EVIDENCE_DIR ?? "/tmp/tradix-factory-executor", taskId);
+  const evidenceDir = resolve(process.env.FACTORY_EVIDENCE_DIR ?? "/tmp/tradix-factory-executor", lease.taskId);
   await mkdir(evidenceDir, { recursive: true });
   await writeFile(resolve(evidenceDir, `${type}.txt`), payload.content, { mode: 0o600 });
   await client.query(
@@ -293,9 +293,9 @@ async function main() {
       try {
         await client.query(
           "SELECT factory.finish_task_attempt_fenced($1,$2,$3,$4,'succeeded')",
-          [taskId, attemptId]
+          [taskId, attemptId, workerId, lease.token]
         );
-        await transition(client, taskId, attemptId, currentState, "verified");
+        await transition(client, lease, currentState, "verified");
         await client.query("SELECT factory.release_task_lease($1,$2,$3,$4)", [taskId, attemptId, workerId, lease.token]);
         await client.query("COMMIT");
         currentState = "verified";
@@ -310,17 +310,24 @@ async function main() {
           [taskId, attemptId]
         );
         if (attemptState.rows[0]?.status === "running") {
-          await client.query(
-            "SELECT factory.finish_task_attempt_fenced($1,$2,$3,$4,'failed')",
-            [taskId, attemptId, workerId, lease.token]
-          );
-          if (currentState !== "verified") {
+          await client.query("BEGIN");
+          try {
             await client.query(
-              "SELECT factory.transition_task_fenced($1,$2,$3,'failed','task.failed','agent',$4,$5,$6,'{}'::jsonb)",
-              [taskId, lease.token, workerId, EXECUTOR_ID, `factory-executor:${taskId}:failed`, attemptId]
+              "SELECT factory.finish_task_attempt_fenced($1,$2,$3,$4,'failed')",
+              [taskId, attemptId, workerId, lease.token]
             );
+            if (currentState !== "verified") {
+              await client.query(
+                "SELECT factory.transition_task_fenced($1,$2,$3,'failed','task.failed','agent',$4,$5,$6,'{}'::jsonb)",
+                [taskId, lease.token, workerId, EXECUTOR_ID, `factory-executor:${taskId}:failed`, attemptId]
+              );
+            }
+            await client.query("SELECT factory.release_task_lease($1,$2,$3,$4)", [taskId, attemptId, workerId, lease.token]);
+            await client.query("COMMIT");
+          } catch (cleanupTransactionError) {
+            await client.query("ROLLBACK");
+            throw cleanupTransactionError;
           }
-          await client.query("SELECT factory.release_task_lease($1,$2,$3,$4)", [taskId, attemptId, workerId, lease.token]);
         }
       } catch (cleanupError) {
         process.stderr.write(`FACTORY_EXECUTOR_CLEANUP_FAILED: ${cleanupError.message}\\n`);
