@@ -28,7 +28,7 @@ The database identity is authoritative. The manifest cannot select or override a
 2. Create or retrieve the task using its product-scoped task key.
 3. Create or retrieve the attempt using its task-scoped idempotency key. New attempts remain `queued`.
 4. Acquire a task lease. PostgreSQL issues a monotonically increasing fencing token bound to the task, attempt, and worker ID; acquisition changes the attempt to `running`.
-5. Renew the lease every 15 seconds against a 60-second TTL. If renewal fails, terminate the active child process and refuse to start another stage.
+5. Renew the lease every 10 seconds against a 60-second TTL. If renewal fails, terminate the active child process and refuse to start another stage.
 6. Run the product and test scripts with a 15-second timeout and a combined 1 MiB output cap per script.
 7. Record test, review, and health evidence with SHA-256 digests.
 8. Route every transition, evidence write, and attempt completion through a fenced database function. A stale worker is rejected before idempotency replay or mutation.
