@@ -150,6 +150,22 @@ class CPIIERegistry:
             reviewed_at TEXT
         );
         CREATE INDEX IF NOT EXISTS rules_capability_idx ON rules(capability);
+        CREATE TABLE IF NOT EXISTS rule_review_history (
+            review_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_id TEXT NOT NULL REFERENCES rules(rule_id),
+            previous_state TEXT NOT NULL,
+            decision TEXT NOT NULL,
+            reviewer TEXT NOT NULL,
+            reviewed_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS rule_review_history_rule_idx
+            ON rule_review_history(rule_id, review_id);
+        CREATE TRIGGER IF NOT EXISTS rule_review_history_no_update
+            BEFORE UPDATE ON rule_review_history
+            BEGIN SELECT RAISE(ABORT, 'review history is append-only'); END;
+        CREATE TRIGGER IF NOT EXISTS rule_review_history_no_delete
+            BEFORE DELETE ON rule_review_history
+            BEGIN SELECT RAISE(ABORT, 'review history is append-only'); END;
         """)
         self.connection.commit()
 
@@ -158,14 +174,27 @@ class CPIIERegistry:
                     source.role.strip(), source.title.strip())):
             raise ValueError("source identity, company, role and title are required")
         canonical = canonicalize_url(source.url)
-        self.connection.execute(
-            """INSERT INTO sources VALUES (?, ?, ?, ?, ?, ?)
-               ON CONFLICT(source_id) DO UPDATE SET
-               company_id=excluded.company_id, role=excluded.role,
-               url=excluded.url, title=excluded.title""",
-            (source.source_id, source.company_id, source.role, canonical,
-             source.title, utc_now()),
-        )
+        existing = self.connection.execute(
+            "SELECT company_id, role, url FROM sources WHERE source_id=?",
+            (source.source_id,),
+        ).fetchone()
+        if existing:
+            if (existing["company_id"], existing["role"], existing["url"]) != (
+                source.company_id, source.role, canonical
+            ):
+                raise ValueError(
+                    "source identity is immutable; register a new source_id when company, role or URL changes"
+                )
+            self.connection.execute(
+                "UPDATE sources SET title=? WHERE source_id=?",
+                (source.title, source.source_id),
+            )
+        else:
+            self.connection.execute(
+                "INSERT INTO sources VALUES (?, ?, ?, ?, ?, ?)",
+                (source.source_id, source.company_id, source.role, canonical,
+                 source.title, utc_now()),
+            )
         self.connection.commit()
         return Source(source.source_id, source.company_id, source.role, canonical, source.title)
 
@@ -262,14 +291,41 @@ class CPIIERegistry:
             raise ValueError("a named reviewer is required")
         if decision not in (RuleState.VERIFIED, RuleState.CONFLICT, RuleState.EXPIRED):
             raise ValueError("review decision must be VERIFIED, CONFLICT or EXPIRED")
-        cursor = self.connection.execute(
-            "UPDATE rules SET state=?, reviewer=?, reviewed_at=? WHERE rule_id=?",
-            (decision.value, reviewer, utc_now(), rule_id),
-        )
-        if cursor.rowcount == 0:
-            raise KeyError(rule_id)
-        self.connection.commit()
+        reviewer = reviewer.strip()
+        timestamp = utc_now()
+        try:
+            current = self.connection.execute(
+                "SELECT state FROM rules WHERE rule_id=?", (rule_id,)
+            ).fetchone()
+            if current is None:
+                raise KeyError(rule_id)
+            self.connection.execute(
+                "UPDATE rules SET state=?, reviewer=?, reviewed_at=? WHERE rule_id=?",
+                (decision.value, reviewer, timestamp, rule_id),
+            )
+            self.connection.execute(
+                """INSERT INTO rule_review_history
+                   (rule_id, previous_state, decision, reviewer, reviewed_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (rule_id, current["state"], decision.value, reviewer, timestamp),
+            )
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
         return self.get_rule(rule_id)
+
+    def get_review_history(self, rule_id: str) -> tuple[dict, ...]:
+        if not self.connection.execute(
+            "SELECT 1 FROM rules WHERE rule_id=?", (rule_id,)
+        ).fetchone():
+            raise KeyError(rule_id)
+        rows = self.connection.execute(
+            """SELECT review_id, rule_id, previous_state, decision, reviewer, reviewed_at
+               FROM rule_review_history WHERE rule_id=? ORDER BY review_id""",
+            (rule_id,),
+        ).fetchall()
+        return tuple(dict(row) for row in rows)
 
     def evaluate(self, capability: str, now: str | None = None, max_age_seconds: int | None = None) -> Evaluation:
         rows = self.connection.execute(
@@ -327,7 +383,7 @@ class CPIIERegistry:
     def export_snapshot(self) -> str:
         """Deterministic JSON snapshot for audit; excludes document body/secrets."""
         result = {}
-        for table in ("sources", "documents", "evidence", "rules"):
+        for table in ("sources", "documents", "evidence", "rules", "rule_review_history"):
             columns = "document_id, source_id, fetched_at, content_sha256, version" if table == "documents" else "*"
             rows = self.connection.execute(f"SELECT {columns} FROM {table} ORDER BY 1").fetchall()
             result[table] = [dict(row) for row in rows]
