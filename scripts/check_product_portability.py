@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -43,8 +44,12 @@ def _aware_datetime(value: Any) -> bool:
 
 
 def _verified_evidence(section: dict[str, Any], label: str, errors: list[str]) -> None:
-    if section.get("status") == "verified" and not _valid_sha256(section.get("evidence_sha256")):
-        errors.append(f"{label}.evidence_sha256 is required when status is verified")
+    if section.get("status") == "verified":
+        if not _valid_sha256(section.get("evidence_sha256")):
+            errors.append(f"{label}.evidence_sha256 is required when status is verified")
+        evidence_path = section.get("evidence_path")
+        if not _nonempty(evidence_path) or Path(evidence_path).is_absolute() or ".." in Path(evidence_path).parts:
+            errors.append(f"{label}.evidence_path must be a safe relative path when status is verified")
 
 
 def validate_manifest(manifest: Any) -> list[str]:
@@ -165,6 +170,9 @@ def validate_manifest(manifest: Any) -> list[str]:
                     errors.append("a passed restore test must include a timezone-aware tested_at")
                 if not _valid_sha256(restore_test.get("evidence_sha256")):
                     errors.append("a passed restore test must include evidence_sha256")
+                evidence_path = restore_test.get("evidence_path")
+                if not _nonempty(evidence_path) or Path(evidence_path).is_absolute() or ".." in Path(evidence_path).parts:
+                    errors.append("a passed restore test must include a safe relative evidence_path")
 
     exit_cost = manifest.get("exit_cost")
     if isinstance(exit_cost, dict):
@@ -186,6 +194,45 @@ def validate_manifest(manifest: Any) -> list[str]:
         elif amount is not None or hours is not None:
             errors.append("unknown exit cost must use null amount and hours")
 
+    return errors
+
+
+def verify_evidence_files(manifest: Any, base_dir: Path | None) -> list[str]:
+    if base_dir is None:
+        return ["release assessment requires the manifest directory to verify evidence files"]
+    root = base_dir.resolve()
+    errors: list[str] = []
+
+    def walk(value: Any, label: str) -> None:
+        if isinstance(value, dict):
+            status = value.get("status")
+            requires_evidence = status == "verified" or status == "passed"
+            if requires_evidence and "evidence_sha256" in value:
+                relative_path = value.get("evidence_path")
+                if not _nonempty(relative_path):
+                    errors.append(f"{label}.evidence_path is missing")
+                elif Path(relative_path).is_absolute() or ".." in Path(relative_path).parts:
+                    errors.append(f"{label}.evidence_path escapes the manifest directory")
+                else:
+                    evidence_file = (root / relative_path).resolve()
+                    try:
+                        evidence_file.relative_to(root)
+                    except ValueError:
+                        errors.append(f"{label}.evidence_path escapes the manifest directory")
+                    else:
+                        if not evidence_file.is_file():
+                            errors.append(f"{label} evidence file does not exist: {relative_path}")
+                        else:
+                            actual = hashlib.sha256(evidence_file.read_bytes()).hexdigest()
+                            if actual != value.get("evidence_sha256"):
+                                errors.append(f"{label} evidence SHA-256 does not match the file")
+            for key, child in value.items():
+                walk(child, f"{label}.{key}")
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                walk(child, f"{label}[{index}]")
+
+    walk(manifest, "manifest")
     return errors
 
 
@@ -223,10 +270,14 @@ def release_blockers(manifest: dict[str, Any]) -> list[str]:
     return blockers
 
 
-def assess_portability(manifest: Any, mode: str = "design") -> dict[str, Any]:
+def assess_portability(
+    manifest: Any, mode: str = "design", base_dir: Path | None = None
+) -> dict[str, Any]:
     if mode not in {"design", "release"}:
         raise ValueError("mode must be design or release")
     errors = validate_manifest(manifest)
+    if mode == "release":
+        errors.extend(verify_evidence_files(manifest, base_dir))
     blockers = release_blockers(manifest) if isinstance(manifest, dict) else ["manifest is not an object"]
     design_ready = not errors
     release_ready = design_ready and not blockers
@@ -258,7 +309,7 @@ def main() -> int:
         print(json.dumps({"status": "INVALID", "errors": [str(error)]}, indent=2))
         return 1
 
-    report = assess_portability(manifest, args.mode)
+    report = assess_portability(manifest, args.mode, args.manifest.resolve().parent)
     print(json.dumps(report, indent=2))
     if args.mode == "design":
         return 0 if report["design_ready"] else 1
