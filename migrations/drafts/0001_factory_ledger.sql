@@ -93,6 +93,7 @@ BEGIN
               WHEN v_runtime THEN 'factory_runtime'::NAME
               ELSE 'factory_approval_authority'::NAME
           END
+          AND granted_role.rolname <> 'factory_onboarding_authority'::NAME
     ) THEN
         RAISE EXCEPTION 'project identity has an unexpected role membership';
     END IF;
@@ -758,6 +759,16 @@ BEGIN
        OR jsonb_array_length(p_dossier->'acceptance_criteria') < 1
        OR jsonb_typeof(p_dossier->'lifecycle') IS DISTINCT FROM 'object' THEN
         RAISE EXCEPTION 'product dossier does not satisfy the minimum schema';
+    END IF;
+
+    IF jsonb_typeof(p_dossier #> '{lifecycle,state}') IS DISTINCT FROM 'string'
+       OR p_dossier #>> '{lifecycle,state}' NOT IN ('pending_approval', 'active') THEN
+        RAISE EXCEPTION 'product dossier lifecycle state must be pending_approval or active';
+    END IF;
+
+    IF p_dossier #>> '{lifecycle,state}' = 'active'
+       AND NOT pg_catalog.pg_has_role(session_user, 'factory_onboarding_authority', 'MEMBER') THEN
+        RAISE EXCEPTION 'only the isolated factory onboarding authority may create an active dossier';
     END IF;
 
     PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_project_id::text, 0));
