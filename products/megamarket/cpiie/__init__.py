@@ -10,7 +10,7 @@ import json
 import re
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -247,7 +247,7 @@ class CPIIERegistry:
         self.connection.commit()
         return self.get_rule(rule_id)
 
-    def evaluate(self, capability: str, now: str | None = None) -> Evaluation:
+    def evaluate(self, capability: str, now: str | None = None, max_age_seconds: int | None = None) -> Evaluation:
         rows = self.connection.execute(
             "SELECT rule_id, state, expires_at FROM rules WHERE capability=? ORDER BY rule_id",
             (capability,),
@@ -264,6 +264,17 @@ class CPIIERegistry:
                (row["expires_at"] and row["expires_at"] <= current) for row in rows):
             return Evaluation(capability, CapabilityState.BLOCKED_EXPIRED, ids,
                               "policy evidence is expired")
+        if max_age_seconds is not None:
+            if max_age_seconds < 0:
+                raise ValueError("max_age_seconds must be non-negative")
+            docs = self.connection.execute(
+                "SELECT DISTINCT d.fetched_at FROM documents d JOIN rules r ON r.document_id=d.document_id WHERE r.capability=?",
+                (capability,),
+            ).fetchall()
+            now_dt = datetime.fromisoformat(current)
+            for doc in docs:
+                if now_dt - datetime.fromisoformat(doc["fetched_at"]) > timedelta(seconds=max_age_seconds):
+                    return Evaluation(capability, CapabilityState.BLOCKED_EXPIRED, ids, "source snapshot is stale")
         if any(row["state"] != RuleState.VERIFIED.value for row in rows):
             return Evaluation(capability, CapabilityState.BLOCKED_REVIEW, ids,
                               "one or more rules have not been manually verified")
@@ -274,6 +285,7 @@ class CPIIERegistry:
         """Deterministic JSON snapshot for audit; excludes document body/secrets."""
         result = {}
         for table in ("sources", "documents", "evidence", "rules"):
-            rows = self.connection.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
+            columns = "document_id, source_id, fetched_at, content_sha256, version" if table == "documents" else "*"
+            rows = self.connection.execute(f"SELECT {columns} FROM {table} ORDER BY 1").fetchall()
             result[table] = [dict(row) for row in rows]
         return json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
