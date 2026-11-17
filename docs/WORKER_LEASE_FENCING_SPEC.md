@@ -75,7 +75,8 @@ Run against disposable PostgreSQL 17 and isolated product LOGIN identities:
 8. Runtime cannot mutate lease rows or invoke legacy unfenced write APIs.
 9. Product A cannot inspect or mutate Product B lease state, including acquire and renew calls.
 10. Runner refuses a non-queued interrupted task/attempt rather than rerunning side-effectful stages.
-11. Terminal completion and lease release commit or roll back as one transaction under injected failure.
+12. Database acquisition rejects high-risk attempts without exact approval; the isolated approval identity cannot acquire worker leases, while an exact approved decision permits the runtime to acquire and execute.
+13. Terminal completion and lease release commit or roll back as one transaction under injected failure.
 
 ## 7. Migration and rollout constraints
 
