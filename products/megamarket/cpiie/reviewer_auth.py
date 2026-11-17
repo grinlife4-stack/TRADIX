@@ -23,8 +23,10 @@ class VerifiedReviewer:
     key_id: str
     assertion_id: str
     company_id: str
+    roles: tuple[str, ...]
     capabilities: tuple[str, ...]
     decisions: tuple[str, ...]
+    context_hash: str
     authenticated_at: str
     expires_at: str
     receipt: str
@@ -59,6 +61,7 @@ def authorize_review(
     company_id: str,
     capability: str,
     decision: str,
+    context_hash: str,
     now: datetime | None = None,
 ) -> VerifiedReviewer:
     if verifier is None:
@@ -75,16 +78,20 @@ def authorize_review(
         raise ReviewerAuthenticationError("reviewer verifier returned an invalid identity")
     required = (
         reviewer.issuer, reviewer.subject, reviewer.key_id, reviewer.assertion_id,
-        reviewer.company_id, reviewer.receipt,
+        reviewer.company_id, reviewer.receipt, reviewer.context_hash,
     )
     if not all(isinstance(value, str) and value.strip() for value in required):
         raise ReviewerAuthenticationError("reviewer identity receipt is incomplete")
     if reviewer.company_id != company_id:
         raise ReviewerAuthenticationError("reviewer is not authorized for this company")
+    if "policy_reviewer" not in reviewer.roles:
+        raise ReviewerAuthenticationError("reviewer lacks the policy_reviewer role")
     if capability not in reviewer.capabilities:
         raise ReviewerAuthenticationError("reviewer is not authorized for this capability")
     if decision not in reviewer.decisions:
         raise ReviewerAuthenticationError("reviewer is not authorized for this decision")
+    if reviewer.context_hash != context_hash:
+        raise ReviewerAuthenticationError("reviewer assertion is not bound to this exact policy evidence context")
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     authenticated_at = _timestamp(reviewer.authenticated_at, "authenticated_at")
     expires_at = _timestamp(reviewer.expires_at, "expires_at")
@@ -106,6 +113,7 @@ def verify_review_receipt(
     company_id: str,
     capability: str,
     decision: str,
+    context_hash: str,
     now: datetime,
 ) -> bool:
     if verifier is None or not receipt:
@@ -120,8 +128,10 @@ def verify_review_receipt(
             or reviewer.key_id != key_id
             or reviewer.assertion_id != assertion_id
             or reviewer.company_id != company_id
+            or "policy_reviewer" not in reviewer.roles
             or capability not in reviewer.capabilities
             or decision not in reviewer.decisions
+            or reviewer.context_hash != context_hash
         ):
             return False
         return (
