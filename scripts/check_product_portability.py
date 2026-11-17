@@ -194,7 +194,7 @@ def validate_manifest(manifest: Any) -> list[str]:
                 if not _valid_sha256(restore_test.get("evidence_sha256")):
                     errors.append("a passed restore test must include evidence_sha256")
                 evidence_path = restore_test.get("evidence_path")
-                if not _nonempty(evidence_path) or Path(evidence_path).is_absolute() or ".." in Path(evidence_path).parts:
+                if not _safe_relative_path(evidence_path):
                     errors.append("a passed restore test must include a safe relative evidence_path")
 
     exit_cost = manifest.get("exit_cost")
@@ -217,7 +217,7 @@ def validate_manifest(manifest: Any) -> list[str]:
             if not _valid_sha256(exit_cost.get("evidence_sha256")):
                 errors.append("exit_cost.evidence_sha256 is required when status is estimated or verified")
             evidence_path = exit_cost.get("evidence_path")
-            if not _nonempty(evidence_path) or Path(evidence_path).is_absolute() or ".." in Path(evidence_path).parts:
+            if not _safe_relative_path(evidence_path):
                 errors.append("exit_cost.evidence_path must be a safe relative path when status is estimated or verified")
         elif amount is not None or hours is not None:
             errors.append("unknown exit cost must use null amount and hours")
