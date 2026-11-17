@@ -49,3 +49,7 @@ The runner intentionally refuses to resume an interrupted task from an intermedi
 Only run code that has been reviewed and explicitly trusted. Do not use this runner for arbitrary third-party submissions or untrusted pull-request code. Before that use case, replace the execution backend with an isolated sandbox/container or remote worker with restricted filesystem, network, CPU, memory, process, and credential access. Never expose database credentials or deployment secrets to product code.
 
 The current GitHub workflow uses a disposable PostgreSQL service and a CI-only product LOGIN. It does not connect to Neon or Production and does not deploy the product.
+
+## Evidence durability limitation
+
+The v0.1 runner writes evidence files to `FACTORY_EVIDENCE_DIR` (default `/tmp/tradix-factory-executor`) and records a logical `ci://` object URI in PostgreSQL. The GitHub workflow uploads those files as a short-retention CI artifact. This is sufficient for disposable CI verification, but it is **not** a durable, cross-host artifact store and the `ci://` URI is not a public download URL. Do not treat production evidence portability or long-term recovery as implemented until a provider-neutral artifact-storage adapter, export/import procedure, and restore/hash-integrity test exist.
