@@ -200,8 +200,19 @@ async function recordIntake(input, rootKey) {
       "SELECT factory.record_task_plan_version($1::uuid, $2::text, $3::integer, $4::jsonb, $5::text) AS plan_version_no",
       [productIdentity.project_id, input.mission.mission_id, input.mission.version, JSON.stringify(input.task_plan), intakeKey(rootKey, "plan")]
     );
+    const intake = await client.query(
+      "SELECT factory.record_product_intake($1::integer, $2::text, $3::integer, $4::integer, $5::text) AS intake_id",
+      [
+        dossierVersion.rows[0].version_no,
+        input.mission.mission_id,
+        missionVersion.rows[0].version_no,
+        planVersion.rows[0].plan_version_no,
+        rootKey
+      ]
+    );
     await client.query("COMMIT");
     return {
+      intake_id: intake.rows[0].intake_id,
       dossier_version: dossierVersion.rows[0].version_no,
       mission_version: missionVersion.rows[0].version_no,
       plan_version: planVersion.rows[0].plan_version_no
