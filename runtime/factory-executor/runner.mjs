@@ -31,16 +31,22 @@ function assertNodeScript(value, label) {
   return value;
 }
 
-function terminateChildTree(child) {
+async function terminateChildTree(child) {
   if (!child?.pid) return;
   if (process.platform === "win32") {
-    const killer = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
-      windowsHide: true,
-      stdio: "ignore"
-    });
-    killer.on("error", () => child.kill("SIGKILL"));
-    killer.on("close", code => {
-      if (code !== 0) child.kill("SIGKILL");
+    await new Promise(resolvePromise => {
+      const killer = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+        windowsHide: true,
+        stdio: "ignore"
+      });
+      killer.on("error", () => {
+        child.kill("SIGKILL");
+        resolvePromise();
+      });
+      killer.on("close", code => {
+        if (code !== 0) child.kill("SIGKILL");
+        resolvePromise();
+      });
     });
     return;
   }
@@ -49,6 +55,16 @@ function terminateChildTree(child) {
     process.kill(-child.pid, "SIGKILL");
   } catch {
     child.kill("SIGKILL");
+    return;
+  }
+  const deadline = Date.now() + 1000;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(-child.pid, 0);
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
+    } catch {
+      return;
+    }
   }
 }
 
@@ -77,11 +93,12 @@ async function runNodeScript(productRoot, script, label, leaseGuard) {
     const stderr = [];
     let bytes = 0;
     let settled = false;
+    let forcedError = null;
     leaseGuard?.registerChild?.(child);
     if (leaseGuard?.lost) terminateChildTree(child);
     const timer = setTimeout(() => {
-      terminateChildTree(child);
-      finish(new Error(`${label} exceeded ${COMMAND_TIMEOUT_MS}ms`));
+      forcedError = new Error(`${label} exceeded ${COMMAND_TIMEOUT_MS}ms`);
+      void terminateChildTree(child);
     }, COMMAND_TIMEOUT_MS);
 
     function finish(error, result) {
@@ -96,24 +113,28 @@ async function runNodeScript(productRoot, script, label, leaseGuard) {
       stream.on("data", chunk => {
         bytes += chunk.length;
         if (bytes > MAX_OUTPUT_BYTES) {
-          terminateChildTree(child);
-          finish(new Error(`${label} output exceeded ${MAX_OUTPUT_BYTES} bytes`));
+          forcedError = new Error(`${label} output exceeded ${MAX_OUTPUT_BYTES} bytes`);
+          void terminateChildTree(child);
           return;
         }
         chunks.push(chunk);
       });
     }
-    child.on("error", error => {
-      terminateChildTree(child);
+    child.on("error", async error => {
+      await terminateChildTree(child);
+      leaseGuard?.clearChild?.(child);
       finish(error);
     });
-    child.on("close", code => {
+    child.on("close", async code => {
       // Product stages are one-shot jobs. Do not leave detached descendants
       // running after the stage leader exits successfully.
-      terminateChildTree(child);
+      await terminateChildTree(child);
+      leaseGuard?.clearChild?.(child);
       const out = Buffer.concat(stdout).toString("utf8");
       const err = Buffer.concat(stderr).toString("utf8");
-      if (code !== 0) {
+      if (forcedError) {
+        finish(forcedError);
+      } else if (code !== 0) {
         finish(new Error(`${label} failed with exit code ${code}: ${err || out}`));
       } else {
         finish(null, { stdout: out, stderr: err, exitCode: code });
@@ -272,7 +293,10 @@ async function main() {
       child: null,
       registerChild(child) {
         this.child = child;
-        if (this.lost) terminateChildTree(child);
+        if (this.lost) void terminateChildTree(child);
+      },
+      clearChild(child) {
+        if (this.child === child) this.child = null;
       }
     };
     let heartbeatInFlight = null;
@@ -287,7 +311,7 @@ async function main() {
           });
         } catch (error) {
           leaseGuard.lost = true;
-          terminateChildTree(leaseGuard.child);
+          void terminateChildTree(leaseGuard.child);
           process.stderr.write(`FACTORY_EXECUTOR_LEASE_LOST: ${error.message}\\n`);
         }
       })().finally(() => {
