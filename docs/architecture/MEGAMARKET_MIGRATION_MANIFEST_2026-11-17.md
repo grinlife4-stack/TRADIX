@@ -6,7 +6,7 @@
 **Exact source HEAD:** `5b80cfbaf46d9f7ae5290b8a458e12ac7b9ce034`
 **PR:** [#35](https://github.com/grinlife4-stack/TRADIX/pull/35), open / Draft / unmerged
 **CI evidence:** [Run #580](https://github.com/grinlife4-stack/TRADIX/actions/runs/44109059127), success on the exact source HEAD; 108 passed, 4 subtests passed.
-**PR commit history returned by GitHub:** 100 commits (ordered oldest to newest).
+**PR commit history inspected:** first page of up to 100 commits returned by GitHub; total history count is not yet established.
 
 ## Product-owned files at source HEAD
 
