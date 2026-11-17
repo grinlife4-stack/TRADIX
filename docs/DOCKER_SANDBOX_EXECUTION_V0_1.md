@@ -20,7 +20,7 @@ For each script, the factory executor starts a fresh container with:
 - 256 MiB memory limit, with swap capped to the same amount;
 - one CPU quota;
 - 256 file descriptors and 10 MiB maximum file size;
-- separate 16 MiB `noexec`, `nosuid`, `nodev` temporary filesystems for both `/tmp` and `/dev/shm`;
+- a 16 MiB `noexec`, `nosuid`, `nodev` temporary filesystem for `/tmp`, plus a private 16 MiB Docker shared-memory mount at `/dev/shm`;
 - zero effective Linux capabilities, verified from `/proc/self/status`;
 - `NoNewPrivs=1`, verified from `/proc/self/status`;
 - only `NODE_ENV` and `HOME` passed into the container;
