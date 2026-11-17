@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
-
 from . import CPIIERegistry, utc_now
 from .fetch import FetchError, OfficialSourceFetcher
 
@@ -54,7 +52,7 @@ class PolicyMonitor:
                 source_id, checked_at, "SUCCESS", receipt.document.version,
                 receipt.document.changed, receipt.document.content_sha256, None,
             )
-        except (FetchError, KeyError, ValueError) as exc:
+        except (FetchError, OSError, ValueError) as exc:
             result = MonitorResult(source_id, checked_at, "FAILED", None, False, None,
                                    f"{type(exc).__name__}: {exc}")
         self.registry.connection.execute(
