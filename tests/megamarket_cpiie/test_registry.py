@@ -303,6 +303,16 @@ class CPIIERegistryTests(unittest.TestCase):
                 RuleState.VERIFIED,
             )
 
+    def test_reviewer_receipt_cannot_be_replayed_for_another_rule(self):
+        self.propose("rule-one", "catalog.display")
+        self.propose("rule-two", "catalog.display")
+        first_context = self.registry.review_context_hash("rule-one", RuleState.VERIFIED)
+        assertion = (
+            f"reviewer|retailer-x|catalog.display|VERIFIED|{first_context}"
+        )
+        with self.assertRaisesRegex(ReviewerAuthenticationError, "evidence context"):
+            self.registry.review_rule("rule-two", assertion, RuleState.VERIFIED)
+
     def test_reviewer_must_have_policy_reviewer_role(self):
         self.propose()
         context_hash = self.registry.review_context_hash("rule-1", RuleState.VERIFIED)
