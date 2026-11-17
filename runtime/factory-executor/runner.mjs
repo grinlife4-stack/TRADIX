@@ -32,6 +32,7 @@ function assertNodeScript(value, label) {
 }
 
 async function runNodeScript(productRoot, script, label, leaseGuard) {
+  if (leaseGuard?.lost) fail("task lease lost; refusing to start another stage");
   const scriptPath = await realpath(resolve(productRoot, assertNodeScript(script, label)));
   const rel = relative(productRoot, scriptPath);
   if (!rel || rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) {
@@ -258,11 +259,13 @@ async function main() {
     }, LEASE_HEARTBEAT_MS);
     heartbeat.unref?.();
 
-    await transition(client, lease, "queued", "planned");
-    await transition(client, lease, "planned", "implementing");
-
-    let currentState = "implementing";
+    let currentState = "queued";
     try {
+      await transition(client, lease, currentState, "planned");
+      currentState = "planned";
+      await transition(client, lease, currentState, "implementing");
+      currentState = "implementing";
+
       const runResult = await runNodeScript(productRoot, runScript, "product run", leaseGuard);
       const testResult = await runNodeScript(productRoot, testScript, "product test", leaseGuard);
 
