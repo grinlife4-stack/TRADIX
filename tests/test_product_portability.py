@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -14,22 +15,32 @@ def load_manifest():
     return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
 
-def make_release_ready(manifest):
+def make_release_ready(manifest, evidence_dir):
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    evidence_file = evidence_dir / "portability-evidence.json"
+    evidence_file.write_text('{"restore":"passed","integrity":"verified"}\\n', encoding="utf-8")
+    evidence_sha = hashlib.sha256(evidence_file.read_bytes()).hexdigest()
+    evidence_path = evidence_file.name
+
     manifest["status"] = "verified"
     for name in ("source", "runtime", "artifacts", "secrets", "backup_restore"):
         manifest[name]["status"] = "verified"
-        manifest[name]["evidence_sha256"] = EVIDENCE_SHA
+        manifest[name]["evidence_path"] = evidence_path
+        manifest[name]["evidence_sha256"] = evidence_sha
     for dependency in manifest["dependencies"]:
         dependency["status"] = "verified"
-        dependency["evidence_sha256"] = EVIDENCE_SHA
+        dependency["evidence_path"] = evidence_path
+        dependency["evidence_sha256"] = evidence_sha
     for data_asset in manifest["data_assets"]:
         data_asset["status"] = "verified"
-        data_asset["evidence_sha256"] = EVIDENCE_SHA
+        data_asset["evidence_path"] = evidence_path
+        data_asset["evidence_sha256"] = evidence_sha
     manifest["backup_restore"]["restore_test"] = {
         "status": "passed",
         "target": "isolated-secondary-host",
         "tested_at": "2026-11-17T12:00:00Z",
-        "evidence_sha256": EVIDENCE_SHA,
+        "evidence_path": evidence_path,
+        "evidence_sha256": evidence_sha,
     }
     manifest["exit_cost"] = {
         "status": "estimated",
@@ -37,6 +48,8 @@ def make_release_ready(manifest):
         "estimated_amount": 125.0,
         "estimated_hours": 3.5,
         "notes": "Estimate from a completed isolated restore rehearsal.",
+        "evidence_path": evidence_path,
+        "evidence_sha256": evidence_sha,
     }
     return manifest
 
@@ -100,12 +113,13 @@ def test_passed_restore_requires_target_timestamp_and_evidence():
 
     assert any("timezone-aware tested_at" in error for error in errors)
     assert "a passed restore test must include evidence_sha256" in errors
+    assert "a passed restore test must include a safe relative evidence_path" in errors
 
 
-def test_release_ready_requires_all_verified_sections_and_a_real_restore_record():
-    manifest = make_release_ready(load_manifest())
+def test_release_ready_requires_all_verified_sections_and_a_real_restore_record(tmp_path):
+    manifest = make_release_ready(load_manifest(), tmp_path)
 
-    report = assess_portability(manifest, "release")
+    report = assess_portability(manifest, "release", tmp_path)
 
     assert report["status"] == "RELEASE_READY"
     assert report["release_ready"] is True
@@ -124,6 +138,16 @@ def test_non_finite_exit_cost_is_rejected():
     errors = validate_manifest(manifest)
 
     assert any("finite non-negative estimated_amount" in error for error in errors)
+
+
+def test_release_evidence_hash_must_match_the_actual_file(tmp_path):
+    manifest = make_release_ready(load_manifest(), tmp_path)
+    (tmp_path / "portability-evidence.json").write_text("tampered\\n", encoding="utf-8")
+
+    report = assess_portability(manifest, "release", tmp_path)
+
+    assert report["status"] == "BLOCKED"
+    assert any("SHA-256 does not match" in error for error in report["errors"])
 
 
 def test_unknown_top_level_fields_are_rejected():
