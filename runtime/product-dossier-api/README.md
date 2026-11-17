@@ -24,7 +24,7 @@ Hosted PostgreSQL connections must use `sslmode=verify-full` or `verify-ca`. `ss
 ## Run
 
 ```sh
-npm install
+npm ci
 npm start
 ```
 
