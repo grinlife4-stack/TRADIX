@@ -184,11 +184,13 @@ class CPIIERegistry:
             reviewer_key_id TEXT,
             reviewer_assertion_id TEXT,
             reviewer_company_id TEXT,
+            reviewer_roles TEXT,
             reviewer_capabilities TEXT,
             reviewer_decisions TEXT,
             reviewer_authenticated_at TEXT,
             reviewer_expires_at TEXT,
-            reviewer_receipt TEXT
+            reviewer_receipt TEXT,
+            reviewer_context_hash TEXT
         );
         CREATE INDEX IF NOT EXISTS rules_capability_idx ON rules(capability);
         CREATE TABLE IF NOT EXISTS rule_review_history (
@@ -271,9 +273,9 @@ class CPIIERegistry:
         # left without signed receipts and therefore cannot authorize evaluation.
         review_columns = (
             "reviewer_issuer", "reviewer_subject", "reviewer_key_id",
-            "reviewer_assertion_id", "reviewer_company_id", "reviewer_capabilities",
-            "reviewer_decisions", "reviewer_authenticated_at", "reviewer_expires_at",
-            "reviewer_receipt",
+            "reviewer_assertion_id", "reviewer_company_id", "reviewer_roles",
+            "reviewer_capabilities", "reviewer_decisions", "reviewer_authenticated_at",
+            "reviewer_expires_at", "reviewer_receipt", "reviewer_context_hash",
         )
         for table in ("rules", "rule_review_history"):
             present = {
@@ -288,9 +290,9 @@ class CPIIERegistry:
         CREATE TRIGGER rules_review_fields_guard
             BEFORE UPDATE OF state, reviewer, reviewed_at,
                 reviewer_issuer, reviewer_subject, reviewer_key_id,
-                reviewer_assertion_id, reviewer_company_id, reviewer_capabilities,
-                reviewer_decisions, reviewer_authenticated_at, reviewer_expires_at,
-                reviewer_receipt ON rules
+                reviewer_assertion_id, reviewer_company_id, reviewer_roles,
+                reviewer_capabilities, reviewer_decisions, reviewer_authenticated_at,
+                reviewer_expires_at, reviewer_receipt, reviewer_context_hash ON rules
             WHEN NEW.state NOT IN ('VERIFIED', 'CONFLICT', 'EXPIRED')
               OR NEW.reviewer IS NULL OR length(trim(NEW.reviewer)) = 0
               OR NEW.reviewed_at IS NULL OR length(trim(NEW.reviewed_at)) = 0
@@ -299,6 +301,8 @@ class CPIIERegistry:
               OR NEW.reviewer_key_id IS NULL OR length(trim(NEW.reviewer_key_id)) = 0
               OR NEW.reviewer_assertion_id IS NULL OR length(trim(NEW.reviewer_assertion_id)) = 0
               OR NEW.reviewer_company_id IS NULL OR length(trim(NEW.reviewer_company_id)) = 0
+              OR NEW.reviewer_roles IS NULL OR length(trim(NEW.reviewer_roles)) = 0
+              OR NEW.reviewer_context_hash IS NULL OR length(trim(NEW.reviewer_context_hash)) = 0
               OR NEW.reviewer_capabilities IS NULL OR length(trim(NEW.reviewer_capabilities)) = 0
               OR NEW.reviewer_decisions IS NULL OR length(trim(NEW.reviewer_decisions)) = 0
               OR NEW.reviewer_authenticated_at IS NULL OR length(trim(NEW.reviewer_authenticated_at)) = 0
@@ -308,9 +312,9 @@ class CPIIERegistry:
         CREATE TRIGGER rules_review_history_append
             AFTER UPDATE OF state, reviewer, reviewed_at,
                 reviewer_issuer, reviewer_subject, reviewer_key_id,
-                reviewer_assertion_id, reviewer_company_id, reviewer_capabilities,
-                reviewer_decisions, reviewer_authenticated_at, reviewer_expires_at,
-                reviewer_receipt ON rules
+                reviewer_assertion_id, reviewer_company_id, reviewer_roles,
+                reviewer_capabilities, reviewer_decisions, reviewer_authenticated_at,
+                reviewer_expires_at, reviewer_receipt, reviewer_context_hash ON rules
             WHEN OLD.state IS NOT NEW.state
               OR OLD.reviewer IS NOT NEW.reviewer
               OR OLD.reviewed_at IS NOT NEW.reviewed_at
@@ -319,15 +323,15 @@ class CPIIERegistry:
                 INSERT INTO rule_review_history
                     (rule_id, previous_state, decision, reviewer, reviewed_at,
                      reviewer_issuer, reviewer_subject, reviewer_key_id,
-                     reviewer_assertion_id, reviewer_company_id, reviewer_capabilities,
-                     reviewer_decisions, reviewer_authenticated_at, reviewer_expires_at,
-                     reviewer_receipt)
+                     reviewer_assertion_id, reviewer_company_id, reviewer_roles,
+                     reviewer_capabilities, reviewer_decisions, reviewer_authenticated_at,
+                     reviewer_expires_at, reviewer_receipt, reviewer_context_hash)
                 VALUES
                     (NEW.rule_id, OLD.state, NEW.state, NEW.reviewer, NEW.reviewed_at,
                      NEW.reviewer_issuer, NEW.reviewer_subject, NEW.reviewer_key_id,
-                     NEW.reviewer_assertion_id, NEW.reviewer_company_id, NEW.reviewer_capabilities,
-                     NEW.reviewer_decisions, NEW.reviewer_authenticated_at, NEW.reviewer_expires_at,
-                     NEW.reviewer_receipt);
+                     NEW.reviewer_assertion_id, NEW.reviewer_company_id, NEW.reviewer_roles,
+                     NEW.reviewer_capabilities, NEW.reviewer_decisions, NEW.reviewer_authenticated_at,
+                     NEW.reviewer_expires_at, NEW.reviewer_receipt, NEW.reviewer_context_hash);
             END;
         """)
         self.connection.executescript("""
@@ -472,6 +476,38 @@ class CPIIERegistry:
         return Rule(row["rule_id"], row["document_id"], row["capability"],
                     row["statement"], PolicyEffect(row["effect"]), RuleState(row["state"]), row["expires_at"])
 
+    def review_context_hash(self, rule_id: str, decision: RuleState) -> str:
+        """Return the canonical challenge hash an authorized reviewer must sign."""
+        row = self.connection.execute(
+            """SELECT r.rule_id, r.capability, r.statement, r.effect, r.expires_at,
+                      r.evidence_id, r.document_id, d.content_sha256, d.version,
+                      d.source_id, s.company_id
+               FROM rules r
+               JOIN documents d ON d.document_id=r.document_id
+               JOIN sources s ON s.source_id=d.source_id
+               WHERE r.rule_id=?""",
+            (rule_id,),
+        ).fetchone()
+        if row is None:
+            raise KeyError(rule_id)
+        context = {
+            "schema": "cpiie-review-context-v1",
+            "rule_id": row["rule_id"],
+            "company_id": row["company_id"],
+            "source_id": row["source_id"],
+            "document_id": row["document_id"],
+            "document_sha256": row["content_sha256"],
+            "document_version": row["version"],
+            "evidence_id": row["evidence_id"],
+            "capability": row["capability"],
+            "statement": row["statement"],
+            "effect": row["effect"],
+            "expires_at": row["expires_at"],
+            "decision": RuleState(decision).value,
+        }
+        canonical = json.dumps(context, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
     def review_rule(self, rule_id: str, reviewer_assertion: str,
                     decision: RuleState) -> Rule:
         """Record a review only when a trusted verifier proves scoped authority.
@@ -488,27 +524,30 @@ class CPIIERegistry:
         ).fetchone()
         if current is None:
             raise KeyError(rule_id)
+        context_hash = self.review_context_hash(rule_id, decision)
         verified = authorize_review(
             self.reviewer_verifier, reviewer_assertion,
             company_id=current["company_id"], capability=current["capability"],
-            decision=decision.value,
+            decision=decision.value, context_hash=context_hash,
         )
         timestamp = utc_now()
         values = (
             decision.value, verified.subject, timestamp,
             verified.issuer, verified.subject, verified.key_id, verified.assertion_id,
             verified.company_id,
+            json.dumps(sorted(verified.roles), separators=(",", ":")),
             json.dumps(sorted(verified.capabilities), separators=(",", ":")),
             json.dumps(sorted(verified.decisions), separators=(",", ":")),
-            verified.authenticated_at, verified.expires_at, verified.receipt, rule_id,
+            verified.authenticated_at, verified.expires_at, verified.receipt, context_hash, rule_id,
         )
         try:
             self.connection.execute(
                 """UPDATE rules SET state=?, reviewer=?, reviewed_at=?,
                    reviewer_issuer=?, reviewer_subject=?, reviewer_key_id=?,
-                   reviewer_assertion_id=?, reviewer_company_id=?, reviewer_capabilities=?,
-                   reviewer_decisions=?, reviewer_authenticated_at=?, reviewer_expires_at=?,
-                   reviewer_receipt=? WHERE rule_id=?""",
+                   reviewer_assertion_id=?, reviewer_company_id=?, reviewer_roles=?,
+                   reviewer_capabilities=?, reviewer_decisions=?, reviewer_authenticated_at=?,
+                   reviewer_expires_at=?, reviewer_receipt=?, reviewer_context_hash=?
+                   WHERE rule_id=?""",
                 values,
             )
             # The matching review history row is appended atomically by SQLite.
@@ -535,7 +574,7 @@ class CPIIERegistry:
             """SELECT r.rule_id, r.state, r.effect, r.expires_at, r.document_id,
                       r.reviewer_issuer, r.reviewer_subject, r.reviewer_key_id,
                       r.reviewer_assertion_id, r.reviewer_company_id, r.reviewer_receipt,
-                      d.source_id, s.company_id
+                      r.reviewer_context_hash, d.source_id, s.company_id
                FROM rules r
                JOIN documents d ON d.document_id=r.document_id
                JOIN sources s ON s.source_id=d.source_id
@@ -553,12 +592,17 @@ class CPIIERegistry:
         # can be re-verified by the configured identity provider. Names/labels and
         # legacy rows never authorize a positive decision.
         for row in rows:
-            if row["reviewer_company_id"] != row["company_id"] or not verify_review_receipt(
+            expected_context_hash = self.review_context_hash(row["rule_id"], RuleState(row["state"]))
+            if (
+                row["reviewer_company_id"] != row["company_id"]
+                or row["reviewer_context_hash"] != expected_context_hash
+                or not verify_review_receipt(
                 self.reviewer_verifier, row["reviewer_receipt"],
                 issuer=row["reviewer_issuer"], subject=row["reviewer_subject"],
                 key_id=row["reviewer_key_id"], assertion_id=row["reviewer_assertion_id"],
                 company_id=row["company_id"], capability=capability,
-                decision=row["state"], now=current_dt,
+                decision=row["state"], context_hash=expected_context_hash, now=current_dt,
+                )
             ):
                 return Evaluation(
                     capability, CapabilityState.BLOCKED_REVIEW, ids,
