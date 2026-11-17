@@ -1,6 +1,6 @@
 # Worker Lease and Fencing Contract v0.1
 
-Status: proposed implementation contract  
+Status: implemented on the draft branch; pending final CI and review  
 Target branch: `factory/worker-lease-fencing-v0-1`  
 Base: `factory/executive-runtime-architecture-v0-1`  
 Scope: PostgreSQL task execution ownership and crash recovery. This document does not authorize applying migrations to Neon or Production.
@@ -29,7 +29,7 @@ A lease table alone is insufficient. Every write path that can change execution 
 
 The migration must provide narrowly scoped SECURITY DEFINER functions:
 
-- `acquire_task_lease(task_id, attempt_id, worker_id, ttl_seconds)` returns the fencing token and expiry. It locks the task, verifies product ownership and attempt state, rejects a different live owner, and performs a monotonic token increment on first acquisition or takeover.
+- `acquire_task_lease(task_id, attempt_id, worker_id, ttl_seconds)` returns the fencing token and expiry. It locks the task, verifies product ownership and attempt state, independently verifies exact-attempt/scope human approval where required, rejects a different live owner, and performs a monotonic token increment on first acquisition or takeover.
 - `renew_task_lease(task_id, attempt_id, worker_id, fencing_token, ttl_seconds)` extends only the exact live lease for a running attempt. It must not revive an expired lease or extend a completed attempt.
 - `assert_task_lease(task_id, attempt_id, worker_id, fencing_token)` is an internal helper callable only by the trusted function owner.
 - Fenced lifecycle transition, evidence, and attempt-finish APIs require the fencing token and invoke the lease assertion before any idempotency lookup or write.
