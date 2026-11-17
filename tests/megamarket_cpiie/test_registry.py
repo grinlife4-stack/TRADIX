@@ -70,7 +70,7 @@ class CPIIERegistryTests(unittest.TestCase):
                JOIN sources s ON s.source_id=d.source_id WHERE r.rule_id=?""",
             (rule_id,),
         ).fetchone()
-        assertion = f"{reviewer}|{row['company_id']}|{row['capability']}|{decision.value}"
+        assertion = f"{reviewer.strip()}|{row['company_id']}|{row['capability']}|{decision.value}"
         return self.registry.review_rule(rule_id, assertion, decision)
 
     def propose(self, rule_id="rule-1", capability="catalog.display"):
@@ -284,12 +284,12 @@ class CPIIERegistryTests(unittest.TestCase):
     def test_reviewer_authority_is_company_and_capability_scoped(self):
         self.propose()
         with self.assertRaisesRegex(ReviewerAuthenticationError, "company"):
-            self.review(
+            self.registry.review_rule(
                 "rule-1", "reviewer|other-company|catalog.display|VERIFIED",
                 RuleState.VERIFIED,
             )
         with self.assertRaisesRegex(ReviewerAuthenticationError, "capability"):
-            self.review(
+            self.registry.review_rule(
                 "rule-1", "reviewer|retailer-x|catalog.delete|VERIFIED",
                 RuleState.VERIFIED,
             )
