@@ -318,3 +318,15 @@ The product dossier API and mission/plan API are separately tested write paths, 
 - The next substantive runtime gap is atomic worker ownership: attempt claiming, expiring leases, heartbeat, monotonically increasing fencing tokens, stale-worker write rejection, bounded retries, and restart/takeover tests. This must be implemented as one coherent database-enforced path; a lease table without fencing enforcement is not an operational fix.
 - Existing task attempts are currently created with status `running`, and current lifecycle/evidence/finish functions do not require a lease token. Any lease implementation must close those bypass paths and update the executor/tests together before it can be called operational.
 - No worker lease implementation is claimed complete in this update.
+
+
+## 20. Repository slim-down audit — 2026-11-17
+
+- Created dedicated maintenance branch `maintenance/repository-slimdown-v0-1` from the recorded worker-lease branch head `928f3374c5440a330d3399965c7aa6752922791e`; no changes were made to `main` or the worker-lease branch.
+- Moved the superseded software-only master plan from `docs/AUTONOMOUS_SOFTWARE_FACTORY_MASTER_PLAN.md` to `docs/archive/AUTONOMOUS_SOFTWARE_FACTORY_MASTER_PLAN_2026-11-15.md`, marked it historical, and preserved its contents. It is not an active architecture authority; the current general-purpose architecture baseline is the active reference.
+- This is an organizational cleanup, not a reduction in repository byte size: the historical document remains in Git so its decisions can be recovered. No runtime code, schemas, migrations, workflows, tests, credentials, databases, deployments, or paid services were changed.
+- Initial dependency review found no safe basis to delete the four workflows or the two demo paths: each currently exercises a distinct check (Python contract tests, deterministic Python first-run, PostgreSQL-backed Hello World executor/API integration, and manual B2 connectivity verification). The two API services also expose different product-dossier versus mission/plan responsibilities; merging them without a full boundary review would be premature.
+- Potential follow-up review items: reconcile the architecture-baseline filename (`V1_1`) with its internal version 1.2; review stale historical status entries and stacked-PR references; inspect API shared boilerplate and package installation/lockfile strategy. These are review candidates, not approved deletions.
+- Verification: Git tree confirms the old active path is absent and the archived path exists. No runtime tests were run because this change only relocates and labels documentation. CI has not yet been run for this maintenance branch.
+- Current maintenance branch head after the documentation move: `b523b236d6cf91ef8700da7ae8810da1b8fc2287`.
+- No PR was opened, no merge was performed, and no production or Neon operation occurred.
