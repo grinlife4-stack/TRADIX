@@ -138,7 +138,8 @@ BEGIN
         fencing_token = EXCLUDED.fencing_token,
         expires_at = EXCLUDED.expires_at,
         acquired_at = EXCLUDED.acquired_at,
-        renewed_at = EXCLUDED.renewed_at;
+        renewed_at = EXCLUDED.renewed_at
+    RETURNING * INTO v_lease;
 
     UPDATE factory.task_attempts
     SET status = 'running',
@@ -146,7 +147,7 @@ BEGIN
         finished_at = NULL
     WHERE task_id = p_task_id AND attempt_id = p_attempt_id;
 
-    RETURN QUERY SELECT v_token, clock_timestamp() + make_interval(secs => p_ttl_seconds);
+    RETURN QUERY SELECT v_lease.fencing_token, v_lease.expires_at;
 END;
 $acquire_lease$;
 
