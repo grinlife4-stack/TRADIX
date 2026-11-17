@@ -221,6 +221,12 @@ expect_runtime_failure "old worker cannot write after serialized takeover" "vali
   "SELECT factory.record_task_evidence_fenced('$lock_task_id','$lock_attempt_id','lock-worker-old',$lock_token_old,'test_report','ci://lease-lock/stale-after','dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',1,'text/plain','test_report')"
 echo "PASS: lease takeover serializes against in-flight evidence writes"
 
+runtime_psql "SELECT factory.finish_task_attempt_fenced('$lock_task_id','$lock_attempt_id','lock-worker-new',$lock_token_new,'failed')" >/dev/null
+expect_runtime_failure "completed attempt cannot renew its retained lease" "lease is missing, expired, or owned by another worker" \
+  "SELECT factory.renew_task_lease('$lock_task_id','$lock_attempt_id','lock-worker-new',$lock_token_new,30)"
+runtime_psql "BEGIN; SELECT factory.transition_task_fenced('$lock_task_id',$lock_token_new,'lock-worker-new','failed','task.failed','agent','lock-worker-new','lock-worker-final','$lock_attempt_id','{}'::jsonb); SELECT factory.release_task_lease('$lock_task_id','$lock_attempt_id','lock-worker-new',$lock_token_new); COMMIT" >/dev/null
+echo "PASS: a completed attempt cannot extend its lease"
+
 (runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$race_task_id','$race_attempt_id','race-worker-a',30)" > /tmp/tradix-race-a.log 2>&1) &
 race_a_pid=$!
 (runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$race_task_id','$race_attempt_id','race-worker-b',30)" > /tmp/tradix-race-b.log 2>&1) &
