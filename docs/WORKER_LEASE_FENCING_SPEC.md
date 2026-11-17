@@ -80,6 +80,7 @@ Run against disposable PostgreSQL 17 and isolated product LOGIN identities:
 ## 7. Migration and rollout constraints
 
 - Implement as a new forward-only migration after the currently applied draft migrations; do not rewrite the existing migration history.
+- Migration preflight must refuse rollout while any attempt is `running` or any task is in an active lifecycle state. Drain or explicitly reconcile pre-existing work first; never silently adopt it without a lease.
 - Update the disposable PostgreSQL CI workflow to apply the migration before the ledger tests and executor integration test.
 - Update SQL tests and runner in the same pull request.
 - Do not apply this draft migration to Neon or Production until CI passes, the diff is reviewed, and a separate explicit rollout decision is made.
