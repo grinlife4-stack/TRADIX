@@ -116,7 +116,7 @@ class CPIIERegistryTests(unittest.TestCase):
 
     def test_document_hash_and_duplicate_are_deterministic(self):
         first = self.doc
-        duplicate = self.registry.record_document("retailer-terms", "Terms v1\\nProduct data may be displayed.")
+        duplicate = self.registry.record_document("retailer-terms", "Terms v1\nProduct data may be displayed.")
         self.assertEqual(first.content_sha256, duplicate.content_sha256)
         self.assertFalse(duplicate.changed)
         self.assertEqual(first.version, duplicate.version)
