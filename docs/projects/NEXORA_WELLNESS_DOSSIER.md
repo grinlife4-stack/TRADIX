@@ -22,8 +22,8 @@
 
 - **Official master file:** `projects/NEXORA/assets/brand/NEXORA-Official-Logo.png`
 - **Repository:** `grinlife4-stack/TRADIX`
-- **Canonical working branch:** `docs/nexora-business-project-dossier-2026-11-17`
-- **Pull request:** [#40](https://github.com/grinlife4-stack/TRADIX/pull/40) (Draft; not merged)
+- **Source branch:** `docs/nexora-business-project-dossier-2026-11-17`
+- **Pull request:** [#40](https://github.com/grinlife4-stack/TRADIX/pull/40)
 - **Git blob SHA:** `7f2a39590db755077b0a903cf93056121e0ef1b5`
 
 This exact PNG is hereby designated the **sole official primary logo of the NEXORA project and NEXORA app**. It is the authoritative master for all product, interface, documentation, presentation, web, PWA, and store-brand uses. No generated, redrawn, recreated, traced, substituted, or independently edited logo may be presented as the official NEXORA logo.
@@ -87,7 +87,7 @@ Do not copy a competitor's product structure or assume that another company's fe
 - Favorites and recently played.
 - Basic local preferences and progress.
 - A small, curated starter library sufficient to demonstrate the complete experience.
-- Persian and English interface foundations; ship the first language set that can be completed reliably.
+- Current prototype release locales: English, French, and Spanish. Persian is not part of the current prototype release scope.
 
 ### Explicitly out of scope for first release
 - AI coach or AI-generated therapeutic advice.
@@ -201,7 +201,7 @@ No phase is considered complete without a working artifact and recorded test evi
 - Source baseline: `NEXORA-0.5.1.zip`; local candidate advanced to `NEXORA-0.5.3-source-package.zip`.
 - Baseline SHA-256: `33cace591cd000cafdaebf7093a8a818d62e140beddf6d9c6a8815adfd4b4098`; ZIP integrity passed (22 entries); baseline automated smoke tests: 23/23 passed.
 - Local `NEXORA-0.5.2` corrected stale PWA manifest metadata (`lang=en`, `dir=ltr`). Local `NEXORA-0.5.3` integrates the approved logo into header/player references and an SVG PWA icon shell, and bumps the service-worker cache to v9.
-- Candidate SHA-256: `4cf1fe5163c01bb516df0ac6c4a11b361fb539208594d022dcd6da87d66c3c6e`; ZIP integrity passed (19 files); automated smoke tests: 24/24 passed.
+- Final 0.5.3 candidate SHA-256: `0064a4bc1c6b774aa300e90f1b09dda43102dbc80f603dbac2e93e4fb14b23fe`; ZIP integrity and automated smoke tests were reported as passing (25/25).
 - The 0.5.3 source package is a local test artifact only; full source import into the repository remains pending. It is not a production release.
 - The archive supports English, French, and Spanish, including all 30 written guided-practice days in those languages.
 - The 0.5.3 app source now references the approved shared logo in header/player and SVG PWA icon. A square iOS touch-icon derivative remains pending.
