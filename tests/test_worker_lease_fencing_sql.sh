@@ -57,8 +57,6 @@ lock_task_id="f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f2f2"
 lock_attempt_id="e2e2e2e2-e2e2-42e2-82e2-e2e2e2e2e2e2"
 rollback_task_id="f3f3f3f3-f3f3-43f3-83f3-f3f3f3f3f3f3"
 rollback_attempt_id="e3e3e3e3-e3e3-43e3-83e3-e3e3e3e3e3e3"
-rollback_task_id="f3f3f3f3-f3f3-43f3-83f3-f3f3f3f3f3f3"
-rollback_attempt_id="e3e3e3e3-e3e3-43e3-83e3-e3e3e3e3e3e3"
 
 psql <<SQL
 INSERT INTO factory.tasks (
