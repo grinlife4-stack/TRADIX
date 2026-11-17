@@ -337,3 +337,14 @@ The product dossier API and mission/plan API are separately tested write paths, 
 - The protocol is a contract foundation, not a deployed conversational gateway. No live model provider, durable inbox/outbox, Neon migration, deployment, production write, or merge was performed.
 - The existing intake API still records proposed snapshots and stops at its current pending-approval boundary. The new interface contract does not bypass it.
 - Latest branch head and CI must be refreshed before claiming verification.
+
+
+## 11. Freedom and portability charter (2026-11-17)
+
+- Added `docs/FREEDOM_AND_PORTABILITY_CHARTER.md` as the factory-wide design charter for owner authority, replaceable AI interfaces, product isolation, reusable capabilities, open standards, provider freedom, bounded autonomy, portability, and disaster recovery.
+- Explicitly defines TRADIX as a general production factory, not a software-only system.
+- Establishes export/restore evidence as an acceptance requirement; a source-code clone or successful object-storage connectivity check is not a complete factory migration.
+- Keeps the exact owner identity and two-email emergency replacement design deferred. This change does not implement ownership, authentication, recovery, or email changes.
+- This is a documentation/design change only. No code behavior, database schema, permissions, secrets, deployment, paid service, or production resource was changed.
+- Baseline refreshed before this change: branch head `68ad8815ce57d2bac7303d04ae2ead604f7a8e8f`; PR #3 open/Draft/unmerged; PR #2 closed (Draft metadata retained); all three CI workflows on the refreshed head succeeded: tests `44000498239`, factory-first-run `44000497914`, factory-ledger-sql `44000497908`.
+- CI for this documentation commit must be checked separately before treating the new head as verified.
