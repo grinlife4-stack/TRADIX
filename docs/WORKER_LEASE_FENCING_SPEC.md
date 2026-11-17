@@ -54,6 +54,7 @@ Lease release/completion must be atomic with terminal attempt completion. A fail
 ## 5. Runner contract
 
 - Generate a stable worker identity per process instance; do not reuse it across independent workers.
+- Keep product dossier identity independent from task identity. The manifest supplies a stable `dossier_idempotency_key`; `task.task_key` identifies only a task. Distinct tasks for one product may reuse the same unchanged dossier without creating duplicate product dossier versions.
 - Acquire before executing product code.
 - Keep the returned fencing token in process memory and pass it to every database write.
 - Heartbeat at a bounded fraction of the lease TTL, with a bounded query timeout. If renewal fails, stop launching work and terminate the entire child process tree.
