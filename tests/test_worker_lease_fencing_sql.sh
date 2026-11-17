@@ -9,6 +9,28 @@ runtime_psql() {
   local sql="$1"
   docker exec -i "$container_id" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SET SESSION AUTHORIZATION factory_rt_tradix; $sql"
 }
+identity_psql() {
+  local identity="$1"
+  local sql="$2"
+  docker exec -i "$container_id" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SET SESSION AUTHORIZATION $identity; $sql"
+}
+expect_identity_failure() {
+  local identity="$1"
+  local label="$2"
+  local expected="$3"
+  local sql="$4"
+  if identity_psql "$identity" "$sql" >/tmp/tradix-lease-identity-test.log 2>&1; then
+    echo "FAIL: $label unexpectedly succeeded"
+    cat /tmp/tradix-lease-identity-test.log
+    exit 1
+  fi
+  if ! grep -Fq "$expected" /tmp/tradix-lease-identity-test.log; then
+    echo "FAIL: $label failed for an unexpected reason"
+    cat /tmp/tradix-lease-identity-test.log
+    exit 1
+  fi
+  echo "PASS: $label"
+}
 expect_runtime_failure() {
   local label="$1"
   local expected="$2"
@@ -69,6 +91,9 @@ if [[ -z "$token1" ]]; then
   echo "FAIL: first worker did not receive a fencing token"
   exit 1
 fi
+
+expect_identity_failure "factory_rt_info_engine" "another product cannot renew TRADIX lease" "lease is missing, expired, or owned by another worker" \
+  "SELECT factory.renew_task_lease('$task_id','$attempt_id','lease-worker-old',$token1,30)"
 
 runtime_psql "SELECT factory.transition_task_fenced('$task_id',$token1,'lease-worker-old','planned','task.planned','agent','ci-old-worker','lease-ci-idempotency','$attempt_id','{}'::jsonb)" >/dev/null
 echo "PASS: lease owner can perform a fenced transition"
