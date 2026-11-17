@@ -19,3 +19,11 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
       - run: python -m pytest -q
+      - name: Validate product portability design manifest
+        run: python scripts/check_product_portability.py examples/hello-world/portability.json --mode design
+      - name: Verify portability release gate stays closed without restore evidence
+        run: |
+          if python scripts/check_product_portability.py examples/hello-world/portability.json --mode release; then
+            echo "Portability release gate unexpectedly passed without a verified restore"
+            exit 1
+          fi
