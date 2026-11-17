@@ -96,7 +96,7 @@ jobs:
           FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
         run: |
           set -euo pipefail
-          rm -f /tmp/tradix-lease-loss-child-survived /tmp/tradix-lease-loss-runner.log
+          rm -f /tmp/tradix-lease-loss-child-survived /tmp/tradix-lease-loss-child.pid /tmp/tradix-lease-loss-runner.log
           node runtime/factory-executor/runner.mjs examples/lease-loss/product.json > /tmp/tradix-lease-loss-runner.log 2>&1 &
           runner_pid=$!
           task_id=""
@@ -124,6 +124,11 @@ jobs:
             exit 1
           fi
           grep -q "FACTORY_EXECUTOR_LEASE_LOST" /tmp/tradix-lease-loss-runner.log || { cat /tmp/tradix-lease-loss-runner.log; echo "Executor did not report lease loss"; exit 1; }
+          child_pid=$(cat /tmp/tradix-lease-loss-child.pid)
+          if kill -0 "$child_pid" 2>/dev/null; then
+            echo "Child process $child_pid is still alive after lease loss"
+            exit 1
+          fi
           if [[ -e /tmp/tradix-lease-loss-child-survived ]]; then
             echo "Child process survived after the executor lost its lease"
             exit 1
