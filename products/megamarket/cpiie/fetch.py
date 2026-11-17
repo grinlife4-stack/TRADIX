@@ -145,8 +145,11 @@ class OfficialSourceFetcher:
                 if status != 200:
                     raise FetchError(f"unexpected HTTP status: {status}")
                 final_url = canonicalize_url(response.geturl())
-                if urlsplit(final_url).hostname != host:
-                    raise FetchError("response URL escaped the registered source host")
+                final_parts = urlsplit(final_url)
+                requested_parts = urlsplit(url)
+                if (final_parts.hostname != host
+                        or (final_parts.port or 443) != (requested_parts.port or 443)):
+                    raise FetchError("response URL escaped the registered source origin")
                 headers = response.headers
                 content_type = headers.get_content_type().lower()
                 if content_type not in _ALLOWED_CONTENT_TYPES:
