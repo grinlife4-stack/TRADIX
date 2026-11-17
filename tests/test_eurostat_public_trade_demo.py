@@ -66,3 +66,23 @@ def test_rejects_non_decimal_observation():
     invalid = ROWS.replace(",1200,,0", ",twelve,,0")
     with pytest.raises(ValueError, match="non-decimal"):
         parse_sdmx_csv((HEADER + invalid).encode(), 2020, 2025)
+
+
+LOWERCASE_HEADER = (
+    "DATAFLOW,LAST UPDATE,freq,reporter,partner,product,flow,indicators,"
+    "TIME_PERIOD,OBS_VALUE\n"
+)
+LOWERCASE_ROW = (
+    "ESTAT:DS-045409(1.0),13/11/26 11:00:00,A,DE,FR,8703,1,"
+    "VALUE_IN_EUROS,2020,3781769483\n"
+)
+
+
+def test_accepts_comext_lowercase_dimension_headers_and_captures_update_time():
+    result = parse_sdmx_csv(
+        (LOWERCASE_HEADER + LOWERCASE_ROW).encode(), 2020, 2025
+    )
+    assert result["numeric_observation_count"] == 1
+    assert result["source_dataflow"] == "ESTAT:DS-045409(1.0)"
+    assert result["source_last_update"] == "13/11/26 11:00:00"
+    assert result["observations"][0]["obs_value"] == "3781769483"
