@@ -136,6 +136,20 @@ def test_release_ready_requires_all_verified_sections_and_a_real_restore_record(
     assert report["release_blockers"] == []
 
 
+def test_estimated_exit_cost_requires_file_backed_evidence():
+    manifest = load_manifest()
+    manifest["exit_cost"].update({
+        "status": "estimated",
+        "estimated_amount": 10,
+        "estimated_hours": 1,
+    })
+
+    errors = validate_manifest(manifest)
+
+    assert "exit_cost.evidence_sha256 is required when status is estimated or verified" in errors
+    assert "exit_cost.evidence_path must be a safe relative path when status is estimated or verified" in errors
+
+
 def test_non_finite_exit_cost_is_rejected():
     manifest = load_manifest()
     manifest["exit_cost"].update({
