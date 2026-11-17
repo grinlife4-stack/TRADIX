@@ -189,3 +189,31 @@ The linked product report is the detailed status record. This master plan retain
 - **Migration blocked:** the connected GitHub actions available here do not expose repository creation/import. Preserve the current branch and source unchanged until a dedicated destination repository exists.
 - Migration acceptance requires preserved history/source manifest, imported PR work, hash/tree comparison, clean checkout, and passing CI on the exact imported SHA. Only after those checks may a separately reviewed PR remove the duplicate product subtree from TRADIX.
 - TRADIX may retain project registry metadata, status, approvals, task state, and links to product-owned repositories and evidence. It must not absorb product-specific code, secrets, runtime data, or commercial workflows.
+
+## 12. Cumulative factory capability growth (decision 2026-11-17)
+
+TRADIX must grow through the work performed across its independent project portfolio. It is not a static coordinator or a shared repository into which product code is copied.
+
+The intended cycle is:
+
+1. TRADIX supplies existing shared capabilities through documented, versioned interfaces.
+2. Each selected project develops and validates its product-specific work in its own repository, data boundary, and runtime.
+3. A capability created in a project may be proposed for TRADIX only when it has demonstrated value beyond that product or meets a documented factory-level need.
+4. The candidate is generalized and independently reviewed for correctness, security, licensing, operational cost, compatibility, and maintainability.
+5. After tests and acceptance, TRADIX versions and publishes the capability. Other projects may adopt it deliberately; adoption is not forced.
+6. Experience from later projects can improve the shared capability through the same promotion process.
+
+### Promotion gates
+
+- Product-specific business logic, data, credentials, customer information, and runtime workflows stay in the product.
+- No unproven abstraction is promoted merely to make the factory appear more capable.
+- Every promoted capability needs an owner, documented interface, version, tests, changelog, compatibility policy, and deprecation path.
+- Shared capabilities must not create a hard runtime dependency that prevents a product from operating when TRADIX is unavailable.
+- A project may use a capability at a pinned version and upgrade on its own release schedule.
+- Failed experiments remain isolated and must not silently alter the factory or other projects.
+
+### Success measure
+
+Measure TRADIX growth by verified reusable capabilities and successful independent product deliveries, not by repository count, lines of code, agent count, or test count alone. The key proof is that a capability validated in one project reduces the time, risk, or cost of a later project without coupling their failure domains.
+
+This decision complements the independent repository boundary in Section 11; it does not authorize merging product code into TRADIX or changing any product's release permissions.
