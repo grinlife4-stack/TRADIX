@@ -247,6 +247,22 @@ jobs:
             exit 1
           fi
           echo "PASS: runner refuses unsafe automatic stage recovery"
+      - name: Test CI evidence manifest integrity
+        run: npm run --prefix runtime/factory-executor test:evidence
+      - name: Build immutable CI evidence manifest
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_WORKFLOW: ${{ github.workflow }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_JOB: postgres-schema
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+        run: node runtime/factory-executor/build-evidence-manifest.mjs /tmp/tradix-factory-executor
       - name: Upload factory execution evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -254,7 +270,7 @@ jobs:
           name: hello-world-factory-evidence
           path: /tmp/tradix-factory-executor/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 90
       - name: Validate product dossier JSON Schema across product categories
         run: npm run --prefix runtime/product-dossier-api test:schema
       - name: Run isolated product dossier API integration test
