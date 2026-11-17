@@ -134,6 +134,24 @@ class PolicyMonitorTests(unittest.TestCase):
         self.assertEqual(self.monitor.history("policy")[0].status, "PENDING")
         self.assertEqual(self.registry.connection.execute("SELECT COUNT(*) FROM monitor_checks WHERE status='STARTED'").fetchone()[0], 1)
 
+
+    def test_recover_pending_appends_interrupted_terminal_event(self):
+        self.opener.open.return_value = FakeResponse(body=b"policy changed")
+        self.registry.connection.execute("""
+            CREATE TRIGGER fail_success_receipt BEFORE INSERT ON monitor_checks
+            WHEN NEW.status = 'SUCCESS'
+            BEGIN SELECT RAISE(ABORT, 'simulated terminal outage'); END
+        """)
+        self.registry.connection.commit()
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "simulated terminal outage"):
+            self.monitor.check_source("policy", allowed_hosts={"policy.example.org"})
+        self.registry.connection.execute("DROP TRIGGER fail_success_receipt")
+        self.registry.connection.commit()
+        self.assertEqual(self.monitor.recover_pending("policy"), 1)
+        self.assertEqual(self.monitor.history("policy")[0].status, "FAILED")
+        self.assertIn("INTERRUPTED", self.monitor.history("policy")[0].error)
+        self.assertEqual(self.monitor.recover_pending("policy"), 0)
+
     def test_unexpected_runtime_error_is_audited_then_reraised(self):
         self.opener.open.side_effect = RuntimeError("unexpected parser defect")
         with self.assertRaisesRegex(RuntimeError, "unexpected parser defect"):
