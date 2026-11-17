@@ -130,6 +130,24 @@ jobs:
           output=$(node runtime/factory-executor/runner.mjs examples/hello-world/product.json)
           printf '%s\n' "$output"
           grep -Eq '^ALREADY VERIFIED task=.* attempt=.* events=7 evidence=3$' <<< "$output"
+      - name: Verify product dossier identity is independent from task identity
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+          const manifest = JSON.parse(await readFile('examples/hello-world/product.json', 'utf8'));
+          manifest.task.task_key = 'hello-world-independent-task-v1';
+          manifest.attempt.idempotency_key = 'hello-world-independent-attempt-v1';
+          await writeFile('/tmp/tradix-independent-task.json', JSON.stringify(manifest));
+          NODE
+          node runtime/factory-executor/runner.mjs /tmp/tradix-independent-task.json
+          result=$(docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SELECT (SELECT count(*) FROM factory.product_dossier_versions d JOIN factory.project_identities i USING (project_id) WHERE i.role_name='factory_rt_onboarding' AND d.idempotency_key='hello-world-product-dossier-v1')::text || '/' || (SELECT count(*) FROM factory.tasks WHERE task_key IN ('hello-world-runner-v1','hello-world-independent-task-v1'))::text")
+          test "$result" = "1/2" || { echo "FAIL: expected one product dossier version shared by two distinct tasks, got $result"; exit 1; }
+          echo "PASS: product dossier identity is independent from task identity"
       - name: Verify high-risk execution is blocked before lease acquisition without approval
         env:
           DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
