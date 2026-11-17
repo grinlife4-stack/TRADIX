@@ -13,6 +13,7 @@ import hashlib
 import io
 import json
 from pathlib import Path
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -156,10 +157,14 @@ def fetch_bytes(url: str) -> bytes:
         },
         method="GET",
     )
-    with urllib.request.urlopen(request, timeout=45) as response:
-        if response.status != 200:
-            raise RuntimeError(f"Eurostat returned HTTP {response.status}")
-        payload = response.read(10_000_001)
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:
+            if response.status != 200:
+                raise RuntimeError(f"Eurostat returned HTTP {response.status}")
+            payload = response.read(10_000_001)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read(4000).decode("utf-8", "replace")
+        raise RuntimeError(f"Eurostat returned HTTP {exc.code}: {detail}") from exc
     if len(payload) > 10_000_000:
         raise ValueError("Eurostat response exceeds the 10 MB safety limit")
     return payload
