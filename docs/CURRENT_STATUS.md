@@ -18,7 +18,7 @@
 - PR #2 and PR #4 are closed and unmerged; they are superseded, not release artifacts.
 - PR #5 (blanket pending-approval restriction) was closed without merge after CI showed it broke the trusted Hello World onboarding executor. It is a rejected experiment, not an accepted fix.
 - PR #7 adds a dedicated `factory_onboarding_authority` marker: ordinary product runtimes may write only `pending_approval` dossiers; the isolated onboarding runner retains its tested first-run path. PR #7 is open, Draft, and unmerged. Exact head `a345f9b194ff3f9d96c7fbc13022e583f5de03c1`; Python and PostgreSQL/HTTP CI both passed on that head.
-- PR #8 adds committed npm lockfiles and changes the Node integration workflow to `npm ci`. It is open, Draft, and unmerged. Exact head `412ddd3f9a49ed5467684da7937efe20345ec822`; Python tests and full PostgreSQL/HTTP integration CI both passed on that head.
+- PR #8 adds committed npm lockfiles and changes the Node integration workflow to `npm ci`. It is open, Draft, and unmerged. Code-bearing head `412ddd3f9a49ed5467684da7937efe20345ec822`; Python tests and full PostgreSQL/HTTP integration CI both passed on that head. The current branch head `d40d593b0b258a82388df8fb7d6b76098727cb7f` adds only this status-recording documentation update.
 - `main` was not changed by the maintenance work. Its protection status was reported as disabled during inspection; do not assume branch protection enforces review or CI gates.
 
 ## 2. Implemented and verified boundaries
