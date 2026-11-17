@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,8 @@ const { Client } = pg;
 const MAX_OUTPUT_BYTES = 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 15000;
 const EXECUTOR_ID = "tradix-factory-executor-v0.1";
+const LEASE_TTL_SECONDS = 60;
+const LEASE_HEARTBEAT_MS = 15000;
 
 function fail(message) {
   throw new Error(message);
@@ -29,7 +31,7 @@ function assertNodeScript(value, label) {
   return value;
 }
 
-async function runNodeScript(productRoot, script, label) {
+async function runNodeScript(productRoot, script, label, leaseGuard) {
   const scriptPath = await realpath(resolve(productRoot, assertNodeScript(script, label)));
   const rel = relative(productRoot, scriptPath);
   if (!rel || rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) {
@@ -52,6 +54,8 @@ async function runNodeScript(productRoot, script, label) {
     const stderr = [];
     let bytes = 0;
     let settled = false;
+    leaseGuard?.registerChild?.(child);
+    if (leaseGuard?.lost) child.kill("SIGKILL");
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
       finish(new Error(`${label} exceeded ${COMMAND_TIMEOUT_MS}ms`));
@@ -105,32 +109,28 @@ function artifactPayload(result, stage) {
   };
 }
 
-async function transition(client, taskId, attemptId, from, to) {
+async function transition(client, lease, from, to) {
   await client.query(
-    "SELECT factory.transition_task($1,$2,$3,'agent',$4,$5,$6)",
-    [
-      taskId,
-      to,
-      `task.${to}`,
-      EXECUTOR_ID,
-      `factory-executor:${taskId}:${to}`,
-      attemptId
-    ]
+    "SELECT factory.transition_task_fenced($1,$2,$3,$4,$5,'agent',$6,$7,$8,$9::jsonb)",
+    [lease.taskId, lease.token, lease.workerId, to, `task.${to}`, EXECUTOR_ID,
+      `factory-executor:${lease.taskId}:${to}`, lease.attemptId, "{}"]
   );
 }
 
-async function recordEvidence(client, taskId, attemptId, type, result) {
+async function recordEvidence(client, lease, type, result) {
   const payload = artifactPayload(result, type);
   const evidenceDir = resolve(process.env.FACTORY_EVIDENCE_DIR ?? "/tmp/tradix-factory-executor", taskId);
   await mkdir(evidenceDir, { recursive: true });
   await writeFile(resolve(evidenceDir, `${type}.txt`), payload.content, { mode: 0o600 });
   await client.query(
-    "SELECT factory.record_task_evidence($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)",
+    "SELECT factory.record_task_evidence_fenced($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)",
     [
-      taskId,
-      attemptId,
+      lease.taskId,
+      lease.attemptId,
+      lease.workerId,
+      lease.token,
       type,
-      `ci://factory-executor/${taskId}/${type}.txt`,
+      `ci://factory-executor/${lease.taskId}/${type}.txt`,
       payload.sha256,
       payload.byteSize,
       "text/plain",
@@ -223,48 +223,80 @@ async function main() {
       process.stdout.write(`ALREADY VERIFIED task=${taskId} attempt=${attemptId} events=${row.event_count} evidence=${row.evidence_count}\n`);
       return;
     }
-    if (state.rows[0]?.status !== "queued" || state.rows[0]?.attempt_status !== "running") {
+    if (state.rows[0]?.status !== "queued" || state.rows[0]?.attempt_status !== "queued") {
       fail(`Task/attempt is in state ${state.rows[0]?.status}/${state.rows[0]?.attempt_status}; refusing implicit recovery or duplicate execution`);
     }
 
-    await transition(client, taskId, attemptId, "queued", "planned");
-    await transition(client, taskId, attemptId, "planned", "implementing");
+    const workerId = `${EXECUTOR_ID}:${randomUUID()}`;
+    const leaseResult = await client.query(
+      "SELECT fencing_token, expires_at FROM factory.acquire_task_lease($1,$2,$3,$4)",
+      [taskId, attemptId, workerId, LEASE_TTL_SECONDS]
+    );
+    const lease = { taskId, attemptId, workerId, token: leaseResult.rows[0]?.fencing_token };
+    if (!lease.token) fail("Database did not return a fencing token");
+
+    const leaseGuard = {
+      lost: false,
+      child: null,
+      registerChild(child) {
+        this.child = child;
+        if (this.lost) child.kill("SIGKILL");
+      }
+    };
+    const heartbeat = setInterval(async () => {
+      if (leaseGuard.lost) return;
+      try {
+        await client.query(
+          "SELECT factory.renew_task_lease($1,$2,$3,$4,$5)",
+          [taskId, attemptId, workerId, lease.token, LEASE_TTL_SECONDS]
+        );
+      } catch (error) {
+        leaseGuard.lost = true;
+        leaseGuard.child?.kill("SIGKILL");
+        process.stderr.write(`FACTORY_EXECUTOR_LEASE_LOST: ${error.message}\\n`);
+      }
+    }, LEASE_HEARTBEAT_MS);
+    heartbeat.unref?.();
+
+    await transition(client, lease, "queued", "planned");
+    await transition(client, lease, "planned", "implementing");
 
     let currentState = "implementing";
     try {
-      const runResult = await runNodeScript(productRoot, runScript, "product run");
-      const testResult = await runNodeScript(productRoot, testScript, "product test");
+      const runResult = await runNodeScript(productRoot, runScript, "product run", leaseGuard);
+      const testResult = await runNodeScript(productRoot, testScript, "product test", leaseGuard);
 
-      await transition(client, taskId, attemptId, currentState, "testing");
+      await transition(client, lease, currentState, "testing");
       currentState = "testing";
-      await recordEvidence(client, taskId, attemptId, "test_report", {
+      await recordEvidence(client, lease, "test_report", {
         stdout: [runResult.stdout, testResult.stdout].join("\\n"),
         stderr: [runResult.stderr, testResult.stderr].join("\\n"),
         exitCode: 0
       });
 
-      await transition(client, taskId, attemptId, currentState, "review");
+      await transition(client, lease, currentState, "review");
       currentState = "review";
-      const reviewResult = await runNodeScript(productRoot, reviewScript, "product review");
-      await recordEvidence(client, taskId, attemptId, "review_report", reviewResult);
+      const reviewResult = await runNodeScript(productRoot, reviewScript, "product review", leaseGuard);
+      await recordEvidence(client, lease, "review_report", reviewResult);
 
-      await transition(client, taskId, attemptId, currentState, "candidate");
+      await transition(client, lease, currentState, "candidate");
       currentState = "candidate";
-      await transition(client, taskId, attemptId, currentState, "deployed_test");
+      await transition(client, lease, currentState, "deployed_test");
       currentState = "deployed_test";
 
-      const healthResult = await runNodeScript(productRoot, healthScript, "product health check");
-      await recordEvidence(client, taskId, attemptId, "health_check", healthResult);
+      const healthResult = await runNodeScript(productRoot, healthScript, "product health check", leaseGuard);
+      await recordEvidence(client, lease, "health_check", healthResult);
 
       // Commit attempt success and the terminal task transition atomically.
       // A failed terminal transition must never leave a succeeded attempt behind.
       await client.query("BEGIN");
       try {
         await client.query(
-          "SELECT factory.finish_task_attempt($1,$2,'succeeded')",
+          "SELECT factory.finish_task_attempt_fenced($1,$2,$3,$4,'succeeded')",
           [taskId, attemptId]
         );
         await transition(client, taskId, attemptId, currentState, "verified");
+        await client.query("SELECT factory.release_task_lease($1,$2,$3,$4)", [taskId, attemptId, workerId, lease.token]);
         await client.query("COMMIT");
         currentState = "verified";
       } catch (finalizeError) {
@@ -279,20 +311,23 @@ async function main() {
         );
         if (attemptState.rows[0]?.status === "running") {
           await client.query(
-            "SELECT factory.finish_task_attempt($1,$2,'failed')",
-            [taskId, attemptId]
+            "SELECT factory.finish_task_attempt_fenced($1,$2,$3,$4,'failed')",
+            [taskId, attemptId, workerId, lease.token]
           );
           if (currentState !== "verified") {
             await client.query(
-              "SELECT factory.transition_task($1,'failed','task.failed','agent',$2,$3,$4)",
-              [taskId, EXECUTOR_ID, `factory-executor:${taskId}:failed`, attemptId]
+              "SELECT factory.transition_task_fenced($1,$2,$3,'failed','task.failed','agent',$4,$5,$6,'{}'::jsonb)",
+              [taskId, lease.token, workerId, EXECUTOR_ID, `factory-executor:${taskId}:failed`, attemptId]
             );
           }
+          await client.query("SELECT factory.release_task_lease($1,$2,$3,$4)", [taskId, attemptId, workerId, lease.token]);
         }
       } catch (cleanupError) {
         process.stderr.write(`FACTORY_EXECUTOR_CLEANUP_FAILED: ${cleanupError.message}\\n`);
       }
       throw error;
+    } finally {
+      clearInterval(heartbeat);
     }
 
     const verified = await client.query(
