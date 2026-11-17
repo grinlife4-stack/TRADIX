@@ -45,12 +45,12 @@ The reviewer-identity implementation is currently verified by GitHub Actions run
 - **Still blocked:** select and configure a real identity provider, implement cryptographic signature/JWKS validation, issuer/audience/key-rotation/revocation handling, and provision secrets/keys outside the repository. No real reviewer authentication or commercial authorization is active.
 
 ### Gate C — Tamper-evident audit
-- Define canonical event serialization and a versioned hash-chain format.
+- [x] Add standalone canonical event serialization and a versioned SHA-256 hash-chain primitive in `cpiie/audit_ledger.py` (not yet integrated with all registry events).
 - Include source/document/evidence/rule/review/evaluation events and their causal references.
-- Verify the chain on export and import; reject gaps, reordering, duplicate sequence numbers and altered payloads.
-- Anchor chain heads outside the SQLite database using a separately controlled signing/retention mechanism.
+- [x] Add chain verification and signed export/import verification; reject gaps, reordering, duplicate sequence numbers, altered payloads, invalid signatures, missing keys, and exports that do not extend a supplied prior anchor.
+- [ ] Still blocked: provision an asymmetric KMS/HSM signer and retain signed chain-head exports in an independently controlled system outside the repository and SQLite database.
 - Keep private signing keys out of the repository, CI logs and ordinary application data.
-- Test tampering with both event rows and source content.
+- [x] Add synthetic tests for payload tampering, deletion/gaps, reordering, duplicate sequence numbers, ordinary SQL update/delete, signature failure, missing keys and prior-anchor replay rejection. [ ] Add integration tests proving every registry mutation/evaluation emits a causally linked event.
 
 ### Gate D — Shadow-mode pilot
 - Select one initial market, one product category and a small number of official candidate sources only after those choices are explicitly approved.
@@ -101,7 +101,7 @@ The read-only pilot is acceptable only when:
 ## 5. Immediate implementation sequence
 
 1. [x] Add fail-closed reviewer assertion contract and scoped authority checks. [ ] Connect a production identity provider and validate its signatures, audience, key rotation and revocation before enabling real reviews.
-2. Add signed, independently anchored audit-chain export and tamper tests.
+2. [x] Add the standalone hash-chain/export primitive and synthetic tamper tests. [ ] Integrate it with every CPIIE source/document/evidence/rule/review/evaluation mutation, then configure external asymmetric signing and independent retention.
 3. Add a documented shadow-mode command and deterministic sample dataset.
 4. Add source-by-source rights metadata and freshness policy.
 5. Run the pilot against approved sources and inspect the resulting evidence manually.
