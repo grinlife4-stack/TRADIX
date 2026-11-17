@@ -92,6 +92,73 @@ class CPIIERegistryTests(unittest.TestCase):
         self.assertEqual(result.state, CapabilityState.BLOCKED_REVIEW)
         self.assertIn("newer source snapshot", result.reason)
 
+    def test_source_url_change_requires_new_source_id(self):
+        with self.assertRaisesRegex(ValueError, "source identity is immutable"):
+            self.registry.register_source(Source(
+                "retailer-terms", "retailer-x", "retailer",
+                "https://example.com/new-terms", "New terms",
+            ))
+        self.assertEqual(
+            self.registry.record_document("retailer-terms", "Terms v2").version, 2
+        )
+
+    def test_source_company_and_role_are_immutable(self):
+        for company_id, role in (("other-company", "retailer"),
+                                 ("retailer-x", "affiliate-policy")):
+            with self.subTest(company_id=company_id, role=role):
+                with self.assertRaisesRegex(ValueError, "source identity is immutable"):
+                    self.registry.register_source(Source(
+                        "retailer-terms", company_id, role,
+                        "https://example.com/terms", "Official terms",
+                    ))
+
+    def test_source_title_can_be_refreshed_without_changing_identity(self):
+        updated = self.registry.register_source(Source(
+            "retailer-terms", "retailer-x", "retailer",
+            "https://example.com/terms", "Updated display title",
+        ))
+        self.assertEqual(updated.title, "Updated display title")
+        self.assertEqual(
+            self.registry.evaluate("catalog.display").state,
+            CapabilityState.BLOCKED_NO_POLICY,
+        )
+
+    def test_review_history_records_each_decision_in_order(self):
+        self.propose()
+        self.registry.review_rule("rule-1", " reviewer-a ", RuleState.VERIFIED)
+        self.registry.review_rule("rule-1", "reviewer-b", RuleState.CONFLICT)
+        history = self.registry.get_review_history("rule-1")
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0]["previous_state"], RuleState.NEEDS_REVIEW.value)
+        self.assertEqual(history[0]["decision"], RuleState.VERIFIED.value)
+        self.assertEqual(history[0]["reviewer"], "reviewer-a")
+        self.assertEqual(history[1]["previous_state"], RuleState.VERIFIED.value)
+        self.assertEqual(history[1]["decision"], RuleState.CONFLICT.value)
+        self.assertEqual(history[1]["reviewer"], "reviewer-b")
+
+    def test_review_history_is_append_only(self):
+        self.propose()
+        self.registry.review_rule("rule-1", "reviewer", RuleState.VERIFIED)
+        with self.assertRaisesRegex(Exception, "append-only"):
+            self.registry.connection.execute(
+                "UPDATE rule_review_history SET reviewer='tampered' WHERE rule_id='rule-1'"
+            )
+        with self.assertRaisesRegex(Exception, "append-only"):
+            self.registry.connection.execute(
+                "DELETE FROM rule_review_history WHERE rule_id='rule-1'"
+            )
+        self.registry.connection.rollback()
+        self.assertEqual(
+            self.registry.get_review_history("rule-1")[0]["reviewer"], "reviewer"
+        )
+
+    def test_review_history_is_included_in_audit_snapshot(self):
+        self.propose()
+        self.registry.review_rule("rule-1", "reviewer", RuleState.VERIFIED)
+        snapshot = self.registry.export_snapshot()
+        self.assertIn('"rule_review_history"', snapshot)
+        self.assertIn('"reviewer"', snapshot)
+
     def test_conflict_blocks_capability(self):
         self.propose()
         self.registry.review_rule("rule-1", "human-reviewer", RuleState.CONFLICT)
