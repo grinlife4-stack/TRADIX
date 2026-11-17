@@ -276,11 +276,11 @@ def assess_portability(
     if mode not in {"design", "release"}:
         raise ValueError("mode must be design or release")
     errors = validate_manifest(manifest)
-    if mode == "release":
-        errors.extend(verify_evidence_files(manifest, base_dir))
+    evidence_errors = verify_evidence_files(manifest, base_dir) if mode == "release" else []
     blockers = release_blockers(manifest) if isinstance(manifest, dict) else ["manifest is not an object"]
     design_ready = not errors
-    release_ready = design_ready and not blockers
+    release_ready = design_ready and not evidence_errors and not blockers
+    all_errors = errors + evidence_errors
     if errors:
         status = "INVALID"
     elif mode == "design":
@@ -292,8 +292,8 @@ def assess_portability(
         "status": status,
         "design_ready": design_ready,
         "release_ready": release_ready,
-        "errors": errors,
-        "release_blockers": blockers,
+        "errors": all_errors,
+        "release_blockers": blockers + evidence_errors,
     }
 
 
