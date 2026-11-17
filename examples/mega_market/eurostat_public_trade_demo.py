@@ -62,20 +62,36 @@ def parse_sdmx_csv(payload: bytes, start_year: int, end_year: int) -> dict:
         raise ValueError("Eurostat response is not UTF-8 CSV") from exc
 
     reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        raise ValueError("Eurostat response has no CSV header")
+    # Comext SDMX-CSV currently emits lowercase dimension names, while some
+    # other Eurostat SDMX-CSV responses use uppercase names. Normalize headers.
+    header_map = {
+        name.strip().upper(): name
+        for name in reader.fieldnames
+        if name and name.strip()
+    }
     required = {
         "FREQ", "REPORTER", "PARTNER", "PRODUCT", "FLOW",
         "TIME_PERIOD", "INDICATORS", "OBS_VALUE",
     }
-    if not reader.fieldnames or not required.issubset(set(reader.fieldnames)):
+    missing = required - set(header_map)
+    if missing:
         preview = text[:1200].replace("\\n", " ")
         raise ValueError(
-            f"Unexpected Eurostat response. headers={reader.fieldnames!r}; "
+            f"Unexpected Eurostat response. missing_headers={sorted(missing)!r}; "
             f"preview={preview!r}"
         )
+
+    def field(row: dict, name: str, default: str = "") -> str:
+        original_name = header_map.get(name)
+        return row.get(original_name, default) if original_name else default
 
     observations = []
     missing_value_rows = 0
     seen_periods = set()
+    source_last_update = None
+    source_dataflow = None
 
     for row_number, row in enumerate(reader, start=2):
         expected = {
@@ -86,13 +102,17 @@ def parse_sdmx_csv(payload: bytes, start_year: int, end_year: int) -> dict:
             "FLOW": QUERY["flow"],
             "INDICATORS": QUERY["indicator"],
         }
-        for field, expected_value in expected.items():
-            if row.get(field) != expected_value:
+        for name, expected_value in expected.items():
+            actual = field(row, name)
+            if actual != expected_value:
                 raise ValueError(
-                    f"row {row_number} has unexpected {field}: {row.get(field)!r}"
+                    f"row {row_number} has unexpected {name}: {actual!r}"
                 )
 
-        period = (row.get("TIME_PERIOD") or "").strip()
+        source_last_update = source_last_update or field(row, "LAST UPDATE") or None
+        source_dataflow = source_dataflow or field(row, "DATAFLOW") or None
+
+        period = field(row, "TIME_PERIOD").strip()
         if len(period) != 4 or not period.isdigit():
             raise ValueError(f"row {row_number} has invalid annual TIME_PERIOD")
         year = int(period)
@@ -102,7 +122,7 @@ def parse_sdmx_csv(payload: bytes, start_year: int, end_year: int) -> dict:
             raise ValueError(f"duplicate annual observation for {year}")
         seen_periods.add(year)
 
-        raw_value = (row.get("OBS_VALUE") or "").strip()
+        raw_value = field(row, "OBS_VALUE").strip()
         if raw_value in {"", ".", ".."}:
             missing_value_rows += 1
             continue
@@ -113,7 +133,7 @@ def parse_sdmx_csv(payload: bytes, start_year: int, end_year: int) -> dict:
         if not value.is_finite() or value < 0:
             raise ValueError(f"row {row_number} has an invalid trade value")
 
-        raw_multiplier = (row.get("UNIT_MULT") or "").strip()
+        raw_multiplier = field(row, "UNIT_MULT").strip()
         if raw_multiplier:
             try:
                 multiplier = int(raw_multiplier)
@@ -127,7 +147,7 @@ def parse_sdmx_csv(payload: bytes, start_year: int, end_year: int) -> dict:
             "obs_value": format(value, "f"),
             "unit": "EUR as reported by VALUE_IN_EUROS",
             "unit_multiplier": multiplier,
-            "observation_status": (row.get("OBS_STATUS") or "").strip() or None,
+            "observation_status": field(row, "OBS_STATUS").strip() or None,
         })
 
     if not observations:
@@ -136,6 +156,8 @@ def parse_sdmx_csv(payload: bytes, start_year: int, end_year: int) -> dict:
     observations.sort(key=lambda item: item["year"])
     return {
         "dataset": DATASET,
+        "source_dataflow": source_dataflow,
+        "source_last_update": source_last_update,
         "dimensions": {
             "frequency": "annual",
             "reporter": "DE",
@@ -150,7 +172,6 @@ def parse_sdmx_csv(payload: bytes, start_year: int, end_year: int) -> dict:
         "numeric_observation_count": len(observations),
         "missing_value_row_count": missing_value_rows,
     }
-
 
 def fetch_bytes(url: str) -> bytes:
     request = urllib.request.Request(
