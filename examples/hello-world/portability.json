@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "product_key": "hello-world",
+  "product_type": "software-service",
+  "status": "planned",
+  "source": {
+    "status": "planned",
+    "format": "Git bundle containing all refs and commit history",
+    "export_procedure": "After committing product source, create a Git bundle with all refs and record the exact exported commit SHA.",
+    "import_procedure": "Clone the bundle into a new working directory, run git fsck --full, and check out the recorded commit."
+  },
+  "runtime": {
+    "status": "planned",
+    "interface": "Node.js process contract driven by the product manifest; no vendor-specific runtime API.",
+    "version_policy": "Pin a supported Node.js LTS major per release and declare product dependencies explicitly.",
+    "target_matrix": [
+      "Linux amd64 (the current CI target only; other targets remain unverified)"
+    ],
+    "build_definition": "examples/hello-world/product.json and the checked-in .mjs product scripts."
+  },
+  "dependencies": [
+    {
+      "name": "Node.js runtime",
+      "kind": "language-runtime",
+      "provider_specific": false,
+      "adapter": "Standard node executable invoked through the factory process contract.",
+      "replacement_plan": "Use another conforming Node.js LTS distribution; no cloud account or proprietary runtime service is required.",
+      "alternatives": [
+        "Official Node.js LTS binaries",
+        "Distribution-packaged Node.js LTS"
+      ],
+      "status": "planned"
+    }
+  ],
+  "data_assets": [
+    {
+      "name": "source-and-build-definition",
+      "format": "Git bundle plus checked-in JSON and JavaScript source",
+      "export_procedure": "Export all Git refs with git bundle and retain the commit SHA and manifest files.",
+      "import_procedure": "Clone the Git bundle, verify the commit SHA, and install only dependencies declared by the product.",
+      "integrity_method": "git fsck --full, commit SHA comparison, and SHA-256 for exported manifest files.",
+      "status": "planned"
+    },
+    {
+      "name": "factory-ledger-records",
+      "format": "PostgreSQL custom-format dump plus versioned SQL migrations",
+      "export_procedure": "Quiesce workers, create a project-scoped logical export using a privileged migration operator, and retain the schema/migration versions.",
+      "import_procedure": "Restore into an isolated PostgreSQL target, bootstrap roles separately, re-enroll product identities, and run ledger/RLS invariants.",
+      "integrity_method": "Compare stable project/task/attempt identifiers, row counts, foreign keys, event ordering, and SQL invariant tests.",
+      "status": "planned"
+    },
+    {
+      "name": "artifact-payloads-and-evidence",
+      "format": "S3-compatible object payloads plus a JSON manifest containing object keys, sizes, content types, and SHA-256 hashes",
+      "export_procedure": "Enumerate only the product-scoped object prefix and export each payload with its metadata manifest.",
+      "import_procedure": "Copy payloads into a compatible target bucket and restore references only after integrity verification.",
+      "integrity_method": "Recompute SHA-256 and byte size for every payload and compare them with the exported manifest.",
+      "status": "planned"
+    }
+  ],
+  "artifacts": {
+    "status": "planned",
+    "interface": "S3-compatible object API with product-scoped keys; provider-specific SDKs remain replaceable adapters.",
+    "export_procedure": "Export object payloads and a versioned JSON manifest independently of the storage provider.",
+    "import_procedure": "Import through an S3-compatible API and verify all payload hashes before reconnecting ledger references.",
+    "integrity_method": "SHA-256 and byte-size verification for every object."
+  },
+  "secrets": {
+    "status": "planned",
+    "source_control_excluded": true,
+    "export_excluded": true,
+    "rebind_procedure": "Create new product-scoped credentials in the target secret manager, re-enroll database identities, and inject secrets only at runtime. Never copy secret values into the export."
+  },
+  "backup_restore": {
+    "status": "planned",
+    "backup_format": "PostgreSQL custom-format logical dump, Git bundle, and S3-compatible artifact archive with a JSON SHA-256 manifest.",
+    "restore_procedure": "Restore into a second isolated host, bootstrap roles and secrets independently, import the Git bundle and artifact archive, then run database, authorization, artifact-integrity, and product smoke tests.",
+    "restore_test": {
+      "status": "not_run",
+      "target": null,
+      "tested_at": null
+    }
+  },
+  "exit_cost": {
+    "status": "unknown",
+    "currency": "USD",
+    "estimated_amount": null,
+    "estimated_hours": null,
+    "notes": "Not measured. Estimate only after a complete restore has been rehearsed on a second isolated host, including data transfer, operator time, and service interruption."
+  }
+}
