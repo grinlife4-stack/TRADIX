@@ -7,7 +7,7 @@ The executor consumes one product manifest and uses that product's dedicated Pos
 From the repository root:
 
 ```sh
-npm install --prefix runtime/factory-executor
+npm ci --prefix runtime/factory-executor
 DATABASE_URL='postgresql://<product-runtime-login>@<host>/<database>?sslmode=verify-full' \
   node runtime/factory-executor/runner.mjs examples/hello-world/product.json
 ```

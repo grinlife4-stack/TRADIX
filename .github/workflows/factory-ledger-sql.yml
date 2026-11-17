@@ -25,8 +25,8 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
       - name: Provision non-privileged schema migration identity
@@ -58,9 +58,9 @@ jobs:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: bash tests/test_factory_ledger_sql.sh "$POSTGRES_CONTAINER_ID"
       - name: Install product dossier API dependencies
-        run: npm install --prefix runtime/product-dossier-api --ignore-scripts --no-audit --no-fund
+        run: npm ci --prefix runtime/product-dossier-api --ignore-scripts --no-audit --no-fund
       - name: Install factory executor dependencies
-        run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
+        run: npm ci --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
       - name: Execute Hello World through the product runtime
         env:
           DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
@@ -77,7 +77,7 @@ jobs:
           grep -Eq '^ALREADY VERIFIED task=.* attempt=.* events=7 evidence=3$' <<< "$output"
       - name: Upload factory execution evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hello-world-factory-evidence
           path: /tmp/tradix-factory-executor/
@@ -104,7 +104,7 @@ jobs:
           curl --silent --fail http://127.0.0.1:8788/health >/dev/null || { cat /tmp/product-dossier-api.log; exit 1; }
           PRODUCT_DOSSIER_API_URL=http://127.0.0.1:8788 PRODUCT_DOSSIER_API_KEY="$PRODUCT_DOSSIER_API_KEY" node tests/test_product_dossier_api.mjs || { cat /tmp/product-dossier-api.log; exit 1; }
       - name: Install mission plan API dependencies
-        run: npm install --prefix runtime/mission-plan-api --ignore-scripts --no-audit --no-fund
+        run: npm ci --prefix runtime/mission-plan-api --ignore-scripts --no-audit --no-fund
       - name: Run isolated mission and task-plan API integration test
         env:
           DATABASE_URL: postgresql://factory_rt_tradix:ci-only-factory-dossier-password@127.0.0.1:5432/tradix_test?sslmode=disable
