@@ -17,6 +17,24 @@ $lease_rollout_preflight$;
 
 -- Worker leases and monotonic fencing tokens.
 -- This migration is forward-only. It does not grant any runtime direct table access.
+-- Existing active work has no lease epoch. Refuse rollout until it is drained
+-- or explicitly reconciled; never silently adopt an already-running worker.
+DO $lease_migration_preflight$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM factory.task_attempts
+        WHERE status = 'running'
+    ) OR EXISTS (
+        SELECT 1
+        FROM factory.tasks
+        WHERE status IN ('planned', 'implementing', 'testing', 'review', 'candidate', 'deployed_test')
+    ) THEN
+        RAISE EXCEPTION
+            'worker lease migration refused: drain or explicitly reconcile active tasks and running attempts first';
+    END IF;
+END;
+$lease_migration_preflight$;
 
 CREATE TABLE factory.task_lease_counters (
     task_id UUID PRIMARY KEY REFERENCES factory.tasks(task_id) ON DELETE RESTRICT,
