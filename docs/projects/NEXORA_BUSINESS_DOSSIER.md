@@ -1,217 +1,186 @@
-# NEXORA — Sleep, Calm & Meditation Product Dossier
+# NEXORA — Calm-Pattern Wellness App
 
 **Project ID:** NEXORA-WELLNESS  
-**Working product name:** NEXORA (consumer brand subject to checks)  
-**Product category:** Sleep, relaxation, mindfulness and guided meditation  
-**Benchmark:** Calm (product and business-model reference only; no copying of brand, content, UI, or protected material)  
-**Dossier status:** Direction approved; discovery and validation pending  
+**Working product name:** NEXORA (subject to name, domain, trademark, and store checks)  
+**Product category:** Sleep, relaxation, mindfulness, and guided meditation  
+**Reference product:** Calm  
+**Direction:** User-approved; execute a close functional/business-model adaptation without copying protected material  
+**Dossier status:** Execution-first MVP definition  
 **Date:** 2026-11-17  
 **Control record:** TRADIX repository  
-**Product repository:** Not created yet  
+**Product repository:** Not created  
 **Product runtime:** Not deployed  
 **Commercial status:** Not launched
 
-> This dossier records the newly approved product direction. It does not authorize production deployment, paid services, collection of sensitive health data, external integrations, or commercial launch. NEXORA must be an original product, not a replica of Calm. The name requires domain, trademark, and app-store checks.
+> The purpose of NEXORA is to get the first usable product running quickly by following an already successful product model. This is not an open-ended search for a novel wellness concept. Reuse familiar, proven product patterns while creating original branding, code, content, and assets. This dossier does not authorize paid services, production launch, or collection of unnecessary sensitive data.
 
-## 1. Product mission
+## 1. Product decision
 
-Build a simple, dependable digital wellness application that helps adults establish better sleep routines, relax, and practice short guided mindfulness sessions.
+NEXORA will build a Calm-style consumer wellness application.
 
-The commercial reference is Calm: a focused consumer product combining sleep content, guided sessions, repeat usage, and paid membership. NEXORA must find its own audience, content identity, language strategy, and reason to be chosen.
+The product should provide the familiar core experience:
+- Sleep stories and sleep audio.
+- Relaxing music and ambient soundscapes.
+- Guided meditation.
+- Breathing exercises.
+- Short daily mindfulness sessions.
+- Favorites, recently played, and simple user progress.
+- Free entry experience and a premium content membership, once payment and legal requirements are ready.
 
-The first release should prioritize:
-- Sleep routines and sleep-focused audio.
-- Short relaxation and breathing sessions.
-- Guided meditation for beginners and regular users.
-- A lightweight daily practice and progress history.
+Do not spend time searching for a different product category or inventing a new wellness methodology. The task is to reproduce the useful product structure and user journey with original implementation and legally usable content.
 
-NEXORA is a wellness product, not a medical device, diagnostic service, psychotherapy service, or substitute for professional care.
+## 2. Execution principle
 
-## 2. Product boundary and independence
+**Primary success measure for the first phase: time to first working, testable release.**
+
+- Prefer established, boring, replaceable technologies over experimental architecture.
+- Build the smallest coherent product that users can install/open and use.
+- Do not build AI personalization, social networks, wearables, complex analytics, or a large content-management platform in the first release.
+- Do not delay the first prototype for extensive market research or speculative differentiation.
+- Perform only the checks that prevent avoidable legal, security, content-rights, or platform failures.
+- Keep the architecture extensible, but do not implement future scale before it is needed.
+
+## 3. Product independence
 
 - NEXORA is an independent product, not a Tradix subsystem.
-- Its source code, content rights, user data, product identity, release lifecycle, and runtime belong to its own repository and environments.
+- Its source code, content rights, user data, release lifecycle, and runtime belong in its own repository and environments.
 - Tradix may provide reusable development, testing, packaging, security, and delivery capabilities through explicit, versioned interfaces.
 - NEXORA must not require Tradix at runtime.
-- NEXORA must not share product data, credentials, user records, or business logic with MegaMarket, CPIIE, AAECN, the AI trading platform, or XENORA AI.
-- No project-to-project integration is in scope unless separately approved.
+- NEXORA must not share product data, credentials, or business logic with MegaMarket, CPIIE, AAECN, the AI trading platform, or XENORA AI.
+- No product code or user content belongs in the Tradix control repository.
 
-## 3. Target users and positioning hypotheses
+## 4. First executable MVP
 
-Initial target: adults who want practical help with sleep routines, everyday stress, and consistent short mindfulness practice.
+### Core screens
+1. Home: continue listening, featured sleep/meditation content, and clear category navigation.
+2. Sleep: sleep stories, ambient sounds, and sleep music.
+3. Meditate: guided sessions and simple programs.
+4. Breathe: guided breathing exercises with visual timing.
+5. Player: play/pause, progress, favorites, sleep timer, and next item.
+6. Profile/settings: language, basic preferences, privacy, and local data controls.
 
-Potential segments to validate:
-- People who have difficulty winding down at night.
-- Beginners who find long meditation programs difficult to sustain.
-- Persian-speaking users underserved by high-quality localized wellness content.
-- Users who want an offline-capable, low-friction alternative to content-heavy apps.
+### Core capabilities
+- Responsive PWA, designed for iPad and mobile first.
+- Browse and search a small starter content catalog.
+- Audio playback with tested interruption and recovery behavior.
+- Sleep timer and fade-out where supported by the platform.
+- Favorites and recently played.
+- Basic local preferences and progress.
+- A small, curated starter library sufficient to demonstrate the complete experience.
+- Persian and English interface foundations; ship the first language set that can be completed reliably.
 
-Do not target every wellness audience at launch. Select one primary segment using observed behavior and willingness-to-pay evidence.
+### Explicitly out of scope for first release
+- AI coach or AI-generated therapeutic advice.
+- Social/community features, messaging, and coaching marketplace.
+- Wearable and health-platform integrations.
+- Advanced personalization and recommendation engine.
+- Large-scale content studio or complex CMS.
+- Multi-user accounts and cross-device synchronization unless a demonstrated MVP blocker requires them.
+- Medical diagnosis, treatment, or claims to cure sleep or mental-health conditions.
 
-## 4. MVP scope
+## 5. Content and intellectual property
 
-### Included in the first validation prototype
+- Calm is a reference for product structure and user experience, not a source of assets.
+- Never copy Calm's recordings, scripts, text, artwork, branding, or protected UI assets.
+- Use original content or commercially licensed content with documented rights for intended territories and distribution channels.
+- Each asset must have a record of creator/source, license, allowed use, territory, attribution requirement, expiry/revocation status, and file hash.
+- Start with a small library; content volume must not block the first functioning product.
+- No content may be published when its commercial rights are unclear.
 
-1. Sleep section with a small curated set of original or properly licensed ambient audio.
-2. Sleep timer with fade-out and reliable background playback where platform rules allow.
-3. Short guided breathing exercises with clear timing and optional audio guidance.
-4. A small set of guided meditation sessions, initially 3–10 minutes.
-5. Simple daily check-in for sleep quality and practice completion; avoid collecting unnecessary sensitive details.
-6. Favorites and recently played items.
-7. Local-first preferences and progress, with clear export/delete behavior.
-8. Responsive PWA interface designed for iPad and mobile first.
-9. Persian and English foundations; additional languages only after validation.
-10. Clear content attribution and license records for every audio/text asset.
+## 6. Technical direction
 
-### Deferred until validated
+Preferred initial implementation:
+- Responsive web app / PWA.
+- iPad/mobile-first touch interface.
+- Simple content catalog separated from application code.
+- Local storage for basic preferences and favorites; choose storage only after a short compatibility check.
+- Audio files served from a replaceable storage/CDN provider when online delivery is needed.
+- No mandatory AI API.
+- No always-on backend unless required for a specific first-release capability.
+- Keep provider-specific storage, authentication, analytics, and payment code behind replaceable interfaces.
 
-- Large content library and frequent content production.
-- Personalized recommendations or AI-generated therapy-like guidance.
-- Social features, community, coaching, and user-to-user messaging.
-- Wearable, Apple Health, Google Fit, or sleep-device integrations.
-- Cloud synchronization and multi-device profiles.
-- Native App Store / Play Store distribution.
-- Clinical assessments, diagnosis, treatment plans, or medical claims.
-- Corporate wellness contracts and B2B dashboards.
+The first technical spike must focus only on the risks that can block the MVP: installability, audio playback, background/lock-screen behavior where supported, sleep timer, offline behavior for selected assets, and iPad Safari compatibility.
 
-## 5. Differentiation hypotheses
+## 7. Monetization
 
-NEXORA should not compete by trying to outspend Calm on celebrity voices or enormous content libraries. That would be an expensive way to lose.
+Follow the familiar Calm-style model:
+- Free tier with a limited but genuinely usable starter experience.
+- Premium monthly and annual membership for the broader library and programs.
+- Subscription activation is deferred until pricing, payment provider, cancellation, refund, tax, and consumer-law requirements are verified for the launch market.
 
-Test these narrower advantages:
-- Strong Persian-first content and localization, with English as a second launch language only if quality is maintained.
-- Offline-capable core experience and transparent data handling.
-- Short, practical sessions rather than overwhelming content catalogs.
-- Sleep-first onboarding and a low-friction nightly routine.
-- A clear, calm interface with no manipulative streaks, shame prompts, or misleading health claims.
+Do not build a complex billing system before the core app works. Do not present subscription screens as functional before payment integration is real.
 
-These are hypotheses, not proven advantages. Validate them with real users before committing to a broad build.
+Track revenue and unit economics after real users exist:
+- Paying subscribers and conversion.
+- Monthly recurring revenue (MRR) and annual recurring revenue (ARR).
+- Renewal, churn, refunds, and failed payments.
+- Net revenue after store/payment fees and content costs.
+- Acquisition cost and payback period when acquisition spending begins.
 
-## 6. Technical direction — provisional
+Calm's revenue is evidence that the category can support a business; it is not a forecast for NEXORA.
 
-Preferred initial shape:
-- Responsive web application / PWA, iPad and mobile first.
-- Local-first storage for preferences and basic progress.
-- Audio playback designed around browser and operating-system background-playback limitations; verify on physical iPad and target phones.
-- Content catalog separated from the application code so licensed assets can be replaced without rewriting the product.
-- Explicit content metadata: creator, source, license, permitted territories, attribution, expiry/revocation status, and file hash.
-- No mandatory AI API, external account, or always-on backend for the first prototype.
-- Optional cloud sync and subscription infrastructure only after retention and willingness-to-pay are demonstrated.
+## 8. Privacy, safety, and legal boundaries
 
-A technical spike must verify installation, audio playback, timer behavior, background playback, storage durability, offline access, and accessibility on actual target devices.
+- Minimize personal data; basic MVP use should not require sensitive health information.
+- Provide clear privacy information and a way to clear local preferences/progress.
+- No medical diagnosis, treatment, or cure claims.
+- NEXORA is a wellness product, not a medical device or replacement for professional care.
+- Adults are the initial audience; children's use requires separate safeguarding and legal review.
+- Complete applicable GDPR, consumer-rights, subscription, and content licensing checks before commercial launch.
 
-## 7. Content, safety, privacy and legal boundaries
+## 9. Fast execution sequence
 
-- Use only original content or assets with documented commercial rights for the intended territories and platforms.
-- Do not copy Calm scripts, recordings, branding, illustrations, UI, or other protected materials.
-- No fabricated testimonials, medical endorsements, or efficacy claims.
-- Do not claim to cure insomnia, anxiety, depression, or other conditions.
-- Clearly distinguish general wellness content from medical advice.
-- Provide an appropriate crisis/help notice and direct users in urgent distress to qualified local services; the app is not an emergency service.
-- Minimize personal data. Sleep and mood entries can be sensitive; collect only what the feature needs.
-- Before any cloud profile or subscription, complete privacy, security, GDPR, retention, deletion, consent, and consumer-law reviews for target markets.
-- Age scope for the initial release: adults. Do not target children without a separate safeguarding and legal review.
+### Phase 1 — Working shell
+- Create the independent NEXORA product repository.
+- Implement navigation, home, categories, player shell, and responsive design.
+- Load a small catalog of content metadata.
+- Deliver a build that runs on iPad and mobile browsers.
 
-## 8. Monetization hypotheses
+### Phase 2 — Real core experience
+- Integrate rights-cleared audio.
+- Implement playback, sleep timer, favorites, and basic breathing sessions.
+- Test interruptions, reloads, and supported offline behavior.
+- Fix critical usability and playback defects.
 
-Potential model:
-- Free tier with a useful starter selection and basic timer/breathing tools.
-- Premium monthly and annual membership for the full curated library, structured programs, and additional sleep content.
-- A limited one-time purchase may be tested only if it can support ongoing content costs.
+### Phase 3 — First release candidate
+- Add a small set of guided meditations and sleep content.
+- Complete privacy/settings and content attribution.
+- Run a short real-device test.
+- Publish a controlled test build for user evaluation.
 
-Do not introduce a subscription merely because Calm uses one. Recurring billing is justified only if NEXORA provides recurring value through new content, programs, or services.
+### Phase 4 — Monetization
+- Add free/premium entitlement and subscription only after the core experience is stable.
+- Test purchase, renewal state, cancellation, and restore flows end-to-end before taking real customers.
 
-Track:
-- Annual recurring revenue (ARR) and recognized revenue separately.
-- Paying subscribers and conversion rate.
-- Monthly and annual plan mix.
-- Renewal, churn, refund, and failed-payment rates.
-- Gross margin after content licensing/production, distribution, payment fees, and support.
-- Customer acquisition cost (CAC), payback period, and lifetime value (LTV).
-- Weekly retention and repeated sleep-session usage.
+No phase is considered complete without a working artifact and recorded test evidence.
 
-Public Calm revenue estimates are not a forecast for NEXORA. Private-company estimates, app-store spending estimates, and audited company revenue are different measures and must never be presented as interchangeable.
+## 10. Acceptance criteria for first usable release
 
-## 9. Validation gates
+- The app opens and navigates correctly on a physical iPad and representative mobile browser.
+- A user can browse and play at least one rights-cleared audio item.
+- Play/pause, progress, and sleep timer work on tested devices.
+- Favorites persist across normal restarts.
+- Breathing exercise can be started, followed, and ended.
+- No placeholder control falsely reports a completed action.
+- Content rights are documented.
+- Privacy information and local data clearing are available.
+- Critical playback and data-loss defects are resolved.
 
-### Gate A — Market and problem validation
-- Compare Calm, Headspace, Sleep Cycle, and relevant regional products by pricing, audience, content format, retention mechanisms, and available financial evidence.
-- Interview at least 15 adults in one selected segment.
-- Test a clear landing-page proposition and actual willingness to pay, not just positive reactions.
-- Identify one repeated use case NEXORA can serve better or more accessibly.
-
-### Gate B — Content and prototype validation
-- Produce or license a small starter library with complete rights records.
-- Build a working prototype with sleep timer, audio playback, breathing, and a small guided-session catalog.
-- Test on a physical iPad and representative mobile devices.
-- Verify offline behavior, audio interruption/recovery, timer accuracy, accessibility, and data deletion.
-- No unresolved content-rights, privacy, or critical playback defects.
-
-### Gate C — Retention and paid pilot
-- Run a controlled pilot with real users.
-- Measure activation, repeat sessions, weekly retention, sleep-session completion, and qualitative feedback.
-- Test a real paid offer with clear terms and refund handling.
-- Do not infer product-market fit from downloads, compliments, or free signups.
-
-### Gate D — Commercial release
-- Content-rights and attribution audit.
-- Privacy, security, GDPR, consumer-rights, and subscription review.
-- Pricing and cancellation flows tested end-to-end.
-- Support, deletion, incident, and content-removal processes ready.
-- Release, monitoring, backup, and rollback procedures verified.
-
-## 10. Acceptance criteria for the first MVP
-
-The MVP is not accepted until:
-- Users can find and play a session with minimal steps.
-- Sleep timer and fade-out behave reliably on tested devices.
-- Audio rights and attribution are documented for every included asset.
-- Core selected content is available offline where licensing permits.
-- Preferences and progress persist across normal app restarts.
-- Users can clear local progress and understand what is stored.
-- No fake playback, timer, offline, subscription, or health-outcome success states exist.
-- iPad touch interaction, responsive layout, accessibility, and localization pass manual testing.
-- No medical diagnosis, treatment, or cure claims appear in product copy.
-
-## 11. Initial risks
-
-| Risk | Control |
-|---|---|
-| Calm and Headspace dominate awareness and content scale | Focus on one underserved segment and a narrow use case |
-| Content production/licensing becomes expensive | Start with a small library; track cost per usable minute and rights scope |
-| Users try once and do not return | Validate repeated nightly use and retention before expanding |
-| Background audio behaves differently across devices | Test on physical devices before locking architecture |
-| Subscription churn is high | Prove recurring value and renewal intent before scaling |
-| Wellness copy drifts into medical claims | Editorial and legal review; explicit product boundary |
-| Sensitive data is collected unnecessarily | Data minimization, local-first defaults, deletion controls |
-| Brand name is unavailable | Trademark, domain, and app-store checks before commitment |
-
-## 12. Immediate next actions
-
-1. Replace the former business-software scope with this sleep, relaxation, and meditation direction.
-2. Complete a competitor and pricing benchmark, separating verified financial statements from estimates and app-store spending data.
-3. Select one primary audience and one initial language-market combination.
-4. Validate content rights and prepare a small original/licensed starter library.
-5. Build a narrow iPad-first PWA prototype for audio, sleep timer, breathing, and local preferences.
-6. Create a separate NEXORA product repository before product implementation; do not place product code or user content in the Tradix control repository.
-
-## 13. Current status
+## 11. Current status
 
 | Item | Status |
 |---|---|
-| Product direction | Approved: sleep, relaxation, meditation |
-| Calm benchmark | Approved as business/product reference only |
-| Brand/name availability | Not checked; provisional |
-| Primary audience | Not selected |
-| Market demand and willingness to pay | Not validated |
-| Content library and rights | Not prepared |
-| MVP implementation | Not started |
-| iPad/audio compatibility | Not tested |
+| Product direction | Approved: Calm-style sleep, relaxation, meditation app |
+| Product model | Follow proven Calm structure; no new concept exploration |
+| Execution priority | Fastest path to first usable build |
 | Product repository | Not created |
-| Hosting / backend | Not selected; not required for initial prototype |
-| Subscription / payments | Not selected; not connected |
+| MVP code | Not started |
+| Content assets | Not selected; rights must be verified |
+| iPad/audio test | Not performed |
+| Backend | Not selected; minimize for first release |
+| Payments/subscriptions | Not connected |
 | Production release | Not authorized |
 
-## 14. Change control
+## 12. Change control
 
-This dossier is the Tradix-level project index and governance record. Product implementation, detailed technical specifications, audio assets, content rights records, user data, and release artifacts belong in the separate NEXORA repository once created. Update statuses only with verifiable evidence. Do not mark a gate complete based on plans, mockups, or market estimates.
+This file is the Tradix-level project index and governance record. Product source code, audio assets, content-rights records, user data, and release artifacts belong in the separate NEXORA repository. Keep the first release narrow and executable. Any expansion beyond the MVP requires evidence that it is necessary, not merely attractive.
