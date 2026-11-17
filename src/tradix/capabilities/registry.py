@@ -55,6 +55,7 @@ class CapabilityReview:
     tests_passed: bool
     compatibility_passed: bool
     owner_approved: bool
+    external_project_id: str = ""
     external_project_use_case: str = ""
     factory_need_reference: str = ""
 
@@ -68,8 +69,9 @@ class CapabilityRegistry:
 
     def __init__(self, database: str | Path) -> None:
         self.database = str(database)
-        if self.database != ":memory:":
-            Path(self.database).parent.mkdir(parents=True, exist_ok=True)
+        if self.database == ":memory:":
+            raise ValueError("CapabilityRegistry requires a file-backed SQLite database")
+        Path(self.database).parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
@@ -235,18 +237,22 @@ class CapabilityRegistry:
             raise PromotionBlocked(
                 "promotion review incomplete: " + ", ".join(failed)
             )
+        external_project_id = self._required_text_or_empty(
+            "external_project_id", review.external_project_id
+        )
         external_use_case = self._required_text_or_empty(
             "external_project_use_case", review.external_project_use_case
         )
         factory_need = self._required_text_or_empty(
             "factory_need_reference", review.factory_need_reference
         )
-        if not (external_use_case or factory_need):
+        if not factory_need and not (external_project_id and external_use_case):
             raise PromotionBlocked(
-                "a second-project use case or documented factory need is required"
+                "a second-project ID and use-case evidence, or documented factory need, are required"
             )
 
         with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 """
                 SELECT c.record_json,
@@ -266,6 +272,8 @@ class CapabilityRegistry:
                 raise PromotionBlocked("only proposed capability versions can be promoted")
             if record["scope"] != "shared":
                 raise PromotionBlocked("product-specific capabilities cannot enter TRADIX core")
+            if external_project_id and external_project_id == record["origin_project"]:
+                raise PromotionBlocked("second-project evidence must name a different project")
 
             reason = json.dumps(
                 {
@@ -275,6 +283,7 @@ class CapabilityRegistry:
                     "tests_passed": review.tests_passed,
                     "compatibility_passed": review.compatibility_passed,
                     "owner_approved": review.owner_approved,
+                    "external_project_id": external_project_id,
                     "external_project_use_case": external_use_case,
                     "factory_need_reference": factory_need,
                 },
@@ -308,6 +317,7 @@ class CapabilityRegistry:
         actor = self._required_text("actor", actor)
         reason = self._required_text("reason", reason)
         with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 """
                 SELECT status FROM capability_events
