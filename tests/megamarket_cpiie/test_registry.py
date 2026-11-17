@@ -146,6 +146,10 @@ class CPIIERegistryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             canonicalize_url("https://service.internal/terms")
 
+    def test_nonstandard_https_port_is_rejected(self):
+        with self.assertRaises(ValueError):
+            canonicalize_url("https://example.com:8443/terms")
+
 
 if __name__ == "__main__":
     unittest.main()
