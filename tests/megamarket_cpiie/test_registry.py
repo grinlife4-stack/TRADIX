@@ -55,6 +55,17 @@ class CPIIERegistryTests(unittest.TestCase):
             CapabilityState.BLOCKED_REVIEW,
         )
 
+    def test_duplicate_rule_id_is_idempotent_only_for_identical_content(self):
+        first = self.propose()
+        same = self.propose()
+        self.assertEqual(first, same)
+        with self.assertRaisesRegex(ValueError, "different rule content"):
+            self.registry.propose_rule(
+                "rule-1", self.doc.document_id, self.evidence,
+                "catalog.display", "A different statement under the same ID.",
+            )
+        self.assertEqual(self.registry.get_rule("rule-1"), first)
+
     def test_rule_cannot_be_verified_without_reviewer(self):
         self.propose()
         with self.assertRaises(ValueError):
