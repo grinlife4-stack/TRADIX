@@ -1,7 +1,7 @@
 import unittest
 
 from products.megamarket.cpiie import (
-    CPIIERegistry, CapabilityState, RuleState, Source, canonicalize_url,
+    CPIIERegistry, CapabilityState, PolicyEffect, RuleState, Source, canonicalize_url,
 )
 
 
@@ -24,6 +24,7 @@ class CPIIERegistryTests(unittest.TestCase):
         return self.registry.propose_rule(
             rule_id, self.doc.document_id, self.evidence,
             capability, "Display product data only under the cited terms.",
+            effect=PolicyEffect.ALLOW,
         )
 
     def test_https_url_is_canonicalized(self):
@@ -148,6 +149,38 @@ class CPIIERegistryTests(unittest.TestCase):
         self.propose()
         with self.assertRaises(ValueError):
             self.registry.review_rule("rule-1", "", RuleState.VERIFIED)
+
+    def test_verified_rule_without_explicit_effect_remains_blocked(self):
+        self.registry.propose_rule(
+            "unspecified-rule", self.doc.document_id, self.evidence,
+            "catalog.unspecified", "A statement without a structured effect.",
+        )
+        self.registry.review_rule("unspecified-rule", "reviewer", RuleState.VERIFIED)
+        result = self.registry.evaluate("catalog.unspecified")
+        self.assertEqual(result.state, CapabilityState.BLOCKED_REVIEW)
+        self.assertIn("lack an explicit", result.reason)
+
+    def test_explicit_deny_blocks_even_when_other_rule_allows(self):
+        self.propose("allow-rule", "catalog.mixed")
+        self.registry.review_rule("allow-rule", "reviewer-a", RuleState.VERIFIED)
+        self.registry.propose_rule(
+            "deny-rule", self.doc.document_id, self.evidence,
+            "catalog.mixed", "Do not display product data.",
+            effect=PolicyEffect.DENY,
+        )
+        self.registry.review_rule("deny-rule", "reviewer-b", RuleState.VERIFIED)
+        result = self.registry.evaluate("catalog.mixed")
+        self.assertEqual(result.state, CapabilityState.BLOCKED_POLICY_DENY)
+        self.assertIn("explicitly denies", result.reason)
+
+    def test_policy_effect_is_immutable(self):
+        self.propose()
+        with self.assertRaisesRegex(Exception, "rule content is immutable"):
+            self.registry.connection.execute(
+                "UPDATE rules SET effect='DENY' WHERE rule_id='rule-1'"
+            )
+        self.registry.connection.rollback()
+        self.assertEqual(self.registry.get_rule("rule-1").effect, PolicyEffect.ALLOW)
 
     def test_verified_rule_allows_its_capability(self):
         self.propose()
