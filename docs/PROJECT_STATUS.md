@@ -1,4 +1,6 @@
-# TRADIX — Project Status
+# TRADIX — Historical Project Log
+
+> This file preserves the chronological implementation record and older status snapshots. It is not the current status authority. Use [CURRENT_STATUS.md](CURRENT_STATUS.md) for the latest concise state, and verify live GitHub refs before acting.
 
 **Snapshot:** 2026-11-16  
 **Repository:** `grinlife4-stack/TRADIX`  
