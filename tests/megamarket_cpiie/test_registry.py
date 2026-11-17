@@ -138,6 +138,14 @@ class CPIIERegistryTests(unittest.TestCase):
         self.assertNotIn('"content"', snapshot)
         self.assertNotIn("Terms v1", snapshot)
 
+    def test_ip_literal_source_is_rejected(self):
+        with self.assertRaises(ValueError):
+            canonicalize_url("https://127.0.0.1/terms")
+
+    def test_local_hostname_source_is_rejected(self):
+        with self.assertRaises(ValueError):
+            canonicalize_url("https://service.internal/terms")
+
 
 if __name__ == "__main__":
     unittest.main()
