@@ -197,7 +197,10 @@ class CPIIERegistryTests(unittest.TestCase):
                  "Legacy policy", "VERIFIED", None, "legacy reviewer",
                  "2026-11-17T00:00:00+00:00"),
             )
-            connection.commit()\n            connection.close()\n\n            migrated = CPIIERegistry(database.name)
+            connection.commit()
+            connection.close()
+
+            migrated = CPIIERegistry(database.name)
             try:
                 columns = {
                     row["name"] for row in migrated.connection.execute("PRAGMA table_info(rules)")
