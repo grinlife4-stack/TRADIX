@@ -3,9 +3,9 @@
   "name": "Mega Market",
   "type": "independent_product",
   "factory": "TRADIX",
-  "version": "0.1",
-  "status": "dossier_only",
-  "implementation_started": false,
+  "version": "0.2",
+  "status": "prototype",
+  "implementation_started": true,
   "autonomous_daily_operations_target": true,
   "customer_payment_currency": "fiat",
   "supplier_settlement_currency": "fiat",
@@ -13,5 +13,5 @@
   "btc_is_customer_payment_method": false,
   "live_integrations": [],
   "live_transactions_enabled": false,
-  "requires_explicit_approval_for_implementation": true
+  "requires_explicit_approval_for_live_operations": true
 }
