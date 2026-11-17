@@ -16,14 +16,15 @@
   - Factory first-run: [43938849723](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938849723)
   - Factory ledger SQL/HTTP integration: [43938849718](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938849718)
 - PR #2 and PR #4 are closed and unmerged; they are superseded, not release artifacts.
-- PR #5 (pending-approval dossier restriction) was closed without merge after CI showed the change broke the trusted Hello World onboarding executor. It is a rejected experiment, not an accepted fix.
+- PR #5 (blanket pending-approval restriction) was closed without merge after CI showed it broke the trusted Hello World onboarding executor. It is a rejected experiment, not an accepted fix.
+- PR #7 adds a dedicated `factory_onboarding_authority` marker: ordinary product runtimes may write only `pending_approval` dossiers; the isolated onboarding runner retains its tested first-run path. PR #7 is open, Draft, and unmerged. Exact head `a345f9b194ff3f9d96c7fbc13022e583f5de03c1`; Python and PostgreSQL/HTTP CI both passed on that head.
 - `main` was not changed by the maintenance work. Its protection status was reported as disabled during inspection; do not assume branch protection enforces review or CI gates.
 
 ## 2. Implemented and verified boundaries
 
 - Provider-neutral mission, task, and plan contracts with validation tests.
 - PostgreSQL draft ledger with project isolation, RLS, controlled SECURITY DEFINER write paths, idempotency, append-only version snapshots, and disposable PostgreSQL integration tests.
-- Product dossier versioning and mission/task-plan version APIs.
+- Product dossier versioning and mission/task-plan version APIs. PR #7's role-separated dossier lifecycle restriction is CI-verified on disposable PostgreSQL, but not merged or deployed.
 - Atomic product intake persists dossier + mission + task-plan snapshots in one transaction and stops at pending human approval.
 - Deterministic first-run demo executes reviewed fixture templates and produces test/review/evidence artifacts; it does not call a live model.
 - Read-only memory gateway is separate from the operational task ledger.
@@ -43,9 +44,8 @@ A green disposable-database CI run is not evidence that any of these missing cap
 ## 4. Additional lifecycle gap found
 
 - Atomic `POST /v1/intake` enforces pending human approval for dossier + mission + task-plan snapshots.
-- The standalone dossier writer and trusted factory onboarding executor also create dossier versions outside that intake path; the executor additionally creates and runs a low-risk task.
-- A database-wide pending-only restriction was tested and rejected because it broke the existing trusted onboarding path. No part of that failed change was merged.
-- The lifecycle is not yet unified: a complete approval-decision writer and approved-plan-to-task path are still missing. Do not claim that every product onboarding path is governed by the atomic intake gate until these callers are reconciled.
+- PR #7 closes the direct active-dossier bypass for ordinary runtime identities while preserving the isolated factory onboarding identity. CI passed; merge and deployment have not occurred.
+- A complete approval-decision writer and approved-plan-to-task path are still missing. Dossiers remain pending; the system cannot yet promote approved intake plans into executable tasks.
 
 ## 5. Maintenance branch
 
@@ -57,9 +57,9 @@ A green disposable-database CI run is not evidence that any of these missing cap
 
 ## 6. Next engineering gates
 
-1. Complete dependency reproducibility: generate and commit package lockfiles for each independently deployable Node package, then change CI from `npm install` to `npm ci`. Do not hand-author lockfiles.
-2. Implement worker ownership, leases, fencing, and stale-write rejection as one database-enforced lifecycle path; close all bypass writes and test concurrency, expiry, crash, and takeover.
-3. Add the explicit approval-decision path; only approved, version-matched plans may become executable tasks.
+1. Implement worker ownership, leases, fencing, and stale-write rejection as one database-enforced lifecycle path; close all bypass writes and test concurrency, expiry, crash, and takeover.
+2. Add the explicit approval-decision path; only approved, version-matched plans may become executable tasks.
+3. Complete dependency reproducibility: generate and commit package lockfiles for each independently deployable Node package, then change CI from `npm install` to `npm ci`. Do not hand-author lockfiles.
 4. Prove backup and restore, not merely object-store connectivity.
 5. Add a real isolation boundary before any untrusted product code can execute.
 6. Obtain independent review of PR #3, re-check exact-head CI and mergeability, then decide whether it is ready to leave Draft.
