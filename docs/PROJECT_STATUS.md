@@ -373,6 +373,8 @@ The product dossier API and mission/plan API are separately tested write paths, 
 - Runner integration tests cover Hello World execution, exact idempotent retry, approval preflight, process-tree termination after lease loss, and refusal to auto-resume interrupted stages without durable checkpoints.
 - **Recovery boundary:** database-level same-attempt lease takeover exists, but the current runner deliberately refuses non-queued task/attempt states. Automatic stage-level resume is not implemented because stage checkpoints and side-effect safety are not yet proven.
 - **Security boundary:** `trusted-node` is still not an OS sandbox. Only reviewed, trusted product code may run. Arbitrary third-party code must wait for an isolated execution backend.
+- **Artifact durability:** the executor currently writes evidence payloads to local storage and records `ci://` URIs. CI artifacts have short retention; no provider-neutral S3-compatible durable artifact adapter or backup/restore proof is complete. These evidence URIs are not a production artifact store.
+- **Approval interface:** the database authority boundary is enforced, but a human-facing approval UI and individual user authentication/control-plane integration are still separate work.
 - Exact verified code head: `5316e9f6106f8984da3b147efe8a4e0086f4edca`.
 - CI on that exact head:
   - [tests — 44013147763](https://github.com/grinlife4-stack/TRADIX/actions/runs/44013147763): success.
