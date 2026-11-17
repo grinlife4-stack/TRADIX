@@ -92,6 +92,15 @@ def test_secrets_must_be_excluded_from_source_control_and_exports():
     assert "secrets.export_excluded must be true" in errors
 
 
+def test_unknown_secret_fields_are_rejected():
+    manifest = load_manifest()
+    manifest["secrets"]["secret_value"] = "must-never-be-in-a-portability-manifest"
+
+    errors = validate_manifest(manifest)
+
+    assert any("secrets has unknown fields" in error for error in errors)
+
+
 def test_verified_component_requires_sha256_evidence():
     manifest = load_manifest()
     manifest["source"]["status"] = "verified"
