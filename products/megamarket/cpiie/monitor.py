@@ -46,7 +46,7 @@ class PolicyMonitor:
         columns = {
             row["name"] for row in db.execute("PRAGMA table_info(monitor_checks)")
         }
-        if columns and "phase" not in columns:
+        if columns and "event_id" not in columns:
             # Rebuild old installations: CREATE TABLE IF NOT EXISTS cannot add
             # constraints or columns to an existing SQLite table.
             db.execute("DROP TRIGGER IF EXISTS monitor_checks_no_update")
