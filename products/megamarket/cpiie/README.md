@@ -6,7 +6,8 @@ This is the first executable slice of the Company Policy Intelligence & Interact
 
 - Register company-specific official source metadata using HTTPS URLs.
 - Fetch one explicitly registered URL only after its exact hostname is allowlisted by the caller.
-- Reject cross-host and non-HTTPS redirects, unsupported content types, invalid text encodings, empty responses, and documents over the configured byte limit.
+- Reject IP-literal/local source URLs, non-public DNS answers, cross-host or cross-port redirects, unsupported content types, invalid text encodings, empty responses, and documents over the configured byte limit.
+- Pin the HTTPS connection to the validated public DNS address to reduce DNS-rebinding and SSRF risk.
 - Apply request timeouts and a fixed read-only user agent. No cookies, credentials, form submissions, or link crawling.
 - Record document snapshots with SHA-256 hashes and per-source versions.
 - Record evidence locators and excerpts tied to an exact document snapshot.
@@ -37,7 +38,7 @@ receipt = fetcher.fetch(
 print(receipt.document.content_sha256, receipt.document.version)
 ```
 
-The example hostname is illustrative, not a selected retailer or active connection. Host allowlisting is an explicit caller decision and must be grounded in a verified official company domain.
+The example hostname is illustrative, not a selected retailer or active connection. Host allowlisting is an explicit caller decision and must be grounded in a verified official company domain. The fetcher also rejects non-public DNS results and pins the connection to the validated address.
 
 ## Explicitly not implemented
 
