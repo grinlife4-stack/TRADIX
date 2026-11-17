@@ -378,5 +378,5 @@ The product dossier API and mission/plan API are separately tested write paths, 
   - [tests — 44013147763](https://github.com/grinlife4-stack/TRADIX/actions/runs/44013147763): success.
   - [factory-first-run — 44013147793](https://github.com/grinlife4-stack/TRADIX/actions/runs/44013147793): success.
   - [factory-ledger-sql — 44013147717](https://github.com/grinlife4-stack/TRADIX/actions/runs/44013147717): success on disposable PostgreSQL 17, including migrations 0001–0004, rollout preflight, worker fencing SQL tests, runner integration, approval gate, process-tree shutdown, mission-plan API, and memory gateway tests.
-- PR #9 remains open and Draft. The branch is 401 commits ahead of `main`; this is a broad factory baseline, not a small standalone migration. It must not be merged without a full diff and dependency review.
+- PR #9 remains open and Draft. The branch is more than 400 commits ahead of `main`; this is a broad factory baseline, not a small standalone migration. It must not be merged without a full diff and dependency review.
 - No Neon or Production migration, production write, deployment, secret change, paid resource, main-branch update, or PR merge was performed.
