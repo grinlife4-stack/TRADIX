@@ -100,6 +100,7 @@ jobs:
             cat /tmp/factory-approval-preflight.log
             exit 1
           fi
+          cat /tmp/factory-approval-preflight.log
           grep -F "Human approval is required for this task and attempt" /tmp/factory-approval-preflight.log
           result=$(docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SELECT CASE WHEN t.status='queued' AND a.status='queued' AND NOT EXISTS (SELECT 1 FROM factory.task_leases l WHERE l.task_id=t.task_id) THEN 'PASS' ELSE 'FAIL' END FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_key='hello-world-approval-preflight-v1' AND a.idempotency_key='hello-world-approval-preflight-attempt-v1'")
           test "$result" = "PASS" || { echo "FAIL: approval preflight changed task/attempt state or acquired a lease"; exit 1; }
