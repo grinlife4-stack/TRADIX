@@ -33,6 +33,7 @@ The migration must provide narrowly scoped SECURITY DEFINER functions:
 - `renew_task_lease(task_id, attempt_id, worker_id, fencing_token, ttl_seconds)` extends only the exact live lease for a running attempt. It must not revive an expired lease or extend a completed attempt.
 - `assert_task_lease(task_id, attempt_id, worker_id, fencing_token)` is an internal helper callable only by the trusted function owner.
 - Fenced lifecycle transition, evidence, and attempt-finish APIs require the fencing token and invoke the lease assertion before any idempotency lookup or write.
+- Evidence is accepted only while the attempt is `running`. A terminal task transition is accepted only after the attempt has reached its matching terminal outcome (`succeeded` → `verified`, `failed` → `failed`, `cancelled` → `cancelled`).
 - The previous unfenced runtime write functions must be revoked from runtime roles. No compatibility path may bypass fencing.
 - Lease state is private to the database API. Product runtimes receive no direct SELECT, INSERT, UPDATE, DELETE, or TRUNCATE rights on lease tables.
 
