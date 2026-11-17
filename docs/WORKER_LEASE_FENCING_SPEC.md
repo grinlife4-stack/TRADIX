@@ -34,7 +34,7 @@ The migration must provide narrowly scoped SECURITY DEFINER functions:
 - `assert_task_lease(task_id, attempt_id, worker_id, fencing_token)` is an internal helper callable only by the trusted function owner.
 - Fenced lifecycle transition, evidence, and attempt-finish APIs require the fencing token and invoke the lease assertion before any idempotency lookup or write.
 - The previous unfenced runtime write functions must be revoked from runtime roles. No compatibility path may bypass fencing.
-- Lease state is private to the database API. Product runtimes receive SELECT only where needed and no direct INSERT/UPDATE/DELETE/TRUNCATE rights.
+- Lease state is private to the database API. Product runtimes receive no direct SELECT, INSERT, UPDATE, DELETE, or TRUNCATE rights on lease tables.
 
 A per-task monotonically increasing counter must survive lease-row deletion. A global sequence is acceptable if the API guarantees monotonicity and does not expose sequence mutation to runtime roles.
 
