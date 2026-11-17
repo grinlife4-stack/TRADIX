@@ -4,11 +4,16 @@ import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 
 const schema = JSON.parse(readFileSync(new URL("../../schemas/product-dossier-v1.schema.json", import.meta.url), "utf8"));
+const portabilitySchema = JSON.parse(readFileSync(new URL("../../schemas/product-portability-v1.schema.json", import.meta.url), "utf8"));
+const portabilityManifest = JSON.parse(readFileSync(new URL("../../examples/hello-world/portability.json", import.meta.url), "utf8"));
 // Draft 2020-12 permits type arrays (for example, string | object).
 // Keep strict validation enabled while allowing this standard union form.
 const ajv = new Ajv2020({ allErrors: true, strict: true, allowUnionTypes: true });
 addFormats(ajv);
 const validate = ajv.compile(schema);
+const validatePortability = ajv.compile(portabilitySchema);
+assert.equal(validatePortability(portabilityManifest), true, ajv.errorsText(validatePortability.errors));
+console.log("PASS: product portability manifest conforms to its versioned schema");
 
 const common = {
   schema_version: 1,
@@ -43,4 +48,11 @@ console.log("PASS: invalid schema version, empty required fields, missing lifecy
 
 const extensible = { ...common, product_type: "physical", custom_product_domain: { production_line: "line-a", quality_gate: ["dimension", "finish"] } };
 assert.equal(validate(extensible), true, "product-specific extension field was rejected");
-console.log("PASS: product-specific extension fields remain supported");
+const withPortability = {
+  ...common,
+  product_type: "software",
+  portability: { manifest: "portability.json", status: "planned" }
+};
+assert.equal(validate(withPortability), true, "valid portability manifest reference was rejected");
+assert.equal(validate({ ...withPortability, portability: { manifest: "", status: "done" } }), false);
+console.log("PASS: product-specific extensions and optional portability references are validated");
