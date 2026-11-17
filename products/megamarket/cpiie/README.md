@@ -53,7 +53,7 @@ for result in results:
 history = monitor.history("company-a-affiliate-terms", limit=20)
 ```
 
-Monitoring is explicit and on-demand. This code does not create a background scheduler or silently poll company websites. A caller must choose the timing and provide the allowlist. Failed checks are recorded and do not replace the last successful document snapshot. A changed hash creates a new immutable document version; unchanged content reuses the existing version. Monitor history cannot be updated or deleted through SQLite, and malformed success/failure records are rejected. Audit exports include monitor history when monitoring has been initialized.
+Monitoring is explicit and on-demand. This code does not create a background scheduler or silently poll company websites. A caller must choose the timing and provide the allowlist. Failed checks are recorded and do not replace the last successful document snapshot. A changed hash creates a new immutable document version; unchanged content reuses the existing version. Monitor history cannot be updated or deleted through SQLite, and malformed success/failure records are rejected. Audit exports include monitor history when monitoring has been initialized. Each check first commits a `STARTED` event before network access, then appends a `SUCCESS` or `FAILED` terminal event. If the process or database fails between those steps, history exposes the check as `PENDING`; after confirming no worker is still running, an operator can call `monitor.recover_pending()` to append an `INTERRUPTED` failure receipt without editing prior events. Existing pre-migration monitor tables are rebuilt transactionally into the constrained schema, and legacy rows are preserved.
 
 ## Source identity and review audit
 
