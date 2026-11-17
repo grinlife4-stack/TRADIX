@@ -96,9 +96,11 @@ class InterfaceMessage:
         if not isinstance(self.created_at, str) or not self.created_at.strip() or len(self.created_at) > 40:
             raise InterfaceContractError("created_at must be a non-empty timestamp string")
         try:
-            datetime.fromisoformat(self.created_at.replace("Z", "+00:00"))
+            parsed_at = datetime.fromisoformat(self.created_at.replace("Z", "+00:00"))
+            if parsed_at.tzinfo is None:
+                raise ValueError("timestamp must include timezone")
         except ValueError as exc:
-            raise InterfaceContractError("created_at must be an ISO-8601 timestamp") from exc
+            raise InterfaceContractError("created_at must be a timezone-aware ISO-8601 timestamp") from exc
         if self.reply_to is not None:
             _identifier("reply_to", self.reply_to)
 
@@ -115,7 +117,9 @@ class InterfaceMessage:
                 raise InterfaceContractError("query message requires body.query")
             _required_text("body.query", self.body["query"], 2000)
         elif self.message_type is MessageType.FACTORY_NEED:
-            FactoryNeed.from_mapping(self.body)
+            need = FactoryNeed.from_mapping(self.body)
+            if need.project_key != self.project_key:
+                raise InterfaceContractError("factory need project scope must match its message")
         elif self.message_type in (MessageType.STATUS_UPDATE, MessageType.RESULT, MessageType.BLOCKED):
             if "summary" not in self.body:
                 raise InterfaceContractError("factory response requires body.summary")
