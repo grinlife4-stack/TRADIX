@@ -36,6 +36,7 @@ def complete_review(**overrides: object) -> CapabilityReview:
         "tests_passed": True,
         "compatibility_passed": True,
         "owner_approved": True,
+        "external_project_id": "second-product",
         "external_project_use_case": "second-product/issue/42",
     }
     values.update(overrides)
@@ -76,7 +77,9 @@ def test_promotion_requires_cross_project_evidence_or_factory_need(
         registry.promote(
             "artifact-manifest",
             "1.0.0",
-            complete_review(external_project_use_case="", factory_need_reference=""),
+            complete_review(
+                external_project_id="", external_project_use_case="", factory_need_reference=""
+            ),
             actor="approver",
         )
 
@@ -184,3 +187,39 @@ def test_sqlite_triggers_block_ordinary_record_mutation(tmp_path: Path) -> None:
             )
     finally:
         connection.close()
+
+
+
+def test_second_project_must_differ_from_originating_project(tmp_path: Path) -> None:
+    registry = CapabilityRegistry(tmp_path / "registry.sqlite")
+    registry.propose(sample_capability(), actor="reviewer")
+
+    with pytest.raises(PromotionBlocked, match="different project"):
+        registry.promote(
+            "artifact-manifest",
+            "1.0.0",
+            complete_review(external_project_id="sample-product"),
+            actor="approver",
+        )
+
+
+def test_documented_factory_need_can_replace_second_project_evidence(
+    tmp_path: Path,
+) -> None:
+    registry = CapabilityRegistry(tmp_path / "registry.sqlite")
+    registry.propose(sample_capability(), actor="reviewer")
+    review = complete_review(
+        external_project_id="",
+        external_project_use_case="",
+        factory_need_reference="tradix/architecture/need-17",
+    )
+
+    registry.promote(
+        "artifact-manifest", "1.0.0", review, actor="approver"
+    )
+    assert registry.get("artifact-manifest", "1.0.0")["status"] == "accepted"
+
+
+def test_in_memory_database_is_rejected_explicitly() -> None:
+    with pytest.raises(ValueError, match="file-backed"):
+        CapabilityRegistry(":memory:")
