@@ -1,0 +1,13 @@
+{
+  "product_id": "multi-market-dropship",
+  "name": "Multi-Market Dropshipping Platform",
+  "version": "0.1.0",
+  "status": "foundation",
+  "owner": "independent-product",
+  "factory": "TRADIX",
+  "catalog_mode": "empty-until-verified-provider",
+  "live_transactions_enabled": false,
+  "provider_adapters": [],
+  "default_currency": "USD",
+  "decision_policy": "fail-closed"
+}
