@@ -59,7 +59,7 @@ console.log("PASS: quarantined mixed/unknown node inventory and portable resourc
 
 const invalidNodes = [
   { ...node, node_id: "Upper Case Not Allowed" },
-  { ...node, status: "available", memory: { ...node.memory, allocatable_bytes: 1 } },
+  { ...node, cpu: { ...node.cpu, logical_threads: 0 } },
   { ...node, accelerators: [{ ...node.accelerators[0], memory_reserved_bytes: -1 }] },
   { ...node, unexpected_vendor_lock: true }
 ];
