@@ -1,3 +1,5 @@
+import sqlite3
+import tempfile
 import unittest
 
 from products.megamarket.cpiie import (
@@ -172,6 +174,48 @@ class CPIIERegistryTests(unittest.TestCase):
         result = self.registry.evaluate("catalog.mixed")
         self.assertEqual(result.state, CapabilityState.BLOCKED_POLICY_DENY)
         self.assertIn("explicitly denies", result.reason)
+
+    def test_legacy_database_migrates_missing_effect_to_unspecified(self):
+        with tempfile.NamedTemporaryFile(suffix=".sqlite3") as database:
+            connection = sqlite3.connect(database.name)
+            connection.execute("""
+                CREATE TABLE rules (
+                    rule_id TEXT PRIMARY KEY,
+                    document_id TEXT NOT NULL,
+                    evidence_id TEXT NOT NULL,
+                    capability TEXT NOT NULL,
+                    statement TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    expires_at TEXT,
+                    reviewer TEXT,
+                    reviewed_at TEXT
+                )
+            """)
+            connection.commit()
+            connection.close()
+
+            migrated = CPIIERegistry(database.name)
+            try:
+                columns = {
+                    row["name"] for row in migrated.connection.execute("PRAGMA table_info(rules)")
+                }
+                self.assertIn("effect", columns)
+                self.assertEqual(
+                    migrated.connection.execute(
+                        "SELECT effect FROM rules"
+                    ).fetchall(),
+                    [],
+                )
+            finally:
+                migrated.close()
+
+    def test_invalid_policy_effect_is_rejected_by_database_guard(self):
+        with self.assertRaisesRegex(ValueError, "invalid policy effect"):
+            self.registry.propose_rule(
+                "invalid-effect", self.doc.document_id, self.evidence,
+                "catalog.invalid", "Invalid effect",
+                effect="MAYBE",
+            )
 
     def test_policy_effect_is_immutable(self):
         self.propose()
