@@ -55,6 +55,8 @@ race_task_id="f1f1f1f1-f1f1-41f1-81f1-f1f1f1f1f1f1"
 race_attempt_id="e1e1e1e1-e1e1-41e1-81e1-e1e1e1e1e1e1"
 lock_task_id="f2f2f2f2-f2f2-42f2-82f2-f2f2f2f2f2f2"
 lock_attempt_id="e2e2e2e2-e2e2-42e2-82e2-e2e2e2e2e2e2"
+rollback_task_id="f3f3f3f3-f3f3-43f3-83f3-f3f3f3f3f3f3"
+rollback_attempt_id="e3e3e3e3-e3e3-43e3-83e3-e3e3e3e3e3e3"
 
 psql <<SQL
 INSERT INTO factory.tasks (
