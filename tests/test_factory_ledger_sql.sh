@@ -463,7 +463,7 @@ expect_failure "product dossier snapshots reject UPDATE" "Rows in factory.produc
 expect_failure "product dossier snapshots reject DELETE" "Rows in factory.product_dossier_versions are append-only" \
   "DELETE FROM factory.product_dossier_versions WHERE project_id = '11111111-1111-4111-8111-111111111111' AND version_no = 1"
 expect_failure "product dossier snapshots reject TRUNCATE" "Rows in factory.product_dossier_versions are append-only" \
-  "TRUNCATE factory.product_dossier_versions"
+  "TRUNCATE factory.product_dossier_versions, factory.intake_approvals"
 expect_failure "runtime cannot directly insert a dossier snapshot" "permission denied" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.product_dossier_versions (project_id,version_no,idempotency_key,dossier,created_by_login) VALUES ('11111111-1111-4111-8111-111111111111',99,'direct-write','{}'::jsonb,'factory_rt_tradix')"
 
@@ -537,13 +537,13 @@ expect_failure "mission snapshots reject UPDATE" "Rows in factory.mission_versio
 expect_failure "mission snapshots reject DELETE" "Rows in factory.mission_versions are append-only" \
   "DELETE FROM factory.mission_versions WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND version_no = 1"
 expect_failure "mission snapshots reject TRUNCATE" "append-only" \
-  "TRUNCATE factory.mission_versions, factory.task_plan_versions"
+  "TRUNCATE factory.mission_versions, factory.task_plan_versions, factory.intake_approvals"
 expect_failure "task-plan snapshots reject UPDATE" "Rows in factory.task_plan_versions are append-only" \
   "UPDATE factory.task_plan_versions SET task_plan = '{}'::jsonb WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND plan_version_no = 1"
 expect_failure "task-plan snapshots reject DELETE" "Rows in factory.task_plan_versions are append-only" \
   "DELETE FROM factory.task_plan_versions WHERE project_id = '11111111-1111-4111-8111-111111111111' AND mission_id = 'tradix-foundation' AND plan_version_no = 1"
 expect_failure "task-plan snapshots reject TRUNCATE" "Rows in factory.task_plan_versions are append-only" \
-  "TRUNCATE factory.task_plan_versions"
+  "TRUNCATE factory.task_plan_versions, factory.intake_approvals"
 
 physical_mission='{"mission_id":"press-line","project_key":"physical-goods","version":1,"title":"Press line","objective":"Prepare a physical production line.","acceptance_criteria":["Equipment plan recorded"],"risk_class":"low","approval_required":false}'
 physical_mission_version=$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_physical_goods; SELECT factory.record_mission_version('44444444-4444-4444-8444-444444444444', '$physical_mission'::jsonb, 'physical-mission-v1'); RESET SESSION AUTHORIZATION")
