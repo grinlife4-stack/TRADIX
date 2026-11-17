@@ -134,7 +134,7 @@ async function preflightGvisor(image) {
 
 async function runDockerSandboxScript(productRoot, relativeScript, label, leaseGuard, runtimeName = null) {
   if (process.platform !== "linux") {
-    fail("docker-sandbox v0.1 requires a Linux execution host");
+    fail("container sandbox execution requires a Linux execution host");
   }
   const image = process.env.FACTORY_SANDBOX_IMAGE ?? "";
   if (!/^sha256:[a-f0-9]{64}$/.test(image)) {
@@ -385,7 +385,7 @@ async function main() {
   // task creation, or lease acquisition. There is deliberately no fallback.
   if (executionMode === "gvisor-sandbox") {
     const preflight = await preflightGvisor(process.env.FACTORY_SANDBOX_IMAGE);
-    process.stdout.write(`PASS gVisor preflight runtime=${preflight.runtime} image=${preflight.imageId} arch=${preflight.architecture}\\n`);
+    process.stdout.write(`PASS gVisor preflight runtime=${preflight.runtime} image=${preflight.imageId} arch=${preflight.architecture}\n`);
   }
 
   const baseDir = await realpath(dirname(manifestPath));
