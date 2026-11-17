@@ -89,6 +89,21 @@ jobs:
           output=$(node runtime/factory-executor/runner.mjs examples/hello-world/product.json)
           printf '%s\n' "$output"
           grep -Eq '^ALREADY VERIFIED task=.* attempt=.* events=7 evidence=3$' <<< "$output"
+      - name: Verify high-risk execution is blocked before lease acquisition without approval
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          if node runtime/factory-executor/runner.mjs examples/hello-world/approval-preflight-test.json > /tmp/factory-approval-preflight.log 2>&1; then
+            echo "FAIL: unapproved high-risk task unexpectedly executed"
+            cat /tmp/factory-approval-preflight.log
+            exit 1
+          fi
+          grep -F "Human approval is required for this task and attempt" /tmp/factory-approval-preflight.log
+          result=$(docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SELECT CASE WHEN t.status='queued' AND a.status='queued' AND NOT EXISTS (SELECT 1 FROM factory.task_leases l WHERE l.task_id=t.task_id) THEN 'PASS' ELSE 'FAIL' END FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_key='hello-world-approval-preflight-v1' AND a.idempotency_key='hello-world-approval-preflight-attempt-v1'")
+          test "$result" = "PASS" || { echo "FAIL: approval preflight changed task/attempt state or acquired a lease"; exit 1; }
+          echo "PASS: unapproved high-risk task remains queued without a lease"
       - name: Verify executor terminates a child after lease loss
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
