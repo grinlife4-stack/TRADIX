@@ -130,7 +130,7 @@ async function runDockerSandboxScript(productRoot, relativeScript, label, leaseG
     "--user=65532:65532",
     "--ulimit", "nofile=256:256",
     "--ulimit", "fsize=10485760:10485760",
-    "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=16m",
+    "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=16m,uid=65532,gid=65532,mode=1777",
     "--mount", `type=bind,src=${productRoot},dst=/workspace,readonly`,
     "--workdir", "/workspace",
     "--env", "NODE_ENV=test",
