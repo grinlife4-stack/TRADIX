@@ -18,7 +18,7 @@
 
 ## Approved brand asset
 
-**Approved original brand master:** `NEXORA-Official-Logo-Original.jpeg` (the user's original gold Tree of Life mark on deep navy, with the NEXORA wordmark). This source image is retained unchanged in the project records. The repository's previous image file was not verified as this original and must not be used as the approved logo. A verified repository-ready derivative is pending integration.
+**Approved original brand master:** `NEXORA-Official-Logo-Original.jpeg` (the user's original gold Tree of Life mark on deep navy, with the NEXORA wordmark). The approved master was recovered from the user's prior conversation attachment and visually verified. It has not yet been committed to the repository; do not substitute generated artwork or unverified files. Repository integration of this exact source image remains pending.
 
 ## 1. Product decision
 
