@@ -309,7 +309,7 @@ class OfficialSourceFetcherTests(unittest.TestCase):
             source_id = f"tls-{hostname}"
             self.registry.register_source(Source(
                 source_id, "company-a", "affiliate-terms",
-                f"https://{hostname}/terms", "TLS integration fixture",
+                f"https://{hostname}/tls/{source_id}/terms", "TLS integration fixture",
             ))
 
             client_context = (
