@@ -135,3 +135,23 @@ def test_factory_need_preserves_specific_unknown_field_error():
             "reason": "No browser adapter is registered.",
             "unexpected": True,
         })
+
+
+def test_factory_need_project_must_match_message_project():
+    with pytest.raises(InterfaceContractError, match="scope must match"):
+        message(
+            sender=Sender.FACTORY,
+            message_type=MessageType.FACTORY_NEED,
+            body={
+                "need_id": "need-004",
+                "project_key": "other-product",
+                "category": "capability",
+                "question": "Need a browser.",
+                "reason": "No browser adapter is registered.",
+            },
+        )
+
+
+def test_message_rejects_timestamp_without_timezone():
+    with pytest.raises(InterfaceContractError, match="timezone-aware"):
+        message(created_at="2026-11-17T19:00:00")
