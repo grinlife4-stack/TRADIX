@@ -9,10 +9,11 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
@@ -77,8 +78,17 @@ class CapabilityRegistry:
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
 
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        connection = self._connect()
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS capabilities (
@@ -159,6 +169,12 @@ class CapabilityRegistry:
             raise ValueError("scope must be 'shared' or 'product_specific'")
 
     @staticmethod
+    def _required_text_or_empty(name: str, value: str) -> str:
+        if not isinstance(value, str):
+            raise ValueError(f"{name} must be a string")
+        return value.strip()
+
+    @staticmethod
     def _now() -> str:
         return datetime.now(timezone.utc).isoformat()
 
@@ -177,7 +193,7 @@ class CapabilityRegistry:
             for key in capability.__dataclass_fields__
         }
         now = self._now()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute(
                 """
                 INSERT INTO capabilities
@@ -219,15 +235,18 @@ class CapabilityRegistry:
             raise PromotionBlocked(
                 "promotion review incomplete: " + ", ".join(failed)
             )
-        if not (
-            review.external_project_use_case.strip()
-            or review.factory_need_reference.strip()
-        ):
+        external_use_case = self._required_text_or_empty(
+            "external_project_use_case", review.external_project_use_case
+        )
+        factory_need = self._required_text_or_empty(
+            "factory_need_reference", review.factory_need_reference
+        )
+        if not (external_use_case or factory_need):
             raise PromotionBlocked(
                 "a second-project use case or documented factory need is required"
             )
 
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 """
                 SELECT c.record_json,
@@ -256,8 +275,8 @@ class CapabilityRegistry:
                     "tests_passed": review.tests_passed,
                     "compatibility_passed": review.compatibility_passed,
                     "owner_approved": review.owner_approved,
-                    "external_project_use_case": review.external_project_use_case.strip(),
-                    "factory_need_reference": review.factory_need_reference.strip(),
+                    "external_project_use_case": external_use_case,
+                    "factory_need_reference": factory_need,
                 },
                 sort_keys=True,
                 separators=(",", ":"),
@@ -288,7 +307,7 @@ class CapabilityRegistry:
     ) -> None:
         actor = self._required_text("actor", actor)
         reason = self._required_text("reason", reason)
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 """
                 SELECT status FROM capability_events
@@ -314,7 +333,7 @@ class CapabilityRegistry:
 
     def get(self, capability_id: str, version: str) -> dict[str, Any]:
         """Return one immutable record and its current event-derived status."""
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 """
                 SELECT c.record_json, c.created_at,
@@ -339,7 +358,7 @@ class CapabilityRegistry:
             "proposed", "accepted", "rejected", "deprecated"
         }:
             raise ValueError("unsupported status")
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 """
                 SELECT c.record_json, c.created_at,
@@ -358,3 +377,19 @@ class CapabilityRegistry:
                 if status is None or record["status"] == status:
                     records.append(record)
             return records
+
+    def history(self, capability_id: str, version: str) -> list[dict[str, str]]:
+        """Return the append-only lifecycle events for one capability version."""
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT status, actor, reason, occurred_at
+                FROM capability_events
+                WHERE capability_id = ? AND version = ?
+                ORDER BY event_id
+                """,
+                (capability_id, version),
+            ).fetchall()
+            if not rows:
+                raise KeyError(f"unknown capability version: {capability_id}@{version}")
+            return [dict(row) for row in rows]
