@@ -90,6 +90,16 @@ INSERT INTO factory.tasks (
 );
 INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
 VALUES ('$lock_attempt_id', '$lock_task_id', 1, 'implementer');
+INSERT INTO factory.tasks (
+  task_id, project_id, task_key, title, request_text, acceptance_criteria,
+  risk_class, approval_required
+) VALUES (
+  '$rollback_task_id', '11111111-1111-4111-8111-111111111111',
+  'lease-atomic-rollback-ci', 'Lease atomic rollback CI', 'Prove terminal writes roll back together.',
+  '["atomic completion"]'::jsonb, 'low', false
+);
+INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
+VALUES ('$rollback_attempt_id', '$rollback_task_id', 1, 'implementer');
 SQL
 
 if [[ "$(psql -c "SELECT status FROM factory.task_attempts WHERE attempt_id='$attempt_id'")" != "queued" ]]; then
@@ -229,3 +239,22 @@ fi
 runtime_psql "SELECT factory.finish_task_attempt_fenced('$race_task_id','$race_attempt_id','$race_worker',$race_token,'failed')" >/dev/null
 runtime_psql "SELECT factory.release_task_lease('$race_task_id','$race_attempt_id','$race_worker',$race_token)" >/dev/null
 echo "PASS: concurrent lease acquisition produces exactly one owner"
+
+rollback_token="$(runtime_psql "SELECT fencing_token FROM factory.acquire_task_lease('$rollback_task_id','$rollback_attempt_id','rollback-worker',30)")"
+if runtime_psql "BEGIN; SELECT factory.finish_task_attempt_fenced('$rollback_task_id','$rollback_attempt_id','rollback-worker',$rollback_token,'failed'); SELECT factory.transition_task_fenced('$rollback_task_id',$rollback_token,'rollback-worker','failed','task.failed','agent','rollback-worker','rollback-failpoint','$rollback_attempt_id','{}'::jsonb); SELECT factory.release_task_lease('$rollback_task_id','$rollback_attempt_id','rollback-worker',$rollback_token); SELECT 1/0; COMMIT" >/tmp/tradix-lease-rollback.log 2>&1; then
+  echo "FAIL: injected finalization error unexpectedly committed"
+  exit 1
+fi
+rollback_state="$(psql -c "SELECT t.status || '/' || a.status || '/' || (SELECT count(*) FROM factory.task_leases l WHERE l.task_id=t.task_id)::text FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_id='$rollback_task_id'")"
+if [[ "$rollback_state" != "queued/running/1" ]]; then
+  echo "FAIL: terminal finalization was not rolled back atomically: $rollback_state"
+  cat /tmp/tradix-lease-rollback.log
+  exit 1
+fi
+runtime_psql "BEGIN; SELECT factory.finish_task_attempt_fenced('$rollback_task_id','$rollback_attempt_id','rollback-worker',$rollback_token,'failed'); SELECT factory.transition_task_fenced('$rollback_task_id',$rollback_token,'rollback-worker','failed','task.failed','agent','rollback-worker','rollback-final','$rollback_attempt_id','{}'::jsonb); SELECT factory.release_task_lease('$rollback_task_id','$rollback_attempt_id','rollback-worker',$rollback_token); COMMIT" >/dev/null
+rollback_final_state="$(psql -c "SELECT t.status || '/' || a.status || '/' || (SELECT count(*) FROM factory.task_leases l WHERE l.task_id=t.task_id)::text FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_id='$rollback_task_id'")"
+if [[ "$rollback_final_state" != "failed/failed/0" ]]; then
+  echo "FAIL: atomic terminal completion did not produce the expected state: $rollback_final_state"
+  exit 1
+fi
+echo "PASS: terminal attempt, task transition, and lease release roll back or commit together"
