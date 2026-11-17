@@ -29,7 +29,7 @@ The descriptor contains references and metadata only. It must not contain creden
 
 ## Promotion gates
 
-Promotion is explicit and fail-closed. All of the following must be true:
+Promotion is explicit, serialized against concurrent status transitions, and fail-closed. All of the following must be true:
 
 1. Security review passed.
 2. License and provenance cleared.
@@ -37,7 +37,7 @@ Promotion is explicit and fail-closed. All of the following must be true:
 4. Required tests passed.
 5. Compatibility review passed.
 6. Capability owner approved.
-7. At least one concrete second-project use case or a documented factory-level need exists.
+7. At least one concrete use case is tied to a project ID different from the origin project, or a documented factory-level need exists.
 8. The proposal is marked `shared`, not `product_specific`.
 
 The prototype records these decisions but does not independently verify the truth of evidence references. Reviewers remain accountable; future integrations must bind approvals to authenticated identities and verifiable evidence.
@@ -58,7 +58,9 @@ Implemented in `src/tradix/capabilities/registry.py` using Python standard-libra
 - Persistent capability descriptors.
 - Append-only status events.
 - SQLite triggers preventing ordinary UPDATE/DELETE operations.
-- Explicit proposal, promotion, rejection, deprecation, retrieval, and listing operations.
+- Explicit proposal, promotion, rejection, deprecation, retrieval, listing, and lifecycle-history operations.
+- A second-project evidence gate that rejects the originating project being presented as the second adopter.
+- File-backed SQLite requirement to avoid accidental loss of an in-memory registry between connections.
 - Fail-closed promotion checks and semantic-version validation.
 
 This is a local prototype, not a production security boundary. A database-file administrator can bypass SQLite triggers. The prototype has no identity provider, cryptographic reviewer signatures, external immutable anchor, distributed concurrency model, artifact/package publisher, or CI evidence verifier.
