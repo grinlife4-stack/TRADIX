@@ -3,11 +3,14 @@
 **Project ID:** NEXORA-WELLNESS  
 **Working product name:** NEXORA (subject to name, domain, trademark, and store checks)  
 **Product category:** Sleep, relaxation, mindfulness, and guided meditation  
-**Direction:** Independent product definition; validate scope and business assumptions through NEXORA-specific research and testing  
+**Portfolio:** TRADIX  
+**Project type:** Independently managed TRADIX portfolio project  
+**Project workspace:** `projects/NEXORA/` inside the TRADIX repository  
+**Direction:** Independent NEXORA roadmap, brand, product data, runtime, and release lifecycle; shared TRADIX capabilities only through explicit interfaces  
 **Dossier status:** Execution-first MVP definition  
 **Date:** 2026-11-17  
-**Control record:** TRADIX repository  
-**Product repository:** Not created  
+**Portfolio/control repository:** TRADIX  
+**Project workspace:** `projects/NEXORA/` (dedicated project boundary; a separate repository is not required)  
 **Product runtime:** Not deployed  
 **Commercial status:** Not launched
 
@@ -15,9 +18,7 @@
 
 ## Approved brand asset
 
-![NEXORA approved original logo](assets/nexora/nexora-official-logo.jpg)
-
-The image above is the approved original NEXORA brand logo. It is a brand identity asset, not a screenshot of the running application interface.
+**Approved original brand master:** `NEXORA-Official-Logo-Original.jpeg` (the user's original gold Tree of Life mark on deep navy, with the NEXORA wordmark). This source image is retained unchanged in the project records. The repository's previous image file was not verified as this original and must not be used as the approved logo. A verified repository-ready derivative is pending integration.
 
 ## 1. Product decision
 
@@ -47,12 +48,12 @@ Do not copy a competitor's product structure or assume that another company's fe
 
 ## 3. Product independence
 
-- NEXORA is an independent product, not a Tradix subsystem.
-- Its source code, content rights, user data, release lifecycle, and runtime belong in its own repository and environments.
-- Tradix may provide reusable development, testing, packaging, security, and delivery capabilities through explicit, versioned interfaces.
-- NEXORA must not require Tradix at runtime.
-- NEXORA must not share product data, credentials, or business logic with MegaMarket, CPIIE, AAECN, the AI trading platform, or other independent projects.
-- No product code or user content belongs in the Tradix control repository.
+- NEXORA is one of several independent projects managed under the TRADIX portfolio; it is not a feature or subsystem of another TRADIX product.
+- NEXORA has its own product roadmap, brand, source boundaries, content rights, product data, runtime, release lifecycle, and commercial decisions.
+- Its project files belong in the dedicated `projects/NEXORA/` workspace inside the TRADIX repository. A separate repository is not the default requirement.
+- TRADIX provides portfolio-level governance and reusable development, testing, packaging, security, and delivery capabilities through explicit, versioned interfaces.
+- NEXORA must not depend on the TRADIX control plane at runtime; shared tooling is for development and delivery, not a runtime dependency.
+- NEXORA must not share product data, credentials, or business logic with MegaMarket, CPIIE, AAECN, the AI trading platform, or other projects.
 
 ## 4. First executable MVP
 
@@ -131,7 +132,7 @@ Track revenue and unit economics after real users exist:
 ## 9. Fast execution sequence
 
 ### Phase 1 — Working shell
-- Create the independent NEXORA product repository.
+- Establish the dedicated NEXORA project workspace inside the TRADIX repository at `projects/NEXORA/`.
 - Implement navigation, home, categories, player shell, and responsive design.
 - Load a small catalog of content metadata.
 - Deliver a build that runs on iPad and mobile browsers.
@@ -173,8 +174,8 @@ No phase is considered complete without a working artifact and recorded test evi
 | Product direction | Independent sleep and wellness product; scope validation pending |
 | Product model | Not fixed; validate against user needs and market evidence |
 | Execution priority | Fastest path to first usable build |
-| Product repository | Not created |
-| MVP code | Not started |
+| Project workspace | `projects/NEXORA/` in the TRADIX repository; source import and verification pending |
+| MVP prototype | A 0.4.0 QA report exists in project records; source import and current-build verification remain pending |
 | Content assets | Not selected; rights must be verified |
 | iPad/audio test | Not performed |
 | Backend | Not selected; minimize for first release |
@@ -183,4 +184,4 @@ No phase is considered complete without a working artifact and recorded test evi
 
 ## 12. Change control
 
-This file is the Tradix-level project index and governance record. Product source code, audio assets, content-rights records, user data, and release artifacts belong in the separate NEXORA repository. Keep the first release narrow and executable. Any expansion beyond the MVP requires evidence that it is necessary, not merely attractive.
+This file is the TRADIX-level project index and governance record. Product source code, audio assets, content-rights records, user data, and release artifacts belong in the dedicated `projects/NEXORA/` workspace, with project-specific access and release boundaries. Keep the first release narrow and executable. Any expansion beyond the MVP requires evidence that it is necessary, not merely attractive.
