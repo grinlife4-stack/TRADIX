@@ -10,9 +10,9 @@
 
 The repository currently contains product specifications, a provider-neutral CPIIE Python package, tests and CI. It does **not** yet contain a deployable MegaMarket storefront, customer API, product catalog service, production database configuration, user authentication, affiliate-link service, or deployment environment for MegaMarket.
 
-The CPIIE package supports source registration, controlled HTTPS fetching, bounded discovery, on-demand monitoring, immutable document snapshots, evidence records, scoped reviewer-assertion verification contracts, policy evaluation and deterministic audit export. The reviewer contract is fail-closed, but no production identity-provider adapter is configured; therefore no real reviewer can yet authorize a rule. Its tests use a deterministic test double and are synthetic/code-level validation; they do not establish retailer authority, legal permission, live data rights, commercial approval or production reliability.
+The CPIIE package supports source registration, controlled HTTPS fetching, bounded discovery, on-demand monitoring, immutable document snapshots, evidence records, scoped reviewer-assertion verification contracts, policy evaluation and deterministic audit export. The reviewer contract is fail-closed, requires the `policy_reviewer` role, and binds signed assertions to a canonical hash of the exact company, source, document hash/version, evidence ID, rule text/effect/expiry, capability and decision. It prevents cross-rule receipt replay. No production identity-provider adapter is configured; therefore no real reviewer can yet authorize a rule. Its tests use a deterministic test double and are synthetic/code-level validation; they do not establish retailer authority, legal permission, live data rights, commercial approval or production reliability.
 
-The reviewer-identity implementation is currently verified by GitHub Actions run #567 (`44098947275`), successful on commit `c8d84a21b291befb843495c597d4c8b7c356a2b5`, with 91 passed and 4 subtests passed. This result applies only to that exact commit. Earlier failing runs belong to earlier intermediate commits and are not the final validation.
+The reviewer-identity implementation is currently verified by GitHub Actions run #571 (`44099472148`), successful on commit `4d911173f80747b795f9a37aa4d542cf1a30ae6f`, with 92 passed and 4 subtests passed. This result applies only to that exact commit. The next test addition covers cross-rule receipt replay and will receive its own SHA-matched CI result.
 
 ## 2. Non-negotiable operating boundaries
 
@@ -38,9 +38,10 @@ The reviewer-identity implementation is currently verified by GitHub Actions run
 
 ### Gate B — Reviewer identity and authority
 - Implemented in code: free-form reviewer labels no longer authorize reviews; a trusted verifier contract must validate signed assertions and exact company/capability/decision scope.
-- Implemented in code: each review stores issuer, subject, key ID, assertion ID, scoped claims, authentication window and a signed authorization receipt; evaluations re-verify the receipt and fail closed on missing, invalid, expired or revoked receipts.
+- Implemented in code: each review stores issuer, subject, key ID, assertion ID, role, scoped claims, authentication window, canonical evidence-context hash and a signed authorization receipt; evaluations re-verify the receipt and fail closed on missing, invalid, expired or revoked receipts.
+- Implemented in code: the signed context binds the company, source, document hash/version, evidence ID, rule text/effect/expiry, capability and decision; a receipt cannot be replayed for another rule.
 - Implemented in code: direct SQL review updates without a complete receipt are rejected by the SQLite guard; legacy approvals without receipts remain blocked.
-- Tested with a deterministic test double only. This is not a production identity provider.
+- Tested with a deterministic test double only, including scope, role, revocation and cross-rule replay cases. This is not a production identity provider.
 - **Still blocked:** select and configure a real identity provider, implement cryptographic signature/JWKS validation, issuer/audience/key-rotation/revocation handling, and provision secrets/keys outside the repository. No real reviewer authentication or commercial authorization is active.
 
 ### Gate C — Tamper-evident audit
