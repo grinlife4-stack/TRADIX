@@ -16,4 +16,4 @@ def test_offline_sales_report_demo_runs_without_live_side_effects(capsys):
     assert len(output["payload_sha256"]) == 64
     assert output["demand_status"] == "direct_sales_observations_available"
     assert output["decision_status"] == "eligible_for_manual_pilot"
-    assert "not authorization" in output["warning"]
+    assert "not an authorization" in output["warning"]
