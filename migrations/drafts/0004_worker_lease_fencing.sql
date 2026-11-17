@@ -331,14 +331,17 @@ BEGIN
     FROM factory.task_attempts
     WHERE task_id = p_task_id AND attempt_id = p_attempt_id;
 
-    IF v_attempt_status = 'running' THEN
+    IF v_attempt_status = 'running'
+       AND p_to_state NOT IN ('verified', 'failed', 'cancelled') THEN
         NULL;
     ELSIF (v_attempt_status = 'succeeded' AND p_to_state = 'verified')
        OR (v_attempt_status = 'failed' AND p_to_state = 'failed')
        OR (v_attempt_status = 'cancelled' AND p_to_state = 'cancelled') THEN
         NULL;
     ELSE
-        RAISE EXCEPTION 'task transition is not permitted for attempt status %', v_attempt_status;
+        RAISE EXCEPTION
+            'task transition is not permitted for attempt status % and target state %',
+            v_attempt_status, p_to_state;
     END IF;
 
     RETURN factory.transition_task(
