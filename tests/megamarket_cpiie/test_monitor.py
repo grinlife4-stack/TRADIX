@@ -82,6 +82,32 @@ class PolicyMonitorTests(unittest.TestCase):
             0,
         )
 
+    def test_monitor_history_is_append_only(self):
+        self.opener.side_effect = OSError("offline")
+        self.monitor.check_source("policy", allowed_hosts={"policy.example.org"})
+        with self.assertRaisesRegex(Exception, "append-only"):
+            self.registry.connection.execute(
+                "UPDATE monitor_checks SET error='tampered' WHERE source_id='policy'"
+            )
+        self.registry.connection.rollback()
+        with self.assertRaisesRegex(Exception, "append-only"):
+            self.registry.connection.execute(
+                "DELETE FROM monitor_checks WHERE source_id='policy'"
+            )
+        self.registry.connection.rollback()
+        self.assertIn("offline", self.monitor.history("policy")[0].error)
+
+    def test_monitor_history_rejects_invalid_status_shape(self):
+        with self.assertRaises(Exception):
+            self.registry.connection.execute(
+                """INSERT INTO monitor_checks
+                   (source_id, checked_at, status, version, changed, content_sha256, error)
+                   VALUES ('policy', '2026-11-17T00:00:00+00:00', 'SUCCESS',
+                           NULL, 0, NULL, 'invalid success')"""
+            )
+        self.registry.connection.rollback()
+        self.assertEqual(self.monitor.history("policy"), ())
+
     def test_check_all_uses_registered_sources(self):
         self.opener.open.return_value = FakeResponse()
         results = self.monitor.check_all(allowed_hosts={"policy.example.org"})
