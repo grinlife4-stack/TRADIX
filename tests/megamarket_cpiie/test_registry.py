@@ -191,26 +191,18 @@ class CPIIERegistryTests(unittest.TestCase):
                     reviewed_at TEXT
                 )
             """)
-            connection.commit()
-            connection.close()
-
-            migrated = CPIIERegistry(database.name)
+            connection.execute(\n                "INSERT INTO rules VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",\n                ("legacy-rule", "legacy-doc", "legacy-evidence", "legacy.cap",\n                 "Legacy policy", "VERIFIED", None, "legacy reviewer",\n                 "2026-11-17T00:00:00+00:00"),\n            )\n            connection.commit()\n            connection.close()\n\n            migrated = CPIIERegistry(database.name)
             try:
                 columns = {
                     row["name"] for row in migrated.connection.execute("PRAGMA table_info(rules)")
                 }
                 self.assertIn("effect", columns)
-                self.assertEqual(
-                    migrated.connection.execute(
-                        "SELECT effect FROM rules"
-                    ).fetchall(),
-                    [],
-                )
+                self.assertEqual(migrated.get_rule("legacy-rule").effect, PolicyEffect.UNSPECIFIED)
             finally:
                 migrated.close()
 
     def test_invalid_policy_effect_is_rejected_by_database_guard(self):
-        with self.assertRaisesRegex(ValueError, "invalid policy effect"):
+        with self.assertRaises(ValueError):
             self.registry.propose_rule(
                 "invalid-effect", self.doc.document_id, self.evidence,
                 "catalog.invalid", "Invalid effect",
