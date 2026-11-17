@@ -403,6 +403,10 @@ async function main() {
 }
 
 main().catch(error => {
-  process.stderr.write(`FACTORY_EXECUTOR_FAILED: ${error.stack ?? error.message}\n`);
+  const databaseContext = ["code", "detail", "hint", "where", "schema", "table", "column", "constraint", "routine"]
+    .filter(key => error?.[key])
+    .map(key => `${key}=${error[key]}`)
+    .join("\n");
+  process.stderr.write(`FACTORY_EXECUTOR_FAILED: ${error.stack ?? error.message}\n${databaseContext}\n`);
   process.exitCode = 1;
 });
