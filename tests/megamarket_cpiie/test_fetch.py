@@ -1,9 +1,15 @@
+import ssl
 import unittest
 from email.message import Message
 from unittest.mock import Mock, patch
 
 from products.megamarket.cpiie import CPIIERegistry, Source
-from products.megamarket.cpiie.fetch import FetchError, OfficialSourceFetcher, _SameHostRedirectHandler
+from products.megamarket.cpiie.fetch import (
+    FetchError,
+    OfficialSourceFetcher,
+    _PinnedHTTPSConnection,
+    _SameHostRedirectHandler,
+)
 
 
 class FakeResponse:
@@ -197,6 +203,38 @@ class OfficialSourceFetcherTests(unittest.TestCase):
                 OfficialSourceFetcher._resolve_public_ip("policy.example.org"),
                 "8.8.8.8",
             )
+
+    def test_pinned_https_connection_uses_ip_but_preserves_hostname_sni(self):
+        raw_socket = Mock(name="raw_socket")
+        tls_socket = Mock(name="tls_socket")
+        tls_context = Mock(name="tls_context")
+        tls_context.wrap_socket.return_value = tls_socket
+        with patch(
+            "products.megamarket.cpiie.fetch.socket.create_connection",
+            return_value=raw_socket,
+        ) as create_connection:
+            connection = _PinnedHTTPSConnection(
+                "policy.example.org",
+                "8.8.8.8",
+                timeout=7,
+                context=tls_context,
+            )
+            connection.connect()
+
+        create_connection.assert_called_once_with(
+            ("8.8.8.8", 443), 7, None
+        )
+        tls_context.wrap_socket.assert_called_once_with(
+            raw_socket, server_hostname="policy.example.org"
+        )
+        self.assertIs(connection.sock, tls_socket)
+
+    def test_pinned_https_connection_keeps_default_certificate_verification(self):
+        connection = _PinnedHTTPSConnection(
+            "policy.example.org", "8.8.8.8"
+        )
+        self.assertTrue(connection._context.check_hostname)
+        self.assertEqual(connection._context.verify_mode, ssl.CERT_REQUIRED)
 
     def test_redirect_handler_rejects_port_change(self):
         handler = _SameHostRedirectHandler()
