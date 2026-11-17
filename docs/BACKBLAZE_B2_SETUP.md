@@ -1,6 +1,6 @@
 # Backblaze B2 Object Storage Integration
 
-**Status:** Adapter implemented on `factory/phase-0-blueprint`; live credentials and runtime connection are not yet configured or verified.
+**Status:** Adapter and GitHub Actions verification workflow are on `main`. GitHub-hosted runner verification passed on 2026-11-15 (run `43745900128`). This proves B2 connectivity from that ephemeral runner only; no persistent runtime connection or full artifact lifecycle is implemented.
 
 ## Target bucket
 
@@ -39,7 +39,7 @@ In the repository, open **Settings → Secrets and variables → Actions → New
 - `B2_APPLICATION_KEY_ID` = your application key ID
 - `B2_APPLICATION_KEY` = your application key secret
 
-Do not put the key values in GitHub files, issue comments, or chat. Because GitHub requires a `workflow_dispatch` workflow to exist on the default branch, this workflow becomes runnable only after PR #1 is reviewed and merged into `main`. The job also checks that the selected ref is exactly `main` and checks out `main`; a manual dispatch from any other branch is skipped before secrets are exposed. Do not merge it automatically. After the merge, open **Actions → Verify Backblaze B2 → Run workflow**. First run with `write_test=false` to verify authenticated bucket listing. After that succeeds, run again with `write_test=true` to verify upload and read-back. The second run leaves one tiny object under `healthchecks/` because the bucket retains object versions.
+Do not put the key values in GitHub files, issue comments, or chat. The workflow is already present on `main` and was manually dispatched successfully. Run `43745900128` completed with `write_test=true`; logs confirmed authenticated bucket listing and upload/read-back. The unique object under `healthchecks/` is intentionally retained because the bucket keeps object versions. The GitHub connector currently has no direct workflow-dispatch operation, so a future manual run may require the GitHub Actions UI unless a dispatch capability is added.
 
 ## Local install and verification
 
@@ -66,6 +66,11 @@ The write test creates a tiny uniquely named object under `healthchecks/` and re
 
 The adapter uses AWS Signature Version 4 and path-style addressing. It does not make the bucket public, alter lifecycle settings, or create/delete buckets.
 
-## Current blocker
+## Current verified state and limitations
 
-No Railway project or service exists in the connected workspace. A live B2 test can run on GitHub's temporary hosted runner after the five repository secrets are configured; this does not create a persistent service or Railway project. No cloud project/service should be created until the user reviews the runtime cost and explicitly approves creation/deployment.
+- GitHub Actions has successfully authenticated to the private bucket, listed objects, uploaded a uniquely named health-check object, and read it back.
+- The five repository secrets were injected into the runner as masked environment values. Their underlying values are not readable through the GitHub connector and must remain secret.
+- No Railway project or service exists in the connected workspace. The successful test ran on a temporary GitHub-hosted runner and does not prove a persistent application runtime.
+- The adapter has not yet been integrated into a factory artifact lifecycle (upload, content hash, metadata record, retrieval, retention, integrity check).
+- No backup/restore test has been performed. Do not describe B2 as a verified backup system until a restore test passes.
+- No cloud project/service should be created until the user reviews runtime cost and explicitly approves creation/deployment.

@@ -1,0 +1,18 @@
+{
+  "task_id": "TRADIX-DEMO-001",
+  "project_key": "tradix",
+  "repository": "grinlife4-stack/TRADIX",
+  "base_ref": "main",
+  "title": "Create a tested text slug utility",
+  "request": "Create a small Python utility that converts human-readable text into URL-safe ASCII slugs. Normalize accented Latin characters, lowercase text, replace runs of punctuation or whitespace with a single hyphen, and trim leading or trailing hyphens.",
+  "acceptance_criteria": [
+    "Expose a public slugify(value: str) -> str function.",
+    "Convert accented Latin characters to their ASCII equivalents.",
+    "Collapse punctuation and whitespace runs into one hyphen.",
+    "Return an empty string for input with no ASCII alphanumeric characters.",
+    "Reject non-string input with TypeError.",
+    "Pass the generated test suite."
+  ],
+  "risk_class": "low",
+  "approval_required": false
+}

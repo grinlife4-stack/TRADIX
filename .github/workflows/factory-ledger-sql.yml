@@ -1,0 +1,156 @@
+name: factory-ledger-sql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-schema:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tradix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tradix_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Provision non-privileged schema migration identity
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test <<'SQL'
+          CREATE ROLE tradix_migrator LOGIN NOCREATEROLE;
+          GRANT CREATE ON DATABASE tradix_test TO tradix_migrator;
+          SQL
+      - name: Provision cluster-level factory roles as administrator
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/bootstrap/0001_factory_roles.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "GRANT factory_executor_owner TO tradix_migrator WITH SET TRUE, INHERIT FALSE"
+      - name: Apply factory ledger draft as non-superuser without CREATEROLE
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0001_factory_ledger.sql
+      - name: Apply mission and task-plan version migration to disposable PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0002_mission_plan_versions.sql
+      - name: Apply intake approval decision migration to disposable PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0003_intake_approval_decisions.sql
+      - name: Test factory ledger and register the Hello World demo product
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: bash tests/test_factory_ledger_sql.sh "$POSTGRES_CONTAINER_ID"
+      - name: Install product dossier API dependencies
+        run: npm install --prefix runtime/product-dossier-api --ignore-scripts --no-audit --no-fund
+      - name: Install factory executor dependencies
+        run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
+      - name: Execute Hello World through the product runtime
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: node runtime/factory-executor/runner.mjs examples/hello-world/product.json
+      - name: Verify factory executor idempotent retry
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: |
+          set -euo pipefail
+          output=$(node runtime/factory-executor/runner.mjs examples/hello-world/product.json)
+          printf '%s\n' "$output"
+          grep -Eq '^ALREADY VERIFIED task=.* attempt=.* events=7 evidence=3$' <<< "$output"
+      - name: Upload factory execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hello-world-factory-evidence
+          path: /tmp/tradix-factory-executor/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Validate product dossier JSON Schema across product categories
+        run: npm run --prefix runtime/product-dossier-api test:schema
+      - name: Run isolated product dossier API integration test
+        env:
+          DATABASE_URL: postgresql://factory_rt_tradix:ci-only-factory-dossier-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          PRODUCT_DOSSIER_API_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          NODE_ENV: test
+          PORT: "8788"
+        run: |
+          node runtime/product-dossier-api/server.mjs > /tmp/product-dossier-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8788/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:8788/health >/dev/null || { cat /tmp/product-dossier-api.log; exit 1; }
+          PRODUCT_DOSSIER_API_URL=http://127.0.0.1:8788 PRODUCT_DOSSIER_API_KEY="$PRODUCT_DOSSIER_API_KEY" node tests/test_product_dossier_api.mjs || { cat /tmp/product-dossier-api.log; exit 1; }
+      - name: Install mission plan API dependencies
+        run: npm install --prefix runtime/mission-plan-api --ignore-scripts --no-audit --no-fund
+      - name: Run isolated mission and task-plan API integration test
+        env:
+          DATABASE_URL: postgresql://factory_rt_tradix:ci-only-factory-dossier-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          MISSION_PLAN_API_KEY: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          NODE_ENV: test
+          PORT: "8789"
+        run: |
+          node runtime/mission-plan-api/server.mjs > /tmp/mission-plan-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8789/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:8789/health >/dev/null || { cat /tmp/mission-plan-api.log; exit 1; }
+          MISSION_PLAN_API_URL=http://127.0.0.1:8789 MISSION_PLAN_API_KEY="$MISSION_PLAN_API_KEY" node tests/test_mission_plan_api.mjs || { cat /tmp/mission-plan-api.log; exit 1; }
+      - name: Apply memory gateway migration to disposable PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/0001_memory_gateway.sql
+      - name: Test memory gateway schema and invariants
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: bash tests/test_memory_gateway_sql.sh "$POSTGRES_CONTAINER_ID"
+      - name: Run memory gateway HTTP integration test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/tradix_test?sslmode=disable
+          MEMORY_GATEWAY_API_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          PORT: "8787"
+        run: |
+          node runtime/memory-gateway/server.mjs > /tmp/memory-gateway.log 2>&1 &
+          gateway_pid=$!
+          trap 'kill "$gateway_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8787/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:8787/health >/dev/null || { cat /tmp/memory-gateway.log; exit 1; }
+          node tests/test_memory_gateway_integration.mjs || { cat /tmp/memory-gateway.log; exit 1; }
