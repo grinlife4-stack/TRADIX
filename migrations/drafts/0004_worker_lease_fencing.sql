@@ -450,6 +450,13 @@ REVOKE ALL ON FUNCTION factory.finish_task_attempt(UUID, UUID, TEXT)
     FROM PUBLIC, factory_runtime;
 RESET ROLE;
 
+REVOKE ALL ON FUNCTION factory.acquire_task_lease(UUID, UUID, TEXT, INTEGER) FROM PUBLIC;
+REVOKE ALL ON FUNCTION factory.renew_task_lease(UUID, UUID, TEXT, BIGINT, INTEGER) FROM PUBLIC;
+REVOKE ALL ON FUNCTION factory.transition_task_fenced(UUID, BIGINT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB) FROM PUBLIC;
+REVOKE ALL ON FUNCTION factory.record_task_evidence_fenced(UUID, UUID, TEXT, BIGINT, TEXT, TEXT, TEXT, BIGINT, TEXT, TEXT, TEXT, JSONB) FROM PUBLIC;
+REVOKE ALL ON FUNCTION factory.finish_task_attempt_fenced(UUID, UUID, TEXT, BIGINT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION factory.release_task_lease(UUID, UUID, TEXT, BIGINT) FROM PUBLIC;
+
 GRANT EXECUTE ON FUNCTION factory.acquire_task_lease(UUID, UUID, TEXT, INTEGER) TO factory_runtime;
 GRANT EXECUTE ON FUNCTION factory.renew_task_lease(UUID, UUID, TEXT, BIGINT, INTEGER) TO factory_runtime;
 GRANT EXECUTE ON FUNCTION factory.transition_task_fenced(UUID, BIGINT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, JSONB) TO factory_runtime;
