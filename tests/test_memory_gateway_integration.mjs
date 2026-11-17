@@ -13,6 +13,13 @@ assert.deepEqual(await health.json(), { ok: true, service: "memory-gateway", ver
 const unauthorized = await fetch(`${base}/v1/context`);
 assert.equal(unauthorized.status, 401);
 
+const rejectedMethod = await fetch(`${base}/v1/context`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ project: "tradix" })
+});
+assert.equal(rejectedMethod.status, 405);
+
 const legacySelector = await fetch(`${base}/v1/context?project=tradix`, {
   headers: { authorization: `Bearer ${tradixToken}` }
 });
