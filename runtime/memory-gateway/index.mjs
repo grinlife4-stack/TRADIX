@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
 import { Pool } from "pg";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -36,10 +36,6 @@ function bearerToken(request) {
 
 function tokenHash(token) {
   return createHash("sha256").update(token, "utf8").digest();
-}
-
-function safeEqual(left, right) {
-  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 export default {
@@ -83,5 +79,3 @@ export default {
     await pool.end();
   }
 };
-
-export { safeEqual };
