@@ -1,12 +1,14 @@
 {
   "name": "factory-memory-gateway",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=24"
   },
-  "dependencies": {},
+  "dependencies": {
+    "pg": "8.23.1"
+  },
   "scripts": {
     "start": "node server.mjs"
   }

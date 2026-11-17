@@ -159,3 +159,14 @@ Start with the existing PostgreSQL capability only after confirming the intended
 ## 13. Binding rule
 
 **The executive leader owns reasoning and orchestration. Durable systems own truth, history and operational state. The model may change; the memory contract and evidence must remain.**
+
+
+## 14. Project-scoped gateway security hardening
+
+The read-only HTTP gateway must not accept a caller-selected project identifier. Authentication is project-scoped: a high-entropy bearer token is hashed with SHA-256 and resolved to exactly one project. Raw tokens are never stored in PostgreSQL.
+
+Migration `0002_memory_gateway_project_auth.sql` creates separate non-login runtime and SECURITY DEFINER owner roles. The runtime login receives only schema usage and execute permission on the token-resolution function; it cannot query memory tables directly. The function sets a transaction-local project scope before reading project data. Forced row-level security applies that scope to project-owned tables. Tokens support expiry and revocation.
+
+The HTTP wrapper rejects non-GET methods before reading request bodies. The endpoint accepts no request body and no project selector. PostgreSQL access uses the maintained `pg` driver with parameterized queries and a bounded connection pool; the custom wire-protocol implementation has been removed.
+
+The CI integration must run with a dedicated non-superuser login. A successful superuser test is not evidence of least-privilege enforcement. No production migration or deployment is authorized by these changes.

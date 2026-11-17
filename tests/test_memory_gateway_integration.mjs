@@ -1,38 +1,51 @@
 import assert from "node:assert/strict";
 
 const base = process.env.MEMORY_GATEWAY_URL || "http://127.0.0.1:8787";
-const key = process.env.MEMORY_GATEWAY_API_KEY;
-assert.ok(key && key.length >= 64, "test API key must be at least 64 characters");
+const tradixToken = process.env.MEMORY_GATEWAY_TRADIX_TOKEN;
+const otherToken = process.env.MEMORY_GATEWAY_OTHER_TOKEN;
+assert.ok(tradixToken && tradixToken.length >= 40, "TRADIX project token required");
+assert.ok(otherToken && otherToken.length >= 40, "second project token required");
 
 const health = await fetch(`${base}/health`);
 assert.equal(health.status, 200);
-assert.deepEqual(await health.json(), { ok: true, service: "memory-gateway", version: "1.0.2" });
+assert.deepEqual(await health.json(), { ok: true, service: "memory-gateway", version: "1.1.0" });
 
-const unauthorized = await fetch(`${base}/v1/context?project=missing`);
+const unauthorized = await fetch(`${base}/v1/context`);
 assert.equal(unauthorized.status, 401);
 
-const missing = await fetch(`${base}/v1/context?project=missing`, {
-  headers: { authorization: `Bearer ${key}` }
+const rejectedMethod = await fetch(`${base}/v1/context`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ project: "tradix" })
 });
-assert.equal(missing.status, 404);
-assert.deepEqual(await missing.json(), { error: "project_not_found" });
+assert.equal(rejectedMethod.status, 405);
 
-const invalid = await fetch(`${base}/v1/context?project=BAD%20KEY`, {
-  headers: { authorization: `Bearer ${key}` }
+const legacySelector = await fetch(`${base}/v1/context?project=tradix`, {
+  headers: { authorization: `Bearer ${tradixToken}` }
 });
-assert.equal(invalid.status, 400);
+assert.equal(legacySelector.status, 400);
+assert.deepEqual(await legacySelector.json(), { error: "project_selector_not_supported" });
 
-const valid = await fetch(`${base}/v1/context?project=tradix`, {
-  headers: { authorization: `Bearer ${key}` }
+const tradix = await fetch(`${base}/v1/context`, {
+  headers: { authorization: `Bearer ${tradixToken}` }
 });
-assert.equal(valid.status, 200);
-const context = await valid.json();
-assert.equal(context.schema_version, "1.0");
-assert.equal(context.project.project_key, "tradix");
-assert.equal(context.project.name, "TRADIX");
-assert.ok(Array.isArray(context.active_missions));
-assert.ok(Array.isArray(context.approved_decisions));
-assert.ok(Array.isArray(context.recent_events));
-assert.equal(context.recent_events[0].event_type, "CI_INTEGRATION_TEST");
+assert.equal(tradix.status, 200);
+const tradixContext = await tradix.json();
+assert.equal(tradixContext.project.project_key, "tradix");
+assert.equal(tradixContext.project.name, "TRADIX");
 
-console.log("memory gateway integration checks passed");
+const other = await fetch(`${base}/v1/context`, {
+  headers: { authorization: `Bearer ${otherToken}` }
+});
+assert.equal(other.status, 200);
+const otherContext = await other.json();
+assert.equal(otherContext.project.project_key, "other-project");
+assert.equal(otherContext.project.name, "Other Project");
+assert.notEqual(tradixContext.project.project_id, otherContext.project.project_id);
+
+const revoked = await fetch(`${base}/v1/context`, {
+  headers: { authorization: "Bearer revoked-project-token-ci-0123456789abcdef0123456789abcdef" }
+});
+assert.equal(revoked.status, 401);
+
+console.log("memory gateway project isolation and authentication checks passed");
