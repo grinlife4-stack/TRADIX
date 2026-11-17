@@ -18,11 +18,12 @@ A lease table alone is insufficient. Every write path that can change execution 
 3. Every successful acquisition or takeover receives a strictly increasing fencing token for that task. Tokens are never reused, including after lease deletion or expiry.
 4. A lease is bound to `task_id`, `attempt_id`, `worker_id`, token, and expiry.
 5. Heartbeat, lifecycle transition, evidence recording, and attempt completion must validate the exact current tuple and require `expires_at > clock_timestamp()`.
-6. Validation occurs before idempotency replay. A stale worker cannot obtain a successful response by replaying an old idempotency key.
-7. Once takeover succeeds, every write from the former worker fails, even if its process is still running.
-8. Expiry alone does not create a new owner. A new owner exists only after a successful serialized acquisition.
-9. Only the product's isolated runtime LOGIN may acquire or renew its product's leases. Runtime roles cannot write lease tables directly.
-10. Human approval remains a separate authority and cannot acquire worker leases.
+6. Fenced write validation must lock the task row and then the lease row, in the same order as acquisition, and hold those locks through the delegated write. This prevents a takeover from interleaving between validation and mutation.
+7. Validation occurs before idempotency replay. A stale worker cannot obtain a successful response by replaying an old idempotency key.
+8. Once takeover succeeds, every write from the former worker fails, even if its process is still running.
+9. Expiry alone does not create a new owner. A new owner exists only after a successful serialized acquisition.
+10. Only the product's isolated runtime LOGIN may acquire or renew its product's leases. Runtime roles cannot write lease tables directly.
+11. Human approval remains a separate authority and cannot acquire worker leases.
 
 ## 3. Database API
 
@@ -41,7 +42,9 @@ A per-task monotonically increasing counter must survive lease-row deletion. A g
 
 Attempt creation must produce a `queued` attempt, not an already-running attempt. Acquisition changes it to `running` and records `started_at`.
 
-A worker restart may reacquire the same idempotent attempt after its prior lease expires. The new acquisition receives a higher fencing token. The runner then reads the committed task state and resumes from that state; it must not assume the task is still `queued`.
+At the database layer, a worker may reacquire the same attempt after its prior lease expires. The new acquisition receives a higher fencing token. The current runner deliberately does **not** resume intermediate task states: it accepts only a `queued` task with a `queued` attempt, and refuses all interrupted states. This prevents unsafe re-execution of scripts that may have external side effects.
+
+Stage-level recovery remains unsupported until durable checkpoints, stage idempotency contracts, and side-effect reconciliation exist. Do not describe lease takeover as automatic crash recovery. An interrupted attempt requires an explicit operator recovery decision or a separately designed recovery protocol.
 
 A takeover must not silently mark the previous worker successful. The attempt remains the same logical attempt, while the new lease epoch fences all work from the previous process. If policy later requires a new attempt per takeover, that is a separate schema/API decision and must preserve the same fencing guarantee.
 
@@ -52,9 +55,9 @@ Lease release/completion must be atomic with terminal attempt completion. A fail
 - Generate a stable worker identity per process instance; do not reuse it across independent workers.
 - Acquire before executing product code.
 - Keep the returned fencing token in process memory and pass it to every database write.
-- Heartbeat at a bounded fraction of the lease TTL. If renewal fails, stop launching work and terminate the child process.
-- Do not treat a local timeout as proof that the child process stopped. Kill and await process termination before relinquishing local execution.
-- On restart, read task/attempt state after acquiring a new lease and resume idempotently from the durable state.
+- Heartbeat at a bounded fraction of the lease TTL, with a bounded query timeout. If renewal fails, stop launching work and terminate the entire child process tree.
+- Do not treat a local timeout as proof that the child process stopped. Kill the process tree and await the stage leader's termination before cleanup.
+- On restart, fail closed for any non-queued task/attempt state. Do not resume until durable stage checkpoints and side-effect safety are implemented.
 - The runner must never fall back to an unfenced database function.
 - Keep the existing `trusted-node` warning: leases coordinate workers; they are not an OS sandbox.
 
@@ -68,10 +71,11 @@ Run against disposable PostgreSQL 17 and isolated product LOGIN identities:
 4. The former worker is rejected for transition, evidence, finish, and idempotent replay after takeover.
 5. The current worker can transition, record evidence, and finish.
 6. Concurrent acquisition attempts serialize and produce exactly one current owner.
-7. Runtime cannot mutate lease rows or invoke legacy unfenced write APIs.
-8. Product A cannot inspect or mutate Product B lease state.
-9. Crash/restart resumes the same idempotent attempt from a non-queued task state.
-10. Terminal completion and lease release are atomic under injected transaction failure.
+7. An in-flight fenced evidence write holds the task/lease locks so an expired-lease takeover cannot commit ahead of that write.
+8. Runtime cannot mutate lease rows or invoke legacy unfenced write APIs.
+9. Product A cannot inspect or mutate Product B lease state, including acquire and renew calls.
+10. Runner refuses a non-queued interrupted task/attempt rather than rerunning side-effectful stages.
+11. Terminal completion and lease release commit or roll back as one transaction under injected failure.
 
 ## 7. Migration and rollout constraints
 
