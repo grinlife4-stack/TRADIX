@@ -14,7 +14,7 @@
     "sender": {"enum": ["user", "interface_ai", "factory"]},
     "message_type": {"enum": ["user_input", "mission_proposal", "status_query", "capability_query", "clarification_answer", "factory_need", "status_update", "result", "blocked"]},
     "body": {"type": "object", "minProperties": 1},
-    "created_at": {"type": "string", "minLength": 1, "maxLength": 40}
+    "created_at": {"type": "string", "format": "date-time", "minLength": 1, "maxLength": 40}
   },
   "allOf": [
     {
@@ -30,7 +30,7 @@
       "then": {"properties": {"message_type": {"enum": ["factory_need", "status_update", "result", "blocked"]}}}
     },
     {
-      "if": {"properties": {"message_type": {"enum": ["mission_proposal", "clarification_answer"]}}, "required": ["message_type"]},
+      "if": {"properties": {"message_type": {"enum": ["user_input", "mission_proposal", "clarification_answer"]}}, "required": ["message_type"]},
       "then": {"properties": {"body": {"type": "object", "required": ["text"], "properties": {"text": {"type": "string", "minLength": 1, "maxLength": 12000}}}}}
     },
     {
