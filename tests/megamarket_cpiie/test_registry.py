@@ -79,6 +79,19 @@ class CPIIERegistryTests(unittest.TestCase):
             CapabilityState.ALLOWED,
         )
 
+    def test_newer_source_snapshot_invalidates_old_policy_approval(self):
+        self.propose()
+        self.registry.review_rule("rule-1", "human-reviewer", RuleState.VERIFIED)
+        self.assertEqual(
+            self.registry.evaluate("catalog.display").state,
+            CapabilityState.ALLOWED,
+        )
+
+        self.registry.record_document("retailer-terms", "Terms v2")
+        result = self.registry.evaluate("catalog.display")
+        self.assertEqual(result.state, CapabilityState.BLOCKED_REVIEW)
+        self.assertIn("newer source snapshot", result.reason)
+
     def test_conflict_blocks_capability(self):
         self.propose()
         self.registry.review_rule("rule-1", "human-reviewer", RuleState.CONFLICT)
