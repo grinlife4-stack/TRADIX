@@ -179,3 +179,13 @@ This file is the durable master checklist, not a chat summary. Update task statu
 - **Release restriction:** development/read-only only. No production identity provider, independently anchored signed audit ledger, approved live data source, affiliate activation, or commercial workflow is in place.
 
 The linked product report is the detailed status record. This master plan retains only the control-plane pointer and release restriction. This handoff does not authorize a merge, external integration, or commercial launch.
+
+## 11. Independent product repository boundary (decision 2026-11-17)
+
+- **Architecture decision:** [Independent Product Repositories](architecture/PROJECT_REPOSITORY_BOUNDARIES.md).
+- TRADIX is the factory/control plane; it is not the source repository or runtime owner for independent products.
+- MegaMarket and CPIIE are independent product code and must ultimately live in a dedicated MegaMarket repository. A `products/megamarket/` folder inside TRADIX is only a temporary organizational boundary, not repository isolation.
+- **Current deviation:** MegaMarket code and PR #35 remain in `grinlife4-stack/TRADIX`. PR #35 is open/Draft/unmerged. Do not merge it into TRADIX main.
+- **Migration blocked:** the connected GitHub actions available here do not expose repository creation/import. Preserve the current branch and source unchanged until a dedicated destination repository exists.
+- Migration acceptance requires preserved history/source manifest, imported PR work, hash/tree comparison, clean checkout, and passing CI on the exact imported SHA. Only after those checks may a separately reviewed PR remove the duplicate product subtree from TRADIX.
+- TRADIX may retain project registry metadata, status, approvals, task state, and links to product-owned repositories and evidence. It must not absorb product-specific code, secrets, runtime data, or commercial workflows.
