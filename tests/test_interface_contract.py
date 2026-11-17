@@ -113,3 +113,25 @@ def test_need_rejects_non_boolean_progress_flag():
             reason="Build exceeds current limits.",
             blocks_progress="yes",
         )
+
+
+def test_user_input_requires_text():
+    with pytest.raises(InterfaceContractError, match="requires body.text"):
+        message(sender=Sender.USER, message_type=MessageType.USER_INPUT, body={})
+
+
+def test_message_rejects_non_iso_timestamp():
+    with pytest.raises(InterfaceContractError, match="ISO-8601"):
+        message(created_at="yesterday")
+
+
+def test_factory_need_preserves_specific_unknown_field_error():
+    with pytest.raises(InterfaceContractError, match="unknown factory need fields"):
+        FactoryNeed.from_mapping({
+            "need_id": "need-003",
+            "project_key": "tradix",
+            "category": "capability",
+            "question": "Need a browser.",
+            "reason": "No browser adapter is registered.",
+            "unexpected": True,
+        })
