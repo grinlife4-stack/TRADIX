@@ -222,7 +222,9 @@ expect_runtime_failure "old worker cannot write after serialized takeover" "vali
 echo "PASS: lease takeover serializes against in-flight evidence writes"
 
 runtime_psql "SELECT factory.finish_task_attempt_fenced('$lock_task_id','$lock_attempt_id','lock-worker-new',$lock_token_new,'failed')" >/dev/null
-runtime_psql "BEGIN; SELECT factory.finish_task_attempt_fenced('$lock_task_id','$lock_attempt_id','lock-worker-new',$lock_token_new,'failed'); SELECT factory.transition_task_fenced('$lock_task_id',$lock_token_new,'lock-worker-new','failed','task.failed','agent','lock-worker-new','lock-worker-final','$lock_attempt_id','{}'::jsonb); SELECT factory.release_task_lease('$lock_task_id','$lock_attempt_id','lock-worker-new',$lock_token_new); COMMIT" >/dev/null
+expect_runtime_failure "completed attempt cannot record new evidence" "evidence can only be recorded for a running attempt" \
+  "SELECT factory.record_task_evidence_fenced('$lock_task_id','$lock_attempt_id','lock-worker-new',$lock_token_new,'test_report','ci://lease-lock/after-finish','eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',1,'text/plain','test_report')"
+runtime_psql "BEGIN; SELECT factory.transition_task_fenced('$lock_task_id',$lock_token_new,'lock-worker-new','failed','task.failed','agent','lock-worker-new','lock-worker-final','$lock_attempt_id','{}'::jsonb); SELECT factory.release_task_lease('$lock_task_id','$lock_attempt_id','lock-worker-new',$lock_token_new); COMMIT" >/dev/null
 expect_runtime_failure "released lease cannot be renewed" "lease is missing, expired, or owned by another worker" \
   "SELECT factory.renew_task_lease('$lock_task_id','$lock_attempt_id','lock-worker-new',$lock_token_new,30)"
 echo "PASS: current lease owner can finish, transition, and release after takeover"
