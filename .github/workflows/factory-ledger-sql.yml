@@ -163,6 +163,17 @@ jobs:
             exit 1
           fi
           echo "PASS: lease loss terminated the child and blocked stale cleanup writes"
+          if node runtime/factory-executor/runner.mjs examples/lease-loss/product.json > /tmp/tradix-lease-recovery-refused.log 2>&1; then
+            echo "Executor unexpectedly resumed an interrupted stage without checkpoints"
+            exit 1
+          fi
+          grep -F "refusing implicit recovery or duplicate execution" /tmp/tradix-lease-recovery-refused.log
+          recovered_state=$(docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -U postgres -d tradix_test -c "SELECT t.status || '/' || a.status FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_key='lease-loss-runner-v1' LIMIT 1")
+          if [[ "$recovered_state" != "implementing/running" ]]; then
+            echo "Refused recovery changed the interrupted task state: $recovered_state"
+            exit 1
+          fi
+          echo "PASS: runner refuses unsafe automatic stage recovery"
       - name: Upload factory execution evidence
         if: always()
         uses: actions/upload-artifact@v4
