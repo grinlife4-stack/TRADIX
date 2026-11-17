@@ -240,9 +240,13 @@ def verify_evidence_files(manifest: Any, base_dir: Path | None) -> list[str]:
                         if not evidence_file.is_file():
                             errors.append(f"{label} evidence file does not exist: {relative_path}")
                         else:
-                            actual = hashlib.sha256(evidence_file.read_bytes()).hexdigest()
-                            if actual != value.get("evidence_sha256"):
-                                errors.append(f"{label} evidence SHA-256 does not match the file")
+                            try:
+                                actual = hashlib.sha256(evidence_file.read_bytes()).hexdigest()
+                            except OSError as error:
+                                errors.append(f"{label} evidence file cannot be read: {error}")
+                            else:
+                                if actual != value.get("evidence_sha256"):
+                                    errors.append(f"{label} evidence SHA-256 does not match the file")
             for key, child in value.items():
                 walk(child, f"{label}.{key}")
         elif isinstance(value, list):
