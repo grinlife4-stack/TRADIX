@@ -159,3 +159,16 @@ TRADIX is not considered operationally independent until it can, without user re
 8. stop at any reserved approval boundary.
 
 Passing a demo once is insufficient. The sequence must be repeatable under fault injection and recovery tests.
+
+
+## 11. Conversational AI is the primary interface
+
+The primary user interface is a replaceable conversational AI, not a human-operated administration panel. The user states goals and priorities in natural language. The interface AI translates them into project-scoped proposals, exchanges typed messages with the factory, resolves routine questions from durable context, and reports evidence-backed outcomes.
+
+The interface AI is not the system of record and does not own approvals or execution authority. TRADIX owns durable state, policies, capability discovery, execution, artifacts, and evidence. The AI interface can be replaced without losing project continuity.
+
+The bidirectional protocol is specified in `docs/AI_INTERFACE_ARCHITECTURE.md`, `schemas/ai-interface-message-v1.schema.json`, and `src/tradix/factory/interface_contract.py`. Factory needs are structured records with category, reason, priority, blocking status, and optional mission reference. The interface should resolve them from existing records and verified capabilities before asking the user.
+
+Routine, reversible work within a standing project/resource policy should not require repeated approval. Reserved boundaries remain production changes, destructive operations, sensitive access, irreversible external effects, out-of-policy spending, and material scope changes. Model output is untrusted input and cannot approve itself or change policy.
+
+This section defines the target architecture. The current branch contains validated protocol contracts and tests only; no conversational gateway, live model provider, durable message queue, or autonomous dispatcher is deployed.
