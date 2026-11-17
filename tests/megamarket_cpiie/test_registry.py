@@ -21,9 +21,10 @@ class FakeReviewerVerifier:
 
     def verify_assertion(self, assertion):
         parts = assertion.split("|")
-        if len(parts) != 4 or not all(parts):
+        if len(parts) not in (5, 6) or not all(parts):
             raise ValueError("invalid test assertion")
-        subject, company_id, capability, decision = parts
+        subject, company_id, capability, decision, context_hash = parts[:5]
+        role = parts[5] if len(parts) == 6 else "policy_reviewer"
         now = datetime.now(timezone.utc)
         reviewer = VerifiedReviewer(
             issuer="https://test-issuer.invalid",
@@ -31,8 +32,10 @@ class FakeReviewerVerifier:
             key_id="test-key",
             assertion_id=hashlib.sha256(assertion.encode()).hexdigest(),
             company_id=company_id,
+            roles=(role,),
             capabilities=(capability,),
             decisions=(decision,),
+            context_hash=context_hash,
             authenticated_at=(now - timedelta(seconds=1)).isoformat(),
             expires_at=(now + timedelta(hours=1)).isoformat(),
             receipt="test-receipt:" + assertion,
@@ -73,7 +76,8 @@ class CPIIERegistryTests(unittest.TestCase):
                JOIN sources s ON s.source_id=d.source_id WHERE r.rule_id=?""",
             (rule_id,),
         ).fetchone()
-        assertion = f"{reviewer.strip()}|{row['company_id']}|{row['capability']}|{decision.value}"
+        context_hash = self.registry.review_context_hash(rule_id, decision)
+        assertion = f"{reviewer.strip()}|{row['company_id']}|{row['capability']}|{decision.value}|{context_hash}"
         return self.registry.review_rule(rule_id, assertion, decision)
 
     def propose(self, rule_id="rule-1", capability="catalog.display"):
@@ -288,12 +292,24 @@ class CPIIERegistryTests(unittest.TestCase):
         self.propose()
         with self.assertRaisesRegex(ReviewerAuthenticationError, "company"):
             self.registry.review_rule(
-                "rule-1", "reviewer|other-company|catalog.display|VERIFIED",
+                "rule-1",
+                f"reviewer|other-company|catalog.display|VERIFIED|{self.registry.review_context_hash('rule-1', RuleState.VERIFIED)}",
                 RuleState.VERIFIED,
             )
         with self.assertRaisesRegex(ReviewerAuthenticationError, "capability"):
             self.registry.review_rule(
-                "rule-1", "reviewer|retailer-x|catalog.delete|VERIFIED",
+                "rule-1",
+                f"reviewer|retailer-x|catalog.delete|VERIFIED|{self.registry.review_context_hash('rule-1', RuleState.VERIFIED)}",
+                RuleState.VERIFIED,
+            )
+
+    def test_reviewer_must_have_policy_reviewer_role(self):
+        self.propose()
+        context_hash = self.registry.review_context_hash("rule-1", RuleState.VERIFIED)
+        with self.assertRaisesRegex(ReviewerAuthenticationError, "policy_reviewer role"):
+            self.registry.review_rule(
+                "rule-1",
+                f"reviewer|retailer-x|catalog.display|VERIFIED|{context_hash}|viewer",
                 RuleState.VERIFIED,
             )
 
@@ -477,8 +493,11 @@ class CPIIERegistryTests(unittest.TestCase):
                 "old-rule", old_doc.document_id, evidence,
                 "catalog.old", "Old permission",
             )
+            old_context = old_registry.review_context_hash("old-rule", RuleState.VERIFIED)
             old_registry.review_rule(
-                "old-rule", "reviewer|retailer-x|catalog.old|VERIFIED", RuleState.VERIFIED
+                "old-rule",
+                f"reviewer|retailer-x|catalog.old|VERIFIED|{old_context}",
+                RuleState.VERIFIED,
             )
             result = old_registry.evaluate(
                 "catalog.old", now=datetime.now(timezone.utc).isoformat(),
