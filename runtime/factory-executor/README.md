@@ -43,7 +43,7 @@ The runner intentionally refuses to resume an interrupted task from an intermedi
 
 ## Security boundary
 
-**This is a trusted-code runner, not a sandbox.** It invokes Node.js scripts from the product directory. A script can still exercise the operating-system permissions of the runner process, including filesystem and network access available to that process. Path checks, a child-process environment allow-list, output limits, and timeouts do not create an OS security boundary.
+**This is a trusted-code runner, not a sandbox.** It invokes Node.js scripts from the product directory. A script can still exercise the operating-system permissions of the runner process, including filesystem and network access available to that process. Path checks, a child-process environment allow-list, process-tree termination, output limits, and timeouts do not create an OS security boundary.
 
 Only run code that has been reviewed and explicitly trusted. Do not use this runner for arbitrary third-party submissions or untrusted pull-request code. Before that use case, replace the execution backend with an isolated sandbox/container or remote worker with restricted filesystem, network, CPU, memory, process, and credential access. Never expose database credentials or deployment secrets to product code.
 
