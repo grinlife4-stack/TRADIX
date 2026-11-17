@@ -20,6 +20,7 @@ CREATE TABLE factory.task_leases (
 
 REVOKE ALL ON factory.task_lease_counters, factory.task_leases FROM PUBLIC, factory_runtime;
 GRANT SELECT, INSERT, UPDATE ON factory.task_lease_counters, factory.task_leases TO factory_executor_owner;
+GRANT DELETE ON factory.task_leases TO factory_executor_owner;
 
 ALTER TABLE factory.task_lease_counters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE factory.task_lease_counters FORCE ROW LEVEL SECURITY;
