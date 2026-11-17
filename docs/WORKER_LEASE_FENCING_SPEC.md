@@ -1,0 +1,82 @@
+# Worker Lease and Fencing Contract v0.1
+
+Status: proposed implementation contract  
+Target branch: `factory/worker-lease-fencing-v0-1`  
+Base: `factory/executive-runtime-architecture-v0-1`  
+Scope: PostgreSQL task execution ownership and crash recovery. This document does not authorize applying migrations to Neon or Production.
+
+## 1. Problem
+
+The current ledger creates attempts with status `running` before a worker has acquired exclusive execution ownership. Lifecycle transitions, evidence writes, and attempt completion identify an attempt but do not prove that the caller still owns execution. A timed-out or partitioned worker can therefore continue writing after another worker has taken over.
+
+A lease table alone is insufficient. Every write path that can change execution state or produce trusted evidence must enforce the current fencing token inside PostgreSQL.
+
+## 2. Required invariants
+
+1. At most one unexpired lease exists for a task.
+2. Lease acquisition and takeover are serialized by locking the task row.
+3. Every successful acquisition or takeover receives a strictly increasing fencing token for that task. Tokens are never reused, including after lease deletion or expiry.
+4. A lease is bound to `task_id`, `attempt_id`, `worker_id`, token, and expiry.
+5. Heartbeat, lifecycle transition, evidence recording, and attempt completion must validate the exact current tuple and require `expires_at > clock_timestamp()`.
+6. Validation occurs before idempotency replay. A stale worker cannot obtain a successful response by replaying an old idempotency key.
+7. Once takeover succeeds, every write from the former worker fails, even if its process is still running.
+8. Expiry alone does not create a new owner. A new owner exists only after a successful serialized acquisition.
+9. Only the product's isolated runtime LOGIN may acquire or renew its product's leases. Runtime roles cannot write lease tables directly.
+10. Human approval remains a separate authority and cannot acquire worker leases.
+
+## 3. Database API
+
+The migration must provide narrowly scoped SECURITY DEFINER functions:
+
+- `acquire_task_lease(task_id, attempt_id, worker_id, ttl_seconds)` returns the fencing token and expiry. It locks the task, verifies product ownership and attempt state, rejects a different live owner, and performs a monotonic token increment on first acquisition or takeover.
+- `renew_task_lease(task_id, attempt_id, worker_id, fencing_token, ttl_seconds)` extends only the exact live lease. It must not revive an expired lease.
+- `assert_task_lease(task_id, attempt_id, worker_id, fencing_token)` is an internal helper callable only by the trusted function owner.
+- Fenced lifecycle transition, evidence, and attempt-finish APIs require the fencing token and invoke the lease assertion before any idempotency lookup or write.
+- The previous unfenced runtime write functions must be revoked from runtime roles. No compatibility path may bypass fencing.
+- Lease state is private to the database API. Product runtimes receive SELECT only where needed and no direct INSERT/UPDATE/DELETE/TRUNCATE rights.
+
+A per-task monotonically increasing counter must survive lease-row deletion. A global sequence is acceptable if the API guarantees monotonicity and does not expose sequence mutation to runtime roles.
+
+## 4. Attempt lifecycle and recovery
+
+Attempt creation must produce a `queued` attempt, not an already-running attempt. Acquisition changes it to `running` and records `started_at`.
+
+A worker restart may reacquire the same idempotent attempt after its prior lease expires. The new acquisition receives a higher fencing token. The runner then reads the committed task state and resumes from that state; it must not assume the task is still `queued`.
+
+A takeover must not silently mark the previous worker successful. The attempt remains the same logical attempt, while the new lease epoch fences all work from the previous process. If policy later requires a new attempt per takeover, that is a separate schema/API decision and must preserve the same fencing guarantee.
+
+Lease release/completion must be atomic with terminal attempt completion. A failed or lost connection must never leave a succeeded attempt with a non-terminal task, or a verified task with an unsuccessful attempt.
+
+## 5. Runner contract
+
+- Generate a stable worker identity per process instance; do not reuse it across independent workers.
+- Acquire before executing product code.
+- Keep the returned fencing token in process memory and pass it to every database write.
+- Heartbeat at a bounded fraction of the lease TTL. If renewal fails, stop launching work and terminate the child process.
+- Do not treat a local timeout as proof that the child process stopped. Kill and await process termination before relinquishing local execution.
+- On restart, read task/attempt state after acquiring a new lease and resume idempotently from the durable state.
+- The runner must never fall back to an unfenced database function.
+- Keep the existing `trusted-node` warning: leases coordinate workers; they are not an OS sandbox.
+
+## 6. Required CI tests
+
+Run against disposable PostgreSQL 17 and isolated product LOGIN identities:
+
+1. First acquisition returns a token; a second worker cannot acquire while the lease is live.
+2. A heartbeat extends the exact lease; wrong worker, attempt, token, and expired lease are rejected.
+3. After expiry, takeover succeeds with a strictly greater token.
+4. The former worker is rejected for transition, evidence, finish, and idempotent replay after takeover.
+5. The current worker can transition, record evidence, and finish.
+6. Concurrent acquisition attempts serialize and produce exactly one current owner.
+7. Runtime cannot mutate lease rows or invoke legacy unfenced write APIs.
+8. Product A cannot inspect or mutate Product B lease state.
+9. Crash/restart resumes the same idempotent attempt from a non-queued task state.
+10. Terminal completion and lease release are atomic under injected transaction failure.
+
+## 7. Migration and rollout constraints
+
+- Implement as a new forward-only migration after the currently applied draft migrations; do not rewrite the existing migration history.
+- Update the disposable PostgreSQL CI workflow to apply the migration before the ledger tests and executor integration test.
+- Update SQL tests and runner in the same pull request.
+- Do not apply this draft migration to Neon or Production until CI passes, the diff is reviewed, and a separate explicit rollout decision is made.
+- Do not merge this branch automatically. Open a draft PR only after the migration, tests, runner, and documentation are complete.
