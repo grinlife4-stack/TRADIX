@@ -348,3 +348,13 @@ The product dossier API and mission/plan API are separately tested write paths, 
 - This is a documentation/design change only. No code behavior, database schema, permissions, secrets, deployment, paid service, or production resource was changed.
 - Baseline refreshed before this change: branch head `68ad8815ce57d2bac7303d04ae2ead604f7a8e8f`; PR #3 open/Draft/unmerged; PR #2 closed (Draft metadata retained); all three CI workflows on the refreshed head succeeded: tests `44000498239`, factory-first-run `44000497914`, factory-ledger-sql `44000497908`.
 - CI for this documentation commit must be checked separately before treating the new head as verified.
+
+
+## 12. Conversational interface payload integrity (2026-11-17)
+
+- Hardened `InterfaceMessage` so its body is recursively validated as JSON-compatible data before the message is accepted.
+- Unsupported Python objects, non-finite numbers, non-string object keys, and nesting deeper than 32 levels are rejected with domain-specific contract errors.
+- Object mappings and nested sequences are defensively frozen after validation. The frozen representation remains compatible with standard JSON serialization.
+- Added tests proving that later mutations to caller-owned dictionaries/lists cannot alter an already-validated message, nested structures cannot be changed through ordinary mutation, JSON round-trip remains valid, and malformed payload values fail closed.
+- Implementation and tests are recorded on the working branch; CI on code/test head `db0966327f1f857ccba92b0b4528b6b960adc1c7` passed: Python tests, factory first-run, and factory-ledger SQL integration.
+- This is contract hardening only. No durable message inbox/outbox, live model provider, approval UI, database migration, Neon write, deployment, permission change, or merge was performed.
