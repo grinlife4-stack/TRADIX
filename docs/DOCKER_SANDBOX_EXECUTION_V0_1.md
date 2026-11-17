@@ -43,6 +43,6 @@ The executor does not fall back from `docker-sandbox` to `trusted-node`.
 
 ## Verification
 
-The sandbox probe product checks non-root execution, zero effective capabilities, `NoNewPrivs=1`, absent application secrets, read-only workspace, bounded ephemeral `/tmp` and shared memory, and the absence of default IPv4 and IPv6 routes. CI must run this product through the real factory executor against disposable PostgreSQL before this backend is considered verified.
+The sandbox probe product checks non-root execution, zero effective capabilities, `NoNewPrivs=1`, absent application secrets, read-only workspace, bounded ephemeral `/tmp` and shared memory, and the absence of a default IPv4 route and active non-loopback IPv6 egress routes. CI must run this product through the real factory executor against disposable PostgreSQL before this backend is considered verified.
 
 No Neon/Production migration, deployment, or paid service is authorized by this implementation.
