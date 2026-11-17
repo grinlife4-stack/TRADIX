@@ -122,6 +122,12 @@ class CPIIERegistry:
             title TEXT NOT NULL,
             created_at TEXT NOT NULL
         );
+        CREATE TRIGGER IF NOT EXISTS source_identity_immutable
+            BEFORE UPDATE OF company_id, role, url ON sources
+            WHEN OLD.company_id IS NOT NEW.company_id
+              OR OLD.role IS NOT NEW.role
+              OR OLD.url IS NOT NEW.url
+            BEGIN SELECT RAISE(ABORT, 'source identity is immutable'); END;
         CREATE TABLE IF NOT EXISTS documents (
             document_id TEXT PRIMARY KEY,
             source_id TEXT NOT NULL REFERENCES sources(source_id),
