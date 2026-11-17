@@ -238,11 +238,11 @@ class CPIIERegistry:
             raise ValueError("a named reviewer is required")
         if decision not in (RuleState.VERIFIED, RuleState.CONFLICT, RuleState.EXPIRED):
             raise ValueError("review decision must be VERIFIED, CONFLICT or EXPIRED")
-        self.connection.execute(
+        cursor = self.connection.execute(
             "UPDATE rules SET state=?, reviewer=?, reviewed_at=? WHERE rule_id=?",
             (decision.value, reviewer, utc_now(), rule_id),
         )
-        if self.connection.total_changes == 0:
+        if cursor.rowcount == 0:
             raise KeyError(rule_id)
         self.connection.commit()
         return self.get_rule(rule_id)
