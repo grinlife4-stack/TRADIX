@@ -116,6 +116,30 @@ class OfficialSourceFetcherTests(unittest.TestCase):
                 request, None, 302, "Found", {}, "http://policy.example.org/terms"
             )
 
+    def test_negative_content_length_is_rejected(self):
+        response = FakeResponse()
+        response.headers["Content-Length"] = "-1"
+        self.opener.open.return_value = response
+        with self.assertRaisesRegex(FetchError, "Content-Length"):
+            self.fetcher.fetch("policy", allowed_hosts={"policy.example.org"})
+
+    def test_conflicting_content_lengths_are_rejected(self):
+        response = FakeResponse()
+        response.headers.add_header("Content-Length", "999")
+        self.opener.open.return_value = response
+        with self.assertRaisesRegex(FetchError, "Content-Length"):
+            self.fetcher.fetch("policy", allowed_hosts={"policy.example.org"})
+
+    def test_invalid_redirect_port_is_rejected_as_fetch_error(self):
+        handler = _SameHostRedirectHandler()
+        request = Mock()
+        request.full_url = "https://policy.example.org/terms"
+        with self.assertRaisesRegex(FetchError, "invalid port"):
+            handler.redirect_request(
+                request, None, 302, "Found", {},
+                "https://policy.example.org:not-a-port/terms",
+            )
+
     def test_unknown_source_is_rejected(self):
         with self.assertRaises(KeyError):
             self.fetcher.fetch("missing", allowed_hosts={"policy.example.org"})
