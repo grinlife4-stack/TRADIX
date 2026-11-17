@@ -208,7 +208,6 @@ class CPIIERegistry:
               OR OLD.evidence_id IS NOT NEW.evidence_id
               OR OLD.capability IS NOT NEW.capability
               OR OLD.statement IS NOT NEW.statement
-              OR OLD.effect IS NOT NEW.effect
               OR OLD.expires_at IS NOT NEW.expires_at
             BEGIN SELECT RAISE(ABORT, 'rule content is immutable'); END;
         CREATE TRIGGER IF NOT EXISTS rules_no_delete
@@ -244,6 +243,12 @@ class CPIIERegistry:
             self.connection.execute(
                 "ALTER TABLE rules ADD COLUMN effect TEXT NOT NULL DEFAULT 'UNSPECIFIED'"
             )
+        self.connection.executescript("""
+        CREATE TRIGGER IF NOT EXISTS rules_effect_immutable
+            BEFORE UPDATE OF effect ON rules
+            WHEN OLD.effect IS NOT NEW.effect
+            BEGIN SELECT RAISE(ABORT, 'rule content is immutable'); END;
+        """)
         self.connection.commit()
 
     def register_source(self, source: Source) -> Source:
