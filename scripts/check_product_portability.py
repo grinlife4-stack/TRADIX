@@ -311,7 +311,7 @@ def assess_portability(
     evidence_errors = verify_evidence_files(manifest, base_dir) if mode == "release" else []
     blockers = release_blockers(manifest) if isinstance(manifest, dict) else ["manifest is not an object"]
     design_ready = not errors
-    release_ready = design_ready and not evidence_errors and not blockers
+    release_ready = mode == "release" and design_ready and not evidence_errors and not blockers
     all_errors = errors + evidence_errors
     if errors:
         status = "INVALID"
