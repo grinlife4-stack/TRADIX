@@ -8,3 +8,8 @@ venv/
 .env.*
 !.env.example
 .DS_Store
+node_modules/
+.npm/
+npm-debug.log*
+artifacts/
+coverage/

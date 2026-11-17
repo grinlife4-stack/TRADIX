@@ -1,3 +1,7 @@
+> **ARCHIVED — historical record only.** This 2026-11-15 plan described TRADIX as a software factory. It was superseded by `docs/FACTORY_ARCHITECTURE_BASELINE_V1_1.md` (whose content is version 1.2) and the current executive-runtime decisions. Do not use this document as the active architecture or execution plan. Its original contents are preserved below for traceability.
+
+---
+
 # Autonomous Software Factory — Master Execution Plan
 
 **Document status:** Preflight status correction, version 0.2  

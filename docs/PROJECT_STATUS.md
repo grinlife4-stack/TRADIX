@@ -1,4 +1,6 @@
-# TRADIX — Project Status
+# TRADIX — Historical Project Log
+
+> This file preserves the chronological implementation record and older status snapshots. It is not the current status authority. Use [CURRENT_STATUS.md](CURRENT_STATUS.md) for the latest concise state, and verify live GitHub refs before acting.
 
 **Snapshot:** 2026-11-16  
 **Repository:** `grinlife4-stack/TRADIX`  
@@ -306,3 +308,37 @@ The product dossier API and mission/plan API are separately tested write paths, 
 - [Factory first-run demo — 43938660753](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938660753): success.
 - [Factory ledger + SQL/HTTP integration — 43938660763](https://github.com/grinlife4-stack/TRADIX/actions/runs/43938660763): success, including the mission-plan API atomic-intake integration tests.
 - No Neon migration, Production write, main-branch update, deployment, secret change, paid resource, or PR merge was performed.
+
+
+## 19. Canonical integration path and next operational gap (2026-11-17)
+
+- PR #3 was retargeted to `main` and remains Draft/open. It is the single canonical integration PR: https://github.com/grinlife4-stack/TRADIX/pull/3
+- PR #2 and PR #4 were closed as superseded. Their branches and commits were not deleted. PR #3 contains the stronger persistent PostgreSQL-backed lifecycle, executor, evidence/approval gates, and the verified first-run path.
+- On PR #3 head `ef3786607fb825b7f119e7d52541c10529efedd6`, the latest observed GitHub Actions runs all completed successfully: Python tests `43938849739`, factory first-run `43938849723`, and factory-ledger SQL/HTTP integration `43938849718`.
+- PR #3 has no submitted reviews or inline review threads. GitHub reported `mergeable=false` immediately after retargeting; do not merge until mergeability is recalculated and an independent review confirms the complete diff.
+- Created working branch `factory/worker-lease-recovery-v0-1` from the PR #3 head for the next implementation slice. No database, Neon branch, Production, main branch, secrets, deployment, or paid service was changed.
+- The next substantive runtime gap is atomic worker ownership: attempt claiming, expiring leases, heartbeat, monotonically increasing fencing tokens, stale-worker write rejection, bounded retries, and restart/takeover tests. This must be implemented as one coherent database-enforced path; a lease table without fencing enforcement is not an operational fix.
+- Existing task attempts are currently created with status `running`, and current lifecycle/evidence/finish functions do not require a lease token. Any lease implementation must close those bypass paths and update the executor/tests together before it can be called operational.
+- No worker lease implementation is claimed complete in this update.
+
+
+## 20. Repository slim-down audit — 2026-11-17
+
+- Created dedicated maintenance branch `maintenance/repository-slimdown-v0-1` from the recorded worker-lease branch head `928f3374c5440a330d3399965c7aa6752922791e`; no changes were made to `main` or the worker-lease branch.
+- Moved the superseded software-only master plan from `docs/AUTONOMOUS_SOFTWARE_FACTORY_MASTER_PLAN.md` to `docs/archive/AUTONOMOUS_SOFTWARE_FACTORY_MASTER_PLAN_2026-11-15.md`, marked it historical, and preserved its contents. It is not an active architecture authority; the current general-purpose architecture baseline is the active reference.
+- This is an organizational cleanup, not a reduction in repository byte size: the historical document remains in Git so its decisions can be recovered. No runtime code, schemas, migrations, workflows, tests, credentials, databases, deployments, or paid services were changed.
+- Initial dependency review found no safe basis to delete the four workflows or the two demo paths: each currently exercises a distinct check (Python contract tests, deterministic Python first-run, PostgreSQL-backed Hello World executor/API integration, and manual B2 connectivity verification). The two API services also expose different product-dossier versus mission/plan responsibilities; merging them without a full boundary review would be premature.
+- Remaining follow-up review items: review stale historical status entries and stacked-PR references; inspect API shared boilerplate and package installation/lockfile strategy. These are review candidates, not approved deletions.
+- Verification: Git tree confirms the old active path is absent and the archived path exists. No runtime tests were run because this change only relocates and labels documentation. CI has not yet been run for this maintenance branch.
+- Commit that removed the old active documentation path: `b523b236d6cf91ef8700da7ae8810da1b8fc2287`. The subsequent status-recording commit was `fc42a5e6ece732e9758b18e249b3ed0938d850fb`; later maintenance commits are recorded in Git history.
+- No PR was opened, no merge was performed, and no production or Neon operation occurred.
+
+
+## 21. Architecture baseline filename and version alignment — 2026-11-17
+
+- Renamed the active architecture baseline from `docs/FACTORY_ARCHITECTURE_BASELINE_V1_1.md` to `docs/FACTORY_ARCHITECTURE_BASELINE_V1_2.md`.
+- The document already declared version 1.2 in its opening metadata and included the general-purpose, independent-product amendments in sections 16–18. The old V1_1 filename was therefore misleading.
+- Preserved the historical section 15 declaration of baseline version 1.1; it records the earlier baseline before the version 1.2 amendments and was not rewritten as if version 1.2 had always existed.
+- Reviewed the current documentation set, scripts, workflow definitions, and runtime README files for references to the old filename; no additional active references were found. The status entry was updated to remove this resolved audit item.
+- No runtime code, schema, migration, workflow, test, credential, database, deployment, or paid service was changed by this documentation-only correction.
+- Runtime tests were not run for this rename. The Git tree and commit will be checked after the change.

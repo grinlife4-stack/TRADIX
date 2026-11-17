@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tradix"
 version = "0.1.0"
-description = "Modular Intelligence & Decision Engine"
+description = "General-purpose production factory core"
 requires-python = ">=3.11"
 dependencies = []
 
