@@ -363,19 +363,20 @@ The product dossier API and mission/plan API are separately tested write paths, 
 ## 13. Worker lease fencing and bounded executor (2026-11-17)
 
 - Added draft migration `migrations/drafts/0004_worker_lease_fencing.sql`: queued-attempt trigger, per-task monotonic fencing counter, one lease row per task, attempt-bound composite foreign key, isolated runtime API, heartbeat, fenced transition/evidence/finish, and atomic release path.
-- The migration fails closed if pre-existing running attempts or active lifecycle tasks exist. Operators must drain or explicitly reconcile that work before rollout; migration 0004 is not applied to Neon or Production.
-- Fenced write wrappers lock the task row and then the lease row, matching acquisition lock order. The locks remain held through the delegated write, closing the validation-to-write race during takeover.
-- Legacy unfenced runtime write APIs are revoked. Runtime identities cannot read or mutate lease tables directly. Cross-product acquisition/renewal is rejected.
-- The executor uses a per-process UUID worker identity, 60-second lease TTL, 10-second heartbeat, 5-second heartbeat query timeout, and process-tree termination on lease loss, timeout, output overflow, and normal stage exit.
-- Human approval is checked for the exact attempt and decision scope before lease acquisition. Unapproved high-risk work remains queued without running product code.
-- SQL tests cover live-owner exclusion, monotonic takeover, wrong worker/attempt/token, expiry, stale transition/evidence/finish/idempotent replay, concurrent acquisition, cross-product isolation, in-flight write serialization, completed-attempt renewal denial, legacy API revocation, and transaction rollback/commit atomicity.
+- Added read-only rollout check `migrations/preflight/0004_worker_lease_fencing.sql`. The migration also repeats the check inside its transaction, temporarily removes forced RLS only for the operator preflight, locks task and attempt tables against concurrent writes, then restores FORCE RLS before commit.
+- Migration fails closed if pre-existing running attempts or active lifecycle tasks exist. Operators must drain or explicitly reconcile that work before rollout. Migration 0004 is applied only to disposable CI PostgreSQL, not Neon or Production.
+- Fenced write wrappers lock the task row and then the lease row, matching acquisition lock order. Locks remain held through delegated writes, closing the validation-to-write race during takeover.
+- Legacy unfenced runtime write APIs are revoked. All lease API functions revoke default PUBLIC execution; only the isolated product runtime receives the required function grants. Runtime identities cannot read or mutate lease tables directly. Cross-product acquisition and renewal are rejected.
+- Database lease acquisition independently enforces the exact attempt and approval scope for high-risk work. The separate approval identity cannot acquire worker leases; an exact approval permits the product runtime to acquire and execute. The runner performs the same approval check before acquisition.
+- The executor uses a per-process UUID worker identity, 60-second lease TTL, 10-second heartbeat, 5-second heartbeat query timeout, bounded output/timeouts, and process-tree termination on lease loss, timeout, output overflow, and normal stage exit.
+- SQL tests cover migration preflight refusal and pass, live-owner exclusion, monotonic takeover, wrong worker/attempt/token, expiry, stale transition/evidence/finish/idempotent replay, concurrent acquisition, cross-product isolation, in-flight write serialization, completed-attempt renewal denial, legacy API revocation, exact approval and authority separation, and transaction rollback/commit atomicity.
 - Runner integration tests cover Hello World execution, exact idempotent retry, approval preflight, process-tree termination after lease loss, and refusal to auto-resume interrupted stages without durable checkpoints.
 - **Recovery boundary:** database-level same-attempt lease takeover exists, but the current runner deliberately refuses non-queued task/attempt states. Automatic stage-level resume is not implemented because stage checkpoints and side-effect safety are not yet proven.
 - **Security boundary:** `trusted-node` is still not an OS sandbox. Only reviewed, trusted product code may run. Arbitrary third-party code must wait for an isolated execution backend.
-- Exact verified code head: `440b6f72a897d09a8be733ebe8002355cd5e8562`.
+- Exact verified code head: `5316e9f6106f8984da3b147efe8a4e0086f4edca`.
 - CI on that exact head:
-  - [tests — 44012315605](https://github.com/grinlife4-stack/TRADIX/actions/runs/44012315605): success.
-  - [factory-first-run — 44012315676](https://github.com/grinlife4-stack/TRADIX/actions/runs/44012315676): success.
-  - [factory-ledger-sql — 44012315531](https://github.com/grinlife4-stack/TRADIX/actions/runs/44012315531): success on disposable PostgreSQL 17, including migrations 0001–0004, worker fencing SQL tests, runner integration, approval preflight, lease-loss process-tree test, mission-plan API, and memory gateway tests.
-- PR #9 remains open and Draft. The branch is 350 commits ahead of `main`; this is a broad factory baseline, not a small standalone migration. It must not be merged without a full diff and dependency review.
+  - [tests — 44013147763](https://github.com/grinlife4-stack/TRADIX/actions/runs/44013147763): success.
+  - [factory-first-run — 44013147793](https://github.com/grinlife4-stack/TRADIX/actions/runs/44013147793): success.
+  - [factory-ledger-sql — 44013147717](https://github.com/grinlife4-stack/TRADIX/actions/runs/44013147717): success on disposable PostgreSQL 17, including migrations 0001–0004, rollout preflight, worker fencing SQL tests, runner integration, approval gate, process-tree shutdown, mission-plan API, and memory gateway tests.
+- PR #9 remains open and Draft. The branch is 397 commits ahead of `main`; this is a broad factory baseline, not a small standalone migration. It must not be merged without a full diff and dependency review.
 - No Neon or Production migration, production write, deployment, secret change, paid resource, main-branch update, or PR merge was performed.
