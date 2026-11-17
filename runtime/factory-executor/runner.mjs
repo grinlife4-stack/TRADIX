@@ -217,6 +217,7 @@ async function main() {
   const scripts = manifest.scripts ?? {};
 
   const taskKey = assertString(task.task_key, "task.task_key", 120);
+  const dossierIdempotencyKey = assertString(manifest.dossier_idempotency_key, "dossier_idempotency_key", 255);
   const attemptKey = assertString(attempt.idempotency_key, "attempt.idempotency_key", 255);
   const runScript = assertNodeScript(scripts.run, "scripts.run");
   const testScript = assertNodeScript(scripts.test, "scripts.test");
@@ -229,7 +230,7 @@ async function main() {
     await client.query("BEGIN");
     const dossierResult = await client.query(
       "SELECT factory.record_product_dossier((SELECT project_id FROM factory.project_identities WHERE role_name=session_user AND identity_kind='runtime'), $1::jsonb, $2) AS version",
-      [JSON.stringify(dossier), `${taskKey}:dossier-v1`]
+      [JSON.stringify(dossier), dossierIdempotencyKey]
     );
     const dossierVersion = Number(dossierResult.rows[0]?.version);
     if (!Number.isInteger(dossierVersion) || dossierVersion < 1) {
