@@ -32,7 +32,7 @@ This exact PNG is hereby designated the **sole official primary logo of the NEXO
 
 **Integrity rule:** retain this master file unchanged. Record the source branch and Git blob SHA for every derivative-generation task, and verify the derivative visually against the master. A derivative is an export, never a replacement for the master.
 
-This designation applies to both the NEXORA project identity and the shipped NEXORA app. It does not imply that the product has launched or that the PR has been merged.
+This designation applies to both the NEXORA project identity and the NEXORA app. The official master is committed to `main`; this does not imply that the app has been deployed or commercially launched.
 
 ## 1. Product decision
 
