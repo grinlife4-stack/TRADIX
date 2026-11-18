@@ -4,7 +4,8 @@
 **Portfolio / control system:** TRADIX  
 **Date:** 2026-11-18  
 **Status:** PAUSED — no implementation authorized  
-**Decision owner:** Project owner
+**Decision owner:** Project owner  
+**Scope clarification:** This record applies only to the earlier NEXORA-specific standalone bank / financial-services proposal. It does not govern, pause, or prohibit X. X is a separate financial-system product built by TRADIX through the same end-to-end production lifecycle used for MegaMarket and NEXORA.
 
 ## 1. Decision
 
@@ -74,7 +75,7 @@ The default design principle, if the matter is reopened, is to keep internal sof
 | Workstream | Status |
 |---|---|
 | Standalone financial institution / bank concept | PAUSED |
-| Financial software core | NOT STARTED |
+| NEXORA-specific standalone financial-services software proposal | PAUSED / NOT STARTED |
 | Payment-provider selection | NOT SELECTED |
 | Crypto conversion route | DEFERRED |
 | Dedicated NEXORA wallet | NOT CREATED / NOT CONNECTED |
@@ -82,4 +83,4 @@ The default design principle, if the matter is reopened, is to keep internal sof
 | MegaMarket marketplace payments | UNDECIDED; requires its actual funds-flow model |
 | Strategic priority | TRADIX network development |
 
-**Final rule:** No work on this financial-infrastructure proposal should proceed unless the project owner explicitly reopens it. TRADIX network development remains the active priority.
+**Final rule:** No work on the NEXORA-specific standalone financial-services proposal documented in this file should proceed unless the project owner explicitly reopens it. This restriction does not apply to X, which is a separate TRADIX-built product. TRADIX network development and the authorized X build are governed by their own priorities and project records.
