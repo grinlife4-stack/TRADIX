@@ -13,7 +13,7 @@
 
 **TRADIX builds; each product owns itself and operates independently.**
 
-TRADIX is the software factory and shared engineering environment. It exists to design, build, test, package, secure, prepare, and technically support software systems.
+TRADIX is the complete product and software factory for the portfolio. It designs, builds, tests, packages, secures, prepares, releases, and continuously develops complete products and systems, not merely shared infrastructure. This includes the financial system X. X follows the same TRADIX production lifecycle as MegaMarket, NEXORA, and every other product.
 
 TRADIX is not the owner or day-to-day operator of the products it creates. A product does not become an operational department of TRADIX merely because TRADIX built it, hosts its source workspace, or supplies reusable engineering capabilities.
 
@@ -22,11 +22,12 @@ The architecture is therefore: **one builder, multiple independently owned and o
 ## 2. TRADIX responsibilities and limits
 
 TRADIX is responsible for:
+- Building complete products and systems from approved requirements, including their application logic, user interfaces, domain capabilities, and technical components.
 - Building and evolving reusable engineering foundations, templates, tools, and shared technical capabilities.
-- Turning approved product requirements into working software.
-- Technical design, implementation, testing, packaging, security engineering, and release preparation.
+- Designing, implementing, testing, securing, integrating, packaging, and preparing products for release.
+- Continuing technical development of products when authorized through their product requirements and priorities.
 - Providing documented, versioned interfaces through which products may use shared capabilities.
-- Reducing duplicated engineering effort across current and future products.
+- Reusing suitable foundations to reduce duplicated engineering effort without reducing the completeness of product delivery.
 
 TRADIX does not automatically:
 - Own product roadmaps, product priorities, business models, or operational decisions.
@@ -75,27 +76,24 @@ Rules:
 5. A shared development tool must not silently become a shared production dependency.
 6. Products must be able to replace or stop using a shared component without surrendering their identity, records, or operational control.
 
-## 5. Specialist systems and factories — the X pattern
+## 5. X — the financial system product
 
-A specialist system created by TRADIX may itself operate as a specialized factory within its domain.
+**X is a TRADIX-built product/system, not a separate factory and not an exception to the TRADIX production model.**
 
-**X** is the designated example of this pattern for financial software:
-- X is built and technically established by TRADIX.
-- X belongs within the TRADIX architecture as a system created by the software factory; it is not a peer replacement for TRADIX.
-- After establishment, X independently manages its own specialist roadmap, records, internal systems, and day-to-day operation within its authorized scope.
-- X may build and maintain specialist financial capabilities for products through explicit interfaces and separately defined service agreements.
-- X does not thereby become the owner of the financial records, funds, accounts, or business operations of the products it serves.
-- Each served product retains its own financial records and ownership boundary. Consolidated reporting may exist, but it does not replace the separate records of each product.
-- Inter-product transactions must be traceable and reconciled in the records of the relevant parties.
+- TRADIX defines and builds X through the same end-to-end production lifecycle used for MegaMarket, NEXORA, and other products.
+- TRADIX is responsible for X's product engineering: architecture, implementation, software components, integration, testing, security engineering, packaging, and release preparation.
+- X's financial domain makes its requirements, controls, data model, and compliance analysis specialized; it does not change who builds it or create a different production method.
+- Once delivered, X has its own product identity, approved roadmap, records, data, accounts, decisions, and day-to-day operating boundary.
+- X does not become the owner of the financial records, funds, accounts, or business operations of other products merely because it may provide financial software capabilities to them.
+- Each product retains its own records and ownership boundary. Any cross-product financial records or transactions must be explicitly defined, attributable, and auditable.
 
-X is a specialist software and operating system, not automatically a bank, payment institution, custodian, e-money issuer, or licensed crypto-asset service provider. Regulated activities must be assessed separately for the relevant jurisdictions and performed only where legally permitted and appropriately authorized or provided by an eligible regulated partner.
-
-The same specialist-factory pattern may be used for future domains, but its scope and authority must be documented rather than assumed.
+Building X as software does not by itself authorize regulated activities. Banking, payment, custody, e-money, or crypto-asset services must be assessed separately for the relevant jurisdictions and performed only where legally permitted and appropriately authorized or provided by an eligible regulated partner.
 
 ## 6. Authority and decision boundaries
 
 | Decision or responsibility | Default authority |
 |---|---|
+| Complete product construction and technical development, including X | TRADIX |
 | Shared engineering foundations and TRADIX technical standards | TRADIX |
 | Product purpose, roadmap, priorities, and acceptance | The respective product |
 | Product records, data, assets, accounts, and credentials | The respective product |
@@ -156,6 +154,6 @@ This is a governing architecture document, not an informal note.
 
 ## 12. Foundational statement
 
-**TRADIX builds. Each product owns itself and operates independently. Shared foundations are built once and reused.**
+**TRADIX builds complete products and systems. Each product owns itself and operates independently. Shared foundations are built once and reused.**
 
 **One factory. Independent products. Repeatable production.**
