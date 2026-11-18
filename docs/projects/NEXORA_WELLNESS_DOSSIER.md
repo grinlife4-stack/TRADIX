@@ -189,7 +189,7 @@ No phase is considered complete without a working artifact and recorded test evi
 | Product model | Not fixed; validate against user needs and market evidence |
 | Execution priority | Fastest path to first usable build |
 | Project workspace | `projects/NEXORA/` in the TRADIX repository; approved brand asset committed; app source package prepared but not yet imported |
-| MVP prototype | NEXORA 0.5.3 source package prepared locally; 25/25 automated smoke tests pass; full app source import into this repository remains pending |
+| MVP prototype | NEXORA 0.5.3 finalized app-only archive verified; 25/25 automated smoke tests pass; full app source import into this repository remains pending |
 | Content assets | Three synthesized prototype ambience tracks; production-quality audio and commercial content rights remain pending |
 | iPad/audio test | Physical iPad/iPhone Safari, background audio, accessibility, and HTTPS deployment remain unverified |
 | Backend | Not selected; minimize for first release |
@@ -201,10 +201,10 @@ No phase is considered complete without a working artifact and recorded test evi
 - Source baseline: `NEXORA-0.5.1.zip`; local candidate advanced to `NEXORA-0.5.3-source-package.zip`.
 - Baseline SHA-256: `33cace591cd000cafdaebf7093a8a818d62e140beddf6d9c6a8815adfd4b4098`; ZIP integrity passed (22 entries); baseline automated smoke tests: 23/23 passed.
 - Local `NEXORA-0.5.2` corrected stale PWA manifest metadata (`lang=en`, `dir=ltr`). Local `NEXORA-0.5.3` integrates the approved logo into header/player references and an SVG PWA icon shell, and bumps the service-worker cache to v9.
-- Final 0.5.3 candidate SHA-256: `0064a4bc1c6b774aa300e90f1b09dda43102dbc80f603dbac2e93e4fb14b23fe`; ZIP integrity and automated smoke tests were reported as passing (25/25).
+- Finalized 0.5.3 app-only archive: `NEXORA-0.5.3-finalized-source-package.zip` (7,048,386 bytes; 19 files); SHA-256: `f0f8a17d2da887e34f50b9dd5daa058b43f0c89f2c2a8b6d11d14827674562a6`. ZIP integrity was rechecked and all 25 Node smoke tests were rerun successfully. The earlier `0064a4bc...` hash belongs to a separate preceding archive, not this finalized package.
 - The 0.5.3 source package is a local test artifact only; full source import into the repository remains pending. It is not a production release.
 - The archive supports English, French, and Spanish, including all 30 written guided-practice days in those languages.
-- The 0.5.3 app source now references the approved shared logo in header/player and SVG PWA icon. A square iOS touch-icon derivative remains pending.
+- The finalized archive includes 180×180 Apple touch icon, 192×192 and 512×512 PWA PNG icons, plus an SVG icon. Header/player and SVG references resolve to the shared official logo at `projects/NEXORA/assets/brand/NEXORA-Official-Logo.png`; preserve this repository-relative layout. Physical iOS home-screen rendering remains unverified.
 - Physical-device/browser acceptance testing and production deployment remain unverified.
 
 ## 13. Change control
