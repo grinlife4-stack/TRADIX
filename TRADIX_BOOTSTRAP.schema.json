@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grinlife4-stack/TRADIX/blob/main/TRADIX_BOOTSTRAP.schema.json",
+  "title": "TRADIX Core Bootstrap Manifest",
+  "type": "object",
+  "required": [
+    "protocol",
+    "protocol_version",
+    "document_type",
+    "startup",
+    "identity",
+    "ownership_and_roles",
+    "operating_model",
+    "security_and_approval",
+    "verified_environment",
+    "capabilities",
+    "project_registry",
+    "source_of_truth",
+    "agent_session_contract"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "tradix.core_bootstrap"
+    },
+    "protocol_version": {
+      "type": "string"
+    },
+    "document_type": {
+      "const": "machine_operational_manifest"
+    },
+    "startup": {
+      "type": "object",
+      "required": [
+        "mandatory",
+        "sequence",
+        "if_unavailable"
+      ],
+      "properties": {
+        "mandatory": {
+          "const": true
+        },
+        "sequence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "order",
+              "action",
+              "required"
+            ]
+          }
+        },
+        "if_unavailable": {
+          "type": "string"
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "required": [
+        "name",
+        "type",
+        "mission",
+        "scope",
+        "core_principle"
+      ]
+    },
+    "ownership_and_roles": {
+      "type": "object",
+      "required": [
+        "owner",
+        "human_ai_collaboration",
+        "factory_roles",
+        "least_privilege",
+        "separation_of_duties"
+      ]
+    },
+    "operating_model": {
+      "type": "object",
+      "required": [
+        "default_workflow",
+        "task_states",
+        "completion_rule",
+        "project_isolation",
+        "evidence_policy"
+      ]
+    },
+    "security_and_approval": {
+      "type": "object",
+      "required": [
+        "default_mode",
+        "fail_closed",
+        "explicit_human_approval_required_for",
+        "wallet_policy",
+        "untrusted_input"
+      ]
+    },
+    "verified_environment": {
+      "type": "object"
+    },
+    "capabilities": {
+      "type": "object",
+      "required": [
+        "verified_now",
+        "planned_not_yet_available",
+        "not_authorized_by_default"
+      ]
+    },
+    "project_registry": {
+      "type": "object",
+      "required": [
+        "path",
+        "required_fields",
+        "rule"
+      ]
+    },
+    "source_of_truth": {
+      "type": "object"
+    },
+    "agent_session_contract": {
+      "type": "object",
+      "required": [
+        "on_connect",
+        "before_task",
+        "after_task"
+      ]
+    }
+  },
+  "additionalProperties": true
+}
