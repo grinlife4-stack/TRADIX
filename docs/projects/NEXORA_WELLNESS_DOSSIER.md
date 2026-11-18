@@ -6,8 +6,8 @@
 **Portfolio:** TRADIX  
 **Project type:** Independently managed TRADIX portfolio project  
 **Project workspace:** `projects/NEXORA/` inside the TRADIX repository  
-**Direction:** Independent NEXORA roadmap, brand, product data, runtime, and release lifecycle; shared TRADIX capabilities only through explicit interfaces  
-**Dossier status:** Execution-first MVP definition  
+**Direction:** Independent NEXORA roadmap, brand, product data, runtime, and release lifecycle; development is currently on hold while TRADIX prioritizes building X  
+**Dossier status:** PAUSED — development on hold while X is the active TRADIX build priority  
 **Date:** 2026-11-17  
 **Portfolio/control repository:** TRADIX  
 **Project workspace:** `projects/NEXORA/` (dedicated project boundary; a separate repository is not required)  
@@ -187,7 +187,7 @@ No phase is considered complete without a working artifact and recorded test evi
 |---|---|
 | Product direction | Independent sleep and wellness PWA; English, French, and Spanish release scope |
 | Product model | Not fixed; validate against user needs and market evidence |
-| Execution priority | Fastest path to first usable build |
+| Execution priority | PAUSED — X financial-system development is the current TRADIX priority; NEXORA is retained for later resumption |
 | Project workspace | `projects/NEXORA/` in the TRADIX repository; approved brand asset committed; app source package prepared but not yet imported |
 | MVP prototype | NEXORA 0.5.3 finalized app-only archive verified; 25/25 automated smoke tests pass; full app source import into this repository remains pending |
 | Content assets | Three synthesized prototype ambience tracks; production-quality audio and commercial content rights remain pending |
@@ -207,6 +207,10 @@ No phase is considered complete without a working artifact and recorded test evi
 - The finalized archive includes 180×180 Apple touch icon, 192×192 and 512×512 PWA PNG icons, plus an SVG icon. Header/player and SVG references resolve to the shared official logo at `projects/NEXORA/assets/brand/NEXORA-Official-Logo.png`; preserve this repository-relative layout. Physical iOS home-screen rendering remains unverified.
 - Physical-device/browser acceptance testing and production deployment remain unverified.
 
-## 13. Change control
+## 13. Current execution decision — 2026-11-18
+
+NEXORA development is **PAUSED / ON HOLD** while TRADIX prioritizes the construction of X. This is a scheduling and resource-priority decision, not cancellation, deletion, abandonment, or transfer of NEXORA ownership. Preserve the source packages, approved logo, project records, test evidence, and existing work. Do not continue feature development or prepare a production release until NEXORA is explicitly resumed. When resumed, NEXORA continues through the same TRADIX product-building lifecycle and retains its independent product identity, roadmap, data, and operations.
+
+## 14. Change control
 
 This file is the TRADIX-level project index and governance record. Product source code, audio assets, content-rights records, user data, and release artifacts belong in the dedicated `projects/NEXORA/` workspace, with project-specific access and release boundaries. Keep the first release narrow and executable. Any expansion beyond the MVP requires evidence that it is necessary, not merely attractive.
