@@ -23,6 +23,8 @@ class FakeCursor:
         if self.connection.error:
             raise RuntimeError("secret DSN and provider detail")
     def fetchone(self):
+        if isinstance(self.connection.result, tuple):
+            return self.connection.result
         return (self.connection.result,)
 
 
@@ -164,3 +166,64 @@ def test_database_errors_are_sanitized():
             acceptance_criteria=("tests pass",),
         )
     assert "secret DSN" not in str(error.value)
+
+
+def test_acquire_lease_returns_monotonic_token_and_database_expiry():
+    connection = FakeConnection((7, "2030-01-01T00:00:00Z"))
+    token, expires_at = make_ledger(connection).acquire_task_lease(
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        worker_id="worker-a",
+        ttl_seconds=30,
+    )
+    assert token == 7
+    assert expires_at == "2030-01-01T00:00:00Z"
+    statement, parameters = connection.calls[0]
+    assert "factory.acquire_task_lease" in statement
+    assert parameters[-2:] == ("worker-a", 30)
+
+
+def test_fenced_transition_and_evidence_call_only_fenced_database_functions():
+    connection = FakeConnection(12)
+    ledger = make_ledger(connection)
+    task_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    attempt_id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    sequence = ledger.transition_task_fenced(
+        task_id, attempt_id, worker_id="worker-a", fencing_token=3,
+        target_state="planned", event_type="task.planned", actor_type="agent",
+        actor_ref="worker-a", idempotency_key="fenced-transition-1",
+    )
+    assert sequence == 12
+    assert "factory.transition_task_fenced" in connection.calls[-1][0]
+
+    evidence_id = ledger.record_evidence_fenced(
+        task_id, attempt_id, worker_id="worker-a", fencing_token=3,
+        artifact_type="test-report", object_uri="ci://test/report",
+        sha256="a" * 64, byte_size=10, evidence_type="test_report",
+    )
+    assert evidence_id == "12"
+    assert "factory.record_task_evidence_fenced" in connection.calls[-1][0]
+
+
+def test_fenced_methods_reject_invalid_token_before_database_io():
+    connection = FakeConnection()
+    with pytest.raises(ValueError, match="fencing_token"):
+        make_ledger(connection).renew_task_lease(
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            worker_id="worker-a",
+            fencing_token=0,
+        )
+    assert connection.calls == []
+
+
+def test_release_lease_returns_database_result():
+    connection = FakeConnection(True)
+    released = make_ledger(connection).release_task_lease(
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        worker_id="worker-a",
+        fencing_token=4,
+    )
+    assert released is True
+    assert "factory.release_task_lease" in connection.calls[0][0]
