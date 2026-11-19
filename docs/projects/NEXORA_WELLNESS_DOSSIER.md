@@ -214,3 +214,25 @@ NEXORA development is **PAUSED / ON HOLD** while TRADIX prioritizes the construc
 ## 14. Change control
 
 This file is the TRADIX-level project index and governance record. Product source code, audio assets, content-rights records, user data, and release artifacts belong in the dedicated `projects/NEXORA/` workspace, with project-specific access and release boundaries. Keep the first release narrow and executable. Any expansion beyond the MVP requires evidence that it is necessary, not merely attractive.
+
+## 15. Financial management and EXVARLI
+
+**Decision:** The complete financial management function of NEXORA is assigned to EXVARLI, operating under the approved EXVARLI architecture and a project-specific authorization agreement.
+
+EXVARLI is responsible for the coordinated financial management of NEXORA, including:
+- Maintaining NEXORA's separate financial ledger and complete income/expense records.
+- Recording and classifying revenue by source, including eligible app-store, advertising, subscription, and other approved revenue streams.
+- Recording operating costs, provider fees, refunds, chargebacks, deductions, and net proceeds where applicable.
+- Reconciling provider statements, receipts, settlements, bank movements, and wallet transactions against the ledger.
+- Monitoring receivables, settlement status, payment schedules, cash flow, and financial obligations.
+- Preparing project budgets, financial forecasts, management reports, and performance summaries.
+- Maintaining supporting documents, audit trails, and exportable financial records.
+- Coordinating approved financial-provider and payment-route administration within the permissions granted by NEXORA's owner.
+
+**Ownership and control remain with NEXORA's designated owner:** EXVARLI is the financial manager, not the owner or beneficial owner of NEXORA's income, bank accounts, payment accounts, wallets, or other assets. Accounts and wallets must be opened and held in the name of the individual or legal entity legally designated to own NEXORA. EXVARLI may receive only the limited permissions necessary for its duties; those permissions must be logged and revocable.
+
+NEXORA retains a fully separate ledger, account attribution, source records, receipts, and audit history. Its financial data must be exportable and transferable. NEXORA must be able to continue operating and appoint another financial manager or manage its finances independently if EXVARLI is terminated, sold, suspended, or replaced. No funds, records, or credentials may be locked inside EXVARLI.
+
+This appointment does not authorize EXVARLI to act as a bank, payment institution, custodian, or unlicensed financial intermediary. Provider onboarding, receipt, transfer, conversion, and payment execution must use routes supported by the relevant provider and applicable law. Legal account ownership and provider eligibility must be verified before activation.
+
+**Implementation status:** This is an approved architectural and governance decision. It does not mean that EXVARLI has already been implemented, that a bank account or wallet has been opened, or that any payment provider has been connected. The financial workflow becomes operational only after the EXVARLI implementation and the relevant account, provider, authorization, and compliance gates are completed.
