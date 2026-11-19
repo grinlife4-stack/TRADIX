@@ -19,6 +19,28 @@ Before doing any work in this repository, read these documents in order:
 - Repository/folder placement does not establish ownership or hierarchy.
 - A shared tool or toolbox contribution does not authorize project merger, transfer of ownership, or automatic data/code sharing.
 
+## Mandatory ready-made capability audit — TRADIX
+
+Before designing or developing any new capability, or making a material architectural change, perform and record an audit of ready-made tools, services, libraries, and existing toolbox capabilities across the full software production lifecycle:
+
+- design and development;
+- testing and quality assurance;
+- security;
+- deployment and infrastructure;
+- monitoring and maintenance;
+- documentation.
+
+The audit is not merely a search for products with similar names. For the specific requirement, determine whether an existing option can deliver the required capability without rebuilding it, with lower total cost and risk.
+
+Record, at minimum:
+1. Suitable existing options, including relevant shared-toolbox capabilities.
+2. Whether each can be used directly, integrated through a defined interface, or adapted.
+3. Total cost, licensing, security, operational and maintenance risks.
+4. Data ownership, portability/export, replaceability, and vendor lock-in implications.
+5. The reason for choosing reuse/integration or custom development.
+
+If custom development is selected, record why the ready-made options are unsuitable or materially worse. This gate applies to new capabilities and material architectural changes, not routine bug fixes or minor maintenance that does not introduce a new capability. Do not adopt a ready-made tool merely because it exists.
+
 ## Required pre-edit checklist
 
 Before editing:
