@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "execution_mode": "gvisor-sandbox",
+  "product_dir": ".",
+  "dossier_idempotency_key": "gvisor-probe-dossier-v1",
+  "dossier": {
+    "product_key": "gvisor-probe",
+    "name": "TRADIX gVisor Probe",
+    "version": "0.1.0",
+    "description": "Disposable validation fixture for the optional runsc backend.",
+    "source": "repository-owned-test-fixture",
+    "license": "MIT"
+  },
+  "task": {
+    "task_key": "gvisor-probe-task-v1",
+    "title": "Verify optional gVisor runtime",
+    "request_text": "Run the sandbox boundary probe through the gVisor runsc backend.",
+    "acceptance_criteria": ["runsc runtime preflight passed", "sandbox boundary probe passed"],
+    "risk_class": "low",
+    "approval_required": false,
+    "approval_scope": {}
+  },
+  "attempt": {
+    "idempotency_key": "gvisor-probe-attempt-v1"
+  },
+  "scripts": {
+    "run": "run.mjs",
+    "test": "test.mjs",
+    "review": "review.mjs",
+    "health": "health.mjs"
+  }
+}
