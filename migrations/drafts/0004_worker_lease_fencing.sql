@@ -144,9 +144,6 @@ BEGIN
     IF v_attempt.status NOT IN ('queued','running') THEN
         RAISE EXCEPTION 'only queued or running attempts can acquire a lease';
     END IF;
-    IF v_task.current_attempt <> v_attempt.attempt_number THEN
-        RAISE EXCEPTION 'only the task current_attempt may acquire a worker lease';
-    END IF;
     IF v_task.approval_required AND NOT EXISTS (
         SELECT 1
         FROM factory.task_approvals ap
@@ -176,6 +173,9 @@ BEGIN
         RAISE EXCEPTION 'expired lease belongs to another attempt; explicit attempt recovery required';
     END IF;
 
+    IF v_task.current_attempt <> v_attempt.attempt_number THEN
+        RAISE EXCEPTION 'only the task current_attempt may acquire a worker lease';
+    END IF;
     INSERT INTO factory.task_lease_counters(task_id, last_token)
     VALUES (p_task_id, 1)
     ON CONFLICT (task_id)
