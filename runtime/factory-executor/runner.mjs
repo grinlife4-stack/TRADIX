@@ -2,9 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import pg from "pg";
 import { S3ArtifactStore } from "./s3-artifact-store.mjs";
+import { preflightGvisorSandbox } from "./gvisor-runtime.mjs";
 
 const { Client } = pg;
 const MAX_OUTPUT_BYTES = 1024 * 1024;
@@ -103,7 +104,33 @@ async function terminateChildTree(child) {
   }
 }
 
-async function runDockerSandboxScript(productRoot, relativeScript, label, leaseGuard) {
+function runDockerPreflight(args, label) {
+  const result = spawnSync("docker", args, {
+    encoding: "utf8",
+    timeout: 10000,
+    windowsHide: true,
+    shell: false,
+    env: dockerCliEnv()
+  });
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message || (result.stderr || result.stdout || "unknown Docker preflight failure").slice(0, 1000);
+    const error = new Error(label + " failed: " + detail);
+    error.code = result.error?.code === "ENOENT" ? "BACKEND_UNAVAILABLE" : "BACKEND_MISCONFIGURED";
+    throw error;
+  }
+  return { stdout: result.stdout || "", stderr: result.stderr || "", exitCode: result.status };
+}
+
+async function preflightGvisor(image) {
+  return await preflightGvisorSandbox({
+    image,
+    platform: process.platform,
+    arch: process.arch,
+    runCommand: (args, label) => runDockerPreflight(args, label)
+  });
+}
+
+async function runDockerSandboxScript(productRoot, relativeScript, label, leaseGuard, runtimeName = null) {
   if (process.platform !== "linux") {
     fail("docker-sandbox v0.1 requires a Linux execution host");
   }
@@ -118,7 +145,7 @@ async function runDockerSandboxScript(productRoot, relativeScript, label, leaseG
   const containerName = `tradix-${randomUUID()}`;
   const containerScript = `/workspace/${relativeScript.split(sep).join("/")}`;
   const args = [
-    "run", "--rm", "--init", "--pull=never",
+    "run", ...(runtimeName ? ["--runtime=" + runtimeName] : []), "--rm", "--init", "--pull=never",
     "--name", containerName,
     "--network", "none",
     "--ipc=private",
@@ -215,6 +242,9 @@ async function runNodeScript(productRoot, script, label, leaseGuard, executionMo
   }
   if (executionMode === "docker-sandbox") {
     return await runDockerSandboxScript(productRoot, rel, label, leaseGuard);
+  }
+  if (executionMode === "gvisor-sandbox") {
+    return await runDockerSandboxScript(productRoot, rel, label, leaseGuard, "runsc");
   }
 
   return await new Promise((resolvePromise, reject) => {
@@ -317,7 +347,7 @@ async function recordEvidence(client, lease, type, result, artifactStore) {
   await writeFile(sourcePath, payload.content, { mode: 0o600 });
 
   let objectUri = "ci://factory-executor/" + lease.taskId + "/" + type + ".txt";
-  const metadata = { executor: EXECUTOR_ID, exit_code: result.exitCode };
+  const metadata = { executor: EXECUTOR_ID, exit_code: result.exitCode, execution_mode: lease.executionMode, sandbox_runtime: lease.sandboxRuntime, sandbox_image_id: lease.sandboxImageId };
   if (artifactStore) {
     const stored = await artifactStore.uploadFile({
       sourcePath,
@@ -367,11 +397,16 @@ async function main() {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   if (manifest.schema_version !== 1) fail("Unsupported product execution manifest version");
   const executionMode = manifest.execution_mode;
-  if (!["trusted-node", "docker-sandbox"].includes(executionMode)) {
-    fail("Unsupported execution_mode; expected trusted-node or docker-sandbox");
+  if (!["trusted-node", "docker-sandbox", "gvisor-sandbox"].includes(executionMode)) {
+    fail("Unsupported execution_mode; expected trusted-node, docker-sandbox, or gvisor-sandbox");
   }
-  if (executionMode === "docker-sandbox" && !/^sha256:[a-f0-9]{64}$/.test(process.env.FACTORY_SANDBOX_IMAGE ?? "")) {
-    fail("docker-sandbox requires FACTORY_SANDBOX_IMAGE to be an immutable local sha256 image ID");
+  if (["docker-sandbox", "gvisor-sandbox"].includes(executionMode) && !/^sha256:[a-f0-9]{64}$/.test(process.env.FACTORY_SANDBOX_IMAGE ?? "")) {
+    fail(executionMode + " requires FACTORY_SANDBOX_IMAGE to be an immutable local sha256 image ID");
+  }
+  let gvisorPreflight = null;
+  if (executionMode === "gvisor-sandbox") {
+    gvisorPreflight = await preflightGvisor(process.env.FACTORY_SANDBOX_IMAGE);
+    process.stdout.write("PASS gVisor preflight runtime=" + gvisorPreflight.runtime + " image=" + gvisorPreflight.imageId + " arch=" + gvisorPreflight.architecture + "\n");
   }
 
   const baseDir = await realpath(dirname(manifestPath));
@@ -473,7 +508,7 @@ async function main() {
       "SELECT fencing_token, expires_at FROM factory.acquire_task_lease($1,$2,$3,$4)",
       [taskId, attemptId, workerId, LEASE_TTL_SECONDS]
     );
-    const lease = { taskId, attemptId, workerId, token: leaseResult.rows[0]?.fencing_token, projectKey, runId, requireRemoteArtifacts };
+    const lease = { taskId, attemptId, workerId, token: leaseResult.rows[0]?.fencing_token, projectKey, runId, requireRemoteArtifacts, executionMode, sandboxRuntime: executionMode === "gvisor-sandbox" ? "runsc" : executionMode === "docker-sandbox" ? "docker-default" : "trusted-node", sandboxImageId: ["docker-sandbox", "gvisor-sandbox"].includes(executionMode) ? process.env.FACTORY_SANDBOX_IMAGE : null, gvisorPreflight };
     if (!lease.token) fail("Database did not return a fencing token");
 
     const leaseGuard = {
