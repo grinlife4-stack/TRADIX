@@ -318,15 +318,6 @@ BEGIN
         RAISE EXCEPTION 'invalid task transition arguments';
     END IF;
 
-    SELECT * INTO v_task
-    FROM factory.tasks
-    WHERE task_id = p_task_id
-    FOR UPDATE;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'task not found: %', p_task_id;
-    END IF;
-
     IF NOT pg_catalog.pg_has_role(session_user, 'factory_runtime', 'MEMBER')
        OR pg_catalog.pg_has_role(session_user, 'factory_approval_authority', 'MEMBER')
        OR pg_catalog.pg_has_role(session_user, 'factory_executor_owner', 'MEMBER') THEN
@@ -336,7 +327,17 @@ BEGIN
     SELECT project_id INTO v_project_id
     FROM factory.project_identities
     WHERE role_name = session_user AND identity_kind = 'runtime';
-    IF NOT FOUND OR v_task.project_id <> v_project_id THEN
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'runtime identity has no product mapping';
+    END IF;
+
+    SELECT * INTO v_task
+    FROM factory.tasks
+    WHERE task_id = p_task_id
+      AND project_id = v_project_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
         RAISE EXCEPTION 'task not found for this product runtime';
     END IF;
 
