@@ -175,6 +175,10 @@ def test_github_backend_uploads_and_verifies_readback(monkeypatch, tmp_path):
                 "content": {"path": path},
                 "commit": {"sha": "a" * 40},
             }).encode("utf-8"))
+        if "bytes" not in stored:
+            raise github_storage.urllib.error.HTTPError(
+                request.full_url, 404, "Not Found", None, io.BytesIO(b"")
+            )
         return io.BytesIO(stored["bytes"])
 
     monkeypatch.setattr(github_storage.urllib.request, "urlopen", fake_urlopen)
@@ -202,3 +206,11 @@ def test_github_backend_uploads_and_verifies_readback(monkeypatch, tmp_path):
     assert receipt["sha256"] == hashlib.sha256(payload).hexdigest()
     assert stored["bytes"] == payload
     assert "github_token" not in json.dumps(receipt)
+    repeated = client.post(
+        "/v1/artifacts",
+        headers=auth(),
+        files={"file": ("same-bundle.bin", payload, "application/octet-stream")},
+    )
+    assert repeated.status_code == 201
+    assert repeated.json()["storage_ref"] == receipt["storage_ref"]
+    assert repeated.json()["remote_commit_sha"] is None
