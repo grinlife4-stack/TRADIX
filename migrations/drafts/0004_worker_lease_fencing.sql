@@ -68,6 +68,16 @@ LANGUAGE plpgsql
 SET search_path = pg_catalog, factory, pg_temp
 AS $queue_attempt$
 BEGIN
+    -- create_task_attempt locks the parent task before INSERT. Lease acquisition
+    -- takes the same task lock first, so this check is serialized against acquire.
+    IF EXISTS (
+        SELECT 1 FROM factory.task_leases
+        WHERE task_id = NEW.task_id
+          AND expires_at > clock_timestamp()
+    ) THEN
+        RAISE EXCEPTION 'cannot create a new attempt while the task has a live worker lease';
+    END IF;
+
     NEW.status := 'queued';
     NEW.started_at := NULL;
     NEW.finished_at := NULL;
@@ -133,6 +143,9 @@ BEGIN
     END IF;
     IF v_attempt.status NOT IN ('queued','running') THEN
         RAISE EXCEPTION 'only queued or running attempts can acquire a lease';
+    END IF;
+    IF v_task.current_attempt <> v_attempt.attempt_number THEN
+        RAISE EXCEPTION 'only the task current_attempt may acquire a worker lease';
     END IF;
     IF v_task.approval_required AND NOT EXISTS (
         SELECT 1
@@ -234,6 +247,7 @@ BEGIN
             ON a.task_id = t.task_id
            AND a.attempt_id = p_attempt_id
            AND a.status = 'running'
+           AND t.current_attempt = a.attempt_number
           JOIN factory.project_identities i
             ON i.project_id = t.project_id
            AND i.role_name = session_user
@@ -296,6 +310,11 @@ BEGIN
       AND l.expires_at > clock_timestamp()
       AND a.attempt_id = p_attempt_id
       AND a.task_id = p_task_id
+      AND EXISTS (
+          SELECT 1 FROM factory.tasks current_task
+          WHERE current_task.task_id = p_task_id
+            AND current_task.current_attempt = a.attempt_number
+      )
     FOR UPDATE OF l;
 
     IF NOT FOUND THEN
