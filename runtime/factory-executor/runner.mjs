@@ -4,6 +4,7 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import pg from "pg";
+import { S3ArtifactStore } from "./s3-artifact-store.mjs";
 
 const { Client } = pg;
 const MAX_OUTPUT_BYTES = 1024 * 1024;
@@ -308,11 +309,36 @@ async function transition(client, lease, from, to) {
   );
 }
 
-async function recordEvidence(client, lease, type, result) {
+async function recordEvidence(client, lease, type, result, artifactStore) {
   const payload = artifactPayload(result, type);
   const evidenceDir = resolve(process.env.FACTORY_EVIDENCE_DIR ?? "/tmp/tradix-factory-executor", lease.taskId);
   await mkdir(evidenceDir, { recursive: true });
-  await writeFile(resolve(evidenceDir, `${type}.txt`), payload.content, { mode: 0o600 });
+  const sourcePath = resolve(evidenceDir, type + ".txt");
+  await writeFile(sourcePath, payload.content, { mode: 0o600 });
+
+  let objectUri = "ci://factory-executor/" + lease.taskId + "/" + type + ".txt";
+  const metadata = { executor: EXECUTOR_ID, exit_code: result.exitCode };
+  if (artifactStore) {
+    const stored = await artifactStore.uploadFile({
+      sourcePath,
+      projectKey: lease.projectKey,
+      runId: lease.runId,
+      attemptId: lease.attemptId,
+      contentType: "text/plain"
+    });
+    objectUri = "s3://" + artifactStore.bucket + "/" + stored.key;
+    Object.assign(metadata, {
+      storage_provider: "s3-compatible",
+      bucket: artifactStore.bucket,
+      object_key: stored.key,
+      sha256: stored.sha256,
+      byte_size: stored.byteSize,
+      reused: stored.reused
+    });
+  } else if (lease.requireRemoteArtifacts) {
+    fail("Remote artifact storage is required but not configured");
+  }
+
   await client.query(
     "SELECT factory.record_task_evidence_fenced($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)",
     [
@@ -321,18 +347,17 @@ async function recordEvidence(client, lease, type, result) {
       lease.workerId,
       lease.token,
       type,
-      `ci://factory-executor/${lease.taskId}/${type}.txt`,
+      objectUri,
       payload.sha256,
       payload.byteSize,
       "text/plain",
       type,
-      `Output captured by ${EXECUTOR_ID}`,
-      JSON.stringify({ executor: EXECUTOR_ID, exit_code: result.exitCode })
+      "Output captured by " + EXECUTOR_ID,
+      JSON.stringify(metadata)
     ]
   );
-  process.stdout.write(`PASS evidence: ${type} sha256=${payload.sha256}\n`);
+  process.stdout.write("PASS evidence: " + type + " sha256=" + payload.sha256 + (artifactStore ? " remote=true" : " remote=false") + "\n");
 }
-
 async function main() {
   const manifestArg = process.argv[2];
   if (!manifestArg) fail("Usage: node runner.mjs <product-manifest.json>");
@@ -368,13 +393,29 @@ async function main() {
   const reviewScript = assertNodeScript(scripts.review, "scripts.review");
   const healthScript = assertNodeScript(scripts.health, "scripts.health");
 
+  const requireRemoteArtifacts = process.env.TRADIX_REQUIRE_REMOTE_ARTIFACTS === "true";
+  const artifactStore = process.env.TRADIX_ARTIFACT_S3_ENDPOINT
+    ? S3ArtifactStore.fromEnv()
+    : null;
+  if (requireRemoteArtifacts && !artifactStore) {
+    fail("TRADIX_REQUIRE_REMOTE_ARTIFACTS is true but S3 artifact storage is not configured");
+  }
+
   const client = new Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 10000 });
   await client.connect();
   try {
+    const identityResult = await client.query(
+      "SELECT p.project_id, p.project_key FROM factory.project_identities i JOIN factory.projects p ON p.project_id=i.project_id WHERE i.role_name=session_user AND i.identity_kind='runtime'"
+    );
+    if (identityResult.rowCount !== 1) fail("Runtime identity did not resolve to exactly one project");
+    const projectId = identityResult.rows[0].project_id;
+    const projectKey = identityResult.rows[0].project_key;
+    const runId = process.env.GITHUB_RUN_ID || process.env.TRADIX_RUN_ID || ("local-" + randomUUID());
+
     await client.query("BEGIN");
     const dossierResult = await client.query(
-      "SELECT factory.record_product_dossier((SELECT project_id FROM factory.project_identities WHERE role_name=session_user AND identity_kind='runtime'), $1::jsonb, $2) AS version",
-      [JSON.stringify(dossier), dossierIdempotencyKey]
+      "SELECT factory.record_product_dossier($1, $2::jsonb, $3) AS version",
+      [projectId, JSON.stringify(dossier), dossierIdempotencyKey]
     );
     const dossierVersion = Number(dossierResult.rows[0]?.version);
     if (!Number.isInteger(dossierVersion) || dossierVersion < 1) {
