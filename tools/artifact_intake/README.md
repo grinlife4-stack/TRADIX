@@ -26,7 +26,7 @@ python tools/artifact_intake/artifact_intake.py read-text path/to/README.md
 Run tests:
 
 ```bash
-python -m unittest discover -s tools/artifact_intake -p 'test_*.py' -v
+python -m pytest -q tests/test_artifact_intake.py
 ```
 
 ## Safety and current limits
