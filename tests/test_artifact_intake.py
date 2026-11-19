@@ -102,5 +102,51 @@ class ArtifactIntakeTests(unittest.TestCase):
             read_document(path)
 
 
+    def test_docx_and_xlsx_reject_high_compression_ratio_before_parser(self):
+        for suffix in (".docx", ".xlsx"):
+            with self.subTest(suffix=suffix):
+                path = self.root / f"compressed{suffix}"
+                with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                    archive.writestr("payload.xml", b"A" * 200_000)
+                with self.assertRaisesRegex(DocumentReadError, "compression ratio"):
+                    read_document(path)
+
+    def test_office_preflight_rejects_excessive_member_count(self):
+        from unittest.mock import patch
+        from tools.artifact_intake import document_readers
+
+        path = self.root / "many.docx"
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("one.xml", "1")
+            archive.writestr("two.xml", "2")
+        with patch.object(document_readers, "MAX_OFFICE_ZIP_ENTRIES", 1):
+            with self.assertRaisesRegex(DocumentReadError, "member limit"):
+                read_document(path)
+
+    def test_office_preflight_rejects_total_uncompressed_size(self):
+        from unittest.mock import patch
+        from tools.artifact_intake import document_readers
+
+        path = self.root / "expanded.xlsx"
+        with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as archive:
+            archive.writestr("payload.xml", b"x" * 2048)
+        with patch.object(document_readers, "MAX_OFFICE_ZIP_UNCOMPRESSED_BYTES", 1024):
+            with self.assertRaisesRegex(DocumentReadError, "total uncompressed byte limit"):
+                read_document(path)
+
+    def test_xlsx_rejects_extracted_text_over_limit(self):
+        from unittest.mock import patch
+        from tools.artifact_intake import document_readers
+
+        path = self.root / "long-cell.xlsx"
+        workbook = Workbook()
+        workbook.active["A1"] = "four"
+        workbook.save(path)
+        with patch.object(document_readers, "MAX_EXTRACTED_CHARS", 3):
+            with self.assertRaisesRegex(DocumentReadError, "extracted text"):
+                read_document(path)
+
+
+
 if __name__ == "__main__":
     unittest.main()
