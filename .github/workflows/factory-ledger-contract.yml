@@ -18,6 +18,10 @@ on:
       - "examples/hello-world/**"
       - "examples/sandbox-probe/**"
       - "docs/DOCKER_SANDBOX_EXECUTION_V0_1.md"
+      - "examples/gvisor-probe/**"
+      - "tests/gvisor_*.sh"
+      - "docs/GVISOR_SANDBOX_BACKEND_V0_1.md"
+      - "docs/GVISOR_WORKER_SETUP_V0_1.md"
       - ".github/workflows/factory-ledger-contract.yml"
 
 permissions:
@@ -131,6 +135,8 @@ jobs:
         run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
       - name: Test CI evidence manifest generation
         run: node --test runtime/factory-executor/evidence-manifest.test.mjs
+      - name: Test gVisor runtime preflight contract
+        run: node --test runtime/factory-executor/gvisor-runtime.test.mjs
       - name: Wait for ephemeral S3-compatible storage
         run: |
           node --input-type=module <<'NODE'
@@ -162,6 +168,35 @@ jobs:
           image_id="$(docker image inspect --format='{{.Id}}' tradix-node-sandbox:24.22.3)"
           [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
           echo "FACTORY_SANDBOX_IMAGE=$image_id" >> "$GITHUB_ENV"
+      - name: Validate gVisor runtime and fail closed when runsc is unavailable
+        env:
+          TRADIX_ARTIFACT_S3_ENDPOINT: http://127.0.0.1:9000
+          TRADIX_ARTIFACT_S3_REGION: us-east-1
+          TRADIX_ARTIFACT_S3_BUCKET: tradix-artifact-ci
+          TRADIX_ARTIFACT_S3_ACCESS_KEY_ID: TRADIXCIACCESSKEY
+          TRADIX_ARTIFACT_S3_SECRET_ACCESS_KEY: TradixCISecretKeyForEphemeralTestsOnly
+          TRADIX_ARTIFACT_S3_ALLOW_LOCAL_HTTP: "true"
+          TRADIX_REQUIRE_REMOTE_ARTIFACTS: "true"
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: |
+          set -euo pipefail
+          runtimes="$(docker info --format '{{json .Runtimes}}')"
+          if node --input-type=module -e 'const value=JSON.parse(process.argv[1]); process.exit(Object.hasOwn(value, "runsc") ? 0 : 1)' "$runtimes"; then
+            echo "runsc is registered; execute real gVisor integration"
+            FACTORY_SANDBOX_IMAGE="$FACTORY_SANDBOX_IMAGE" bash tests/gvisor_runtime_integration.sh
+            node runtime/factory-executor/runner.mjs examples/gvisor-probe/product.json
+          else
+            echo "runsc is not registered; verify fail-closed behavior"
+            if node runtime/factory-executor/runner.mjs examples/gvisor-probe/product.json > /tmp/tradix-gvisor-preflight.log 2>&1; then
+              echo "gVisor execution unexpectedly succeeded without runsc registration"
+              exit 1
+            fi
+            grep -F "gVisor runtime 'runsc' is not registered with Docker; refusing execution" /tmp/tradix-gvisor-preflight.log
+            task_count="$(docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SELECT count(*) FROM factory.tasks WHERE task_key='gvisor-probe-task-v1'")"
+            test "$task_count" = "0"
+            echo "PASS: no task was created and no lease was acquired"
+          fi
       - name: Verify remote artifact requirement fails closed without storage configuration
         env:
           DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
