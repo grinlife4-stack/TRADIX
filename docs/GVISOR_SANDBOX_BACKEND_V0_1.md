@@ -1,6 +1,6 @@
 # gVisor Sandbox Backend Design v0.1
 
-**Status:** Design proposal only; not implemented or runtime-verified  
+**Status:** Optional runner mode and fail-closed preflight implemented; live runsc worker not yet runtime-verified  
 **Scope:** Add an optional stronger Linux execution backend without changing the existing Docker backend  
 **Parent baseline:** Docker sandbox hardening branch, commit `12e67603760f09ac525e39bd52d5afede2a8e6db`
 
@@ -12,7 +12,7 @@ For the first integration, keep Docker Engine as the image/container lifecycle i
 
 This is the lowest-complexity path because TRADIX already builds immutable OCI images and manages one-shot containers through Docker. It avoids introducing a second image store, containerd socket, OCI bundle lifecycle, and cleanup implementation before those are justified.
 
-The existing `docker-sandbox` path must remain byte-for-byte untouched by the first gVisor implementation. The new mode is additive and opt-in.
+The existing `docker-sandbox` path remains unchanged. The new `gvisor-sandbox` mode is additive and opt-in. The runner checks Linux/x86_64, Docker runtime registration, exact immutable image identity, and a disposable runsc smoke test before database connection, task creation, or lease acquisition. If any check fails, there is no fallback.
 
 ## 2. What gVisor changes
 
@@ -52,11 +52,11 @@ Contract requirements:
 - Backend identity, runtime version, image digest, host architecture, and effective security settings are recorded with evidence.
 - No backend may silently fall back to another backend.
 
-This contract is a design target. It is not present in code yet.
+The runner currently reuses the hardened Docker container lifecycle and adds the fixed `--runtime=runsc` selection. The shared backend contract remains a future refactor; the current implementation is not yet a pluggable multi-provider backend.
 
 ## 4. Manifest and configuration proposal
 
-Add `gvisor-sandbox` as a third allowed `execution_mode` only when the implementation and tests exist.
+`gvisor-sandbox` is now a third allowed `execution_mode`. It remains disabled on hosts that do not pass the runtime preflight.
 
 Proposed host configuration:
 
