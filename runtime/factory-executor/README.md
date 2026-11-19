@@ -53,3 +53,13 @@ The current GitHub workflow uses a disposable PostgreSQL service and a CI-only p
 ## Evidence durability limitation
 
 The v0.1 runner writes evidence files to `FACTORY_EVIDENCE_DIR` (default `/tmp/tradix-factory-executor`) and records a logical `ci://` object URI in PostgreSQL. The GitHub workflow uploads those files as a short-retention CI artifact. This is sufficient for disposable CI verification, but it is **not** a durable, cross-host artifact store and the `ci://` URI is not a public download URL. Do not treat production evidence portability or long-term recovery as implemented until a provider-neutral artifact-storage adapter, export/import procedure, and restore/hash-integrity test exist.
+
+## Docker sandbox mode
+
+For generated code that should not run with the executor host's permissions, use a manifest with `execution_mode: "docker-sandbox"`. Build or provision an approved sandbox image on a dedicated Linux worker, then set `FACTORY_SANDBOX_IMAGE` to the local immutable image ID returned by `docker image inspect --format='{{.Id}} <image>'`.
+
+The image must be present before execution. The runner uses `--pull=never`, rejects mutable tags, and fails closed if Docker or the image is unavailable. It does not fall back to `trusted-node`.
+
+The Docker backend disables networking, mounts the product directory read-only, runs as UID/GID 65532, drops Linux capabilities, enables no-new-privileges, uses a read-only root filesystem, caps CPU/memory/processes/output/time, and passes no application secrets. A fresh container is used for each lifecycle script.
+
+See [Docker Sandbox Execution v0.1](../../docs/DOCKER_SANDBOX_EXECUTION_V0_1.md) for the full boundary and limitations. Docker containers share the host kernel; use a dedicated disposable worker and do not treat this as microVM-grade isolation.
