@@ -64,11 +64,14 @@ def upload_binary(path: Path, *, project_id: str, sha256: str, target: GitHubTar
         "User-Agent": "TRADIX-Artifact-Gateway",
     }
     raw_headers = {**headers, "Accept": "application/vnd.github.raw+json"}
+    # GitHub Contents API reads default to the repository's default branch unless
+    # ref is explicit. Always verify against the exact branch targeted by the PUT.
+    readback_url = f"{api_url}?{urllib.parse.urlencode({'ref': target.branch})}"
 
     try:
         # Content-addressed paths make retries idempotent. Reuse an existing object
-        # only after downloading it and independently verifying its SHA-256.
-        existing_request = urllib.request.Request(api_url, headers=raw_headers, method="GET")
+        # only after downloading it from the target branch and verifying its SHA-256.
+        existing_request = urllib.request.Request(readback_url, headers=raw_headers, method="GET")
         try:
             with urllib.request.urlopen(existing_request, timeout=30) as response:
                 existing = response.read()
@@ -107,7 +110,7 @@ def upload_binary(path: Path, *, project_id: str, sha256: str, target: GitHubTar
         if content_info.get("path") != relative_path or not commit_info.get("sha"):
             raise GitHubTransferError("GitHub did not return the expected path and commit")
 
-        verify_request = urllib.request.Request(api_url, headers=raw_headers, method="GET")
+        verify_request = urllib.request.Request(readback_url, headers=raw_headers, method="GET")
         with urllib.request.urlopen(verify_request, timeout=30) as response:
             downloaded = response.read()
         verified_hash = hashlib.sha256(downloaded).hexdigest()
