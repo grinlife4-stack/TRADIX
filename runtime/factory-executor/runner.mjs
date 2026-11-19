@@ -31,8 +31,42 @@ function assertNodeScript(value, label) {
   return value;
 }
 
+function dockerCliEnv() {
+  const env = {
+    PATH: process.env.PATH ?? "",
+    HOME: process.env.HOME ?? ""
+  };
+  for (const key of ["DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_CONFIG"]) {
+    if (process.env[key]) env[key] = process.env[key];
+  }
+  return env;
+}
+
+async function removeDockerContainer(name) {
+  await new Promise(resolvePromise => {
+    const cleanup = spawn("docker", ["rm", "--force", name], {
+      windowsHide: true,
+      stdio: "ignore",
+      env: dockerCliEnv()
+    });
+    const timer = setTimeout(() => {
+      cleanup.kill("SIGKILL");
+      resolvePromise();
+    }, 5000);
+    cleanup.once("error", () => {
+      clearTimeout(timer);
+      resolvePromise();
+    });
+    cleanup.once("close", () => {
+      clearTimeout(timer);
+      resolvePromise();
+    });
+  });
+}
+
 async function terminateChildTree(child) {
   if (!child?.pid) return;
+  if (child.dockerContainerName) await removeDockerContainer(child.dockerContainerName);
   if (process.platform === "win32") {
     await new Promise(resolvePromise => {
       const killer = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
@@ -68,12 +102,118 @@ async function terminateChildTree(child) {
   }
 }
 
-async function runNodeScript(productRoot, script, label, leaseGuard) {
+async function runDockerSandboxScript(productRoot, relativeScript, label, leaseGuard) {
+  if (process.platform !== "linux") {
+    fail("docker-sandbox v0.1 requires a Linux execution host");
+  }
+  const image = process.env.FACTORY_SANDBOX_IMAGE ?? "";
+  if (!/^sha256:[a-f0-9]{64}$/.test(image)) {
+    fail("FACTORY_SANDBOX_IMAGE must be an immutable local sha256 image ID");
+  }
+  if (productRoot.includes(",") || productRoot.includes(":")) {
+    fail("product directory contains characters unsupported by the Docker bind-mount contract");
+  }
+
+  const containerName = `tradix-${randomUUID()}`;
+  const containerScript = `/workspace/${relativeScript.split(sep).join("/")}`;
+  const args = [
+    "run", "--rm", "--init", "--pull=never",
+    "--name", containerName,
+    "--network", "none",
+    "--ipc=private",
+    "--cgroupns=private",
+    "--read-only",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges:true",
+    "--pids-limit=64",
+    "--memory=256m",
+    "--memory-swap=256m",
+    "--cpus=1",
+    "--user=65532:65532",
+    "--ulimit", "nofile=256:256",
+    "--ulimit", "fsize=10485760:10485760",
+    "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=16m,uid=65532,gid=65532,mode=1777",
+    "--shm-size=16m",
+    "--mount", `type=bind,src=${productRoot},dst=/workspace,readonly`,
+    "--workdir", "/workspace",
+    "--env", "NODE_ENV=test",
+    "--env", "HOME=/tmp",
+    image,
+    containerScript
+  ];
+
+  return await new Promise((resolvePromise, reject) => {
+    const child = spawn("docker", args, {
+      cwd: productRoot,
+      shell: false,
+      windowsHide: true,
+      detached: true,
+      env: dockerCliEnv(),
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    child.dockerContainerName = containerName;
+    const stdout = [];
+    const stderr = [];
+    let bytes = 0;
+    let settled = false;
+    let forcedError = null;
+    leaseGuard?.registerChild?.(child);
+    if (leaseGuard?.lost) void terminateChildTree(child);
+    const timer = setTimeout(() => {
+      forcedError = new Error(`${label} exceeded ${COMMAND_TIMEOUT_MS}ms`);
+      void terminateChildTree(child);
+    }, COMMAND_TIMEOUT_MS);
+
+    function finish(error, result) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolvePromise(result);
+    }
+
+    for (const [stream, chunks] of [[child.stdout, stdout], [child.stderr, stderr]]) {
+      stream.on("data", chunk => {
+        if (forcedError) return;
+        bytes += chunk.length;
+        if (bytes > MAX_OUTPUT_BYTES) {
+          forcedError = new Error(`${label} output exceeded ${MAX_OUTPUT_BYTES} bytes`);
+          void terminateChildTree(child);
+          return;
+        }
+        chunks.push(chunk);
+      });
+    }
+    child.on("error", async error => {
+      await terminateChildTree(child);
+      leaseGuard?.clearChild?.(child);
+      finish(error);
+    });
+    child.on("close", async code => {
+      await terminateChildTree(child);
+      leaseGuard?.clearChild?.(child);
+      const out = Buffer.concat(stdout).toString("utf8");
+      const err = Buffer.concat(stderr).toString("utf8");
+      if (forcedError) {
+        finish(forcedError);
+      } else if (code !== 0) {
+        finish(new Error(`${label} sandbox failed with exit code ${code}: ${err || out}`));
+      } else {
+        finish(null, { stdout: out, stderr: err, exitCode: code });
+      }
+    });
+  });
+}
+
+async function runNodeScript(productRoot, script, label, leaseGuard, executionMode) {
   if (leaseGuard?.lost) fail("task lease lost; refusing to start another stage");
   const scriptPath = await realpath(resolve(productRoot, assertNodeScript(script, label)));
   const rel = relative(productRoot, scriptPath);
   if (!rel || rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) {
     fail(`${label} resolves outside the product directory`);
+  }
+  if (executionMode === "docker-sandbox") {
+    return await runDockerSandboxScript(productRoot, rel, label, leaseGuard);
   }
 
   return await new Promise((resolvePromise, reject) => {
@@ -201,8 +341,12 @@ async function main() {
   const manifestPath = resolve(process.cwd(), manifestArg);
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   if (manifest.schema_version !== 1) fail("Unsupported product execution manifest version");
-  if (manifest.execution_mode !== "trusted-node") {
-    fail("Only execution_mode=trusted-node is supported; this runner is not an OS sandbox");
+  const executionMode = manifest.execution_mode;
+  if (!["trusted-node", "docker-sandbox"].includes(executionMode)) {
+    fail("Unsupported execution_mode; expected trusted-node or docker-sandbox");
+  }
+  if (executionMode === "docker-sandbox" && !/^sha256:[a-f0-9]{64}$/.test(process.env.FACTORY_SANDBOX_IMAGE ?? "")) {
+    fail("docker-sandbox requires FACTORY_SANDBOX_IMAGE to be an immutable local sha256 image ID");
   }
 
   const baseDir = await realpath(dirname(manifestPath));
@@ -334,8 +478,8 @@ async function main() {
       await transition(client, lease, currentState, "implementing");
       currentState = "implementing";
 
-      const runResult = await runNodeScript(productRoot, runScript, "product run", leaseGuard);
-      const testResult = await runNodeScript(productRoot, testScript, "product test", leaseGuard);
+      const runResult = await runNodeScript(productRoot, runScript, "product run", leaseGuard, executionMode);
+      const testResult = await runNodeScript(productRoot, testScript, "product test", leaseGuard, executionMode);
 
       await transition(client, lease, currentState, "testing");
       currentState = "testing";
@@ -347,7 +491,7 @@ async function main() {
 
       await transition(client, lease, currentState, "review");
       currentState = "review";
-      const reviewResult = await runNodeScript(productRoot, reviewScript, "product review", leaseGuard);
+      const reviewResult = await runNodeScript(productRoot, reviewScript, "product review", leaseGuard, executionMode);
       await recordEvidence(client, lease, "review_report", reviewResult);
 
       await transition(client, lease, currentState, "candidate");
@@ -355,7 +499,7 @@ async function main() {
       await transition(client, lease, currentState, "deployed_test");
       currentState = "deployed_test";
 
-      const healthResult = await runNodeScript(productRoot, healthScript, "product health check", leaseGuard);
+      const healthResult = await runNodeScript(productRoot, healthScript, "product health check", leaseGuard, executionMode);
       await recordEvidence(client, lease, "health_check", healthResult);
 
       // Drain any in-flight renewal before finalization. A renewal after lease

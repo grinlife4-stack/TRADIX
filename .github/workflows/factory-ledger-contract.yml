@@ -16,6 +16,8 @@ on:
       - "docs/WORKER_LEASE_FENCING_SPEC.md"
       - "runtime/factory-executor/**"
       - "examples/hello-world/**"
+      - "examples/sandbox-probe/**"
+      - "docs/DOCKER_SANDBOX_EXECUTION_V0_1.md"
       - ".github/workflows/factory-ledger-contract.yml"
 
 permissions:
@@ -115,6 +117,18 @@ jobs:
         run: bash tests/test_worker_lease_fencing_sql.sh "$POSTGRES_CONTAINER_ID"
       - name: Install the trusted factory executor dependency
         run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
+      - name: Build the pinned Docker sandbox image
+        run: |
+          set -euo pipefail
+          docker build --pull --file runtime/factory-executor/sandbox/Dockerfile --tag tradix-node-sandbox:24.22.3 .
+          image_id="$(docker image inspect --format='{{.Id}}' tradix-node-sandbox:24.22.3)"
+          [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "FACTORY_SANDBOX_IMAGE=$image_id" >> "$GITHUB_ENV"
+      - name: Execute sandbox boundary probe through the factory runtime
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: node runtime/factory-executor/runner.mjs examples/sandbox-probe/product.json
       - name: Execute the bounded Hello World product
         env:
           DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable

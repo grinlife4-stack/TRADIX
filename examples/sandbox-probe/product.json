@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "execution_mode": "docker-sandbox",
+  "product_dir": ".",
+  "dossier_idempotency_key": "tradix-sandbox-probe-dossier-v1",
+  "dossier": {
+    "schema_version": 1,
+    "product_type": "service",
+    "mission": "Prove the factory can run product code inside a bounded, network-isolated container.",
+    "requirements": [
+      "Product scripts execute as a non-root user.",
+      "The product workspace is read-only.",
+      "Temporary storage is writable but ephemeral.",
+      "No database, API, or GitHub secrets enter the container.",
+      "The container has no default network route."
+    ],
+    "acceptance_criteria": [
+      "All four lifecycle scripts pass the sandbox boundary probes.",
+      "The factory records test, review, and health evidence."
+    ],
+    "lifecycle": {
+      "state": "test"
+    }
+  },
+  "task": {
+    "task_key": "tradix-docker-sandbox-probe-v1",
+    "title": "Verify Docker sandbox execution boundaries",
+    "request_text": "Execute the sandbox probe through the factory executor and record lifecycle evidence.",
+    "acceptance_criteria": [
+      "Execution is non-root.",
+      "Workspace writes are denied.",
+      "Temporary writes succeed.",
+      "Sensitive environment variables are absent.",
+      "No default IPv4 route exists."
+    ],
+    "risk_class": "low",
+    "approval_required": false,
+    "approval_scope": {}
+  },
+  "attempt": {
+    "idempotency_key": "tradix-docker-sandbox-probe-attempt-v1",
+    "worker_role": "tester",
+    "branch_name": "factory/docker-sandbox-v0-1",
+    "metadata": {
+      "executor": "tradix-factory-executor-v0.1",
+      "backend": "docker-sandbox-v0.1"
+    }
+  },
+  "scripts": {
+    "run": "run.mjs",
+    "test": "test.mjs",
+    "review": "review.mjs",
+    "health": "health.mjs"
+  }
+}
