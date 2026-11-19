@@ -181,3 +181,22 @@ This is a governing architecture document, not an informal note.
 **TRADIX builds complete products and systems. Each product owns itself and operates independently. Shared foundations are built once and reused.**
 
 **One factory. Independent products. Repeatable production.**
+
+
+## 13. EXVARLI multi-project financial architecture
+
+EXVARLI must operate as a reusable, multi-project financial-management system. It must support projects with different business domains, economic models, revenue and expense structures, currencies, jurisdictions, risk profiles, and compliance requirements through separate, versioned project financial profiles.
+
+The governing design is:
+
+- **One shared EXVARLI core:** common accounting, ledger, reconciliation, cash-flow, budgeting, forecasting, reporting, evidence, audit, permissions, and integration capabilities are engineered once and reused.
+- **Distinct project profiles:** each project defines its own legal owner, business model, revenue streams, expense categories, currencies, accounting mappings, tax and compliance rules, accounts, integrations, controls, and financial KPIs.
+- **Independent financial perimeters:** each project retains its own ownership, accounts, funds, detailed ledger, records, liabilities, permissions, and operational continuity.
+
+EXVARLI may provide portfolio-wide dashboards and consolidated management reporting, but these are analytical views only. They must preserve source-project attribution and must never merge independent ledgers, imply that one project's funds are available to another, or create cross-project transfers without explicit authorization, lawful basis, and auditable accounting treatment.
+
+A new project must be onboarded by creating, validating, and activating its own financial profile. It must not require rebuilding the shared financial-management foundation. Profile creation alone does not open accounts, establish provider relationships, activate payment routes, or authorize regulated activities; those require separate legal, identity, ownership, provider, and permission checks.
+
+EXVARLI is a replaceable manager, not the owner or custodian of project assets. Each project must retain exportability, revocable access, and the ability to replace EXVARLI or operate independently without losing funds, accounts, records, or continuity.
+
+The detailed governing specification is maintained in [EXVARLI — Multi-Project Financial Architecture](projects/EXVARLI_FINANCIAL_ARCHITECTURE.md). This section applies to every current and future portfolio project.
