@@ -73,3 +73,11 @@ CI uses a disposable RustFS 1.0.3 container with test-only credentials. It valid
 RustFS is a test service only. Its successful CI integration does not prove B2 compatibility or B2 availability. No B2 credentials, bucket, retention policy, Object Lock, lifecycle rule, or restore from B2 has been configured or tested.
 
 This adapter is not yet called by the factory executor. The next integration step must upload evidence before its database receipt is committed, record the exact object key and digest, and refuse verification if object read-back fails. The worker must never receive storage credentials.
+
+## 7. Executor receipt integration
+
+When S3 configuration is present, the trusted executor uploads each evidence file and completes HEAD/GET verification before calling the fenced database evidence function. The receipt stores an `s3://bucket/key` URI plus the digest, byte size, and object key in metadata. The final task verification requires all three evidence receipts to point to remote objects.
+
+Set `TRADIX_REQUIRE_REMOTE_ARTIFACTS=true` on a worker that must fail closed without remote storage. The S3 credentials stay in the executor process; the product child process receives only its explicit runtime allowlist and never receives the storage key or secret. If an upload succeeds but the subsequent database receipt fails, an orphaned content-addressed object may remain. There is no delete API; a future reconciliation process must identify such objects without automatically deleting them.
+
+CI now exercises this full path against the disposable RustFS service. This validates the executor-to-S3-compatible-store-to-database receipt ordering, not Backblaze B2 production connectivity.
