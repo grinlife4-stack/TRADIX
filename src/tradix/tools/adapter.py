@@ -15,6 +15,7 @@ _JOB_TYPE_RE = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+){1,5}$")
 _HEALTH = {"healthy", "degraded", "unavailable", "unknown"}
 _RESULT = {"succeeded", "failed", "blocked", "cancelled"}
 _EVIDENCE_SCHEMES = {"https", "evidence"}
+_FORBIDDEN_JOB_ROOTS = {"shell", "command", "exec", "terminal", "script"}
 
 
 class AdapterContractError(ValueError):
@@ -58,8 +59,9 @@ class ToolInvocation:
             raise AdapterContractError("tool_id is required")
         if not isinstance(self.tool_version, str) or not self.tool_version.strip():
             raise AdapterContractError("tool_version is required")
-        if not isinstance(self.job_type, str) or not _JOB_TYPE_RE.fullmatch(self.job_type):
-            raise AdapterContractError("job_type has invalid format")
+        if (not isinstance(self.job_type, str) or not _JOB_TYPE_RE.fullmatch(self.job_type)
+                or self.job_type.split(".", 1)[0] in _FORBIDDEN_JOB_ROOTS):
+            raise AdapterContractError("job_type has invalid or unrestricted format")
         if self.job_type not in supported_job_types:
             raise AdapterContractError("job_type is not allowlisted by this adapter")
         if not isinstance(self.source_commit_sha, str) or not _HEX_SHA_RE.fullmatch(self.source_commit_sha):
@@ -168,5 +170,6 @@ def validate_adapter(adapter: ToolAdapter) -> None:
     if len(set(adapter.supported_job_types)) != len(adapter.supported_job_types):
         raise AdapterContractError("supported_job_types must be unique")
     if any(not isinstance(item, str) or not _JOB_TYPE_RE.fullmatch(item)
+           or item.split(".", 1)[0] in _FORBIDDEN_JOB_ROOTS
            for item in adapter.supported_job_types):
         raise AdapterContractError("supported_job_types contains an invalid job type")
