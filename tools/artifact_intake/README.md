@@ -77,7 +77,7 @@ Health check: `GET /health`. Interactive API documentation is disabled in this M
 - `TRADIX_S3_ACCESS_KEY_ID`
 - `TRADIX_S3_SECRET_ACCESS_KEY`
 
-Install `.[storage]`. The gateway uploads to a project-prefixed object key and verifies the object with a HEAD request. Use a dedicated bucket or credentials restricted by IAM to that project's prefix. Do not reuse the factory bucket for unrelated product records without an explicit ownership decision.
+Install `.[storage]` in addition to the gateway extra. The gateway uploads to a project-prefixed object key and verifies the object with a HEAD request. Use a dedicated bucket or credentials restricted by IAM to that project's prefix. Do not reuse the factory bucket for unrelated product records without an explicit ownership decision.
 
 **GitHub binary transfer:** set `TRADIX_STORAGE_BACKEND=github` and provide:
 
