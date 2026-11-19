@@ -450,12 +450,12 @@ async function main() {
     await client.query("COMMIT");
 
     const state = await client.query(
-      "SELECT t.status, t.approval_required, t.approval_scope, a.status AS attempt_status, EXISTS (SELECT 1 FROM factory.task_approvals ap WHERE ap.task_id=t.task_id AND ap.attempt_id=a.attempt_id AND ap.action='begin_implementation' AND ap.decision='approved' AND ap.decision_scope=t.approval_scope) AS approval_granted, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.task_id,t.status,t.approval_required,t.approval_scope,a.status,a.attempt_id",
+      "SELECT t.status, t.approval_required, t.approval_scope, a.status AS attempt_status, EXISTS (SELECT 1 FROM factory.task_approvals ap WHERE ap.task_id=t.task_id AND ap.attempt_id=a.attempt_id AND ap.action='begin_implementation' AND ap.decision='approved' AND ap.decision_scope=t.approval_scope) AS approval_granted, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count, count(DISTINCT ev.evidence_id) FILTER (WHERE ev.object_uri LIKE 's3://%')::int AS remote_evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.task_id,t.status,t.approval_required,t.approval_scope,a.status,a.attempt_id",
       [taskId, attemptId]
     );
     if (state.rows[0]?.status === "verified") {
       const row = state.rows[0];
-      if (row.attempt_status !== "succeeded" || row.event_count !== 7 || row.evidence_count !== 3) {
+      if (row.attempt_status !== "succeeded" || row.event_count !== 7 || row.evidence_count !== 3 || row.remote_evidence_count !== (artifactStore ? 3 : 0)) {
         fail("Previously verified task has inconsistent attempt, event, or evidence records");
       }
       process.stdout.write(`ALREADY VERIFIED task=${taskId} attempt=${attemptId} events=${row.event_count} evidence=${row.evidence_count}\n`);
@@ -473,7 +473,7 @@ async function main() {
       "SELECT fencing_token, expires_at FROM factory.acquire_task_lease($1,$2,$3,$4)",
       [taskId, attemptId, workerId, LEASE_TTL_SECONDS]
     );
-    const lease = { taskId, attemptId, workerId, token: leaseResult.rows[0]?.fencing_token };
+    const lease = { taskId, attemptId, workerId, token: leaseResult.rows[0]?.fencing_token, projectKey, runId, requireRemoteArtifacts };
     if (!lease.token) fail("Database did not return a fencing token");
 
     const leaseGuard = {
@@ -528,12 +528,12 @@ async function main() {
         stdout: [runResult.stdout, testResult.stdout].join("\\n"),
         stderr: [runResult.stderr, testResult.stderr].join("\\n"),
         exitCode: 0
-      });
+      }, artifactStore);
 
       await transition(client, lease, currentState, "review");
       currentState = "review";
       const reviewResult = await runNodeScript(productRoot, reviewScript, "product review", leaseGuard, executionMode);
-      await recordEvidence(client, lease, "review_report", reviewResult);
+      await recordEvidence(client, lease, "review_report", reviewResult, artifactStore);
 
       await transition(client, lease, currentState, "candidate");
       currentState = "candidate";
@@ -541,7 +541,7 @@ async function main() {
       currentState = "deployed_test";
 
       const healthResult = await runNodeScript(productRoot, healthScript, "product health check", leaseGuard, executionMode);
-      await recordEvidence(client, lease, "health_check", healthResult);
+      await recordEvidence(client, lease, "health_check", healthResult, artifactStore);
 
       // Drain any in-flight renewal before finalization. A renewal after lease
       // release would abort the transaction.
@@ -598,12 +598,12 @@ async function main() {
     }
 
     const verified = await client.query(
-      "SELECT t.status, a.status AS attempt_status, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.status,a.status",
+      "SELECT t.status, a.status AS attempt_status, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count, count(DISTINCT ev.evidence_id) FILTER (WHERE ev.object_uri LIKE 's3://%')::int AS remote_evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.status,a.status",
       [taskId, attemptId]
     );
     const row = verified.rows[0];
     if (row?.status !== "verified" || row?.attempt_status !== "succeeded" ||
-        row.event_count !== 7 || row.evidence_count !== 3) {
+        row.event_count !== 7 || row.evidence_count !== 3 || row.remote_evidence_count !== (artifactStore ? 3 : 0)) {
       fail("Final factory verification did not satisfy task, attempt, event, and evidence invariants");
     }
     process.stdout.write(
