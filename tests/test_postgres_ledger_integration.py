@@ -174,7 +174,7 @@ def test_real_postgres_full_task_lifecycle_and_readback():
                 (task_id,),
             )
             assert [row[0] for row in cursor.fetchall()] == [
-                "planned", "implementing", "testing", "review", "candidate", "verified"
+                "planned", "implementing", "testing", "review", "candidate", "deployed_test", "verified"
             ]
 
             cursor.execute(
