@@ -36,7 +36,7 @@ No live B2 bucket or GitHub project token is configured by this code change. Uni
 
 ## Security boundaries
 
-- Upload size is bounded by `TRADIX_MAX_UPLOAD_BYTES`; configure a matching request-body cap and rate limit at the ingress/reverse proxy because multipart parsing occurs before the endpoint handler.
+- Upload size is bounded by `TRADIX_MAX_UPLOAD_BYTES`; configure a matching request-body cap and rate limit at the ingress/reverse proxy because multipart parsing occurs before the endpoint handler.\n- DOCX/XLSX ZIP containers are preflighted before parser invocation: at most 4,096 members, a 4 MiB central directory, 64 MiB total uncompressed data, 32 MiB per member, and a 100:1 per-member compression ratio. ZIP64 and encrypted/duplicate members are rejected. XLSX extraction is additionally capped at 100,000 cells and 2 million characters.
 - The service must run behind HTTPS. The built-in listener defaults to loopback.
 - Credentials are environment/runtime secrets only and are excluded from receipts.
 - Remote operations are append-only; no delete or overwrite endpoint exists.
