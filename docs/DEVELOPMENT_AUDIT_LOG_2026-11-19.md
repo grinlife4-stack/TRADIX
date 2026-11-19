@@ -159,3 +159,75 @@ For each future material action, record:
 - explicit statement of what was not tested or not changed.
 
 Never label a feature "verified" merely because code exists or a design document describes it. Distinguish unit tests, integration tests, disposable infrastructure tests, and live production verification.
+
+
+## 8. Append-only correction and evidence update — 2026-11-19T19:52Z
+
+This section supersedes the earlier point-in-time observation in §1.1 and adds evidence obtained after the initial record was committed. The earlier observation is retained as historical data, not silently rewritten.
+
+### 8.1 Current branch and pull request state
+
+**CONFIRMED — GitHub branch and PR metadata**
+- Branch: `integration/gvisor-backend-v0-1`
+- Current HEAD at this update: `6e74c7d78912996a4845d5ad9d4a60e348fcb5c1`
+- Parent of that HEAD: `ab72e0f9185b271fdf94ce753ddf44ff899d758c`
+- The current HEAD is the audit-record commit `docs(audit): record verified TRADIX activity baseline`.
+- A dedicated PR does exist: [PR #60](https://github.com/grinlife4-stack/TRADIX/pull/60), titled **Add optional fail-closed gVisor runsc execution mode**.
+- PR #60 is open, draft, not merged; head is this gVisor branch and base is `integration/executor-remote-evidence-v0-1`.
+- PR #60 is stacked on PR #59 and the earlier artifact, Tool Catalog, adapter, executor, ledger, and sandbox PR chain. It must not be merged independently into `main`.
+
+### 8.2 CI on the exact current HEAD
+
+**CONFIRMED — GitHub Actions run metadata, job summaries, and logs**
+
+Both workflows below ran against the exact current HEAD `6e74c7d78912996a4845d5ad9d4a60e348fcb5c1` and completed successfully:
+
+| Workflow | Run ID | Job ID | Conclusion |
+|---|---:|---:|---|
+| `tests` | `44602524286` | `135837428858` | success |
+| `factory-ledger-contract` | `44602524390` | `135837429484` | success |
+
+Evidence links:
+- [tests run 44602524286](https://github.com/grinlife4-stack/TRADIX/actions/runs/44602524286)
+- [factory-ledger-contract run 44602524390](https://github.com/grinlife4-stack/TRADIX/actions/runs/44602524390)
+
+The Python test log explicitly reports **99 passed, 1 warning**. The warning is a Starlette/httpx TestClient deprecation warning; it did not fail the run.
+
+The factory-ledger-contract job log confirms:
+- gVisor runtime preflight unit suite: **6 passed**.
+- The hosted runner reported: `runsc is not registered`.
+- The runner then emitted `GvisorPreflightError: gVisor runtime 'runsc' is not registered with Docker; refusing execution`.
+- The workflow verified the gVisor probe task count remained zero and printed: `PASS: no task was created and no lease was acquired`.
+- The workflow continued through its remaining steps and completed successfully, including the remote-artifact-required fail-closed check, Docker sandbox boundary probe, bounded Hello World, exact retry, approval preflight, evidence-manifest generation and upload.
+- The same job also exercised the disposable PostgreSQL ledger/fencing checks and ephemeral RustFS upload/read-back/restore check.
+
+**Correct interpretation:** This is now direct evidence that the current branch passes its CI contract and that the gVisor path correctly refuses execution when `runsc` is absent, before task creation or lease acquisition. It is **not** evidence of a real workload running under gVisor. The CI runner did not have `runsc` registered, so the live integration branch was not executed.
+
+### 8.3 PR #59 and PR #45 workflow clarification
+
+**CONFIRMED — Actions run lookup**
+- PR #59's current head is `25032707cc1981aefa09a8448aecbe249440fbc2`. Its associated recorded runs `44594766340` (`tests`) and `44594766337` (`factory-ledger-contract`) both completed successfully on that SHA.
+- PR #45's head is `1184f8bc35451dbf4ab6280a2fdf9e7f5a7e982d`. Its recorded `tests` run `44587004809` completed successfully on that SHA.
+- PR #45, #59, and #60 were all open, draft, and unmerged at the time of this inspection.
+
+### 8.4 Other nearby PRs distinguished by scope
+
+**CONFIRMED — PR metadata**
+- PR #60 is the gVisor change.
+- PR #62 is a separate hardened Docker sandbox execution change. It targets `integration/factory-executor-lease-runtime` and is not the gVisor PR.
+- PR #61 is the lease-aware factory executor change.
+- PR #58 is the worker lease-fencing change.
+- PR #57 is the content-addressed S3 artifact-store change.
+- PR #56 is the CI evidence-manifest change.
+- PR #46 is the metadata-only Tool Catalog; PR #47 defines the adapter contract.
+- These PRs form multiple stacked chains. Their open status does not mean they are integrated into `main`.
+
+### 8.5 Remaining limits
+
+**NOT VERIFIED / OUT OF SCOPE**
+- A real `runsc`-backed product workload on a Linux worker where Docker actually registers `runsc`.
+- Backblaze B2 live credentials, upload, restore, or production durability. The CI storage provider here is disposable RustFS.
+- Production deployment, Railway changes, production database changes, or production secrets.
+- A complete reconstruction of every ChatGPT instruction, attempted tool call, or manual action outside the inspected GitHub records.
+
+No PR was merged and no production deployment was performed as part of this evidence update.
