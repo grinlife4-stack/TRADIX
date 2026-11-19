@@ -235,3 +235,140 @@ class PostgresTaskLedger:
             (task, attempt, outcome),
         )
         return str(value)
+
+
+    def _values(self, operation: str, statement: str, parameters: tuple[Any, ...]) -> tuple[Any, ...]:
+        try:
+            with self._connection_factory() as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(statement, parameters)
+                    row = cursor.fetchone()
+                    if row is None:
+                        raise LedgerPersistenceError(f"{operation} returned no result")
+                    return tuple(row)
+        except LedgerPersistenceError:
+            raise
+        except Exception as exc:
+            raise LedgerPersistenceError(f"{operation} failed; transaction was rolled back") from exc
+
+    def acquire_task_lease(
+        self, task_id: str, attempt_id: str, *, worker_id: str, ttl_seconds: int = 60
+    ) -> tuple[int, Any]:
+        task = _uuid(task_id, "task_id")
+        attempt = _uuid(attempt_id, "attempt_id")
+        _required_text(worker_id, "worker_id", 255)
+        if isinstance(ttl_seconds, bool) or not isinstance(ttl_seconds, int) or not 5 <= ttl_seconds <= 300:
+            raise ValueError("ttl_seconds must be an integer from 5 to 300")
+        token, expires_at = self._values(
+            "acquire_task_lease",
+            "SELECT fencing_token, expires_at FROM factory.acquire_task_lease(%s::uuid,%s::uuid,%s,%s)",
+            (task, attempt, worker_id, ttl_seconds),
+        )
+        return int(token), expires_at
+
+    def renew_task_lease(
+        self, task_id: str, attempt_id: str, *, worker_id: str, fencing_token: int,
+        ttl_seconds: int = 60,
+    ) -> Any:
+        task = _uuid(task_id, "task_id")
+        attempt = _uuid(attempt_id, "attempt_id")
+        _required_text(worker_id, "worker_id", 255)
+        if isinstance(fencing_token, bool) or not isinstance(fencing_token, int) or fencing_token < 1:
+            raise ValueError("fencing_token must be a positive integer")
+        if isinstance(ttl_seconds, bool) or not isinstance(ttl_seconds, int) or not 5 <= ttl_seconds <= 300:
+            raise ValueError("ttl_seconds must be an integer from 5 to 300")
+        return self._scalar(
+            "renew_task_lease",
+            "SELECT factory.renew_task_lease(%s::uuid,%s::uuid,%s,%s,%s)",
+            (task, attempt, worker_id, fencing_token, ttl_seconds),
+        )
+
+    def transition_task_fenced(
+        self, task_id: str, attempt_id: str, *, worker_id: str, fencing_token: int,
+        target_state: str, event_type: str, actor_type: str, actor_ref: str,
+        idempotency_key: str, payload: Mapping[str, Any] | None = None,
+    ) -> int:
+        task = _uuid(task_id, "task_id")
+        attempt = _uuid(attempt_id, "attempt_id")
+        _required_text(worker_id, "worker_id", 255)
+        if isinstance(fencing_token, bool) or not isinstance(fencing_token, int) or fencing_token < 1:
+            raise ValueError("fencing_token must be a positive integer")
+        if target_state not in _TASK_STATES:
+            raise ValueError("target_state is invalid")
+        _required_text(event_type, "event_type", 100)
+        if actor_type not in _ACTOR_TYPES:
+            raise ValueError("actor_type must be system, agent, or github")
+        _required_text(actor_ref, "actor_ref", 200)
+        _required_text(idempotency_key, "idempotency_key", 255)
+        if not _IDEMPOTENCY.fullmatch(idempotency_key):
+            raise ValueError("idempotency_key contains unsupported characters")
+        body = _json_object(payload or {}, "payload")
+        value = self._scalar(
+            "transition_task_fenced",
+            "SELECT factory.transition_task_fenced(%s::uuid,%s,%s,%s,%s,%s,%s,%s,%s::uuid,%s::jsonb)",
+            (task, fencing_token, worker_id, target_state, event_type, actor_type,
+             actor_ref, idempotency_key, attempt, body),
+        )
+        return int(value)
+
+    def record_evidence_fenced(
+        self, task_id: str, attempt_id: str, *, worker_id: str, fencing_token: int,
+        artifact_type: str, object_uri: str, sha256: str, byte_size: int,
+        content_type: str = "application/octet-stream", evidence_type: str,
+        description: str = "", metadata: Mapping[str, Any] | None = None,
+    ) -> str:
+        task = _uuid(task_id, "task_id")
+        attempt = _uuid(attempt_id, "attempt_id")
+        _required_text(worker_id, "worker_id", 255)
+        if isinstance(fencing_token, bool) or not isinstance(fencing_token, int) or fencing_token < 1:
+            raise ValueError("fencing_token must be a positive integer")
+        _required_text(artifact_type, "artifact_type", 80)
+        _required_text(object_uri, "object_uri", 2048)
+        if not isinstance(sha256, str) or not _SHA256.fullmatch(sha256):
+            raise ValueError("sha256 must be 64 lowercase hexadecimal characters")
+        if isinstance(byte_size, bool) or not isinstance(byte_size, int) or byte_size < 0:
+            raise ValueError("byte_size must be a non-negative integer")
+        _required_text(content_type, "content_type", 255)
+        _required_text(evidence_type, "evidence_type", 100)
+        if not isinstance(description, str) or len(description) > 4000:
+            raise ValueError("description must be at most 4000 characters")
+        meta = _json_object(metadata or {}, "metadata")
+        value = self._scalar(
+            "record_evidence_fenced",
+            "SELECT factory.record_task_evidence_fenced(%s::uuid,%s::uuid,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)",
+            (task, attempt, worker_id, fencing_token, artifact_type, object_uri, sha256,
+             byte_size, content_type, evidence_type, description, meta),
+        )
+        return str(value)
+
+    def finish_attempt_fenced(
+        self, task_id: str, attempt_id: str, *, worker_id: str, fencing_token: int,
+        outcome: str,
+    ) -> str:
+        task = _uuid(task_id, "task_id")
+        attempt = _uuid(attempt_id, "attempt_id")
+        _required_text(worker_id, "worker_id", 255)
+        if isinstance(fencing_token, bool) or not isinstance(fencing_token, int) or fencing_token < 1:
+            raise ValueError("fencing_token must be a positive integer")
+        if outcome not in {"succeeded", "failed"}:
+            raise ValueError("outcome must be succeeded or failed")
+        value = self._scalar(
+            "finish_attempt_fenced",
+            "SELECT factory.finish_task_attempt_fenced(%s::uuid,%s::uuid,%s,%s,%s)",
+            (task, attempt, worker_id, fencing_token, outcome),
+        )
+        return str(value)
+
+    def release_task_lease(
+        self, task_id: str, attempt_id: str, *, worker_id: str, fencing_token: int
+    ) -> bool:
+        task = _uuid(task_id, "task_id")
+        attempt = _uuid(attempt_id, "attempt_id")
+        _required_text(worker_id, "worker_id", 255)
+        if isinstance(fencing_token, bool) or not isinstance(fencing_token, int) or fencing_token < 1:
+            raise ValueError("fencing_token must be a positive integer")
+        return bool(self._scalar(
+            "release_task_lease",
+            "SELECT factory.release_task_lease(%s::uuid,%s::uuid,%s,%s)",
+            (task, attempt, worker_id, fencing_token),
+        ))
