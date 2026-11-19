@@ -24,7 +24,7 @@ python tools/artifact_intake/artifact_intake.py read-document path/to/report.doc
 python tools/artifact_intake/artifact_intake.py read-document path/to/report.xlsx
 ```
 
-ZIP extraction rejects traversal paths, symlinks, duplicate names, oversized entries and overwrites. PDF/DOCX/XLSX extraction is read-only. Scanned-PDF OCR and legacy DOC are not supported.
+ZIP extraction rejects traversal paths, symlinks, duplicate names, oversized entries and overwrites. PDF/DOCX/XLSX extraction is read-only. Before DOCX/XLSX parsing, the reader bounds ZIP member count (4,096), central-directory size (4 MiB), total uncompressed size (64 MiB), per-member size (32 MiB), and per-member compression ratio (100:1). ZIP64, encrypted members and duplicate member names are rejected. XLSX output is capped at 100,000 cells and 2 million extracted characters. Scanned-PDF OCR and legacy DOC are not supported.
 
 ## 2. Authenticated upload gateway
 
