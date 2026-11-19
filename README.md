@@ -2,7 +2,7 @@
 
 Modular Intelligence & Decision Engine.
 
-This repository is the public project entry point. Internal implementation details, credentials, private data, and proprietary decision logic are maintained separately.
+This repository is the public project entry point. Internal implementation details, credentials, private data, and proprietary decision logic are maintained separately. AI agents and contributors must read the [main system entry instructions](AGENTS.md) before making changes.
 
 ## Foundational architecture
 
