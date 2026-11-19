@@ -145,6 +145,10 @@ def test_real_postgres_full_task_lifecycle_and_readback():
     assert ledger.release_task_lease(
         task_id, attempt_id, worker_id=worker_id, fencing_token=fencing_token
     ) is True
+    with pytest.raises(LedgerPersistenceError):
+        ledger.renew_task_lease(
+            task_id, attempt_id, worker_id=worker_id, fencing_token=fencing_token
+        )
 
     # A TRADIX runtime must not be able to create an attempt for the fixed
     # info_engine fixture task seeded by the SQL isolation suite.
