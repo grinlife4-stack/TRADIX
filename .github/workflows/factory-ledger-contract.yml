@@ -8,6 +8,7 @@ on:
       - "migrations/drafts/0002_mission_plan_versions.sql"
       - "migrations/drafts/0003_intake_approval_decisions.sql"
       - "migrations/operations/**"
+      - "schemas/product-dossier-v1.schema.json"
       - "tests/test_factory_ledger_sql.sh"
       - ".github/workflows/factory-ledger-contract.yml"
 
