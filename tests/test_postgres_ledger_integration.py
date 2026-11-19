@@ -27,7 +27,7 @@ def test_real_postgres_full_task_lifecycle_and_readback():
         "task_key": task_key,
         "title": "PostgreSQL end-to-end lifecycle",
         "request_text": "Exercise task creation, attempt, evidence, transitions and durable read-back.",
-        "acceptance_criteria": ("both evidence records are persisted", "task reaches verified after deployed-test"),
+        "acceptance_criteria": ("all three evidence records are persisted", "task reaches verified after deployed-test"),
         "risk_class": "low",
         "approval_required": False,
         "approval_scope": {},
@@ -122,6 +122,22 @@ def test_real_postgres_full_task_lifecycle_and_readback():
     )
     transition("candidate", "candidate")
     transition("deployed_test", "deployed-test")
+
+    health_report = b'{"health":"passed","service":"disposable-postgres"}'
+    ledger.record_evidence_fenced(
+        task_id,
+        attempt_id,
+        worker_id=worker_id,
+        fencing_token=fencing_token,
+        artifact_type="health-check",
+        object_uri=f"ci://tradix/{nonce}/health-check.json",
+        sha256=hashlib.sha256(health_report).hexdigest(),
+        byte_size=len(health_report),
+        content_type="application/json",
+        evidence_type="health_check",
+        description="Real PostgreSQL integration health check",
+        metadata={"test": "full-lifecycle"},
+    )
     assert ledger.finish_attempt_fenced(
         task_id, attempt_id, worker_id=worker_id, fencing_token=fencing_token, outcome="succeeded"
     ) == "succeeded"
@@ -165,7 +181,7 @@ def test_real_postgres_full_task_lifecycle_and_readback():
                 "SELECT evidence_type FROM factory.task_evidence WHERE task_id = %s ORDER BY evidence_type",
                 (task_id,),
             )
-            assert [row[0] for row in cursor.fetchall()] == ["review_report", "test_report"]
+            assert [row[0] for row in cursor.fetchall()] == ["health_check", "review_report", "test_report"]
 
             cursor.execute(
                 "SELECT status FROM factory.task_attempts WHERE attempt_id = %s AND task_id = %s",
