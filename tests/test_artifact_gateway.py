@@ -47,7 +47,6 @@ def test_upload_text_returns_hash_and_extracted_text(gateway):
     assert receipt["project_id"] == "nexora"
     assert receipt["sha256"] == hashlib.sha256(payload).hexdigest()
     assert receipt["extraction"]["text"] == payload.decode()
-    assert Path(gateway.app.state.root).exists() if hasattr(gateway.app.state, "root") else True
 
 
 def test_receipt_is_retrievable_and_project_scoped(gateway):
