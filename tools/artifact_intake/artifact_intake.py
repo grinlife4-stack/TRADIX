@@ -15,6 +15,11 @@ import sys
 import zipfile
 from pathlib import Path, PurePosixPath
 
+try:
+    from .document_readers import DocumentReadError, read_document
+except ImportError:  # Supports direct execution as a script.
+    from document_readers import DocumentReadError, read_document
+
 MAX_ENTRIES = 10_000
 MAX_TOTAL_BYTES = 1_000_000_000
 MAX_MEMBER_BYTES = 250_000_000
@@ -126,7 +131,7 @@ def read_text(path: Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="TRADIX artifact intake MVP")
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("hash", "inspect-zip", "read-text"):
+    for name in ("hash", "inspect-zip", "read-text", "read-document"):
         command = commands.add_parser(name)
         command.add_argument("path", type=Path)
     extract = commands.add_parser("extract-zip")
@@ -140,11 +145,15 @@ def main(argv: list[str] | None = None) -> int:
             result = inspect_zip(args.path)
         elif args.command == "extract-zip":
             result = extract_zip(args.path, args.destination)
-        else:
+        elif args.command == "read-text":
             result = read_text(args.path)
+        else:
+            result = read_document(args.path)
+            result.update({"path": str(args.path), "bytes": args.path.stat().st_size,
+                           "sha256": sha256_file(args.path)})
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
-    except (OSError, zipfile.BadZipFile, ArtifactError) as exc:
+    except (OSError, zipfile.BadZipFile, ArtifactError, DocumentReadError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2
 
