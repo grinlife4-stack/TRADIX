@@ -3,6 +3,10 @@ import unittest
 import zipfile
 from pathlib import Path
 
+from docx import Document
+from openpyxl import Workbook
+from pypdf import PdfWriter
+
 from tools.artifact_intake.artifact_intake import (
     ArtifactError,
     extract_zip,
@@ -10,6 +14,7 @@ from tools.artifact_intake.artifact_intake import (
     read_text,
     sha256_file,
 )
+from tools.artifact_intake.document_readers import DocumentReadError, read_document
 
 
 class ArtifactIntakeTests(unittest.TestCase):
@@ -53,6 +58,48 @@ class ArtifactIntakeTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             extract_zip(archive, destination)
         self.assertEqual((destination / "note.txt").read_text(), "existing")
+
+    def test_read_docx_text_and_table(self):
+        path = self.root / "sample.docx"
+        document = Document()
+        document.add_paragraph("Document body")
+        table = document.add_table(rows=1, cols=2)
+        table.cell(0, 0).text = "left"
+        table.cell(0, 1).text = "right"
+        document.save(path)
+        result = read_document(path)
+        self.assertEqual(result["format"], "docx")
+        self.assertIn("Document body", result["text"])
+        self.assertIn("left | right", result["text"])
+
+    def test_read_xlsx_values(self):
+        path = self.root / "sample.xlsx"
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Ledger"
+        sheet.append(["Item", "Amount"])
+        sheet.append(["A", 125])
+        workbook.save(path)
+        result = read_document(path)
+        self.assertEqual(result["format"], "xlsx")
+        self.assertEqual(result["sheets"][0]["name"], "Ledger")
+        self.assertEqual(result["sheets"][0]["rows"][1], ["A", "125"])
+
+    def test_read_pdf_page_count(self):
+        path = self.root / "sample.pdf"
+        writer = PdfWriter()
+        writer.add_blank_page(width=300, height=300)
+        with path.open("wb") as output:
+            writer.write(output)
+        result = read_document(path)
+        self.assertEqual(result["format"], "pdf")
+        self.assertEqual(result["page_count"], 1)
+
+    def test_reject_unsupported_document_type(self):
+        path = self.root / "sample.doc"
+        path.write_text("legacy format")
+        with self.assertRaises(DocumentReadError):
+            read_document(path)
 
 
 if __name__ == "__main__":
