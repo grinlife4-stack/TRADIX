@@ -82,7 +82,6 @@ def test_real_postgres_full_task_lifecycle_and_readback():
         actor_type="system",
         actor_ref="postgres-ledger-integration-test",
         idempotency_key=f"e2e-transition-{nonce}-planned",
-        attempt_id=attempt_id,
         payload={"integration_test": True},
     ) == planned_seq
 
