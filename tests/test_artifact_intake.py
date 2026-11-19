@@ -148,5 +148,20 @@ class ArtifactIntakeTests(unittest.TestCase):
 
 
 
+    def test_xlsx_rejects_excessive_declared_dimensions_before_iteration(self):
+        from unittest.mock import patch
+        from tools.artifact_intake import document_readers
+
+        path = self.root / "wide-dimension.xlsx"
+        workbook = Workbook()
+        workbook.active["A1"] = "small"
+        workbook.active["Z10000"] = "far"
+        workbook.save(path)
+        with patch.object(document_readers, "MAX_XLSX_CELLS", 100):
+            with self.assertRaisesRegex(DocumentReadError, "declared dimensions"):
+                read_document(path)
+
+
+
 if __name__ == "__main__":
     unittest.main()
