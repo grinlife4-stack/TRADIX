@@ -74,6 +74,7 @@ INSERT INTO factory.task_attempts (
  ) VALUES
  ('$attempt_id', '$task_id', 1, 'implementer'),
  ('$next_attempt_id', '$task_id', 2, 'implementer');
+UPDATE factory.tasks SET current_attempt = 1 WHERE task_id = '$task_id';
 INSERT INTO factory.tasks (
   task_id, project_id, task_key, title, request_text, acceptance_criteria,
   risk_class, approval_required
@@ -84,6 +85,7 @@ INSERT INTO factory.tasks (
 );
 INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
 VALUES ('$race_attempt_id', '$race_task_id', 1, 'implementer');
+UPDATE factory.tasks SET current_attempt = 1 WHERE task_id = '$race_task_id';
 INSERT INTO factory.tasks (
   task_id, project_id, task_key, title, request_text, acceptance_criteria,
   risk_class, approval_required
@@ -94,6 +96,7 @@ INSERT INTO factory.tasks (
 );
 INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
 VALUES ('$lock_attempt_id', '$lock_task_id', 1, 'implementer');
+UPDATE factory.tasks SET current_attempt = 1 WHERE task_id = '$lock_task_id';
 INSERT INTO factory.tasks (
   task_id, project_id, task_key, title, request_text, acceptance_criteria,
   risk_class, approval_required
@@ -104,6 +107,7 @@ INSERT INTO factory.tasks (
 );
 INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
 VALUES ('$rollback_attempt_id', '$rollback_task_id', 1, 'implementer');
+UPDATE factory.tasks SET current_attempt = 1 WHERE task_id = '$rollback_task_id';
 INSERT INTO factory.tasks (
   task_id, project_id, task_key, title, request_text, acceptance_criteria,
   risk_class, approval_required, approval_scope
@@ -116,6 +120,7 @@ INSERT INTO factory.tasks (
 );
 INSERT INTO factory.task_attempts (attempt_id, task_id, attempt_number, worker_role)
 VALUES ('$approval_attempt_id', '$approval_task_id', 1, 'implementer');
+UPDATE factory.tasks SET current_attempt = 1 WHERE task_id = '$approval_task_id';
 SQL
 
 if [[ "$(psql -c "SELECT status FROM factory.task_attempts WHERE attempt_id='$attempt_id'")" != "queued" ]]; then
@@ -123,6 +128,9 @@ if [[ "$(psql -c "SELECT status FROM factory.task_attempts WHERE attempt_id='$at
   exit 1
 fi
 echo "PASS: attempt creation remains queued until lease acquisition"
+
+expect_runtime_failure "a non-current older attempt cannot acquire a lease" "only the task current_attempt may acquire a worker lease" \\
+  "SELECT factory.acquire_task_lease('$task_id','$next_attempt_id','stale-attempt-worker',30)"
 
 expect_runtime_failure "database refuses lease acquisition without exact human approval" "human approval required for this attempt and decision scope" \
   "SELECT factory.acquire_task_lease('$approval_task_id','$approval_attempt_id','unapproved-worker',30)"
@@ -160,6 +168,14 @@ if [[ "$same_worker_token" != "$token1" ]]; then
   exit 1
 fi
 echo "PASS: repeated acquisition by the same live worker is idempotent"
+
+expect_runtime_failure "new attempt cannot be created while a live lease exists" "cannot create a new attempt while the task has a live worker lease" \\
+  "SELECT factory.create_task_attempt('$task_id','attempt-during-live-lease','implementer',NULL,'{}'::jsonb)"
+if [[ "$(psql -c "SELECT current_attempt FROM factory.tasks WHERE task_id='$task_id'")" != "1" ]]; then
+  echo "FAIL: rejected attempt creation changed current_attempt"
+  exit 1
+fi
+echo "PASS: live lease prevents current-attempt replacement"
 
 expect_runtime_failure "running attempt cannot mark its task verified" "task transition is not permitted for attempt status running and target state verified" \
   "SELECT factory.transition_task_fenced('$task_id',$token1,'lease-worker-old','verified','task.verified','agent','lease-worker-old','premature-verified','$attempt_id','{}'::jsonb)"
