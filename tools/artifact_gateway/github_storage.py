@@ -41,13 +41,19 @@ def upload_binary(path: Path, *, project_id: str, sha256: str, target: GitHubTar
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,62}", project_id):
         raise GitHubTransferError("invalid project namespace")
     prefix = target.path_prefix.strip("/")
-    if not prefix or any(part in {"", ".", ".."} for part in prefix.split("/")):
+    if not prefix or any(
+        part in {"", ".", ".."} or not re.fullmatch(r"[A-Za-z0-9_.-]+", part)
+        for part in prefix.split("/")
+    ):
         raise GitHubTransferError("a safe, non-empty GitHub path prefix is required")
     if not target.branch or target.branch.startswith("-"):
         raise GitHubTransferError("an explicit existing target branch is required")
     if len(target.token) < 20:
         raise GitHubTransferError("GitHub token is missing or invalid")
 
+    file_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+    if file_hash != sha256:
+        raise GitHubTransferError("input file does not match the supplied SHA-256")
     relative_path = f"{prefix}/{project_id}/{sha256[:2]}/{sha256}"
     encoded_path = urllib.parse.quote(relative_path, safe="/")
     api_url = f"https://api.github.com/repos/{target.repository}/contents/{encoded_path}"
@@ -57,27 +63,51 @@ def upload_binary(path: Path, *, project_id: str, sha256: str, target: GitHubTar
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "TRADIX-Artifact-Gateway",
     }
-    content = base64.b64encode(path.read_bytes()).decode("ascii")
-    payload = json.dumps({
-        "message": f"Store project artifact {sha256}",
-        "content": content,
-        "branch": target.branch,
-    }).encode("utf-8")
-    request = urllib.request.Request(
-        api_url, data=payload, headers={**headers, "Content-Type": "application/json"},
-        method="PUT",
-    )
+    raw_headers = {**headers, "Accept": "application/vnd.github.raw+json"}
+
     try:
+        # Content-addressed paths make retries idempotent. Reuse an existing object
+        # only after downloading it and independently verifying its SHA-256.
+        existing_request = urllib.request.Request(api_url, headers=raw_headers, method="GET")
+        try:
+            with urllib.request.urlopen(existing_request, timeout=30) as response:
+                existing = response.read()
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                raise
+            existing = None
+        if existing is not None:
+            existing_hash = hashlib.sha256(existing).hexdigest()
+            if len(existing) != size or existing_hash != sha256:
+                raise GitHubTransferError("existing GitHub object failed integrity verification")
+            return {
+                "repository": target.repository,
+                "branch": target.branch,
+                "path": relative_path,
+                "commit_sha": None,
+                "verified_sha256": existing_hash,
+                "size_bytes": size,
+                "reused_existing": True,
+            }
+
+        content = base64.b64encode(path.read_bytes()).decode("ascii")
+        payload = json.dumps({
+            "message": f"Store project artifact {sha256}",
+            "content": content,
+            "branch": target.branch,
+        }).encode("utf-8")
+        request = urllib.request.Request(
+            api_url, data=payload, headers={**headers, "Content-Type": "application/json"},
+            method="PUT",
+        )
         with urllib.request.urlopen(request, timeout=30) as response:
             result = json.loads(response.read().decode("utf-8"))
         content_info = result.get("content") or {}
         commit_info = result.get("commit") or {}
         if content_info.get("path") != relative_path or not commit_info.get("sha"):
             raise GitHubTransferError("GitHub did not return the expected path and commit")
-        verify_request = urllib.request.Request(
-            api_url, headers={**headers, "Accept": "application/vnd.github.raw"},
-            method="GET",
-        )
+
+        verify_request = urllib.request.Request(api_url, headers=raw_headers, method="GET")
         with urllib.request.urlopen(verify_request, timeout=30) as response:
             downloaded = response.read()
         verified_hash = hashlib.sha256(downloaded).hexdigest()
@@ -90,6 +120,7 @@ def upload_binary(path: Path, *, project_id: str, sha256: str, target: GitHubTar
             "commit_sha": commit_info["sha"],
             "verified_sha256": verified_hash,
             "size_bytes": size,
+            "reused_existing": False,
         }
     except GitHubTransferError:
         raise
