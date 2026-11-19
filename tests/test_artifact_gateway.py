@@ -132,6 +132,10 @@ def test_s3_backend_upload_is_verified(monkeypatch, tmp_path):
                 "Metadata": item["Metadata"],
             }
 
+        def get_object(self, Bucket, Key):
+            import io
+            return {"Body": io.BytesIO(self.objects[(Bucket, Key)]["data"])}
+
     fake = FakeS3()
     monkeypatch.setattr(gateway_module, "_s3_client", lambda settings: fake)
     settings = Settings(
@@ -219,3 +223,22 @@ def test_github_backend_uploads_and_verifies_readback(monkeypatch, tmp_path):
     assert repeated.status_code == 201
     assert repeated.json()["storage_ref"] == receipt["storage_ref"]
     assert repeated.json()["remote_commit_sha"] is None
+
+
+def test_settings_reads_max_upload_bytes(monkeypatch, tmp_path):
+    monkeypatch.setenv("TRADIX_PROJECT_ID", "tradix-test")
+    monkeypatch.setenv("TRADIX_API_KEY", API_KEY)
+    monkeypatch.setenv("TRADIX_ARTIFACT_ROOT", str(tmp_path.resolve()))
+    monkeypatch.setenv("TRADIX_MAX_UPLOAD_BYTES", "12345")
+    monkeypatch.setenv("TRADIX_STORAGE_BACKEND", "local")
+    assert Settings.from_env().max_upload_bytes == 12345
+
+
+def test_settings_rejects_invalid_max_upload_bytes(monkeypatch, tmp_path):
+    monkeypatch.setenv("TRADIX_PROJECT_ID", "tradix-test")
+    monkeypatch.setenv("TRADIX_API_KEY", API_KEY)
+    monkeypatch.setenv("TRADIX_ARTIFACT_ROOT", str(tmp_path.resolve()))
+    monkeypatch.setenv("TRADIX_MAX_UPLOAD_BYTES", "not-an-integer")
+    monkeypatch.setenv("TRADIX_STORAGE_BACKEND", "local")
+    with pytest.raises(RuntimeError, match="TRADIX_MAX_UPLOAD_BYTES"):
+        Settings.from_env()
