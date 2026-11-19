@@ -122,7 +122,11 @@ def test_real_postgres_full_task_lifecycle_and_readback():
     # Read back the committed projection and its immutable event/evidence trail
     # through the same restricted product login, not the PostgreSQL admin.
     with psycopg.connect(DSN) as connection:
+        connection.execute("SET ROLE factory_runtime")
         with connection.cursor() as cursor:
+            cursor.execute("SELECT session_user::text, current_user::text")
+            assert cursor.fetchone() == ("factory_rt_tradix", "factory_runtime")
+
             cursor.execute(
                 "SELECT status, current_attempt FROM factory.tasks WHERE task_id = %s",
                 (task_id,),
