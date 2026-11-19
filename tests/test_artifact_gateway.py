@@ -193,6 +193,7 @@ def test_github_backend_uploads_and_verifies_readback(monkeypatch, tmp_path):
         project_id="nexora",
         api_key=API_KEY,
         root=tmp_path.resolve(),
+        max_upload_bytes=github_storage.MAX_GITHUB_UPLOAD_BYTES,
         storage_backend="github",
         github_repository="grinlife4-stack/NEXORA",
         github_branch="artifact-intake",
