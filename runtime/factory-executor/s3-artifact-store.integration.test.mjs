@@ -132,6 +132,28 @@ test("rejects same-size object tampering during restore", async () => {
     await rawClient.send(new PutObjectCommand({
       Bucket: bucket,
       Key: uploaded.key,
+      Body: original,
+      ContentLength: original.byteLength,
+      ContentType: "text/plain",
+      Metadata: {
+        sha256: uploaded.sha256,
+        project_key: "wrong-project",
+        run_id: ids.runId,
+        attempt_id: ids.attemptId
+      }
+    }));
+    await assert.rejects(
+      store.inspect({
+        key: uploaded.key,
+        expectedSha256: uploaded.sha256,
+        expectedByteSize: uploaded.byteSize
+      }),
+      error => error instanceof ArtifactStoreError && error.code === "INTEGRITY_MISMATCH"
+    );
+
+    await rawClient.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: uploaded.key,
       Body: tampered,
       ContentLength: tampered.byteLength,
       ContentType: "text/plain",
