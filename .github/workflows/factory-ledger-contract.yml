@@ -14,6 +14,8 @@ on:
       - "tests/test_factory_ledger_sql.sh"
       - "tests/test_worker_lease_fencing_sql.sh"
       - "docs/WORKER_LEASE_FENCING_SPEC.md"
+      - "runtime/factory-executor/**"
+      - "examples/hello-world/**"
       - ".github/workflows/factory-ledger-contract.yml"
 
 permissions:
@@ -111,3 +113,41 @@ jobs:
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: bash tests/test_worker_lease_fencing_sql.sh "$POSTGRES_CONTAINER_ID"
+      - name: Install the trusted factory executor dependency
+        run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
+      - name: Execute the bounded Hello World product
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: node runtime/factory-executor/runner.mjs examples/hello-world/product.json
+      - name: Verify exact retry does not execute the product twice
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: |
+          set -euo pipefail
+          output=$(node runtime/factory-executor/runner.mjs examples/hello-world/product.json)
+          printf '%s\\n' "$output"
+          grep -Eq '^ALREADY VERIFIED task=.* attempt=.* events=7 evidence=3 <<< "$output"
+      - name: Verify approval preflight blocks execution before lease acquisition
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          if node runtime/factory-executor/runner.mjs examples/hello-world/approval-preflight-test.json > /tmp/tradix-approval-preflight.log 2>&1; then
+            echo "Unapproved high-risk task unexpectedly executed"
+            cat /tmp/tradix-approval-preflight.log
+            exit 1
+          fi
+          grep -F "Human approval is required" /tmp/tradix-approval-preflight.log
+          state=$(docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SELECT t.status || '/' || a.status || '/' || (SELECT count(*) FROM factory.task_leases l WHERE l.task_id=t.task_id)::text FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_key='hello-world-approval-preflight-v1'")
+          test "$state" = "queued/queued/0"
+      - name: Upload local execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradix-factory-executor-evidence
+          path: /tmp/tradix-factory-executor/
+          if-no-files-found: error
+          retention-days: 14
