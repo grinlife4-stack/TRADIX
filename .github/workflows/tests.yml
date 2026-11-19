@@ -19,3 +19,118 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev,documents,gateway]"
       - run: python -m pytest -q
+
+  factory-executor-runtime:
+    if: github.event_name == 'pull_request' && startsWith(github.event.pull_request.base.ref, 'integration/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tradix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tradix_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Provision restricted migration identity and factory roles
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "CREATE ROLE tradix_migrator LOGIN NOCREATEROLE; GRANT CREATE ON DATABASE tradix_test TO tradix_migrator"
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/bootstrap/0001_factory_roles.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "GRANT factory_executor_owner TO tradix_migrator WITH SET TRUE, INHERIT FALSE"
+      - name: Apply ledger migrations to disposable PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0001_factory_ledger.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0002_mission_plan_versions.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0003_intake_approval_decisions.sql
+      - name: Provision TRADIX runtime identity and product fixtures
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: bash tests/test_factory_ledger_sql.sh "$POSTGRES_CONTAINER_ID"
+      - name: Clear disposable ledger fixtures and check migration preflight
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SET session_replication_role=replica; TRUNCATE factory.tasks CASCADE; SET session_replication_role=origin"
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/preflight/0004_worker_lease_fencing.sql
+      - name: Apply worker lease fencing migration
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0004_worker_lease_fencing.sql
+      - name: Install factory executor dependencies
+        run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
+      - name: Execute Hello World and verify idempotent retry
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: |
+          node runtime/factory-executor/runner.mjs examples/hello-world/product.json
+          output=$(node runtime/factory-executor/runner.mjs examples/hello-world/product.json)
+          printf '%s\\n' "$output"
+          grep -Eq '^ALREADY VERIFIED task=.* attempt=.* events=7 evidence=3$' <<< "$output"
+      - name: Verify lease loss terminates child and grandchild processes
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
+        run: |
+          set -euo pipefail
+          rm -f /tmp/tradix-lease-loss-child-survived /tmp/tradix-lease-loss-grandchild-survived /tmp/tradix-lease-loss-child.pid /tmp/tradix-lease-loss-grandchild.pid /tmp/tradix-lease-loss-runner.log
+          node runtime/factory-executor/runner.mjs examples/lease-loss/product.json > /tmp/tradix-lease-loss-runner.log 2>&1 &
+          runner_pid=$!
+          task_id=""
+          for attempt in $(seq 1 100); do
+            task_id=$(docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -U postgres -d tradix_test -c "SELECT t.task_id FROM factory.tasks t JOIN factory.task_leases l ON l.task_id=t.task_id WHERE t.task_key='lease-loss-runner-v1' AND t.status='implementing' LIMIT 1")
+            if [[ -n "$task_id" ]]; then
+              docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "UPDATE factory.task_leases SET expires_at=clock_timestamp()-interval '1 second' WHERE task_id='$task_id'"
+              break
+            fi
+            sleep 0.2
+          done
+          if [[ -z "$task_id" ]]; then
+            kill "$runner_pid" 2>/dev/null || true
+            cat /tmp/tradix-lease-loss-runner.log
+            echo "Lease-loss fixture never acquired its task lease"
+            exit 1
+          fi
+          set +e
+          wait "$runner_pid"
+          runner_status=$?
+          set -e
+          if [[ "$runner_status" -eq 0 ]]; then
+            cat /tmp/tradix-lease-loss-runner.log
+            echo "Executor unexpectedly succeeded after losing its lease"
+            exit 1
+          fi
+          grep -q "FACTORY_EXECUTOR_LEASE_LOST" /tmp/tradix-lease-loss-runner.log || { cat /tmp/tradix-lease-loss-runner.log; echo "Executor did not report lease loss"; exit 1; }
+          child_pid=$(cat /tmp/tradix-lease-loss-child.pid)
+          if kill -0 "$child_pid" 2>/dev/null || [[ -e /tmp/tradix-lease-loss-child-survived ]]; then
+            echo "Child process survived after lease loss"
+            exit 1
+          fi
+          grandchild_pid=$(cat /tmp/tradix-lease-loss-grandchild.pid)
+          if kill -0 "$grandchild_pid" 2>/dev/null || [[ -e /tmp/tradix-lease-loss-grandchild-survived ]]; then
+            echo "Grandchild process survived after lease loss"
+            exit 1
+          fi
+          state=$(docker exec "$POSTGRES_CONTAINER_ID" psql -X -qAt -U postgres -d tradix_test -c "SELECT t.status || '/' || a.status FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_key='lease-loss-runner-v1' LIMIT 1")
+          test "$state" = "implementing/running"
+          echo "PASS: lease loss killed the process tree and blocked stale writes"
+          if node runtime/factory-executor/runner.mjs examples/lease-loss/product.json > /tmp/tradix-lease-recovery-refused.log 2>&1; then
+            echo "Executor unexpectedly resumed an interrupted stage"
+            exit 1
+          fi
+          grep -F "refusing implicit recovery or duplicate execution" /tmp/tradix-lease-recovery-refused.log
