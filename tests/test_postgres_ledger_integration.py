@@ -8,7 +8,6 @@ import hashlib
 import os
 import uuid
 
-import psycopg
 import pytest
 
 from tradix.factory.postgres_ledger import LedgerPersistenceError, PostgresTaskLedger
@@ -19,6 +18,8 @@ DSN = os.getenv("TRADIX_TEST_DATABASE_URL")
 
 @pytest.mark.skipif(not DSN, reason="requires disposable PostgreSQL CI service")
 def test_real_postgres_full_task_lifecycle_and_readback():
+    import psycopg
+
     ledger = PostgresTaskLedger.from_dsn(DSN)
     nonce = uuid.uuid4().hex
     task_key = f"e2e-{nonce}"
