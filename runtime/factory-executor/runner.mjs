@@ -347,7 +347,7 @@ async function recordEvidence(client, lease, type, result, artifactStore) {
   await writeFile(sourcePath, payload.content, { mode: 0o600 });
 
   let objectUri = "ci://factory-executor/" + lease.taskId + "/" + type + ".txt";
-  const metadata = { executor: EXECUTOR_ID, exit_code: result.exitCode, execution_mode: lease.executionMode, sandbox_runtime: lease.sandboxRuntime, sandbox_image_id: lease.sandboxImageId };
+  const metadata = { executor: EXECUTOR_ID, exit_code: result.exitCode, execution_mode: lease.executionMode, sandbox_runtime: lease.sandboxRuntime, sandbox_image_id: lease.sandboxImageId, gvisor_preflight: lease.gvisorPreflight ? { runtime: lease.gvisorPreflight.runtime, architecture: lease.gvisorPreflight.architecture, platform: lease.gvisorPreflight.platform, image_id: lease.gvisorPreflight.imageId } : null };
   if (artifactStore) {
     const stored = await artifactStore.uploadFile({
       sourcePath,
