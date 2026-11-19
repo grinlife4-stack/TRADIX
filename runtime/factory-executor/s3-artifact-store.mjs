@@ -11,6 +11,7 @@ import {
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const BUCKET = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
+const MAX_ARTIFACT_BYTES = 128 * 1024 * 1024;
 
 export class ArtifactStoreError extends Error {
   constructor(code, message) {
@@ -109,7 +110,7 @@ export function createS3CompatibleClient(env = process.env) {
   if (endpoint.protocol !== "https:" && !(allowLocalHttp && localHost && endpoint.protocol === "http:")) {
     throw new ArtifactStoreError("INVALID_CONFIGURATION", "S3 endpoint must use HTTPS; HTTP is allowed only for explicit loopback tests");
   }
-  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash || (endpoint.pathname !== "/" && endpoint.pathname !== "")) {
     throw new ArtifactStoreError("INVALID_CONFIGURATION", "S3 endpoint must not embed credentials, query, or fragment");
   }
   const region = requireString(env.TRADIX_ARTIFACT_S3_REGION, "TRADIX_ARTIFACT_S3_REGION", 64);
@@ -156,8 +157,8 @@ export class S3ArtifactStore {
 
   async inspect({ key, expectedSha256, expectedByteSize }) {
     const digest = validateHash(expectedSha256);
-    validateObjectKey(key, digest);
-    if (!Number.isSafeInteger(expectedByteSize) || expectedByteSize < 0) {
+    const parts = validateObjectKey(key, digest);
+    if (!Number.isSafeInteger(expectedByteSize) || expectedByteSize < 0 || expectedByteSize > MAX_ARTIFACT_BYTES) {
       throw new ArtifactStoreError("INVALID_ARGUMENT", "expected_byte_size must be a non-negative safe integer");
     }
     let head;
@@ -167,7 +168,9 @@ export class S3ArtifactStore {
       if (isNotFound(error)) throw new ArtifactStoreError("NOT_FOUND", "artifact object was not found");
       throw new ArtifactStoreError("STORAGE_UNAVAILABLE", "artifact metadata could not be read");
     }
-    if (head.ContentLength !== expectedByteSize || head.Metadata?.sha256 !== digest) {
+    if (head.ContentLength !== expectedByteSize || head.Metadata?.sha256 !== digest ||
+        head.Metadata?.project_key !== parts[1] || head.Metadata?.run_id !== parts[3] ||
+        head.Metadata?.attempt_id !== parts[5]) {
       throw new ArtifactStoreError("INTEGRITY_MISMATCH", "stored artifact metadata does not match its expected digest or size");
     }
     return { key, byteSize: head.ContentLength, sha256: digest, contentType: head.ContentType || "application/octet-stream" };
@@ -193,6 +196,9 @@ export class S3ArtifactStore {
     const before = await lstat(source);
     if (!before.isFile() || before.isSymbolicLink()) {
       throw new ArtifactStoreError("INVALID_ARGUMENT", "source_path must be a regular non-symlink file");
+    }
+    if (before.size > MAX_ARTIFACT_BYTES) {
+      throw new ArtifactStoreError("ARTIFACT_TOO_LARGE", "artifact exceeds the 128 MiB in-memory adapter limit");
     }
     const bytes = await readFile(source);
     const after = await lstat(source);
