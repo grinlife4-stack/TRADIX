@@ -117,6 +117,8 @@ jobs:
         run: bash tests/test_worker_lease_fencing_sql.sh "$POSTGRES_CONTAINER_ID"
       - name: Install the trusted factory executor dependency
         run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
+      - name: Test CI evidence manifest generation
+        run: node --test runtime/factory-executor/evidence-manifest.test.mjs
       - name: Build the pinned Docker sandbox image
         run: |
           set -euo pipefail
@@ -157,6 +159,8 @@ jobs:
           grep -F "Human approval is required" /tmp/tradix-approval-preflight.log
           state=$(docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "SELECT t.status || '/' || a.status || '/' || (SELECT count(*) FROM factory.task_leases l WHERE l.task_id=t.task_id)::text FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id WHERE t.task_key='hello-world-approval-preflight-v1'")
           test "$state" = "queued/queued/0"
+      - name: Build hash-verified CI evidence manifest
+        run: node runtime/factory-executor/build-evidence-manifest.mjs /tmp/tradix-factory-executor
       - name: Upload local execution evidence
         if: always()
         uses: actions/upload-artifact@v4
