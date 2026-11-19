@@ -27,7 +27,7 @@ def test_real_postgres_full_task_lifecycle_and_readback():
         "task_key": task_key,
         "title": "PostgreSQL end-to-end lifecycle",
         "request_text": "Exercise task creation, attempt, evidence, transitions and durable read-back.",
-        "acceptance_criteria": ("both evidence records are persisted", "task reaches verified"),
+        "acceptance_criteria": ("both evidence records are persisted", "task reaches verified after deployed-test"),
         "risk_class": "low",
         "approval_required": False,
         "approval_scope": {},
@@ -121,6 +121,7 @@ def test_real_postgres_full_task_lifecycle_and_readback():
         metadata={"test": "full-lifecycle"},
     )
     transition("candidate", "candidate")
+    transition("deployed_test", "deployed-test")
     assert ledger.finish_attempt_fenced(
         task_id, attempt_id, worker_id=worker_id, fencing_token=fencing_token, outcome="succeeded"
     ) == "succeeded"
