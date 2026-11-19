@@ -6,7 +6,8 @@
   "scripts": {
     "run": "node runner.mjs",
     "test:evidence": "node --test evidence-manifest.test.mjs",
-    "test:storage": "node --test s3-artifact-store.integration.test.mjs"
+    "test:storage": "node --test s3-artifact-store.integration.test.mjs",
+    "test:gvisor": "node --test gvisor-runtime.test.mjs"
   },
   "dependencies": {
     "pg": "8.16.3",
