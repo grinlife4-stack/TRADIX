@@ -52,7 +52,7 @@ def _preflight_office_zip(path: Path) -> None:
             source.seek(file_size - tail_size)
             tail = source.read(tail_size)
 
-        eocd_offset = tail.rfind(b"PK\\x05\\x06")
+        eocd_offset = tail.rfind(b"PK\x05\x06")
         if eocd_offset < 0 or eocd_offset + 22 > len(tail):
             raise DocumentReadError("Office document has no valid ZIP directory record")
 
@@ -67,7 +67,7 @@ def _preflight_office_zip(path: Path) -> None:
             comment_length,
         ) = struct.unpack_from("<4s4H2LH", tail, eocd_offset)
 
-        if signature != b"PK\\x05\\x06":
+        if signature != b"PK\x05\x06":
             raise DocumentReadError("Office document has an invalid ZIP directory record")
         if eocd_offset + 22 + comment_length != len(tail):
             raise DocumentReadError("Office document has an invalid ZIP comment length")
