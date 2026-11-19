@@ -176,7 +176,7 @@ def read_docx(path: Path) -> dict:
             parts.append(f"[Table {table_index}]")
             for row in table.rows:
                 parts.append(" | ".join(cell.text for cell in row.cells))
-        text = _bounded("\\n".join(parts))
+        text = _bounded("\n".join(parts))
         return {"format": "docx", "paragraph_count": len(document.paragraphs),
                 "table_count": len(document.tables), "text": text}
     except DocumentReadError:
