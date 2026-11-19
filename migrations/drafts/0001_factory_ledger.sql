@@ -302,6 +302,7 @@ SET search_path = pg_catalog, factory, pg_temp
 AS $body$
 DECLARE
     v_task factory.tasks%ROWTYPE;
+    v_project_id UUID;
     v_existing factory.task_events%ROWTYPE;
     v_event_seq BIGINT;
     v_required_evidence TEXT;
@@ -330,6 +331,13 @@ BEGIN
        OR pg_catalog.pg_has_role(session_user, 'factory_approval_authority', 'MEMBER')
        OR pg_catalog.pg_has_role(session_user, 'factory_executor_owner', 'MEMBER') THEN
         RAISE EXCEPTION 'session identity is not an isolated project runtime role';
+    END IF;
+
+    SELECT project_id INTO v_project_id
+    FROM factory.project_identities
+    WHERE role_name = session_user AND identity_kind = 'runtime';
+    IF NOT FOUND OR v_task.project_id <> v_project_id THEN
+        RAISE EXCEPTION 'task not found for this product runtime';
     END IF;
 
     -- Exact retries are harmless; reusing a key for different intent is not.
