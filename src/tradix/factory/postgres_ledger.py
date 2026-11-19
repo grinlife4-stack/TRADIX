@@ -70,7 +70,18 @@ class PostgresTaskLedger:
             import psycopg
         except ImportError as exc:
             raise RuntimeError("Install TRADIX with the postgres extra to use from_dsn") from exc
-        return cls(lambda: psycopg.connect(dsn, connect_timeout=connect_timeout))
+        def connect_as_runtime():
+            connection = psycopg.connect(dsn, connect_timeout=connect_timeout)
+            try:
+                # Activate only the restricted runtime group. session_user remains
+                # the product-specific LOGIN used by database isolation policies.
+                connection.execute("SET ROLE factory_runtime")
+            except Exception:
+                connection.close()
+                raise
+            return connection
+
+        return cls(connect_as_runtime)
 
     def _scalar(self, operation: str, statement: str, parameters: tuple[Any, ...]) -> Any:
         try:
