@@ -40,6 +40,18 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
+      rustfs:
+        image: rustfs/rustfs:1.0.3
+        env:
+          RUSTFS_ACCESS_KEY: TRADIXCIACCESSKEY
+          RUSTFS_SECRET_KEY: TradixCISecretKeyForEphemeralTestsOnly
+          RUSTFS_ADDRESS: 0.0.0.0:9000
+          RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+          RUSTFS_CONSOLE_ENABLE: "false"
+          RUSTFS_OBS_LOGGER_LEVEL: error
+        ports:
+          - 9000:9000
+        command: /data
     steps:
       - uses: actions/checkout@v4
       - name: Provision non-privileged migration identity
@@ -119,6 +131,30 @@ jobs:
         run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
       - name: Test CI evidence manifest generation
         run: node --test runtime/factory-executor/evidence-manifest.test.mjs
+      - name: Wait for ephemeral S3-compatible storage
+        run: |
+          node --input-type=module <<'NODE'
+          const deadline = Date.now() + 60000;
+          let ready = false;
+          while (Date.now() < deadline) {
+            try {
+              const response = await fetch("http://127.0.0.1:9000/health");
+              if (response.ok) { ready = true; break; }
+            } catch {}
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          if (!ready) throw new Error("RustFS did not become healthy within 60 seconds");
+          console.log("PASS: ephemeral S3-compatible service is healthy");
+          NODE
+      - name: Test content-addressed S3 upload, read-back, and restore
+        env:
+          TRADIX_ARTIFACT_S3_ENDPOINT: http://127.0.0.1:9000
+          TRADIX_ARTIFACT_S3_REGION: us-east-1
+          TRADIX_ARTIFACT_S3_BUCKET: tradix-artifact-ci
+          TRADIX_ARTIFACT_S3_ACCESS_KEY_ID: TRADIXCIACCESSKEY
+          TRADIX_ARTIFACT_S3_SECRET_ACCESS_KEY: TradixCISecretKeyForEphemeralTestsOnly
+          TRADIX_ARTIFACT_S3_ALLOW_LOCAL_HTTP: "true"
+        run: node --test runtime/factory-executor/s3-artifact-store.integration.test.mjs
       - name: Build the pinned Docker sandbox image
         run: |
           set -euo pipefail
