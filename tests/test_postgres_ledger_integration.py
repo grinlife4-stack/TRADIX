@@ -27,7 +27,7 @@ def test_real_postgres_full_task_lifecycle_and_readback():
         "task_key": task_key,
         "title": "PostgreSQL end-to-end lifecycle",
         "request_text": "Exercise task creation, attempt, evidence, transitions and durable read-back.",
-        "acceptance_criteria": ("both evidence records are persisted", "task reaches candidate"),
+        "acceptance_criteria": ("both evidence records are persisted", "task reaches verified"),
         "risk_class": "low",
         "approval_required": False,
         "approval_scope": {},
@@ -68,7 +68,6 @@ def test_real_postgres_full_task_lifecycle_and_readback():
             actor_type="system",
             actor_ref="postgres-ledger-integration-test",
             idempotency_key=f"e2e-transition-{nonce}-{suffix}",
-            attempt_id=attempt_id,
             payload={"integration_test": True},
         )
 
@@ -108,9 +107,11 @@ def test_real_postgres_full_task_lifecycle_and_readback():
     transition("review", "review")
 
     review_report = b'{"review":"passed","scope":"bounded"}'
-    ledger.record_evidence(
+    ledger.record_evidence_fenced(
         task_id,
         attempt_id,
+        worker_id=worker_id,
+        fencing_token=fencing_token,
         artifact_type="review-report",
         object_uri=f"ci://tradix/{nonce}/review-report.json",
         sha256=hashlib.sha256(review_report).hexdigest(),
