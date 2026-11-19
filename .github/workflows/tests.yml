@@ -17,5 +17,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e ".[dev,documents]"
+      - run: python -m pip install -e ".[dev,documents,gateway]"
       - run: python -m pytest -q
