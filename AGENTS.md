@@ -17,6 +17,10 @@ Before planning, reviewing, or changing code, configuration, infrastructure, or 
 
 If an expected canonical document (including an ecosystem master map) is missing or inaccessible, report that fact. Do not invent its contents or silently treat an older draft as authoritative.
 
+### Railway resource identity and access
+
+Before inspecting or changing any Railway resource, read [Railway Staging — Resource Identity and Access Runbook](docs/operations/RAILWAY_STAGING_ACCESS.md). Resolve the authenticated account, workspace, project, environment, and service in that order using their exact IDs. Never infer or reuse a Project ID from a different project or session. If Railway returns an access-denied/viewer error, validate the resource IDs and hierarchy before diagnosing a role or changing permissions. The runbook's recorded IDs are a dated baseline and must be revalidated against the live account before each operation.
+
 ## 2. Portfolio-wide collaboration and access principle
 
 The project owner has authorized broad collaboration across all portfolio projects. The assistant is expected to consider relevant projects beyond the repository or project named in the current conversation when doing so materially improves correctness, consistency, integration, or reuse.
