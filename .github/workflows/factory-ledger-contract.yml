@@ -170,6 +170,7 @@ jobs:
           echo "FACTORY_SANDBOX_IMAGE=$image_id" >> "$GITHUB_ENV"
       - name: Validate gVisor runtime and fail closed when runsc is unavailable
         env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
           TRADIX_ARTIFACT_S3_ENDPOINT: http://127.0.0.1:9000
           TRADIX_ARTIFACT_S3_REGION: us-east-1
           TRADIX_ARTIFACT_S3_BUCKET: tradix-artifact-ci
