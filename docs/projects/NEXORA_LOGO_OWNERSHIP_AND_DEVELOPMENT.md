@@ -38,9 +38,11 @@ TRADIX does not own the NEXORA brand or artwork. The presence of a NEXORA develo
 5. Only the NEXORA owner may approve a change to the artwork.
 6. Platform derivatives may change technical dimensions, file format, or transparent padding only; they must not redraw, crop, recolor, or alter the composition.
 
-## 5. Known discrepancy requiring separate review
+## 5. Reconciliation result
 
-The inspected NEXORA 0.5.4 source package contains a different PNG and labels a JPEG as the supplied approved master. The historical TRADIX dossier designated the PNG now preserved in the NEXORA repository. This document establishes repository ownership and does not claim that the separate JPEG/PNG artwork discrepancy has been visually resolved. Do not replace the canonical file with either package variant until both are compared against the owner's approved logo.
+The source package's JPEG and PNG were decoded and compared: both are 784×1168 RGB images with zero per-channel pixel difference. The JPEG was therefore redundant and has been removed. The corrected 0.5.4 source archive contains neither a second PNG master nor a JPEG copy; the only master is stored in the independent NEXORA repository.
+
+The TRADIX working copy was synchronized from the NEXORA canonical file. Its Git blob SHA now matches the NEXORA master exactly: `7f2a39590db755077b0a903cf93056121e0ef1b5`. Platform icons remain technical derivatives, not additional master files.
 
 ## 6. What this decision does not do
 
