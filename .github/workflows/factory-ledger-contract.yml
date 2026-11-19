@@ -1,6 +1,7 @@
 name: factory-ledger-contract
 
 on:
+  workflow_call:
   pull_request:
     paths:
       - "migrations/bootstrap/**"
