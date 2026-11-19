@@ -14,6 +14,8 @@ on:
       - "tests/test_factory_ledger_sql.sh"
       - "tests/test_worker_lease_fencing_sql.sh"
       - "docs/WORKER_LEASE_FENCING_SPEC.md"
+      - "runtime/factory-executor/**"
+      - "examples/hello-world/**"
       - ".github/workflows/factory-ledger-contract.yml"
 
 permissions:
