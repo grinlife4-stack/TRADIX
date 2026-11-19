@@ -6,6 +6,8 @@ First read the repository-root `AGENTS.md` and the [Ecosystem Master Map](../../
 - **Classification:** independent product/project workspace
 - **Boundary:** NEXORA remains an independent product. This directory's placement inside TRADIX does not make it a TRADIX department. Check the standalone NEXORA repository and its current source-of-truth workflow before editing or synchronizing files.
 
-Do not infer ownership from this folder's location. Keep this project's source, data, financial records, accounts, credentials, and decisions separate from all other projects. Shared equipment may serve this project through explicit interfaces and scoped permissions; it does not own or absorb the project. After a task or project phase, release access and clear project-specific temporary data as appropriate.
+NEXORA identifies and prioritizes its own needs. It may create a capability, extend an existing shared tool, or contribute a reusable tool/option to the shared toolbox. Other projects may use that capability when it fits, but NEXORA does not become responsible for their roadmaps or tool adoption.
 
-If work crosses into another project or shared equipment, identify both sides, the interface, data owner, permissions, and acceptance authority before editing. If unclear, stop and report the ambiguity.
+Keep NEXORA's source, data, financial records, accounts, credentials, and decisions separate from all other projects. Reusable contributions must not expose NEXORA-specific data, secrets, or private business logic without explicit authorization. Shared tools do not own or absorb NEXORA and must remain replaceable.
+
+If work crosses into another project or shared tool, identify both sides, the interface, data owner, permissions, maintenance responsibility, and acceptance authority before editing. If unclear, stop and report the ambiguity.
