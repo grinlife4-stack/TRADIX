@@ -21,7 +21,7 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile, s
 from fastapi.responses import JSONResponse
 
 from tools.artifact_intake.artifact_intake import ArtifactError, inspect_zip, sha256_file
-from tools.artifact_gateway.github_storage import GitHubTarget, upload_binary
+from tools.artifact_gateway.github_storage import (\n    MAX_GITHUB_UPLOAD_BYTES,\n    GitHubTarget,\n    upload_binary,\n)
 from tools.artifact_intake.document_readers import DocumentReadError, read_document
 
 PROJECT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
