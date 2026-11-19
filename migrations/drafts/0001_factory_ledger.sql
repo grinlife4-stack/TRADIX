@@ -578,6 +578,13 @@ BEGIN
         now(), p_metadata, p_idempotency_key
     ) RETURNING attempt_id INTO v_attempt_id;
 
+    -- Keep the task projection synchronized with the newly committed attempt.
+    UPDATE factory.tasks
+    SET current_attempt = v_next_number,
+        updated_at = now()
+    WHERE task_id = p_task_id
+      AND project_id = v_project_id;
+
     RETURN v_attempt_id;
 END;
 $create_attempt$;
