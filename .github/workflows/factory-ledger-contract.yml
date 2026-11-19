@@ -128,7 +128,7 @@ jobs:
           set -euo pipefail
           output=$(node runtime/factory-executor/runner.mjs examples/hello-world/product.json)
           printf '%s\n' "$output"
-          grep -Eq '^ALREADY VERIFIED task=.* attempt=.* events=7 evidence=3 <<< "$output"
+          grep -Eq "ALREADY VERIFIED task=.* attempt=.* events=7 evidence=3" <<< "$output"
       - name: Verify approval preflight blocks execution before lease acquisition
         env:
           DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
