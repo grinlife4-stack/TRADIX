@@ -35,7 +35,7 @@ NEXORA's application and release artifacts must consume the logo from NEXORA-own
 
 **Integrity and synchronization rule:** retain the NEXORA master unchanged. TRADIX working copies must be copied from the NEXORA canonical file. Record the canonical Git blob SHA and verify byte identity when refreshing the TRADIX copy. If the files differ, NEXORA wins; never silently promote a TRADIX copy to canonical status.
 
-**Unresolved package discrepancy:** the inspected NEXORA 0.5.4 source archive contains a different PNG and describes a JPEG as the supplied approved master. This conflicts with the historical TRADIX dossier. This ownership correction preserves the historical TRADIX PNG as canonical; it does not silently resolve the artwork discrepancy. Visually compare the JPEG and alternate PNG with the owner's approved artwork before replacing or importing those package assets.
+**Package reconciliation completed:** the 0.5.4 package JPEG and PNG were decoded and compared; both are 784×1168 RGB images with zero per-channel pixel difference. The JPEG was redundant and removed. The corrected source archive contains no logo master copy; the sole master remains in the independent NEXORA repository. The TRADIX working copy was synchronized from that master and its Git blob SHA matches exactly.
 
 This designation applies to the NEXORA project identity and app. It does not imply that the app has been deployed or commercially launched.
 
