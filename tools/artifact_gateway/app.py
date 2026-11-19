@@ -57,6 +57,12 @@ class Settings:
             raise RuntimeError("TRADIX_API_KEY must contain at least 32 characters")
         if not root_raw or not Path(root_raw).is_absolute():
             raise RuntimeError("TRADIX_ARTIFACT_ROOT must be an absolute persistent path")
+        try:
+            max_upload_bytes = int(os.environ.get("TRADIX_MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)))
+        except ValueError as exc:
+            raise RuntimeError("TRADIX_MAX_UPLOAD_BYTES must be a positive integer") from exc
+        if max_upload_bytes < 1:
+            raise RuntimeError("TRADIX_MAX_UPLOAD_BYTES must be a positive integer")
         backend = os.environ.get("TRADIX_STORAGE_BACKEND", "local").lower()
         if backend not in {"local", "s3", "github"}:
             raise RuntimeError("TRADIX_STORAGE_BACKEND must be 'local', 's3' or 'github'")
@@ -78,7 +84,8 @@ class Settings:
         if backend == "github" and not all(github_values.values()):
             raise RuntimeError("GitHub backend requires repository, branch, path prefix and token")
         return cls(project_id=project_id, api_key=api_key, root=Path(root_raw),
-                   storage_backend=backend, **values, **github_values)
+                   max_upload_bytes=max_upload_bytes, storage_backend=backend,
+                   **values, **github_values)
 
 
 def _safe_filename(name: str | None) -> str:
@@ -220,18 +227,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     temp_path = None
                 storage_ref = str(object_path.relative_to(project_root))
             elif config.storage_backend == "s3":
-                client = _s3_client(config)
-                with temp_path.open("rb") as source:
-                    client.put_object(
-                        Bucket=config.s3_bucket,
-                        Key=object_key,
-                        Body=source,
-                        ContentLength=size,
-                        Metadata={"sha256": sha256, "project-id": config.project_id},
-                    )
-                head = client.head_object(Bucket=config.s3_bucket, Key=object_key)
-                if head.get("ContentLength") != size or head.get("Metadata", {}).get("sha256") != sha256:
-                    raise HTTPException(status_code=502, detail="remote storage verification failed")
+                try:
+                    client = _s3_client(config)
+                    with temp_path.open("rb") as source:
+                        client.put_object(
+                            Bucket=config.s3_bucket,
+                            Key=object_key,
+                            Body=source,
+                            ContentLength=size,
+                            Metadata={"sha256": sha256, "project-id": config.project_id},
+                        )
+                    head = client.head_object(Bucket=config.s3_bucket, Key=object_key)
+                    if head.get("ContentLength") != size or head.get("Metadata", {}).get("sha256") != sha256:
+                        raise HTTPException(status_code=502, detail="remote storage metadata verification failed")
+                    remote = client.get_object(Bucket=config.s3_bucket, Key=object_key)
+                    body = remote.get("Body")
+                    if body is None:
+                        raise HTTPException(status_code=502, detail="remote storage read-back failed")
+                    remote_digest = hashlib.sha256()
+                    remote_size = 0
+                    try:
+                        while chunk := body.read(CHUNK_SIZE):
+                            remote_size += len(chunk)
+                            remote_digest.update(chunk)
+                    finally:
+                        body.close()
+                    if remote_size != size or not hmac.compare_digest(remote_digest.hexdigest(), sha256):
+                        raise HTTPException(status_code=502, detail="remote storage SHA-256 verification failed")
+                except HTTPException:
+                    raise
+                except Exception as exc:
+                    raise HTTPException(status_code=502, detail="S3 storage operation failed") from exc
                 storage_ref = f"s3://{config.s3_bucket}/{object_key}"
             else:
                 target = GitHubTarget(
