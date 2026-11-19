@@ -302,6 +302,7 @@ SET search_path = pg_catalog, factory, pg_temp
 AS $body$
 DECLARE
     v_task factory.tasks%ROWTYPE;
+    v_project_id UUID;
     v_existing factory.task_events%ROWTYPE;
     v_event_seq BIGINT;
     v_required_evidence TEXT;
@@ -317,19 +318,27 @@ BEGIN
         RAISE EXCEPTION 'invalid task transition arguments';
     END IF;
 
-    SELECT * INTO v_task
-    FROM factory.tasks
-    WHERE task_id = p_task_id
-    FOR UPDATE;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'task not found: %', p_task_id;
-    END IF;
-
     IF NOT pg_catalog.pg_has_role(session_user, 'factory_runtime', 'MEMBER')
        OR pg_catalog.pg_has_role(session_user, 'factory_approval_authority', 'MEMBER')
        OR pg_catalog.pg_has_role(session_user, 'factory_executor_owner', 'MEMBER') THEN
         RAISE EXCEPTION 'session identity is not an isolated project runtime role';
+    END IF;
+
+    SELECT project_id INTO v_project_id
+    FROM factory.project_identities
+    WHERE role_name = session_user AND identity_kind = 'runtime';
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'runtime identity has no product mapping';
+    END IF;
+
+    SELECT * INTO v_task
+    FROM factory.tasks
+    WHERE task_id = p_task_id
+      AND project_id = v_project_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'task not found for this product runtime';
     END IF;
 
     -- Exact retries are harmless; reusing a key for different intent is not.
