@@ -10,6 +10,9 @@ on:
       - "migrations/operations/**"
       - "schemas/product-dossier-v1.schema.json"
       - "tests/test_factory_ledger_sql.sh"
+      - "tests/test_postgres_ledger.py"
+      - "src/tradix/factory/**"
+      - "pyproject.toml"
       - ".github/workflows/factory-ledger-contract.yml"
 
 permissions:
@@ -34,6 +37,13 @@ jobs:
           --health-retries 12
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PostgreSQL client and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,postgres]"
       - name: Provision non-privileged migration identity
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
@@ -59,3 +69,6 @@ jobs:
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: bash tests/test_factory_ledger_sql.sh "$POSTGRES_CONTAINER_ID"
+
+      - name: Test Python PostgreSQL ledger client contract
+        run: python -m pytest -q tests/test_postgres_ledger.py
