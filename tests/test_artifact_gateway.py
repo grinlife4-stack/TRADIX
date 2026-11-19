@@ -158,3 +158,48 @@ def test_s3_backend_upload_is_verified(monkeypatch, tmp_path):
     assert receipt["storage_backend"] == "s3"
     assert receipt["storage_ref"].startswith("s3://nexora-private/projects/nexora/")
     assert next(iter(fake.objects.values()))["data"] == payload
+
+
+def test_github_backend_uploads_and_verifies_readback(monkeypatch, tmp_path):
+    import io
+    import base64
+    from tools.artifact_gateway import github_storage
+
+    stored = {}
+
+    def fake_urlopen(request, timeout=30):
+        if request.method == "PUT":
+            payload = json.loads(request.data.decode("utf-8"))
+            stored["bytes"] = base64.b64decode(payload["content"])
+            path = request.full_url.split("/contents/", 1)[1]
+            return io.BytesIO(json.dumps({
+                "content": {"path": path},
+                "commit": {"sha": "a" * 40},
+            }).encode("utf-8"))
+        return io.BytesIO(stored["bytes"])
+
+    monkeypatch.setattr(github_storage.urllib.request, "urlopen", fake_urlopen)
+    settings = Settings(
+        project_id="nexora",
+        api_key=API_KEY,
+        root=tmp_path.resolve(),
+        storage_backend="github",
+        github_repository="grinlife4-stack/NEXORA",
+        github_branch="artifact-intake",
+        github_path_prefix="incoming-artifacts",
+        github_token="ghp_" + "x" * 36,
+    )
+    client = TestClient(create_app(settings))
+    payload = b"verified binary artifact"
+    response = client.post(
+        "/v1/artifacts",
+        headers=auth(),
+        files={"file": ("bundle.bin", payload, "application/octet-stream")},
+    )
+    assert response.status_code == 201
+    receipt = response.json()
+    assert receipt["storage_backend"] == "github"
+    assert receipt["remote_commit_sha"] == "a" * 40
+    assert receipt["sha256"] == hashlib.sha256(payload).hexdigest()
+    assert stored["bytes"] == payload
+    assert "github_token" not in json.dumps(receipt)
