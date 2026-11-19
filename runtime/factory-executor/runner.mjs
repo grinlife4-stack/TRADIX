@@ -611,6 +611,7 @@ async function main() {
     );
   } finally {
     await client.end();
+    artifactStore?.close();
   }
 }
 
