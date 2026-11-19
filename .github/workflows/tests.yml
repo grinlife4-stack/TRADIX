@@ -74,7 +74,7 @@ jobs:
         run: npm install --prefix runtime/factory-executor --ignore-scripts --no-audit --no-fund
       - name: Execute Hello World and verify idempotent retry
         env:
-          DATABASE_URL: postgresql://factory_rt_tradix:ci-only-factory-dossier-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
           FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
         run: |
           node runtime/factory-executor/runner.mjs examples/hello-world/product.json
@@ -84,7 +84,7 @@ jobs:
       - name: Verify lease loss terminates child and grandchild processes
         env:
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
-          DATABASE_URL: postgresql://factory_rt_tradix:ci-only-factory-dossier-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
           FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
         run: |
           set -euo pipefail
