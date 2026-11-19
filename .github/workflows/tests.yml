@@ -19,3 +19,9 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev,documents,gateway]"
       - run: python -m pytest -q
+
+  factory-ledger-contract:
+    if: github.event_name == 'pull_request' && startsWith(github.event.pull_request.base.ref, 'integration/')
+    uses: ./.github/workflows/factory-ledger-contract.yml
+    permissions:
+      contents: read
