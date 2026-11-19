@@ -194,7 +194,7 @@ No phase is considered complete without a working artifact and recorded test evi
 | Product model | Not fixed; validate against user needs and market evidence |
 | Execution priority | PAUSED — X financial-system development is the current TRADIX priority; NEXORA is retained for later resumption |
 | Ownership/source repository | `grinlife4-stack/NEXORA`; TRADIX `projects/NEXORA/` is a development working copy; approved logo master recorded in NEXORA |
-| MVP prototype | NEXORA 0.5.3 finalized app-only archive verified; 25/25 automated smoke tests pass; full app source import into this repository remains pending |
+| MVP prototype | NEXORA 0.5.3 finalized app-only archive verified; 25/25 automated smoke tests pass; full app source import into the independent NEXORA repository remains pending |
 | Content assets | Three synthesized prototype ambience tracks; production-quality audio and commercial content rights remain pending |
 | iPad/audio test | Physical iPad/iPhone Safari, background audio, accessibility, and HTTPS deployment remain unverified |
 | Backend | Not selected; minimize for first release |
