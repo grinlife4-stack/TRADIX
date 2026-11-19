@@ -203,6 +203,11 @@ def read_xlsx(path: Path) -> dict:
         cell_count = 0
         extracted_chars = 0
         for worksheet in workbook.worksheets:
+            declared_cells = (worksheet.max_row or 0) * (worksheet.max_column or 0)
+            if declared_cells > MAX_XLSX_CELLS - cell_count:
+                raise DocumentReadError(
+                    f"workbook declared dimensions exceed {MAX_XLSX_CELLS} cell limit"
+                )
             rows = []
             for row in worksheet.iter_rows(values_only=True):
                 values = ["" if value is None else str(value) for value in row]
