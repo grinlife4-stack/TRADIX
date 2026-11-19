@@ -165,8 +165,11 @@ def test_github_backend_uploads_and_verifies_readback(monkeypatch, tmp_path):
     from tools.artifact_gateway import github_storage
 
     stored = {}
+    requested_get_urls = []
 
     def fake_urlopen(request, timeout=30):
+        if request.method == "GET":
+            requested_get_urls.append(request.full_url)
         if request.method == "PUT":
             payload = json.loads(request.data.decode("utf-8"))
             stored["bytes"] = base64.b64decode(payload["content"])
@@ -205,6 +208,8 @@ def test_github_backend_uploads_and_verifies_readback(monkeypatch, tmp_path):
     assert receipt["remote_commit_sha"] == "a" * 40
     assert receipt["sha256"] == hashlib.sha256(payload).hexdigest()
     assert stored["bytes"] == payload
+    assert requested_get_urls
+    assert all("ref=artifact-intake" in url for url in requested_get_urls)
     assert "github_token" not in json.dumps(receipt)
     repeated = client.post(
         "/v1/artifacts",
