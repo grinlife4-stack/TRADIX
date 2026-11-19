@@ -59,7 +59,7 @@ class Settings:
             raise RuntimeError("TRADIX_ARTIFACT_ROOT must be an absolute persistent path")
         backend = os.environ.get("TRADIX_STORAGE_BACKEND", "local").lower()
         if backend not in {"local", "s3", "github"}:
-            raise RuntimeError("TRADIX_STORAGE_BACKEND must be 'local' or 's3'")
+            raise RuntimeError("TRADIX_STORAGE_BACKEND must be 'local', 's3' or 'github'")
         values = {
             "s3_endpoint_url": os.environ.get("TRADIX_S3_ENDPOINT_URL"),
             "s3_region": os.environ.get("TRADIX_S3_REGION"),
@@ -219,7 +219,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     os.replace(temp_path, object_path)
                     temp_path = None
                 storage_ref = str(object_path.relative_to(project_root))
-            else:
+            elif config.storage_backend == "s3":
                 client = _s3_client(config)
                 with temp_path.open("rb") as source:
                     client.put_object(
