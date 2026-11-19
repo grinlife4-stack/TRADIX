@@ -1,0 +1,61 @@
+name: factory-ledger-contract
+
+on:
+  pull_request:
+    paths:
+      - "migrations/bootstrap/**"
+      - "migrations/drafts/0001_factory_ledger.sql"
+      - "migrations/drafts/0002_mission_plan_versions.sql"
+      - "migrations/drafts/0003_intake_approval_decisions.sql"
+      - "migrations/operations/**"
+      - "schemas/product-dossier-v1.schema.json"
+      - "tests/test_factory_ledger_sql.sh"
+      - ".github/workflows/factory-ledger-contract.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-ledger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tradix_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tradix_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Provision non-privileged migration identity
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test <<'SQL'
+          CREATE ROLE tradix_migrator LOGIN NOCREATEROLE;
+          GRANT CREATE ON DATABASE tradix_test TO tradix_migrator;
+          SQL
+      - name: Provision cluster roles as database administrator
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test < migrations/bootstrap/0001_factory_roles.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U postgres -d tradix_test -c "GRANT factory_executor_owner TO tradix_migrator WITH SET TRUE, INHERIT FALSE"
+      - name: Apply draft ledger migrations as restricted migrator
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0001_factory_ledger.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0002_mission_plan_versions.sql
+          docker exec -i "$POSTGRES_CONTAINER_ID" psql -X -v ON_ERROR_STOP=1 -U tradix_migrator -d tradix_test < migrations/drafts/0003_intake_approval_decisions.sql
+      - name: Verify ledger isolation, immutability, approval gates and idempotency
+        env:
+          POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: bash tests/test_factory_ledger_sql.sh "$POSTGRES_CONTAINER_ID"
