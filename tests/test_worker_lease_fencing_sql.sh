@@ -129,7 +129,7 @@ if [[ "$(psql -c "SELECT status FROM factory.task_attempts WHERE attempt_id='$at
 fi
 echo "PASS: attempt creation remains queued until lease acquisition"
 
-expect_runtime_failure "a non-current older attempt cannot acquire a lease" "only the task current_attempt may acquire a worker lease" \\
+expect_runtime_failure "a non-current older attempt cannot acquire a lease" "only the task current_attempt may acquire a worker lease" \
   "SELECT factory.acquire_task_lease('$task_id','$next_attempt_id','stale-attempt-worker',30)"
 
 expect_runtime_failure "database refuses lease acquisition without exact human approval" "human approval required for this attempt and decision scope" \
@@ -169,7 +169,7 @@ if [[ "$same_worker_token" != "$token1" ]]; then
 fi
 echo "PASS: repeated acquisition by the same live worker is idempotent"
 
-expect_runtime_failure "new attempt cannot be created while a live lease exists" "cannot create a new attempt while the task has a live worker lease" \\
+expect_runtime_failure "new attempt cannot be created while a live lease exists" "cannot create a new attempt while the task has a live worker lease" \
   "SELECT factory.create_task_attempt('$task_id','attempt-during-live-lease','implementer',NULL,'{}'::jsonb)"
 if [[ "$(psql -c "SELECT current_attempt FROM factory.tasks WHERE task_id='$task_id'")" != "1" ]]; then
   echo "FAIL: rejected attempt creation changed current_attempt"
