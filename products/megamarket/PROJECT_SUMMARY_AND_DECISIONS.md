@@ -261,3 +261,28 @@ Affiliate درآمد اولیه قابل‌آزمایش است، اما وابس
 این سند مرجع جمع‌بندی تصمیمی فعلی MegaMarket است. اسناد قبلی، از جمله README و AI_REVIEW_BRIEF، برای حفظ تاریخچه و جزئیات تحلیل باقی می‌مانند. در صورت تعارض، تصمیم‌های صریح و جدیدتر این سند ملاک ادامه طراحی‌اند؛ مگر اینکه بعداً با ثبت دلیل و تاریخ اصلاح شوند.
 
 **قاعده پرونده:** هیچ فرضیه‌ای تصمیم قطعی نیست؛ هیچ تصمیمی قابلیت پیاده‌سازی‌شده محسوب نمی‌شود مگر آنکه اجرا و آزمون شده باشد.
+
+## 16. Financial management and EXVARLI
+
+**Decision:** The complete financial management function of MegaMarket is assigned to EXVARLI, operating under the approved EXVARLI architecture and a project-specific authorization agreement.
+
+EXVARLI is responsible for the coordinated financial management of MegaMarket, including:
+- Maintaining MegaMarket's separate financial ledger and complete income/expense records.
+- Recording and classifying affiliate commissions and any other explicitly approved revenue streams by program, network, merchant, and settlement source.
+- Recording operating costs, network/provider fees, reversals, rejected commissions, refunds, deductions, and net proceeds where applicable.
+- Reconciling affiliate dashboards and statements, commission reports, receipts, settlements, bank movements, and wallet transactions against the ledger.
+- Monitoring pending, approved, locked, payable, rejected, and paid commission states where the relevant program exposes them.
+- Monitoring receivables, settlement schedules, cash flow, and financial obligations.
+- Preparing project budgets, financial forecasts, management reports, and performance summaries.
+- Maintaining supporting documents, audit trails, and exportable financial records.
+- Coordinating approved financial-provider and payment-route administration within the permissions granted by MegaMarket's owner.
+
+**Ownership and control remain with MegaMarket's designated owner:** EXVARLI is the financial manager, not the owner or beneficial owner of MegaMarket's income, bank accounts, payment accounts, wallets, or other assets. Accounts and wallets must be opened and held in the name of the individual or legal entity legally designated to own MegaMarket. EXVARLI may receive only the limited permissions necessary for its duties; those permissions must be logged and revocable.
+
+MegaMarket retains a fully separate ledger, account attribution, source records, receipts, and audit history. Its financial data must be exportable and transferable. MegaMarket must be able to continue operating and appoint another financial manager or manage its finances independently if EXVARLI is terminated, sold, suspended, or replaced. No funds, records, or credentials may be locked inside EXVARLI.
+
+The current affiliate model remains unchanged: customers are referred to the relevant merchant, and the merchant processes the customer's purchase payment. EXVARLI manages MegaMarket's own affiliate income and operating finances; it does not collect customer purchase funds or hold merchant funds. Any future change to a marketplace model that receives or distributes customer or merchant funds requires a separate funds-flow, legal, and provider assessment before approval.
+
+This appointment does not authorize EXVARLI to act as a bank, payment institution, custodian, or unlicensed financial intermediary. Provider onboarding, receipt, transfer, conversion, and payment execution must use routes supported by the relevant provider and applicable law. Legal account ownership and provider eligibility must be verified before activation.
+
+**Implementation status:** This is an approved architectural and governance decision. It does not mean that EXVARLI has already been implemented, that a bank account or wallet has been opened, or that any affiliate/payment provider has been connected. The financial workflow becomes operational only after the EXVARLI implementation and the relevant account, provider, authorization, and compliance gates are completed.
