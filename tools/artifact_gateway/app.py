@@ -70,6 +70,11 @@ class Settings:
         backend = os.environ.get("TRADIX_STORAGE_BACKEND", "local").lower()
         if backend not in {"local", "s3", "github"}:
             raise RuntimeError("TRADIX_STORAGE_BACKEND must be 'local', 's3' or 'github'")
+        if backend == "github" and max_upload_bytes > MAX_GITHUB_UPLOAD_BYTES:
+            raise RuntimeError(
+                f"TRADIX_MAX_UPLOAD_BYTES cannot exceed {MAX_GITHUB_UPLOAD_BYTES} bytes "
+                "when TRADIX_STORAGE_BACKEND=github"
+            )
         values = {
             "s3_endpoint_url": os.environ.get("TRADIX_S3_ENDPOINT_URL"),
             "s3_region": os.environ.get("TRADIX_S3_REGION"),
@@ -148,6 +153,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         raise RuntimeError("max upload size must be positive")
     if config.storage_backend not in {"local", "s3", "github"}:
         raise RuntimeError("unsupported storage backend")
+    if (
+        config.storage_backend == "github"
+        and config.max_upload_bytes > MAX_GITHUB_UPLOAD_BYTES
+    ):
+        raise RuntimeError(
+            f"GitHub storage backend requires max_upload_bytes <= {MAX_GITHUB_UPLOAD_BYTES}"
+        )
     if config.storage_backend == "s3" and not all((
         config.s3_endpoint_url, config.s3_region, config.s3_bucket,
         config.s3_access_key_id, config.s3_secret_access_key
