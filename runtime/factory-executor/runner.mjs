@@ -450,7 +450,7 @@ async function main() {
     await client.query("COMMIT");
 
     const state = await client.query(
-      "SELECT t.status, t.approval_required, t.approval_scope, a.status AS attempt_status, EXISTS (SELECT 1 FROM factory.task_approvals ap WHERE ap.task_id=t.task_id AND ap.attempt_id=a.attempt_id AND ap.action='begin_implementation' AND ap.decision='approved' AND ap.decision_scope=t.approval_scope) AS approval_granted, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count, count(DISTINCT ev.evidence_id) FILTER (WHERE ev.object_uri LIKE 's3://%')::int AS remote_evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.task_id,t.status,t.approval_required,t.approval_scope,a.status,a.attempt_id",
+      "SELECT t.status, t.approval_required, t.approval_scope, a.status AS attempt_status, EXISTS (SELECT 1 FROM factory.task_approvals ap WHERE ap.task_id=t.task_id AND ap.attempt_id=a.attempt_id AND ap.action='begin_implementation' AND ap.decision='approved' AND ap.decision_scope=t.approval_scope) AS approval_granted, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count, count(DISTINCT ev.evidence_id) FILTER (WHERE ev.metadata->>'storage_provider' = 's3-compatible' AND length(coalesce(ev.metadata->>'object_key','')) > 0)::int AS remote_evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.task_id,t.status,t.approval_required,t.approval_scope,a.status,a.attempt_id",
       [taskId, attemptId]
     );
     if (state.rows[0]?.status === "verified") {
@@ -598,7 +598,7 @@ async function main() {
     }
 
     const verified = await client.query(
-      "SELECT t.status, a.status AS attempt_status, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count, count(DISTINCT ev.evidence_id) FILTER (WHERE ev.object_uri LIKE 's3://%')::int AS remote_evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.status,a.status",
+      "SELECT t.status, a.status AS attempt_status, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count, count(DISTINCT ev.evidence_id) FILTER (WHERE ev.metadata->>'storage_provider' = 's3-compatible' AND length(coalesce(ev.metadata->>'object_key','')) > 0)::int AS remote_evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.status,a.status",
       [taskId, attemptId]
     );
     const row = verified.rows[0];
