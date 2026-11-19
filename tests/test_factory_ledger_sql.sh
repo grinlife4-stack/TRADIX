@@ -385,6 +385,9 @@ if [[ "$(psql -qAt -c "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT count
   echo "FAIL: TRADIX runtime can read info_engine tasks"
   exit 1
 fi
+expect_failure "runtime cannot transition another product's task" "task not found for this product runtime" \
+  "SET SESSION AUTHORIZATION factory_rt_tradix; SELECT factory.transition_task('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','failed','task.failed','system','ci-cross-project','ci-cross-project-transition')"
+
 expect_failure "runtime cannot directly insert an approval" "permission denied" \
   "SET SESSION AUTHORIZATION factory_rt_tradix; INSERT INTO factory.task_approvals (task_id,attempt_id,approval_round,action,decision,decided_by,rationale) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','cccccccc-cccc-4ccc-8ccc-cccccccccccc',1,'begin_implementation','approved','forged','forged')"
 
