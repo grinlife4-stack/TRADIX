@@ -242,3 +242,33 @@ def test_settings_rejects_invalid_max_upload_bytes(monkeypatch, tmp_path):
     monkeypatch.setenv("TRADIX_STORAGE_BACKEND", "local")
     with pytest.raises(RuntimeError, match="TRADIX_MAX_UPLOAD_BYTES"):
         Settings.from_env()
+
+def test_create_app_rejects_github_limit_above_adapter_cap(tmp_path):
+    from tools.artifact_gateway.github_storage import MAX_GITHUB_UPLOAD_BYTES
+
+    settings = Settings(
+        project_id="nexora",
+        api_key=API_KEY,
+        root=tmp_path.resolve(),
+        max_upload_bytes=MAX_GITHUB_UPLOAD_BYTES + 1,
+        storage_backend="github",
+        github_repository="grinlife4-stack/NEXORA",
+        github_branch="artifact-intake",
+        github_path_prefix="incoming-artifacts",
+        github_token="ghp_" + "x" * 36,
+    )
+    with pytest.raises(RuntimeError, match="max_upload_bytes"):
+        create_app(settings)
+
+
+def test_settings_from_env_rejects_github_limit_above_adapter_cap(monkeypatch, tmp_path):
+    from tools.artifact_gateway.github_storage import MAX_GITHUB_UPLOAD_BYTES
+
+    monkeypatch.setenv("TRADIX_PROJECT_ID", "tradix-test")
+    monkeypatch.setenv("TRADIX_API_KEY", API_KEY)
+    monkeypatch.setenv("TRADIX_ARTIFACT_ROOT", str(tmp_path.resolve()))
+    monkeypatch.setenv("TRADIX_MAX_UPLOAD_BYTES", str(MAX_GITHUB_UPLOAD_BYTES + 1))
+    monkeypatch.setenv("TRADIX_STORAGE_BACKEND", "github")
+    with pytest.raises(RuntimeError, match="TRADIX_MAX_UPLOAD_BYTES"):
+        Settings.from_env()
+
