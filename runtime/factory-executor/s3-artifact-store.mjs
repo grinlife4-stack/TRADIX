@@ -134,6 +134,10 @@ export class S3ArtifactStore {
     this.bucket = validateBucket(bucket);
   }
 
+  close() {
+    if (typeof this.client.destroy === "function") this.client.destroy();
+  }
+
   static fromEnv(env = process.env) {
     return new S3ArtifactStore({
       client: createS3CompatibleClient(env),
