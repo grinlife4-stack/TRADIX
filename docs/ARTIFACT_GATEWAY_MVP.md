@@ -20,7 +20,7 @@ Provide a simple, auditable path to receive a file, verify it, extract supported
 ## Destination adapters
 
 - **Local:** content-addressed storage below a configured persistent volume.
-- **S3-compatible:** upload plus HEAD metadata/size verification. This can target a project-owned Backblaze B2 bucket.
+- **S3-compatible:** upload, HEAD metadata/size verification, and GET read-back with byte-count plus SHA-256 verification. This can target a project-owned Backblaze B2 bucket.
 - **GitHub Contents API:** upload to a content-addressed path in a project-owned repository and an explicitly configured existing non-production branch; read back and verify SHA-256. The adapter's upload limit is 20 MiB.
 
 No live B2 bucket or GitHub project token is configured by this code change. Unit tests use mocked remote services; they do not claim live connectivity.
@@ -36,7 +36,7 @@ No live B2 bucket or GitHub project token is configured by this code change. Uni
 
 ## Security boundaries
 
-- Upload size is bounded; configure a matching request-body cap and rate limit at the ingress/reverse proxy because multipart parsing occurs before the endpoint handler.
+- Upload size is bounded by `TRADIX_MAX_UPLOAD_BYTES`; configure a matching request-body cap and rate limit at the ingress/reverse proxy because multipart parsing occurs before the endpoint handler.
 - The service must run behind HTTPS. The built-in listener defaults to loopback.
 - Credentials are environment/runtime secrets only and are excluded from receipts.
 - Remote operations are append-only; no delete or overwrite endpoint exists.
