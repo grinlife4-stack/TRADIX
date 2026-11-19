@@ -66,7 +66,7 @@ def test_adapter_contract_and_result_validation():
 
 def test_arbitrary_job_type_rejected():
     request = invocation(job_type="shell.execute")
-    with pytest.raises(AdapterContractError, match="allowlisted"):
+    with pytest.raises(AdapterContractError, match="unrestricted"):
         request.validate(FakeAdapter.supported_job_types)
 
 
