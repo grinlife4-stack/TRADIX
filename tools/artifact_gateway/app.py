@@ -20,7 +20,8 @@ from typing import Any
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
 
-from tools.artifact_intake.artifact_intake import ArtifactError, inspect_zip
+from tools.artifact_intake.artifact_intake import ArtifactError, inspect_zip, sha256_file
+from tools.artifact_gateway.github_storage import GitHubTarget, upload_binary
 from tools.artifact_intake.document_readers import DocumentReadError, read_document
 
 PROJECT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
@@ -40,6 +41,10 @@ class Settings:
     s3_bucket: str | None = None
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
+    github_repository: str | None = None
+    github_branch: str | None = None
+    github_path_prefix: str | None = None
+    github_token: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -53,7 +58,7 @@ class Settings:
         if not root_raw or not Path(root_raw).is_absolute():
             raise RuntimeError("TRADIX_ARTIFACT_ROOT must be an absolute persistent path")
         backend = os.environ.get("TRADIX_STORAGE_BACKEND", "local").lower()
-        if backend not in {"local", "s3"}:
+        if backend not in {"local", "s3", "github"}:
             raise RuntimeError("TRADIX_STORAGE_BACKEND must be 'local' or 's3'")
         values = {
             "s3_endpoint_url": os.environ.get("TRADIX_S3_ENDPOINT_URL"),
@@ -64,8 +69,16 @@ class Settings:
         }
         if backend == "s3" and not all(values.values()):
             raise RuntimeError("S3 backend requires endpoint, region, bucket and credentials")
+        github_values = {
+            "github_repository": os.environ.get("TRADIX_GITHUB_REPOSITORY"),
+            "github_branch": os.environ.get("TRADIX_GITHUB_BRANCH"),
+            "github_path_prefix": os.environ.get("TRADIX_GITHUB_PATH_PREFIX"),
+            "github_token": os.environ.get("TRADIX_GITHUB_TOKEN"),
+        }
+        if backend == "github" and not all(github_values.values()):
+            raise RuntimeError("GitHub backend requires repository, branch, path prefix and token")
         return cls(project_id=project_id, api_key=api_key, root=Path(root_raw),
-                   storage_backend=backend, **values)
+                   storage_backend=backend, **values, **github_values)
 
 
 def _safe_filename(name: str | None) -> str:
@@ -122,13 +135,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         raise RuntimeError("artifact root must be an absolute path")
     if config.max_upload_bytes < 1:
         raise RuntimeError("max upload size must be positive")
-    if config.storage_backend not in {"local", "s3"}:
+    if config.storage_backend not in {"local", "s3", "github"}:
         raise RuntimeError("unsupported storage backend")
     if config.storage_backend == "s3" and not all((
         config.s3_endpoint_url, config.s3_region, config.s3_bucket,
         config.s3_access_key_id, config.s3_secret_access_key
     )):
         raise RuntimeError("S3 backend is missing required configuration")
+    if config.storage_backend == "github" and not all((
+        config.github_repository, config.github_branch,
+        config.github_path_prefix, config.github_token
+    )):
+        raise RuntimeError("GitHub backend is missing required configuration")
 
     app = FastAPI(
         title="TRADIX Artifact Gateway",
@@ -193,8 +211,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 object_path = objects_dir / sha256[:2] / sha256
                 object_path.parent.mkdir(parents=True, exist_ok=True)
                 if object_path.exists():
-                    if object_path.stat().st_size != size:
-                        raise HTTPException(status_code=409, detail="existing content hash has inconsistent size")
+                    if object_path.stat().st_size != size or sha256_file(object_path) != sha256:
+                        raise HTTPException(status_code=409, detail="existing content hash failed integrity verification")
                     temp_path.unlink(missing_ok=True)
                     temp_path = None
                 else:
@@ -215,6 +233,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 if head.get("ContentLength") != size or head.get("Metadata", {}).get("sha256") != sha256:
                     raise HTTPException(status_code=502, detail="remote storage verification failed")
                 storage_ref = f"s3://{config.s3_bucket}/{object_key}"
+            else:
+                target = GitHubTarget(
+                    repository=config.github_repository or "",
+                    branch=config.github_branch or "",
+                    path_prefix=config.github_path_prefix or "",
+                    token=config.github_token or "",
+                )
+                try:
+                    transfer = upload_binary(
+                        temp_path, project_id=config.project_id, sha256=sha256, target=target
+                    )
+                except Exception as exc:
+                    raise HTTPException(status_code=502, detail=f"GitHub transfer failed: {type(exc).__name__}") from exc
+                storage_ref = (
+                    f"https://github.com/{transfer['repository']}/blob/"
+                    f"{transfer['branch']}/{transfer['path']}"
+                )
 
             receipt = {
                 "artifact_id": artifact_id,
@@ -224,6 +259,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "sha256": sha256,
                 "storage_backend": config.storage_backend,
                 "storage_ref": storage_ref,
+                "remote_commit_sha": transfer.get("commit_sha") if config.storage_backend == "github" else None,
                 "uploaded_at": datetime.now(timezone.utc).isoformat(),
                 "extraction": extraction,
             }
