@@ -52,10 +52,18 @@ def test_real_postgres_full_task_lifecycle_and_readback():
         metadata={"run": "disposable-postgres"},
     ) == attempt_id
 
+    worker_id = f"postgres-ledger-integration:{nonce}"
+    fencing_token, _expires_at = ledger.acquire_task_lease(
+        task_id, attempt_id, worker_id=worker_id, ttl_seconds=60
+    )
+
     def transition(state: str, suffix: str) -> int:
-        return ledger.transition_task(
+        return ledger.transition_task_fenced(
             task_id,
-            state,
+            attempt_id,
+            worker_id=worker_id,
+            fencing_token=fencing_token,
+            target_state=state,
             event_type=f"task.{state}",
             actor_type="system",
             actor_ref="postgres-ledger-integration-test",
@@ -65,9 +73,12 @@ def test_real_postgres_full_task_lifecycle_and_readback():
         )
 
     planned_seq = transition("planned", "planned")
-    assert ledger.transition_task(
+    assert ledger.transition_task_fenced(
         task_id,
-        "planned",
+        attempt_id,
+        worker_id=worker_id,
+        fencing_token=fencing_token,
+        target_state="planned",
         event_type="task.planned",
         actor_type="system",
         actor_ref="postgres-ledger-integration-test",
@@ -80,9 +91,11 @@ def test_real_postgres_full_task_lifecycle_and_readback():
     transition("testing", "testing")
 
     test_report = b'{"result":"passed","suite":"integration"}'
-    ledger.record_evidence(
+    ledger.record_evidence_fenced(
         task_id,
         attempt_id,
+        worker_id=worker_id,
+        fencing_token=fencing_token,
         artifact_type="test-report",
         object_uri=f"ci://tradix/{nonce}/test-report.json",
         sha256=hashlib.sha256(test_report).hexdigest(),
@@ -108,7 +121,13 @@ def test_real_postgres_full_task_lifecycle_and_readback():
         metadata={"test": "full-lifecycle"},
     )
     transition("candidate", "candidate")
-    assert ledger.finish_attempt(task_id, attempt_id, outcome="succeeded") == "succeeded"
+    assert ledger.finish_attempt_fenced(
+        task_id, attempt_id, worker_id=worker_id, fencing_token=fencing_token, outcome="succeeded"
+    ) == "succeeded"
+    transition("verified", "verified")
+    assert ledger.release_task_lease(
+        task_id, attempt_id, worker_id=worker_id, fencing_token=fencing_token
+    ) is True
 
     # A TRADIX runtime must not be able to create an attempt for the fixed
     # info_engine fixture task seeded by the SQL isolation suite.
@@ -131,14 +150,14 @@ def test_real_postgres_full_task_lifecycle_and_readback():
                 "SELECT status, current_attempt FROM factory.tasks WHERE task_id = %s",
                 (task_id,),
             )
-            assert cursor.fetchone() == ("candidate", 1)
+            assert cursor.fetchone() == ("verified", 1)
 
             cursor.execute(
                 "SELECT to_state FROM factory.task_events WHERE task_id = %s ORDER BY event_seq",
                 (task_id,),
             )
             assert [row[0] for row in cursor.fetchall()] == [
-                "planned", "implementing", "testing", "review", "candidate"
+                "planned", "implementing", "testing", "review", "candidate", "verified"
             ]
 
             cursor.execute(
