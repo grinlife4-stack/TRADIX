@@ -84,3 +84,13 @@ The default design principle, if the matter is reopened, is to keep internal sof
 | Strategic priority | TRADIX network development |
 
 **Final rule:** No work on the NEXORA-specific standalone financial-services proposal documented in this file should proceed unless the project owner explicitly reopens it. This restriction does not apply to X, which is a separate TRADIX-built product. TRADIX network development and the authorized X build are governed by their own priorities and project records.
+
+## 8. EXVARLI financial management clarification
+
+The pause recorded in this document applies only to the earlier NEXORA-specific standalone bank / financial-services initiative described above. It does **not** prevent NEXORA from assigning its internal financial management function to EXVARLI under the separately approved EXVARLI architecture.
+
+EXVARLI is designated to manage NEXORA's financial operations as an independent, replaceable financial management service. This includes the NEXORA ledger, revenue and expense records, reconciliation, settlement monitoring, budgeting, cash-flow oversight, financial reporting, supporting records, and administration of approved provider routes within project-owner-authorized permissions.
+
+EXVARLI does not own NEXORA's income, bank accounts, payment accounts, wallets, or other assets. Those remain owned or controlled by the individual or legal entity designated as NEXORA's legal owner. NEXORA's records and assets must remain separately attributable, exportable, transferable, and accessible without EXVARLI. The project owner may revoke EXVARLI's access and appoint a replacement manager without transferring ownership or interrupting NEXORA.
+
+This clarification does not reopen or authorize a standalone bank, payment institution, e-money, custody, exchange, or crypto-asset service. Actual account opening, provider onboarding, receipt, transfer, or conversion remains subject to provider eligibility, applicable law, and the relevant implementation gates. No account, wallet, or provider connection is implied to exist.
