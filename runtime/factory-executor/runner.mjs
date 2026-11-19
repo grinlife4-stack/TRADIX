@@ -4,6 +4,7 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import pg from "pg";
+import { S3ArtifactStore } from "./s3-artifact-store.mjs";
 
 const { Client } = pg;
 const MAX_OUTPUT_BYTES = 1024 * 1024;
@@ -308,11 +309,36 @@ async function transition(client, lease, from, to) {
   );
 }
 
-async function recordEvidence(client, lease, type, result) {
+async function recordEvidence(client, lease, type, result, artifactStore) {
   const payload = artifactPayload(result, type);
   const evidenceDir = resolve(process.env.FACTORY_EVIDENCE_DIR ?? "/tmp/tradix-factory-executor", lease.taskId);
   await mkdir(evidenceDir, { recursive: true });
-  await writeFile(resolve(evidenceDir, `${type}.txt`), payload.content, { mode: 0o600 });
+  const sourcePath = resolve(evidenceDir, type + ".txt");
+  await writeFile(sourcePath, payload.content, { mode: 0o600 });
+
+  let objectUri = "ci://factory-executor/" + lease.taskId + "/" + type + ".txt";
+  const metadata = { executor: EXECUTOR_ID, exit_code: result.exitCode };
+  if (artifactStore) {
+    const stored = await artifactStore.uploadFile({
+      sourcePath,
+      projectKey: lease.projectKey,
+      runId: lease.runId,
+      attemptId: lease.attemptId,
+      contentType: "text/plain"
+    });
+    objectUri = "s3://" + artifactStore.bucket + "/" + stored.key;
+    Object.assign(metadata, {
+      storage_provider: "s3-compatible",
+      bucket: artifactStore.bucket,
+      object_key: stored.key,
+      sha256: stored.sha256,
+      byte_size: stored.byteSize,
+      reused: stored.reused
+    });
+  } else if (lease.requireRemoteArtifacts) {
+    fail("Remote artifact storage is required but not configured");
+  }
+
   await client.query(
     "SELECT factory.record_task_evidence_fenced($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)",
     [
@@ -321,18 +347,17 @@ async function recordEvidence(client, lease, type, result) {
       lease.workerId,
       lease.token,
       type,
-      `ci://factory-executor/${lease.taskId}/${type}.txt`,
+      objectUri,
       payload.sha256,
       payload.byteSize,
       "text/plain",
       type,
-      `Output captured by ${EXECUTOR_ID}`,
-      JSON.stringify({ executor: EXECUTOR_ID, exit_code: result.exitCode })
+      "Output captured by " + EXECUTOR_ID,
+      JSON.stringify(metadata)
     ]
   );
-  process.stdout.write(`PASS evidence: ${type} sha256=${payload.sha256}\n`);
+  process.stdout.write("PASS evidence: " + type + " sha256=" + payload.sha256 + (artifactStore ? " remote=true" : " remote=false") + "\n");
 }
-
 async function main() {
   const manifestArg = process.argv[2];
   if (!manifestArg) fail("Usage: node runner.mjs <product-manifest.json>");
@@ -368,13 +393,29 @@ async function main() {
   const reviewScript = assertNodeScript(scripts.review, "scripts.review");
   const healthScript = assertNodeScript(scripts.health, "scripts.health");
 
+  const requireRemoteArtifacts = process.env.TRADIX_REQUIRE_REMOTE_ARTIFACTS === "true";
+  const artifactStore = process.env.TRADIX_ARTIFACT_S3_ENDPOINT
+    ? S3ArtifactStore.fromEnv()
+    : null;
+  if (requireRemoteArtifacts && !artifactStore) {
+    fail("TRADIX_REQUIRE_REMOTE_ARTIFACTS is true but S3 artifact storage is not configured");
+  }
+
   const client = new Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 10000 });
   await client.connect();
   try {
+    const identityResult = await client.query(
+      "SELECT p.project_id, p.project_key FROM factory.project_identities i JOIN factory.projects p ON p.project_id=i.project_id WHERE i.role_name=session_user AND i.identity_kind='runtime'"
+    );
+    if (identityResult.rowCount !== 1) fail("Runtime identity did not resolve to exactly one project");
+    const projectId = identityResult.rows[0].project_id;
+    const projectKey = identityResult.rows[0].project_key;
+    const runId = process.env.GITHUB_RUN_ID || process.env.TRADIX_RUN_ID || ("local-" + randomUUID());
+
     await client.query("BEGIN");
     const dossierResult = await client.query(
-      "SELECT factory.record_product_dossier((SELECT project_id FROM factory.project_identities WHERE role_name=session_user AND identity_kind='runtime'), $1::jsonb, $2) AS version",
-      [JSON.stringify(dossier), dossierIdempotencyKey]
+      "SELECT factory.record_product_dossier($1, $2::jsonb, $3) AS version",
+      [projectId, JSON.stringify(dossier), dossierIdempotencyKey]
     );
     const dossierVersion = Number(dossierResult.rows[0]?.version);
     if (!Number.isInteger(dossierVersion) || dossierVersion < 1) {
@@ -409,12 +450,12 @@ async function main() {
     await client.query("COMMIT");
 
     const state = await client.query(
-      "SELECT t.status, t.approval_required, t.approval_scope, a.status AS attempt_status, EXISTS (SELECT 1 FROM factory.task_approvals ap WHERE ap.task_id=t.task_id AND ap.attempt_id=a.attempt_id AND ap.action='begin_implementation' AND ap.decision='approved' AND ap.decision_scope=t.approval_scope) AS approval_granted, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.task_id,t.status,t.approval_required,t.approval_scope,a.status,a.attempt_id",
+      "SELECT t.status, t.approval_required, t.approval_scope, a.status AS attempt_status, EXISTS (SELECT 1 FROM factory.task_approvals ap WHERE ap.task_id=t.task_id AND ap.attempt_id=a.attempt_id AND ap.action='begin_implementation' AND ap.decision='approved' AND ap.decision_scope=t.approval_scope) AS approval_granted, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count, count(DISTINCT ev.evidence_id) FILTER (WHERE ev.metadata->>'storage_provider' = 's3-compatible' AND length(coalesce(ev.metadata->>'object_key','')) > 0)::int AS remote_evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.task_id,t.status,t.approval_required,t.approval_scope,a.status,a.attempt_id",
       [taskId, attemptId]
     );
     if (state.rows[0]?.status === "verified") {
       const row = state.rows[0];
-      if (row.attempt_status !== "succeeded" || row.event_count !== 7 || row.evidence_count !== 3) {
+      if (row.attempt_status !== "succeeded" || row.event_count !== 7 || row.evidence_count !== 3 || row.remote_evidence_count !== (artifactStore ? 3 : 0)) {
         fail("Previously verified task has inconsistent attempt, event, or evidence records");
       }
       process.stdout.write(`ALREADY VERIFIED task=${taskId} attempt=${attemptId} events=${row.event_count} evidence=${row.evidence_count}\n`);
@@ -432,7 +473,7 @@ async function main() {
       "SELECT fencing_token, expires_at FROM factory.acquire_task_lease($1,$2,$3,$4)",
       [taskId, attemptId, workerId, LEASE_TTL_SECONDS]
     );
-    const lease = { taskId, attemptId, workerId, token: leaseResult.rows[0]?.fencing_token };
+    const lease = { taskId, attemptId, workerId, token: leaseResult.rows[0]?.fencing_token, projectKey, runId, requireRemoteArtifacts };
     if (!lease.token) fail("Database did not return a fencing token");
 
     const leaseGuard = {
@@ -487,12 +528,12 @@ async function main() {
         stdout: [runResult.stdout, testResult.stdout].join("\\n"),
         stderr: [runResult.stderr, testResult.stderr].join("\\n"),
         exitCode: 0
-      });
+      }, artifactStore);
 
       await transition(client, lease, currentState, "review");
       currentState = "review";
       const reviewResult = await runNodeScript(productRoot, reviewScript, "product review", leaseGuard, executionMode);
-      await recordEvidence(client, lease, "review_report", reviewResult);
+      await recordEvidence(client, lease, "review_report", reviewResult, artifactStore);
 
       await transition(client, lease, currentState, "candidate");
       currentState = "candidate";
@@ -500,7 +541,7 @@ async function main() {
       currentState = "deployed_test";
 
       const healthResult = await runNodeScript(productRoot, healthScript, "product health check", leaseGuard, executionMode);
-      await recordEvidence(client, lease, "health_check", healthResult);
+      await recordEvidence(client, lease, "health_check", healthResult, artifactStore);
 
       // Drain any in-flight renewal before finalization. A renewal after lease
       // release would abort the transaction.
@@ -557,12 +598,12 @@ async function main() {
     }
 
     const verified = await client.query(
-      "SELECT t.status, a.status AS attempt_status, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.status,a.status",
+      "SELECT t.status, a.status AS attempt_status, count(DISTINCT e.event_seq)::int AS event_count, count(DISTINCT ev.evidence_id)::int AS evidence_count, count(DISTINCT ev.evidence_id) FILTER (WHERE ev.metadata->>'storage_provider' = 's3-compatible' AND length(coalesce(ev.metadata->>'object_key','')) > 0)::int AS remote_evidence_count FROM factory.tasks t JOIN factory.task_attempts a ON a.task_id=t.task_id LEFT JOIN factory.task_events e ON e.task_id=t.task_id LEFT JOIN factory.task_evidence ev ON ev.task_id=t.task_id WHERE t.task_id=$1 AND a.attempt_id=$2 GROUP BY t.status,a.status",
       [taskId, attemptId]
     );
     const row = verified.rows[0];
     if (row?.status !== "verified" || row?.attempt_status !== "succeeded" ||
-        row.event_count !== 7 || row.evidence_count !== 3) {
+        row.event_count !== 7 || row.evidence_count !== 3 || row.remote_evidence_count !== (artifactStore ? 3 : 0)) {
       fail("Final factory verification did not satisfy task, attempt, event, and evidence invariants");
     }
     process.stdout.write(
@@ -570,6 +611,7 @@ async function main() {
     );
   } finally {
     await client.end();
+    artifactStore?.close();
   }
 }
 

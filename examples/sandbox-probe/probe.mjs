@@ -16,7 +16,9 @@ for (const key of [
   "GITHUB_TOKEN",
   "MISSION_PLAN_API_KEY",
   "MEMORY_GATEWAY_API_KEY",
-  "PRODUCT_DOSSIER_API_KEY"
+  "PRODUCT_DOSSIER_API_KEY",
+  "TRADIX_ARTIFACT_S3_ACCESS_KEY_ID",
+  "TRADIX_ARTIFACT_S3_SECRET_ACCESS_KEY"
 ]) {
   assert.equal(process.env[key], undefined, "secret environment variable leaked: " + key);
 }

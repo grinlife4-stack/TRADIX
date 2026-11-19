@@ -162,18 +162,50 @@ jobs:
           image_id="$(docker image inspect --format='{{.Id}}' tradix-node-sandbox:24.22.3)"
           [[ "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]
           echo "FACTORY_SANDBOX_IMAGE=$image_id" >> "$GITHUB_ENV"
+      - name: Verify remote artifact requirement fails closed without storage configuration
+        env:
+          DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
+          TRADIX_REQUIRE_REMOTE_ARTIFACTS: "true"
+        run: |
+          set -euo pipefail
+          if node runtime/factory-executor/runner.mjs examples/hello-world/product.json > /tmp/tradix-remote-required.log 2>&1; then
+            echo "Executor unexpectedly accepted missing required remote storage"
+            exit 1
+          fi
+          grep -F "TRADIX_REQUIRE_REMOTE_ARTIFACTS is true but S3 artifact storage is not configured" /tmp/tradix-remote-required.log
       - name: Execute sandbox boundary probe through the factory runtime
         env:
+          TRADIX_ARTIFACT_S3_ENDPOINT: http://127.0.0.1:9000
+          TRADIX_ARTIFACT_S3_REGION: us-east-1
+          TRADIX_ARTIFACT_S3_BUCKET: tradix-artifact-ci
+          TRADIX_ARTIFACT_S3_ACCESS_KEY_ID: TRADIXCIACCESSKEY
+          TRADIX_ARTIFACT_S3_SECRET_ACCESS_KEY: TradixCISecretKeyForEphemeralTestsOnly
+          TRADIX_ARTIFACT_S3_ALLOW_LOCAL_HTTP: "true"
+          TRADIX_REQUIRE_REMOTE_ARTIFACTS: "true"
           DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
           FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
         run: node runtime/factory-executor/runner.mjs examples/sandbox-probe/product.json
       - name: Execute the bounded Hello World product
         env:
+          TRADIX_ARTIFACT_S3_ENDPOINT: http://127.0.0.1:9000
+          TRADIX_ARTIFACT_S3_REGION: us-east-1
+          TRADIX_ARTIFACT_S3_BUCKET: tradix-artifact-ci
+          TRADIX_ARTIFACT_S3_ACCESS_KEY_ID: TRADIXCIACCESSKEY
+          TRADIX_ARTIFACT_S3_SECRET_ACCESS_KEY: TradixCISecretKeyForEphemeralTestsOnly
+          TRADIX_ARTIFACT_S3_ALLOW_LOCAL_HTTP: "true"
+          TRADIX_REQUIRE_REMOTE_ARTIFACTS: "true"
           DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
           FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
         run: node runtime/factory-executor/runner.mjs examples/hello-world/product.json
       - name: Verify exact retry does not execute the product twice
         env:
+          TRADIX_ARTIFACT_S3_ENDPOINT: http://127.0.0.1:9000
+          TRADIX_ARTIFACT_S3_REGION: us-east-1
+          TRADIX_ARTIFACT_S3_BUCKET: tradix-artifact-ci
+          TRADIX_ARTIFACT_S3_ACCESS_KEY_ID: TRADIXCIACCESSKEY
+          TRADIX_ARTIFACT_S3_SECRET_ACCESS_KEY: TradixCISecretKeyForEphemeralTestsOnly
+          TRADIX_ARTIFACT_S3_ALLOW_LOCAL_HTTP: "true"
+          TRADIX_REQUIRE_REMOTE_ARTIFACTS: "true"
           DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
           FACTORY_EVIDENCE_DIR: /tmp/tradix-factory-executor
         run: |
@@ -183,6 +215,13 @@ jobs:
           grep -Eq "ALREADY VERIFIED task=.* attempt=.* events=7 evidence=3" <<< "$output"
       - name: Verify approval preflight blocks execution before lease acquisition
         env:
+          TRADIX_ARTIFACT_S3_ENDPOINT: http://127.0.0.1:9000
+          TRADIX_ARTIFACT_S3_REGION: us-east-1
+          TRADIX_ARTIFACT_S3_BUCKET: tradix-artifact-ci
+          TRADIX_ARTIFACT_S3_ACCESS_KEY_ID: TRADIXCIACCESSKEY
+          TRADIX_ARTIFACT_S3_SECRET_ACCESS_KEY: TradixCISecretKeyForEphemeralTestsOnly
+          TRADIX_ARTIFACT_S3_ALLOW_LOCAL_HTTP: "true"
+          TRADIX_REQUIRE_REMOTE_ARTIFACTS: "true"
           DATABASE_URL: postgresql://factory_rt_onboarding:ci-only-onboarding-password@127.0.0.1:5432/tradix_test?sslmode=disable
           POSTGRES_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
