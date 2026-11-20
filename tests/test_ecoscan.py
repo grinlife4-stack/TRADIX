@@ -276,12 +276,57 @@ def test_railway_volume_adapter_reports_capacity_and_backup_metadata_only(monkey
     assert "no volume contents read" in result["method"]
 
 
-def test_railway_volume_requires_instance_id_and_token():
+def test_railway_volume_resolves_instance_from_volume_and_environment(monkeypatch):
+    calls = []
+    def fake_graphql(query, variables, token):
+        calls.append((query, variables, token))
+        if "volumeInstances" in query:
+            assert variables == {"environmentId": "env-1"}
+            return {"environment": {"volumeInstances": [
+                {"id": "instance-1", "volume": {"id": "volume-1", "name": "artifact-data"}}
+            ]}}
+        assert variables == {"id": "instance-1", "volumeInstanceId": "instance-1"}
+        return {
+            "volumeInstance": {
+                "id": "instance-1", "mountPath": "/data", "currentSizeMB": 500,
+                "state": "READY", "volume": {"id": "volume-1", "name": "artifact-data"},
+                "serviceInstance": {"serviceName": "artifact-gateway"},
+            },
+            "volumeInstanceBackupList": [],
+        }
+    monkeypatch.setattr(monitor, "_railway_graphql", fake_graphql)
+    result = monitor.scan_railway_volume({
+        "source_id": "railway-vol-1", "project_id": "TRADIX",
+        "volume_id": "volume-1", "environment_id": "env-1",
+    }, "test-token")
+    assert result["status"] == "COMPLETE"
+    assert result["volume_instance_id"] == "instance-1"
+    assert len(calls) == 2
+
+
+def test_railway_volume_resolution_fails_closed_on_missing_or_ambiguous_match(monkeypatch):
+    def fake_graphql(query, variables, token):
+        return {"environment": {"volumeInstances": [
+            {"id": "instance-1", "volume": {"id": "volume-1"}},
+            {"id": "instance-2", "volume": {"id": "volume-1"}},
+        ]}}
+    monkeypatch.setattr(monitor, "_railway_graphql", fake_graphql)
+    result = monitor.scan_railway_volume({
+        "source_id": "railway-vol-1", "project_id": "TRADIX",
+        "volume_id": "volume-1", "environment_id": "env-1",
+    }, "test-token")
+    assert result["status"] == "FAILED"
+    assert result["capacity_bytes"] is None
+
+
+def test_railway_volume_requires_instance_or_volume_environment_and_token():
     source = {"source_id": "railway-vol-1", "project_id": "TRADIX"}
-    missing_id = monitor.scan_railway_volume(source, "test-token")
-    assert missing_id["status"] == "NOT_CONFIGURED"
-    assert missing_id["capacity_bytes"] is None
-    missing_token = monitor.scan_railway_volume({**source, "volume_instance_id": "instance-1"}, None)
+    missing_target = monitor.scan_railway_volume(source, "test-token")
+    assert missing_target["status"] == "NOT_CONFIGURED"
+    assert missing_target["capacity_bytes"] is None
+    missing_token = monitor.scan_railway_volume({
+        **source, "volume_id": "volume-1", "environment_id": "env-1"
+    }, None)
     assert missing_token["status"] == "NOT_CONFIGURED"
     assert missing_token["logical_bytes"] is None
 
