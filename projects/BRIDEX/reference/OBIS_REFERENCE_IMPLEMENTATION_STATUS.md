@@ -253,7 +253,7 @@ The Python and Go reference implementations now include the 0.2 operation lifecy
 - Operation records persist the resource identity. Resource-bound status lookups are scoped to the original project/source pair; a valid credential grant for another resource cannot retrieve the prior operation result.
 - Capability grants are explicit at peer, principal, scope, and resource levels. The Go tests use separate BRIDEX and TRADIX peer instances, credentials, resource grants, and ledger files to prove that credentials, results, and ledger entries do not cross owner boundaries. These are synthetic protocol fixtures only; they do not claim that BRIDEX Core or TRADIX currently exposes those business capabilities as live OBIS services.
 
-CI run 44806910217 completed successfully on PR #42 head 5bdd9dce0aa6cf918491e6e23875b70bf2b90661, including Go unit tests, Go binary build, and the full Python, BRIDEX Core, OBIS, and ECOSCAN test suite.
+CI run 44808374243 completed successfully on PR #42 head ab6cf9ba108d5368844428eabbd5c492ad2e6069, including Go unit tests, Go binary build, and the full Python, BRIDEX Core, OBIS, and ECOSCAN test suite: 168 Python tests passed.
 
 ## ECOSCAN independent Go-peer Loopback integration — 2026-11-20
 
@@ -261,6 +261,16 @@ PR #67 now runs a separate Go peer process on loopback and tests the ECOSCAN inv
 
 - OBIS 0.1 path: successful inventory response and denial of an ungranted project/source.
 - OBIS 0.2 path: a test-only adapter invoker wraps OBISV02Client, checks the operation state, and maps the authenticated operation result into ECOSCAN's current adapter contract. This is a conformance bridge for testing only, not an ECOSCAN runtime dependency.
-- The standalone workflow pins the BRIDEX Go/Python reference implementation to commit 5bdd9dce0aa6cf918491e6e23875b70bf2b90661, builds the Go binary, and runs the tests without deploying or contacting an external provider.
+- The standalone workflow pins the BRIDEX Go/Python reference implementation to commit ab6cf9ba108d5368844428eabbd5c492ad2e6069, builds the Go binary, and runs the tests without deploying or contacting an external provider.
 
 PR #67 standalone CI run 44807150588 completed successfully with 74 passed, including the OBIS 0.2 Go-peer integration; registry validation and the local-only synthetic scan also passed. The companion test workflow against the pinned OBIS 0.2 reference peer is run 44807150621. PR #67 remains Draft and unmerged.
+
+## Shared request-hash vectors and authenticated error parity — 2026-11-20
+
+- A language-neutral OBIS 0.2 operation-request hash vector file is published at projects/BRIDEX/reference/obis-contract/testdata/operation-request-hash-vectors.json. Both Python and Go test suites load the same file rather than maintaining independent hard-coded copies.
+- Authenticated protocol errors after successful credential authentication are returned as correlated HMAC-signed error envelopes by both reference peers. Python and Go clients verify the response signature, sender/recipient identity, correlation ID, and structured error before exposing the error code.
+- Cross-language tests now cover Python client → Go peer signed error and Go client → Python peer signed error, in addition to bidirectional successful invocation and resource-scoped status recovery.
+- Project/source identifiers are constrained to a bounded ASCII identifier grammar and cannot contain the resource separator, preventing ambiguous resource-reference construction.
+- CI run 44808374243 passed on the exact PR #42 head above: Go unit tests and build succeeded; 168 Python tests passed.
+
+Production HMAC key distribution, TLS/mTLS, asymmetric identity, credential rotation/revocation, and external-provider outcome reconciliation remain release blockers. These passing tests validate the loopback development profile only.
