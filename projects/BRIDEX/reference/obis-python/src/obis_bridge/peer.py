@@ -55,6 +55,7 @@ class Credential:
     principal_ref: str
     secret: bytes = field(repr=False)
     allowed_scopes: frozenset[str]
+    allowed_resources: frozenset[tuple[str, str]] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
         if not self.key_id or not self.peer_id or not self.principal_ref:
@@ -64,6 +65,14 @@ class Credential:
         if not self.allowed_scopes or not all(isinstance(s, str) and s for s in self.allowed_scopes):
             raise ValueError("credential must have explicit non-empty string scopes")
         object.__setattr__(self, "allowed_scopes", frozenset(self.allowed_scopes))
+        resources = frozenset(self.allowed_resources)
+        if any(
+            not isinstance(pair, tuple) or len(pair) != 2
+            or not all(isinstance(value, str) and value for value in pair)
+            for pair in resources
+        ):
+            raise ValueError("allowed_resources must contain project/source identifier pairs")
+        object.__setattr__(self, "allowed_resources", resources)
 
 
 @dataclass(frozen=True)
@@ -72,6 +81,7 @@ class Capability:
     version: str
     required_scopes: frozenset[str]
     handler: Callable[[dict[str, Any]], dict[str, Any]]
+    resource_binding: bool = False
 
 
 @dataclass
@@ -269,6 +279,8 @@ class OBISPeer:
         version: str,
         required_scopes: set[str] | frozenset[str],
         handler: Callable[[dict[str, Any]], dict[str, Any]],
+        *,
+        resource_binding: bool = False,
     ) -> None:
         if not capability_id or not version or not callable(handler):
             raise ValueError("capability id, version, and handler are required")
@@ -283,7 +295,7 @@ class OBISPeer:
             if key in self.capabilities:
                 raise ValueError("capability already registered")
             self.capabilities[key] = Capability(
-                capability_id, version, frozenset(required_scopes), handler
+                capability_id, version, frozenset(required_scopes), handler, resource_binding
             )
 
     def handle(self, message: dict[str, Any], key_id: str, signature: str) -> tuple[dict[str, Any], bytes]:
@@ -319,6 +331,19 @@ class OBISPeer:
             raise OBISRequestError("authorization.denied", "credential lacks required scope", 403, **error_context)
         if not requested_scopes.issubset(credential.allowed_scopes):
             raise OBISRequestError("authorization.denied", "requested scope exceeds grant", 403, **error_context)
+        if capability.resource_binding:
+            payload = message["payload"]
+            project_id = payload.get("project_id")
+            source_id = payload.get("source_id")
+            if (
+                not isinstance(project_id, str) or not project_id
+                or not isinstance(source_id, str) or not source_id
+                or (project_id, source_id) not in credential.allowed_resources
+            ):
+                raise OBISRequestError(
+                    "authorization.denied", "project/source is outside credential resource grant",
+                    403, **error_context
+                )
 
         try:
             result = capability.handler(message["payload"])
