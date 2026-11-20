@@ -352,8 +352,8 @@ This addendum does not change the production decision in §15: loopback HTTP/HMA
 ## 18. Native ECOSCAN OBIS 0.2 invoker — 2026-11-20
 
 - ECOSCAN now has a native OBISV02Invoker in projects/ECOSCAN/src/ecoscan/obis_bridge.py. The earlier test-local wrapper has been replaced in the Go-peer integration test.
-- The invoker clones the injected OBISV02Client with only the requested scopes and a timeout bounded by ECOSCAN's remaining deadline. It generates operation and idempotency identities and maps only a verified SUCCEEDED operation result into ECOSCAN's existing adapter contract.
+- The invoker defaults to the read-only inventory scope, clones the injected OBISV02Client with only the requested scopes, and uses a timeout bounded by ECOSCAN's remaining deadline. It generates operation and idempotency identities and maps only a verified SUCCEEDED operation result into ECOSCAN's existing adapter contract.
 - ACCEPTED, RUNNING, and UNKNOWN outcomes raise TransportOutcomeUnknown; known terminal operation failures remain failures. No uncertain or non-SUCCEEDED result becomes a measurement.
 - Added unit tests for scope narrowing, expired deadlines, UNKNOWN handling, terminal failure propagation, and operation TTL validation.
-- PR #67 head 29da6f6e689d97a328339145dbad6343e8201cae passed standalone CI run 44809260481 with 79 tests, registry validation, and local-only synthetic scan. Its cross-project test workflow passed run 44809273940 with 186 tests. Both used the pinned, CI-validated PR #42 OBIS reference commit ab6cf9ba108d5368844428eabbd5c492ad2e6069.
+- PR #67 head df8bf9237fca6fb908f04019b1eafdf5ed863a36 passed standalone CI run 44809607885 with 78 tests, registry validation, and local-only synthetic scan. Its cross-project test workflow passed run 44809607770 with 185 tests. Both used the pinned, CI-validated PR #42 OBIS reference commit ab6cf9ba108d5368844428eabbd5c492ad2e6069.
 - This remains a local development/conformance integration. No live provider, non-loopback peer, merge, deployment, or production pilot was used or authorized.
