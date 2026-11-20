@@ -1,15 +1,15 @@
-# OBIS-TLS-MTLS-1 — Python Reference Candidate
+# OBIS-TLS-MTLS-1 — Python and Go Reference Candidate
 
 **Status:** Executable reference candidate; not a normative amendment and not production-approved  
-**Implementation:** `projects/BRIDEX/reference/obis-python`  
+**Implementations:** `projects/BRIDEX/reference/obis-python` and `projects/BRIDEX/reference/obis-go`  
 **Profile ID:** `OBIS-TLS-MTLS-1`  
-**ALPN:** `http/1.1`
+**HTTP binding ALPN:** `http/1.1`
 
 ## 1. Purpose and boundary
 
 This document records the current Python reference implementation of the OBIS TLS/mutual-TLS candidate. It is evidence for owner and security review, not a decision that the profile is ready for production.
 
-The implementation reuses Python's `ssl` module and the platform OpenSSL stack. It does not implement cryptographic primitives, X.509 path validation, a CA, or a custom TLS protocol.
+The Python implementation reuses `ssl` and platform OpenSSL; the Go implementation reuses `crypto/tls` and `crypto/x509`. Neither implementation creates cryptographic primitives, X.509 path validation, a CA, or a custom TLS protocol.
 
 ## 2. Transport requirements implemented
 
@@ -17,7 +17,7 @@ The implementation reuses Python's `ssl` module and the platform OpenSSL stack. 
 - TLS 1.3 only: client and server contexts must set both minimum and maximum versions to TLS 1.3.
 - The client requires certificate-chain validation and endpoint hostname verification.
 - The server requires a client certificate (`CERT_REQUIRED`).
-- Both sides must negotiate ALPN `http/1.1`; absence or mismatch is rejected.
+- Both sides must negotiate HTTP/1.1 ALPN (`http/1.1`); absence or mismatch is rejected. OBIS protocol/version is identified by the message envelope and media type.
 - The server bounds TLS handshake time and HTTP request time.
 - The client has a finite request timeout.
 - No HMAC shared secret is accepted in the mTLS client or credential record.
@@ -74,6 +74,18 @@ The test suite creates ephemeral CA, server, and client certificates in temporar
 
 No test or production private key is committed.
 
+## 6A. Independent Go implementation and cross-language evidence
+
+The Go reference uses the standard library and is independently buildable in `projects/BRIDEX/reference/obis-go`. Its TLS 1.3 mTLS path applies the same application identity binding:
+
+- The client certificate URI SAN must be a canonical `urn:obis:peer:<lowercase-UUID>` and match the configured local peer ID before the request is sent.
+- The server verifies the client certificate chain, URI SAN, and SHA-256 fingerprint against one local credential/principal/scope record.
+- The server certificate URI SAN must match the configured server peer ID.
+- The Go client validates the server chain and endpoint hostname and verifies the configured remote OBIS peer URI before accepting the connection.
+- mTLS mode uses no HMAC secret or HMAC response signature. HMAC remains a separate loopback-only development profile.
+
+The cross-language test suite exercises Python client → Go server and Go client → Python server over TLS 1.3 mTLS, plus a negative same-URI/different-fingerprint case. Test certificates are generated ephemerally and are not committed.
+
 ## 7. Remaining production gates
 
 Before this candidate can be approved:
@@ -83,8 +95,8 @@ Before this candidate can be approved:
 3. A documented and tested CRL/OCSP or offline revocation strategy with stale-state failure rules.
 4. Durable replay/idempotency and outcome reconciliation.
 5. Rate limits, concurrency limits, operational monitoring, and durable audit controls.
-6. An independent second-language implementation, preferably Go `crypto/tls` / `crypto/x509`, maintained separately.
-7. Shared positive and negative cross-implementation conformance vectors.
+6. A shared, versioned positive/negative conformance suite that covers more than the current minimal loopback exchange and is maintained independently by both implementations.
+7. Durable revocation, trust-bundle freshness, replay/idempotency, rate limiting, and audit behavior with fail-closed stale-state rules.
 8. Independent security review with no unresolved critical/high findings.
 9. Separate owner approval for any production deployment.
 
