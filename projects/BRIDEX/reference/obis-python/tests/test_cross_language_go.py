@@ -21,7 +21,6 @@ def _start_go_server():
     process = subprocess.Popen(
         [
             GO_PEER_BINARY,
-            "--mode", "server",
             "--peer-id", "peer:go",
             "--listen", "127.0.0.1:0",
             "--key-id", "python-dev-key",
@@ -92,8 +91,8 @@ def test_independent_go_client_invokes_python_reference_peer():
         result = subprocess.run(
             [
                 GO_PEER_BINARY,
-                "--mode", "invoke",
-                "--peer-id", "peer:go",
+                "invoke",
+                "--local-peer", "peer:go",
                 "--endpoint", server.address,
                 "--remote-peer", "peer:python",
                 "--key-id", "go-dev-key",
@@ -102,7 +101,7 @@ def test_independent_go_client_invokes_python_reference_peer():
                 "--scopes", "records:read",
                 "--capability", "records.read",
                 "--capability-version", "1.0",
-                "--payload-json", json.dumps({"record_id": "go-to-python"}),
+                "--payload", json.dumps({"record_id": "go-to-python"}),
             ],
             check=True,
             capture_output=True,
