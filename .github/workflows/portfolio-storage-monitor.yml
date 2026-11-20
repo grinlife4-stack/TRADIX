@@ -3,8 +3,8 @@ name: portfolio-storage-monitor
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 7 * * 1" # Weekly report
-    - cron: "0 7 1 * *" # Monthly portfolio inventory review
+    - cron: "0 5 * * 1" # Weekly report
+    - cron: "0 5 1 * *" # Monthly portfolio inventory review
 
 permissions:
   contents: read
