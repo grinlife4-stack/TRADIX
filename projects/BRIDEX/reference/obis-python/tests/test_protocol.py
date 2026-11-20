@@ -188,3 +188,86 @@ def test_capability_handler_failure_does_not_leak_exception_details():
         peer.handle(request, KEY_ID, sign_message(request, secret))
     assert exc.value.code == "operation.failed"
     assert "private" not in str(exc.value)
+
+
+def test_published_json_schema_validates_request_and_success_response():
+    from pathlib import Path
+    import json
+    from jsonschema import Draft202012Validator
+
+    schema_path = Path(__file__).parents[1] / "schemas" / "obis-0.1-message.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+
+    peer_b, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "sku-42"})
+    validator.validate(request)
+
+    response = {
+        "protocol": "obis",
+        "version": "0.1",
+        "message_type": "response",
+        "message_id": "response-1",
+        "correlation_id": request["message_id"],
+        "sender": {"peer_id": PEER_B},
+        "recipient": {"peer_id": PEER_A},
+        "issued_at": time.time(),
+        "outcome": "succeeded",
+        "result": {"available": True},
+    }
+    validator.validate(response)
+
+
+def test_published_json_schema_rejects_unknown_fields_and_invalid_error_envelope():
+    from pathlib import Path
+    import json
+    from jsonschema import Draft202012Validator, ValidationError
+
+    schema_path = Path(__file__).parents[1] / "schemas" / "obis-0.1-message.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    validator = Draft202012Validator(schema)
+
+    peer_b, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "sku-42"})
+    request["unexpected"] = True
+    with pytest.raises(ValidationError):
+        validator.validate(request)
+
+    invalid_error = {
+        "protocol": "obis",
+        "version": "0.1",
+        "message_type": "response",
+        "message_id": "response-2",
+        "correlation_id": "request-2",
+        "sender": {"peer_id": PEER_B},
+        "recipient": {"peer_id": PEER_A},
+        "issued_at": time.time(),
+        "outcome": "failed",
+        "error": {"code": "authorization.denied"},
+    }
+    with pytest.raises(ValidationError):
+        validator.validate(invalid_error)
+
+
+def test_http_error_is_a_signed_correlated_obis_response():
+    peer_b, client = make_pair()
+    with OBISServer(peer_b) as server:
+        with pytest.raises(OBISRequestError) as exc:
+            client.invoke(
+                server.address,
+                "inventory.get",
+                "1.0",
+                {"item_id": "sku-42"},
+                scopes={"profile:read"},
+            )
+    assert exc.value.code == "authorization.denied"
+    assert "required scope" in str(exc.value)
+
+
+def test_unknown_capability_returns_signed_correlated_obis_error():
+    peer_b, client = make_pair()
+    with OBISServer(peer_b) as server:
+        with pytest.raises(OBISRequestError) as exc:
+            client.invoke(server.address, "missing.capability", "1.0", {})
+    assert exc.value.code == "capability.unknown"
