@@ -14,8 +14,10 @@ import hmac
 import json
 import math
 import secrets
+import sqlite3
 import threading
 import time
+from pathlib import Path
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -102,6 +104,72 @@ class ReplayGuard:
                 return False
             self._seen[nonce] = now + self.retention_seconds
             return True
+
+
+class SQLiteReplayGuard:
+    """Owner-local, durable replay protection backed by SQLite.
+
+    The database must live on storage controlled by the Bridge owner. Storage
+    errors are deliberately surfaced so callers can fail closed before a
+    capability handler runs. This is a reliability primitive, not a production
+    cryptographic identity or transport profile.
+    """
+
+    def __init__(self, database_path: str | Path, retention_seconds: int = MAX_TTL_SECONDS + CLOCK_SKEW_SECONDS):
+        raw_path = str(database_path).strip()
+        if not raw_path or raw_path == ":memory:":
+            raise ValueError("durable replay storage requires a filesystem database path")
+        if isinstance(retention_seconds, bool) or not isinstance(retention_seconds, int) or retention_seconds <= 0:
+            raise ValueError("retention_seconds must be a positive integer")
+        self.database_path = Path(raw_path).expanduser().resolve()
+        if not self.database_path.parent.is_dir():
+            raise ValueError("replay database parent directory must already exist")
+        self.retention_seconds = retention_seconds
+        self._lock = threading.Lock()
+        with self._connect() as connection:
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS obis_replay_nonces ("
+                "nonce_key TEXT PRIMARY KEY, expires_at REAL NOT NULL)"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS obis_replay_nonces_expiry "
+                "ON obis_replay_nonces(expires_at)"
+            )
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(str(self.database_path), timeout=5.0, isolation_level=None)
+        connection.execute("PRAGMA busy_timeout = 5000")
+        connection.execute("PRAGMA journal_mode = WAL")
+        connection.execute("PRAGMA synchronous = FULL")
+        return connection
+
+    def accept(self, nonce: str, now: float | None = None) -> bool:
+        now = time.time() if now is None else now
+        if not nonce:
+            return False
+        with self._lock:
+            connection = self._connect()
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+                connection.execute(
+                    "DELETE FROM obis_replay_nonces WHERE expires_at <= ?", (now,)
+                )
+                try:
+                    connection.execute(
+                        "INSERT INTO obis_replay_nonces(nonce_key, expires_at) VALUES (?, ?)",
+                        (nonce, now + self.retention_seconds),
+                    )
+                except sqlite3.IntegrityError:
+                    connection.execute("ROLLBACK")
+                    return False
+                connection.execute("COMMIT")
+                return True
+            except Exception:
+                if connection.in_transaction:
+                    connection.execute("ROLLBACK")
+                raise
+            finally:
+                connection.close()
 
 
 def strict_json_loads(raw: str) -> Any:
@@ -255,7 +323,10 @@ def validate_request(message: dict[str, Any], now: float | None = None) -> None:
 class OBISPeer:
     """A peer with explicit credentials, capabilities, and local authorization."""
 
-    def __init__(self, peer_id: str, credentials: list[Credential] | None = None):
+    def __init__(
+        self, peer_id: str, credentials: list[Credential] | None = None,
+        replay_guard: ReplayGuard | SQLiteReplayGuard | None = None,
+    ):
         if not peer_id:
             raise ValueError("peer_id must be non-empty")
         self.peer_id = peer_id
@@ -264,7 +335,7 @@ class OBISPeer:
             raise ValueError("duplicate credential key_id")
         self.credentials = {c.key_id: c for c in supplied_credentials}
         self.capabilities: dict[tuple[str, str], Capability] = {}
-        self.replay_guard = ReplayGuard()
+        self.replay_guard = replay_guard if replay_guard is not None else ReplayGuard()
         self._lock = threading.RLock()
 
     def add_credential(self, credential: Credential) -> None:
@@ -316,7 +387,14 @@ class OBISPeer:
             "authenticated_credential": credential,
             "request_message": message,
         }
-        if not self.replay_guard.accept(f"{key_id}:{message['nonce']}"):
+        try:
+            replay_accepted = self.replay_guard.accept(f"{key_id}:{message['nonce']}")
+        except Exception as exc:
+            raise OBISRequestError(
+                "replay.storage_unavailable", "replay protection storage unavailable",
+                503, **error_context
+            ) from exc
+        if not replay_accepted:
             raise OBISRequestError("request.replay_detected", "duplicate nonce", 409, **error_context)
 
         cap_key = (message["capability"]["id"], message["capability"]["version"])
