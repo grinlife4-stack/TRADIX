@@ -15,6 +15,8 @@ Every portfolio product and tool must retain an independent identity and operati
 
 This is a default architectural requirement. It must be applied automatically during the creation, design, implementation, review, testing, release, and maintenance of every new or existing product and tool. Reconfirmation is not required for routine compliance.
 
+**This standard does not introduce independence as a new strategic objective. Independence is the founding purpose of the TRADIX architecture from its inception.** This document translates that existing foundational purpose into explicit, testable engineering requirements for ownership boundaries, runtime autonomy, interoperability, data portability, security, and lifecycle control. It is an implementation and enforcement standard, not a change of direction or a new dependency on TRADIX.
+
 ## 2. Ownership and responsibility boundaries
 
 ### TRADIX owns
