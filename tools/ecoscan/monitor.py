@@ -154,6 +154,53 @@ def scan_source(source: dict[str, Any], token: str | None) -> dict[str, Any]:
     return {"source_id": source.get("source_id", "unknown"), "project_id": source.get("project_id", "unknown"), "provider": str(provider), "reference": source.get("reference"), "measured_at": utc_now(), "status": "UNSUPPORTED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": source.get("capacity_bytes"), "method": "not implemented", "error": f"Provider adapter not implemented: {provider}", "limitations": []}
 
 
+
+def select_scope(config: dict[str, Any], scope: str, project_ids: list[str] | None = None, source_ids: list[str] | None = None) -> dict[str, Any]:
+    """Return an isolated config for the requested scan scope; never broaden a selection."""
+    projects = config.get("projects", [])
+    sources = config.get("sources", [])
+    project_ids = list(dict.fromkeys(project_ids or []))
+    source_ids = list(dict.fromkeys(source_ids or []))
+    known_projects = {p["project_id"] for p in projects}
+    known_sources = {s["source_id"]: s for s in sources}
+    unknown_projects = sorted(set(project_ids) - known_projects)
+    unknown_sources = sorted(set(source_ids) - set(known_sources))
+    if unknown_projects:
+        raise ValueError("Unknown project_id: " + ", ".join(unknown_projects))
+    if unknown_sources:
+        raise ValueError("Unknown source_id: " + ", ".join(unknown_sources))
+    if scope == "ecosystem":
+        if project_ids or source_ids:
+            raise ValueError("The ecosystem scope cannot be combined with project/source selectors")
+        selected_projects, selected_sources = projects, sources
+    elif scope == "project":
+        if not project_ids or source_ids:
+            raise ValueError("Project scope requires --project and does not accept --source")
+        selected_projects = [p for p in projects if p["project_id"] in project_ids]
+        ids = {sid for p in selected_projects for sid in p.get("sources", [])}
+        selected_sources = [s for s in sources if s["source_id"] in ids]
+    elif scope == "source":
+        if not source_ids or project_ids:
+            raise ValueError("Source scope requires --source and does not accept --project")
+        selected_sources = [known_sources[sid] for sid in source_ids]
+        ids = {s["project_id"] for s in selected_sources}
+        selected_projects = []
+        for p in projects:
+            if p["project_id"] in ids:
+                selected_projects.append({**p, "sources": [sid for sid in p.get("sources", []) if sid in source_ids]})
+    else:
+        raise ValueError(f"Unsupported scan scope: {scope}")
+    selected_ids = {s["source_id"] for s in selected_sources}
+    result = dict(config)
+    result["projects"] = [{**p, "sources": [sid for sid in p.get("sources", []) if sid in selected_ids]} for p in selected_projects]
+    result["sources"] = selected_sources
+    result["scan_scope"] = {"type": scope, "project_ids": [p["project_id"] for p in selected_projects], "source_ids": sorted(selected_ids)}
+    return result
+
+
+def disabled_result(source: dict[str, Any], reason: str) -> dict[str, Any]:
+    return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": source.get("provider"), "reference": source.get("repository") or source.get("path") or source.get("reference"), "measured_at": utc_now(), "status": "DISABLED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "method": "not scanned because an explicit project/source control is disabled", "error": reason, "limitations": ["Disabled sources are not zero-sized; they reduce coverage."]}
+
 def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> dict[str, Any]:
     by_source = {r["source_id"]: r for r in results}
     projects = []
@@ -165,7 +212,7 @@ def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> dict[
         failed = [r for r in selected if r.get("status") not in SUCCESS_STATUSES]
         has_gaps = bool(failed or missing_ids)
         projects.append({
-            "project_id": project["project_id"], "name": project["name"],
+            "project_id": project["project_id"], "name": project["name"], "enabled": project.get("enabled", True),
             "source_count": len(expected_ids), "measured_source_count": len(known),
             "coverage": "NOT_REGISTERED" if not expected_ids else ("INCOMPLETE" if has_gaps else "COMPLETE"),
             "known_logical_bytes": sum(r["logical_bytes"] for r in known),
@@ -185,7 +232,7 @@ def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> dict[
         alerts.append({"severity": "WARNING", "code": "SOURCE_INCOMPLETE", "project_id": result["project_id"], "source_id": result["source_id"], "message": f"Source scan status: {result['status']}", "evidence": result.get("error")})
     return {
         "schema_version": 1, "tool": "TRADIX ECOSCAN", "generated_at": utc_now(),
-        "mode": config.get("mode", "MANUAL"), "ecosystem_coverage": "INCOMPLETE" if incomplete or any(p["coverage"] != "COMPLETE" for p in projects) else "COMPLETE",
+        "mode": config.get("mode", "MANUAL"), "scan_scope": config.get("scan_scope", {"type": "ecosystem"}), "ecosystem_coverage": "INCOMPLETE" if incomplete or any(p["coverage"] != "COMPLETE" for p in projects) else "COMPLETE",
         "project_count": len(projects), "source_count": len(results),
         "known_logical_bytes": known_total, "known_logical_mib": round(known_total / (1024 * 1024), 3),
         "total_is_complete": not incomplete and all(p["coverage"] == "COMPLETE" for p in projects),
@@ -274,6 +321,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="tools/ecoscan/config/ecoscan.json")
     parser.add_argument("--output", default="artifacts/ecoscan/latest.json")
     parser.add_argument("--publish-github-issue", action="store_true", help="Update a single report issue using a GitHub token with issues:write")
+    parser.add_argument("--scope", choices=("ecosystem", "project", "source"), default="ecosystem", help="Scan whole ecosystem, selected project(s), or selected source(s)")
+    parser.add_argument("--project", action="append", default=[], help="Project ID for project scope; repeatable")
+    parser.add_argument("--source", action="append", default=[], help="Source ID for source scope; repeatable")
     args = parser.parse_args(argv)
     try:
         config = json.loads(Path(args.config).read_text(encoding="utf-8"))
@@ -289,9 +339,23 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if event_name == "schedule":
         config["mode"] = "SCHEDULED"
+    try:
+        scoped_config = select_scope(config, args.scope, args.project, args.source)
+    except ValueError as exc:
+        print(f"Scope selection error: {exc}", file=sys.stderr)
+        return 2
     token = os.environ.get("ECOSCAN_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")
-    results = [scan_source(source, token) for source in config.get("sources", [])]
-    report = build_report(config, results)
+    projects_by_id = {p["project_id"]: p for p in scoped_config.get("projects", [])}
+    results = []
+    for source in scoped_config.get("sources", []):
+        project = projects_by_id.get(source["project_id"], {})
+        if not project.get("enabled", True):
+            results.append(disabled_result(source, "Owning project is disabled"))
+        elif not source.get("enabled", True):
+            results.append(disabled_result(source, "Source is disabled"))
+        else:
+            results.append(scan_source(source, token))
+    report = build_report(scoped_config, results)
     output = write_report(report, Path(args.output))
     print(render_markdown(report))
     print(f"JSON report: {output}")
