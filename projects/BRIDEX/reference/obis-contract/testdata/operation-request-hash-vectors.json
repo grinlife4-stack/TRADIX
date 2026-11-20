@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.2",
+  "vectors": [
+    {
+      "name": "inventory-read-basic",
+      "message": {
+        "protocol": "obis",
+        "version": "0.2",
+        "sender": {"peer_id": "peer-a"},
+        "recipient": {"peer_id": "peer-b"},
+        "authorization": {
+          "principal_ref": "principal-a",
+          "scopes": ["resource.read", "inventory.read"]
+        },
+        "capability": {"id": "ecoscan.inventory.read", "version": "1.0"},
+        "payload": {
+          "project_id": "project-a",
+          "source_id": "source-1",
+          "limit": 10
+        }
+      },
+      "sha256": "b065b8b65b60d033cbb8155cfad86eaab5d22a6c63ddbf14eb1243659738c999"
+    }
+  ]
+}
