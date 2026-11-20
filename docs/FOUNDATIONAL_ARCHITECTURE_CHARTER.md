@@ -200,3 +200,14 @@ A new project must be onboarded by creating, validating, and activating its own 
 EXVARLI is a replaceable manager, not the owner or custodian of project assets. Each project must retain exportability, revocable access, and the ability to replace EXVARLI or operate independently without losing funds, accounts, records, or continuity.
 
 The detailed governing specification is maintained in [EXVARLI — Multi-Project Financial Architecture](projects/EXVARLI_FINANCIAL_ARCHITECTURE.md). This section applies to every current and future portfolio project.
+
+
+## 14. Mandatory portfolio-wide Bridge and independence standard
+
+Every current and future product, project, application, service, tool, agent, factory, and technical subsystem must follow the governing [Portfolio-Wide Independence and Bridge Standard](PORTFOLIO_INDEPENDENCE_AND_BRIDGE_STANDARD.md).
+
+TRADIX owns and maintains the shared Bridge protocol, generation foundations, documentation, versioning, and conformance tests. Each product or tool owns, secures, operates, and maintains its own dedicated Bridge. A Bridge must be independently operable without TRADIX and must not make the product's core runtime depend on TRADIX availability. Separate-process execution is the default; an in-process Bridge requires a documented justification and equivalent fault/resource isolation.
+
+This requirement is automatic for all new work and applies to existing systems during material changes, integration, and production-readiness review. Every project dossier and relevant technical decision record must state its Bridge status and record the required independence, security, data-boundary, conformance, and recovery checks. A project that has not yet integrated with TRADIX must explicitly record that status; it must not claim Bridge conformance until the checks pass.
+
+No project-specific file, template, workflow, or implementation may silently waive this requirement. Exceptions and amendments require explicit, documented project-owner approval.
