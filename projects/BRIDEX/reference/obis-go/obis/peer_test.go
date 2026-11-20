@@ -2,6 +2,7 @@ package obis
 
 import (
 	"encoding/json"
+	"bytes"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -37,7 +38,7 @@ func TestPublishedRequestVectors(t *testing.T) {
 	path:=filepath.Join("..","..","..","..","..","standards","obis","0.1","conformance","vectors.json")
 	raw,err:=os.ReadFile(path);if err!=nil{t.Skipf("repository conformance vectors not present in standalone checkout: %v",err)}
 	var suite struct{Vectors []struct{ID string `json:"id"`; Expected string `json:"expected"`; Message map[string]any `json:"message"`} `json:"vectors"`}
-	if err=json.Unmarshal(raw,&suite);err!=nil{t.Fatal(err)}
+	dec:=json.NewDecoder(bytes.NewReader(raw));dec.UseNumber();if err=dec.Decode(&suite);err!=nil{t.Fatal(err)}
 	now:=time.Unix(1795168810,0)
 	for _,v:=range suite.Vectors{
 		if v.Message["message_type"]!="request"{continue}
