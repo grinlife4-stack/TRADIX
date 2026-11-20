@@ -265,9 +265,18 @@ Import must reject unknown schema versions by default, preserve IDs and timestam
 - Test backup/restore, migration, and package installation without network services.
 - Exit: independence acceptance suite passes; user approves any operational deployment separately.
 
-## 11. Immediate next engineering action
+## 11. Phase 0 evidence and next action
 
-Phase 0 contract artifacts have now been drafted: versioned JSON Schemas for registry, measurement, coverage, and export manifest, plus a threat model and acceptance-test matrix. Next: validate the schemas mechanically, review cross-field semantics and owner/operator authorization, then implement Phase 1 with synthetic/local fixtures only. Do not begin network adapters or provision credentials before those contracts are reviewed.
+Phase 0 artifacts now exist:
+- Four versioned JSON Schemas for source registry, measurement, coverage, and export manifest under `standards/ecoscan/0.1/`.
+- A threat model and 20-row acceptance-test matrix.
+- Automated Draft 2020-12 schema validation tests in `tests/test_ecoscan_schemas.py`.
+- Explicit schema constraints for measurement kind/unit/value consistency, completed coverage timestamps, non-empty credential references, and safe relative export-path forms.
+- Runtime obligations documented for credential-reference resolution, duplicate export paths, timestamp ordering, project/source ownership, and filesystem containment.
+
+The latest completed CI on this branch passed **50 tests**, including the ECOSCAN schema tests, and built the TRADIX and OBIS reference wheels. This validates the current contract fixtures and repository test suite; it does not prove every cross-field/runtime invariant or authorize deployment.
+
+Next: review owner/operator identity evidence, data retention, local allowed-root/mount policy, checkpoint integrity, and export/import semantics. Only after those contract decisions are approved should Phase 1 begin, using synthetic/local fixtures and no network credentials. Do not begin network adapters or provision credentials before the relevant source owner explicitly authorizes them.
 
 ## 12. Explicit non-claims
 
