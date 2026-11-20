@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from tradix.tiis import TIISAuthorizationError, TIISValidator
-from tradix.tools.catalog import ToolCatalog
+from tradix.tools.catalog import ToolCatalog, ToolDescriptor
 from tradix.tools.tiis_catalog import ToolCatalogTIISAdapter
 
 
@@ -70,7 +70,7 @@ def test_catalog_register_uses_authenticated_actor_not_payload(tmp_path):
 def test_catalog_transition_requires_evidence_and_uses_authenticated_actor(tmp_path):
     catalog, service = adapter(tmp_path)
     catalog.register(
-        __import__("tradix.tools.catalog", fromlist=["ToolDescriptor"]).ToolDescriptor(
+        ToolDescriptor(
             **{**descriptor(), "platforms": ("linux",), "capabilities": ("pdf.read",), "execution_modes": ("bounded",)}
         ),
         actor="bootstrap",
