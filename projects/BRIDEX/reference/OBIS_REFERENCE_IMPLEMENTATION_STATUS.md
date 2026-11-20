@@ -27,11 +27,10 @@
 - [x] Correlation ID verification and signed, correlated error envelopes for authenticated request failures in Python.
 - [x] Draft JSON Schema 2020-12 artifact and schema-validation tests.
 - [x] Language-neutral OBIS 0.1 message-schema accept/reject vectors and standalone BRIDEX runner.
-- [x] Go unit tests consuming the shared OBIS request vectors.
+- [x] Go unit tests consuming the shared OBIS request and response vectors.
 - [x] Bidirectional development-profile success-path tests: Python client → Go server and Go client → Python server.
 - [x] Bidirectional authenticated error tests for unknown capabilities and denied scopes; Go signs correlated error responses and the Go client verifies signed Python errors.
 - [x] Go envelope validators exercised against all published OBIS 0.1 request and response vectors.
-- [x] Initial authenticated error-response tests in both directions using the `capability.unknown` case; Go signs correlated errors and the Go client verifies signed Python error responses.
 - [x] CI Go unit tests and binary build, followed by the full Python/BRIDEX Core/OBIS/ECOSCAN test suite with both cross-language tests enabled.
 
 ## Deliberately not implemented
@@ -45,7 +44,6 @@ The canonical draft JSON Schema 2020-12 artifact is published at `standards/obis
 - Asynchronous operation lifecycle.
 - Production audit persistence and tamper-evident evidence.
 - Non-loopback transport binding.
-- Authenticated error-response parity in the Go peer.
 - Full cross-language positive/negative conformance matrix and combined ECOSCAN-to-Go-peer integration.
 
 ## Release gates before OBIS 1.0.0
@@ -80,9 +78,10 @@ The two PR branches have not had their commit histories merged; implementation f
 An independently buildable Go 1.23 peer is present at `projects/BRIDEX/reference/obis-go`. It uses only the Go standard library and does not import or invoke the Python reference implementation, BRIDEX Core, or TRADIX services.
 
 The cross-language tests cover both directions:
-- Python reference client → Go peer server, including verification of the Go-signed correlated success response.
-- Go peer client → Python reference peer server, including verification of the Python-signed correlated success response.
+- Python reference client → Go peer server: success, unknown capability, and denied scope.
+- Go peer client → Python reference peer server: success, unknown capability, and denied scope.
+- Go unit tests exercise all published request and response vectors, plus duplicate-key rejection and local nonce replay rejection.
 
-CI run #1119 completed successfully on commit `2e06ad11b54e71298d006edbd28168b5fadb4b82`. It ran Go unit tests, built the Go peer, ran the complete Python/BRIDEX Core/OBIS/ECOSCAN test suite with both cross-language tests enabled, and built/isolated-installed the Python packages.
+CI run #1119 completed successfully on commit `2e06ad11b54e71298d006edbd28168b5fadb4b82`, proving the initial bidirectional success path. CI run #1131 completed successfully on commit `121cdca51ea5812bbc06c709c1e31b06b793be61`, adding signed authenticated error responses. CI run #1144 completed successfully on commit `87cf0cf0bee44ef8de9eb6d9d3888e07c7e8c074`; it additionally exercised all shared OBIS request/response vectors in Go and bidirectional authorization-denial responses, then ran the full Python suite and isolated wheel/install checks.
 
-This proves bidirectional interoperability for the loopback development HMAC success path and an initial authenticated `capability.unknown` error path. CI run #1131 completed successfully on commit `121cdca51ea5812bbc06c709c1e31b06b793be61`; it ran Go unit tests/build, all four cross-language success/error tests, the full Python test suite, and isolated wheel/install checks. HMAC remains development/conformance-only. Production TLS/mTLS, canonicalization freeze, credential lifecycle, broader negative cross-language conformance, durable replay and operation idempotency, audit persistence, and independent security review remain open.
+This proves bidirectional interoperability for the current loopback development HMAC success path and selected authenticated error cases only. HMAC remains development/conformance-only. Production TLS/mTLS, canonicalization freeze, credential lifecycle, broader malformed/transport cross-language conformance, durable replay and operation idempotency, audit persistence, and independent security review remain open.
