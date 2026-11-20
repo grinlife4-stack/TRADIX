@@ -12,7 +12,7 @@ This audit evaluates whether OBIS should implement transport security and certif
 
 **Decision:** Do not implement cryptographic primitives, TLS, certificate-path validation, or a custom PKI. Reuse the platform's maintained TLS stack. Keep peer authorization, capability scopes, and OBIS identity-to-certificate binding in the OBIS application layer.
 
-This audit does not approve a production security profile, select a final certificate lifecycle, or authorize internet-facing deployment. The current Python HMAC/loopback prototype remains development-only.
+This audit does not approve a production security profile, select a final certificate lifecycle, or authorize internet-facing deployment. The HMAC/loopback mode remains development-only. A separate Python/Go TLS 1.3 mTLS candidate now exists, but it is not production-approved.
 
 ## 2. Required capabilities
 
@@ -45,16 +45,17 @@ A production candidate must provide:
 
 - Use Python's standard `ssl` module backed by a maintained OpenSSL build.
 - Do not add a third-party TLS implementation to the Python runtime.
-- Keep the current loopback HTTP + HMAC mode isolated as a development-only profile.
-- Add a separate TLS integration mode only after the certificate profile and test fixtures are reviewed.
-- Keep certificate loading, trust configuration, and private-key paths owner-supplied. Never commit test or production private keys.
+- The Python reference now supports a separate TLS 1.3 mTLS candidate: mandatory client certificates, verified server chain/hostname, HTTP/1.1 ALPN, canonical URI SAN peer identity, certificate SHA-256 fingerprint binding to one credential/principal, no HMAC secret in mTLS mode, and process-local credential revocation.
+- Keep the loopback HTTP + HMAC mode isolated as a development-only profile.
+- Certificate loading, trust configuration, and private-key paths remain owner-supplied. Never commit test or production private keys.
 
-### 4.2 Independent second implementation
+### 4.2 Independent Go implementation
 
-- Use Go's standard `crypto/tls` and `crypto/x509` packages as the leading candidate for a second-language peer.
-- Keep the second implementation in a separate repository or independently buildable package with its own maintainer and CI.
-- Run shared positive and negative OBIS conformance vectors against both implementations.
-- A second implementation must not import or execute the Python reference.
+- An independently buildable Go reference now uses the standard `crypto/tls` and `crypto/x509` packages.
+- The Go mTLS path binds the client certificate URI SAN and SHA-256 fingerprint to the configured peer credential, verifies the server certificate's URI SAN against the remote peer, and does not use an HMAC secret in mTLS mode.
+- The Go client verifies its local certificate URI before sending and validates TLS 1.3 / HTTP/1.1 ALPN and the remote peer URI.
+- CI now exercises Python client → Go server and Go client → Python server mTLS exchanges, plus a same-URI/different-fingerprint rejection case.
+- Both implementations remain separate packages and do not import or execute each other's runtime code.
 
 ### 4.3 Certificate authority and trust distribution
 
