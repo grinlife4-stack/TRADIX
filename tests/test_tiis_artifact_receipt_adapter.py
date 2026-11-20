@@ -83,6 +83,31 @@ def test_receipt_adapter_rejects_cross_project_receipt(tmp_path):
     assert response["error"]["code"] == "artifact.not-found"
 
 
+def test_receipt_adapter_rejects_corrupt_receipt_metadata(tmp_path):
+    receipts = tmp_path / "nexora" / "receipts"
+    receipts.mkdir(parents=True)
+    receipt = {
+        "artifact_id": ARTIFACT_ID,
+        "project_id": "nexora",
+        "filename": "report.txt",
+        "size_bytes": 24,
+        "sha256": "not-a-sha256",
+        "storage_backend": "local",
+        "storage_ref": "objects/report",
+        "uploaded_at": "2026-11-20T12:00:00Z",
+    }
+    (receipts / f"{ARTIFACT_ID}.json").write_text(json.dumps(receipt), encoding="utf-8")
+    adapter = ArtifactReceiptTIISAdapter(
+        project_id="nexora",
+        root=tmp_path,
+        validator=TIISValidator(authorization_policy=lambda *_args: True),
+        component_identity=GATEWAY,
+    )
+    response = adapter.handle(request(), authenticated_sender=SENDER, now=NOW)
+    assert response["outcome"] == "failed"
+    assert response["error"]["code"] == "artifact.not-found"
+
+
 def test_receipt_adapter_rejects_path_shaped_artifact_ids(tmp_path):
     adapter = ArtifactReceiptTIISAdapter(
         project_id="nexora",
