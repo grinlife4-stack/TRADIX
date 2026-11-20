@@ -45,7 +45,7 @@ A production candidate must provide:
 
 - Use Python's standard `ssl` module backed by a maintained OpenSSL build.
 - Do not add a third-party TLS implementation to the Python runtime.
-- The opt-in TLS 1.3 mTLS candidate is implemented in the Python client/server with owner-supplied trust CA and certificate paths, mandatory verification, and ALPN obis/1.
+- The opt-in TLS 1.3 mTLS candidate is implemented in the Python client/server with owner-supplied trust CA and certificate paths, mandatory verification, and ALPN http/1.1.
 - The Python server binds the client certificate's single OBIS URI SAN to the authenticated sender and configured credential peer.
 - Keep the loopback HTTP + HMAC mode isolated as a development-only profile.
 - Certificate loading, trust configuration, and private-key paths remain owner-supplied. Never commit test or production private keys.
@@ -53,7 +53,7 @@ A production candidate must provide:
 ### 4.2 Independent second implementation
 
 - A standalone Go OBIS 0.1 peer exists at `projects/BRIDEX/reference/obis-go`, using the Go standard library and its own Go module/tests.
-- The Go peer has an opt-in TLS 1.3 mTLS candidate using `crypto/tls` and `crypto/x509`, requiring client certificates, ALPN obis/1, and a single URI SAN mapped to the OBIS sender identity.
+- The Go peer has an opt-in TLS 1.3 mTLS candidate using `crypto/tls` and `crypto/x509`, requiring client certificates, ALPN http/1.1, and a single URI SAN mapped to the OBIS sender identity.
 - Python client ↔ Go server mTLS request/response and Python server mTLS tests pass with ephemeral certificates; both implementations also pass the shared HMAC development-profile vector.
 - The Go peer does not import or execute the Python reference.
 - Separate maintainer assignment, independent CI ownership, certificate lifecycle/revocation, trust-bundle freshness, and the full shared negative/security suite remain open.
