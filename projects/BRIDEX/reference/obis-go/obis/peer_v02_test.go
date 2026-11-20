@@ -220,3 +220,32 @@ func TestPeerV02StatusLookupIsBoundToOriginalResource(t *testing.T) {
 	_,_,protocolErr=p02.Handle(status,"caller-key",statusSignature)
 	if protocolErr==nil||protocolErr.Code!="operation.not_found"{t.Fatalf("expected resource-scoped not found, got %v",protocolErr)}
 }
+
+
+func TestPeerV02RejectsAmbiguousSlashResourceIdentity(t *testing.T) {
+	ledger,err:=NewFileOperationLedger(filepath.Join(t.TempDir(),"operations.json"));if err!=nil{t.Fatal(err)}
+	peer,err:=NewPeer("provider");if err!=nil{t.Fatal(err)}
+	secret:=[]byte("0123456789abcdef0123456789abcdef")
+	if err:=peer.AddCredential(Credential{
+		KeyID:"caller-key",PeerID:"caller",PrincipalRef:"principal-a",Secret:secret,
+		AllowedScopes:map[string]bool{"inventory.read":true},
+		AllowedResources:map[string]bool{"project-a/source-a/source-b":true},
+	});err!=nil{t.Fatal(err)}
+	calls:=0
+	p02,err:=NewPeerV02(peer,ledger);if err!=nil{t.Fatal(err)}
+	if err:=p02.RegisterCapabilityWithResourceBinding("ecoscan.inventory.read","1.0",
+		map[string]bool{"inventory.read":true},func(payload map[string]any)(map[string]any,error){
+			calls++
+			return map[string]any{"ok":true},nil
+		},"IDEMPOTENT",true);err!=nil{t.Fatal(err)}
+	message,signature:=testV02Message(t,secret,"slash-nonce","slash-attempt","slash-op","slash-idem","")
+	message["capability"]=map[string]any{"id":"ecoscan.inventory.read","version":"1.0"}
+	message["authorization"]=map[string]any{"principal_ref":"principal-a","scopes":[]any{"inventory.read"}}
+	message["payload"]=map[string]any{"project_id":"project-a/source-a","source_id":"source-b"}
+	hash,err:=OperationRequestHash(message);if err!=nil{t.Fatal(err)}
+	message["operation"].(map[string]any)["request_hash"]=hash
+	signature,err=Sign(message,secret);if err!=nil{t.Fatal(err)}
+	_,_,protocolErr:=p02.Handle(message,"caller-key",signature)
+	if protocolErr==nil||protocolErr.Code!="authorization.denied"{t.Fatalf("expected ambiguous resource identity denial, got %v",protocolErr)}
+	if calls!=0{t.Fatalf("ambiguous resource request executed handler %d times",calls)}
+}
