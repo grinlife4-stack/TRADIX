@@ -34,10 +34,15 @@ CLOCK_SKEW_SECONDS = 30
 class OBISRequestError(Exception):
     """A remote request failed with a normalized OBIS error."""
 
-    def __init__(self, code: str, message: str, http_status: int = 400):
+    def __init__(
+        self, code: str, message: str, http_status: int = 400,
+        authenticated_credential: Any = None, request_message: dict[str, Any] | None = None,
+    ):
         super().__init__(message)
         self.code = code
         self.http_status = http_status
+        self.authenticated_credential = authenticated_credential
+        self.request_message = request_message
 
 
 @dataclass(frozen=True)
@@ -213,28 +218,32 @@ class OBISPeer:
             raise OBISRequestError("identity.authentication_failed", "peer identity mismatch", 401)
         if message["authorization"]["principal_ref"] != credential.principal_ref:
             raise OBISRequestError("identity.authentication_failed", "principal mismatch", 401)
+        error_context = {
+            "authenticated_credential": credential,
+            "request_message": message,
+        }
         if not self.replay_guard.accept(f"{key_id}:{message['nonce']}"):
-            raise OBISRequestError("request.replay_detected", "duplicate nonce", 409)
+            raise OBISRequestError("request.replay_detected", "duplicate nonce", 409, **error_context)
 
         cap_key = (message["capability"]["id"], message["capability"]["version"])
         capability = self.capabilities.get(cap_key)
         if capability is None:
-            raise OBISRequestError("capability.unknown", "capability is not registered", 404)
+            raise OBISRequestError("capability.unknown", "capability is not registered", 404, **error_context)
 
         requested_scopes = set(message["authorization"]["scopes"])
         if not capability.required_scopes.issubset(requested_scopes):
-            raise OBISRequestError("authorization.denied", "required scope not requested", 403)
+            raise OBISRequestError("authorization.denied", "required scope not requested", 403, **error_context)
         if not capability.required_scopes.issubset(credential.allowed_scopes):
-            raise OBISRequestError("authorization.denied", "credential lacks required scope", 403)
+            raise OBISRequestError("authorization.denied", "credential lacks required scope", 403, **error_context)
         if not requested_scopes.issubset(credential.allowed_scopes):
-            raise OBISRequestError("authorization.denied", "requested scope exceeds grant", 403)
+            raise OBISRequestError("authorization.denied", "requested scope exceeds grant", 403, **error_context)
 
         try:
             result = capability.handler(message["payload"])
         except Exception as exc:
-            raise OBISRequestError("operation.failed", "capability execution failed", 500) from exc
+            raise OBISRequestError("operation.failed", "capability execution failed", 500, **error_context) from exc
         if not isinstance(result, dict):
-            raise OBISRequestError("internal.error", "capability handler must return an object", 500)
+            raise OBISRequestError("internal.error", "capability handler must return an object", 500, **error_context)
         response = {
             "protocol": PROTOCOL,
             "version": VERSION,
@@ -293,12 +302,37 @@ class OBISServer:
                     self.end_headers()
                     self.wfile.write(body)
                 except OBISRequestError as exc:
-                    body = canonical_json({"error": {"code": exc.code, "message": str(exc)}})
-                    self.send_response(exc.http_status)
-                    self.send_header("Content-Type", "application/obis+json")
-                    self.send_header("Content-Length", str(len(body)))
-                    self.end_headers()
-                    self.wfile.write(body)
+                    if exc.authenticated_credential is not None and exc.request_message is not None:
+                        request_message = exc.request_message
+                        error_response = {
+                            "protocol": PROTOCOL,
+                            "version": VERSION,
+                            "message_type": "response",
+                            "message_id": secrets.token_urlsafe(18),
+                            "correlation_id": request_message["message_id"],
+                            "sender": {"peer_id": peer.peer_id},
+                            "recipient": {"peer_id": request_message["sender"]["peer_id"]},
+                            "issued_at": time.time(),
+                            "outcome": "failed",
+                            "error": {"code": exc.code, "message": str(exc)},
+                        }
+                        body = canonical_json(error_response)
+                        response_signature = hmac.new(
+                            exc.authenticated_credential.secret, body, hashlib.sha256
+                        ).hexdigest()
+                        self.send_response(exc.http_status)
+                        self.send_header("Content-Type", "application/obis+json")
+                        self.send_header("Content-Length", str(len(body)))
+                        self.send_header("X-OBIS-Signature", response_signature)
+                        self.end_headers()
+                        self.wfile.write(body)
+                    else:
+                        body = canonical_json({"error": {"code": exc.code, "message": str(exc)}})
+                        self.send_response(exc.http_status)
+                        self.send_header("Content-Type", "application/obis+json")
+                        self.send_header("Content-Length", str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
                 except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
                     self.send_error(400, "invalid JSON message")
 
@@ -420,6 +454,31 @@ class OBISClient:
                     raise OBISRequestError("payload.too_large", "response exceeds size limit", 502)
                 response_signature = response.headers.get("X-OBIS-Signature", "")
         except urllib.error.HTTPError as exc:
+            error_body = exc.read(MAX_MESSAGE_BYTES + 1)
+            response_signature = exc.headers.get("X-OBIS-Signature", "")
+            if error_body and response_signature:
+                try:
+                    error_message = json.loads(error_body.decode("utf-8"))
+                    if not verify_signature(error_message, self.secret, response_signature):
+                        raise OBISRequestError("identity.authentication_failed", "error response signature verification failed", 502)
+                    if (
+                        error_message.get("protocol") != PROTOCOL
+                        or error_message.get("version") != VERSION
+                        or error_message.get("message_type") != "response"
+                        or error_message.get("correlation_id") != message["message_id"]
+                        or error_message.get("sender", {}).get("peer_id") != self.remote_peer_id
+                        or error_message.get("recipient", {}).get("peer_id") != self.local_peer_id
+                        or error_message.get("outcome") != "failed"
+                    ):
+                        raise OBISRequestError("protocol.invalid_message", "invalid correlated error response", 502)
+                    error = error_message.get("error", {})
+                    raise OBISRequestError(
+                        error.get("code", "peer.request_rejected"),
+                        error.get("message", f"peer returned HTTP {exc.code}"),
+                        exc.code,
+                    ) from exc
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    pass
             raise OBISRequestError("peer.request_rejected", f"peer returned HTTP {exc.code}", exc.code) from exc
         except urllib.error.URLError as exc:
             raise OBISRequestError("peer.unavailable", "peer is unavailable", 503) from exc
