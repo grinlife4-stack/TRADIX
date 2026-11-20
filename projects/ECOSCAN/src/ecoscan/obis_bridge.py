@@ -78,8 +78,6 @@ class OBISBridgeAdapter:
         if peer_id != self.client.remote_peer_id:
             raise AdapterContractError("OBIS peer identity does not match the registered source")
         _identifier(self.client.local_peer_id, "local OBIS peer ID")
-        if not isinstance(source_descriptor.credential_ref, str) or not source_descriptor.credential_ref:
-            raise AdapterContractError("OBIS source requires an external credential reference")
         if not source_descriptor.expected_measurements or not set(source_descriptor.expected_measurements).issubset(SUPPORTED_MEASUREMENTS):
             raise AdapterContractError("OBIS source declares unsupported inventory measurements")
         if REQUIRED_SCOPE not in self._client_scopes():
