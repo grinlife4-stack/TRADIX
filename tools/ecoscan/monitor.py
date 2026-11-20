@@ -214,7 +214,7 @@ def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> dict[
         projects.append({
             "project_id": project["project_id"], "name": project["name"], "enabled": project.get("enabled", True),
             "source_count": len(expected_ids), "measured_source_count": len(known),
-            "coverage": "NOT_REGISTERED" if not expected_ids else ("INCOMPLETE" if has_gaps else "COMPLETE"),
+            "coverage": "DISABLED" if not project.get("enabled", True) else ("NOT_REGISTERED" if not expected_ids else ("INCOMPLETE" if has_gaps else "COMPLETE")),
             "known_logical_bytes": sum(r["logical_bytes"] for r in known),
             "logical_bytes_complete": bool(expected_ids) and not has_gaps,
             "missing_source_ids": missing_ids,
@@ -224,7 +224,9 @@ def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> dict[
     incomplete = [r for r in results if r.get("status") not in SUCCESS_STATUSES]
     alerts = []
     for project in projects:
-        if project["coverage"] == "NOT_REGISTERED":
+        if project["coverage"] == "DISABLED":
+            alerts.append({"severity": "INFO", "code": "PROJECT_DISABLED", "project_id": project["project_id"], "source_id": None, "message": "Project scanning is disabled by its registry control", "evidence": None})
+        elif project["coverage"] == "NOT_REGISTERED":
             alerts.append({"severity": "WARNING", "code": "PROJECT_NOT_REGISTERED", "project_id": project["project_id"], "source_id": None, "message": "No storage source is registered for this project", "evidence": None})
         for missing_id in project.get("missing_source_ids", []):
             alerts.append({"severity": "WARNING", "code": "SOURCE_NOT_SCANNED", "project_id": project["project_id"], "source_id": missing_id, "message": "Configured source produced no measurement record", "evidence": None})
