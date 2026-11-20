@@ -7,7 +7,7 @@ name = "obis-bridge-reference"
 version = "0.1.0"
 description = "Standalone OBIS 0.1 reference peer and conformance prototype"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["rfc8785>=0.1.4"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "jsonschema>=4.22"]
