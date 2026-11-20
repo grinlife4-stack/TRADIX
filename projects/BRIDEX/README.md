@@ -2,7 +2,7 @@
 
 **Project ID:** BRIDEX-PROJECT-001  
 **Project type:** Independent specialist software/tooling project  
-**Status:** Architecture established; OBIS 0.1 standalone Python reference prototype implemented; production security and full conformance remain pending  
+**Status:** Architecture established; OBIS 0.1 Python reference and early independent Go peer implemented; production security and full conformance remain pending  
 **Parent portfolio:** TRADIX portfolio  
 **Operating rule:** Independent identity, source, configuration, data, lifecycle, and runtime boundary
 
@@ -72,6 +72,14 @@ python -m pytest -q
 ```
 
 The manifest is descriptive package metadata. It does not grant trust or permissions, prove ownership by itself, provide a runtime, generate Bridges, or establish OBIS conformance. The package is included in root CI with wheel-build and isolated-install schema checks. The generated scaffold is intentionally not an executable Bridge; runtime templates remain gated on approved generic adapter and transport contracts. The next generic-core gates are clean-environment portability proof and transport-independent peer behavior tests. Lifecycle/health primitives remain gated on explicit state-transition and failure contracts.
+
+
+
+## 3E. Independent Go OBIS peer
+
+A second-language implementation is maintained at [OBIS Go Peer](reference/obis-go/README.md). It is an independently buildable Go package with no Python, BRIDEX Core, or TRADIX runtime dependency. It currently implements the OBIS 0.1 request path over loopback HTTP, strict JSON parsing, peer/principal credential binding, scoped capability authorization, nonce replay rejection, and the development-only HMAC profile.
+
+The root CI now builds and tests the Go peer and runs cross-language integration in both directions: Python client to Go server, and Go client to Python server. The first direction passed in CI run #1100; the reverse-direction test is included in the latest CI run and remains pending until that run completes. This is initial interoperability evidence only. The Go peer is not production-ready and does not implement the unresolved TLS/mTLS profile, authenticated error-response parity, durable replay, business-operation idempotency, or audit persistence.
 
 ## 3D. Relationship to existing TRADIX infrastructure
 
