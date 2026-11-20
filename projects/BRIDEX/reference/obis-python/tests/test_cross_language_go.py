@@ -672,7 +672,7 @@ def test_go_v02_client_invokes_python_v02_peer(tmp_path):
                 "--source-id", "source-b",
             ],
             capture_output=True, text=True, timeout=15,
-
+        )
         missing = subprocess.run(
             [
                 GO_PEER_BINARY, "invoke-v02",
@@ -690,7 +690,6 @@ def test_go_v02_client_invokes_python_v02_peer(tmp_path):
                 "--payload", json.dumps({"project_id": "project-b", "source_id": "source-b"}),
             ],
             capture_output=True, text=True, timeout=15,
-        )
         )
     assert result.returncode == 0, result.stdout + result.stderr
     response = json.loads(result.stdout)
