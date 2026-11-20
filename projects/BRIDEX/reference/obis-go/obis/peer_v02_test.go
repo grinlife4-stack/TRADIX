@@ -96,3 +96,32 @@ func TestPeerV02RecoversRunningOperationAsUnknown(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	if recovered.State!="UNKNOWN" || recovered.FailureCode!="operation.outcome_unknown" { t.Fatalf("unexpected recovered state: %+v",recovered) }
 }
+
+
+func TestPeerV02ResourceBindingFailsClosed(t *testing.T) {
+	dir:=t.TempDir()
+	ledger,err:=NewFileOperationLedger(filepath.Join(dir,"operations.json"));if err!=nil{t.Fatal(err)}
+	peer,err:=NewPeer("provider");if err!=nil{t.Fatal(err)}
+	secret:=[]byte("0123456789abcdef0123456789abcdef")
+	if err:=peer.AddCredential(Credential{
+		KeyID:"caller-key",PeerID:"caller",PrincipalRef:"principal-a",Secret:secret,
+		AllowedScopes:map[string]bool{"inventory.read":true},
+		AllowedResources:map[string]bool{"project-a/source-a":true},
+	});err!=nil{t.Fatal(err)}
+	calls:=0
+	p02,err:=NewPeerV02(peer,ledger);if err!=nil{t.Fatal(err)}
+	if err:=p02.RegisterCapabilityWithResourceBinding("ecoscan.inventory.read","1.0",
+		map[string]bool{"inventory.read":true},func(payload map[string]any)(map[string]any,error){
+			calls++
+			return map[string]any{"items_seen":1},nil
+		},"IDEMPOTENT",true);err!=nil{t.Fatal(err)}
+	message,signature:=testV02Message(t,secret,"resource-nonce","resource-attempt","resource-op","resource-idem","")
+	message["capability"]=map[string]any{"id":"ecoscan.inventory.read","version":"1.0"}
+	message["payload"]=map[string]any{"project_id":"project-b","source_id":"source-b"}
+	hash,err:=OperationRequestHash(message);if err!=nil{t.Fatal(err)}
+	message["operation"].(map[string]any)["request_hash"]=hash
+	signature,err=Sign(message,secret);if err!=nil{t.Fatal(err)}
+	_,_,protocolErr:=p02.Handle(message,"caller-key",signature)
+	if protocolErr==nil||protocolErr.Code!="authorization.denied"{t.Fatalf("expected resource authorization denial, got %v",protocolErr)}
+	if calls!=0{t.Fatalf("resource-denied request executed handler %d times",calls)}
+}
