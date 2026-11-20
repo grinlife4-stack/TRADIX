@@ -67,3 +67,13 @@ def test_write_report_creates_json_and_markdown(tmp_path):
     output = monitor.write_report(report, tmp_path / "latest.json")
     assert json.loads(output.read_text(encoding="utf-8"))["known_logical_bytes"] == 10
     assert output.with_suffix(".md").exists()
+
+
+def test_missing_configured_source_marks_project_incomplete():
+    config = {"projects": [{"project_id": "p1", "name": "Project", "sources": ["s1", "s2"]}]}
+    results = [{"source_id": "s1", "project_id": "p1", "status": "COMPLETE", "logical_bytes": 10, "file_count": 1}]
+    report = monitor.build_report(config, results)
+    project = report["projects"][0]
+    assert project["coverage"] == "INCOMPLETE"
+    assert project["missing_source_ids"] == ["s2"]
+    assert any(alert["code"] == "SOURCE_NOT_SCANNED" for alert in report["alerts"])
