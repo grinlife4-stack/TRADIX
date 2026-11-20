@@ -194,22 +194,22 @@ func (p *PeerV02) Handle(m map[string]any, keyID, signature string) (map[string]
 		return operationResponse(m,p.Peer.ID,record),credential.Secret,nil
 	}
 	expectedHash,err := OperationRequestHash(m)
-	if err != nil { return failAuthenticated(&Error{"operation.request_hash_mismatch","cannot compute request hash",400)} }
+	if err != nil { return failAuthenticated(&Error{"operation.request_hash_mismatch","cannot compute request hash",400}) }
 	operation,_ := obj(m,"operation"); supplied,_ := str(operation,"request_hash")
-	if !hmac.Equal([]byte(expectedHash),[]byte(supplied)) { return failAuthenticated(&Error{"operation.request_hash_mismatch","request hash verification failed",400)} }
+	if !hmac.Equal([]byte(expectedHash),[]byte(supplied)) { return failAuthenticated(&Error{"operation.request_hash_mismatch","request hash verification failed",400}) }
 	idem,_ := str(operation,"idempotency_key"); idemHash,err := p.Ledger.IdempotencyKeyHash(idem)
-	if err != nil { return failAuthenticated(&Error{"protocol.invalid_message","invalid idempotency key",400)} }
+	if err != nil { return failAuthenticated(&Error{"protocol.invalid_message","invalid idempotency key",400}) }
 	opID,_ := str(operation,"operation_id"); opExpiry,_ := number(operation,"expires_at")
 	record,created,err := p.Ledger.Reserve(OperationRecord{
 		OperationID:opID,PeerID:credential.PeerID,PrincipalRef:credential.PrincipalRef,
 		CapabilityID:capability.ID,CapabilityVersion:capability.Version,
 		IdempotencyKeyHash:idemHash,RequestHash:expectedHash,ResourceRef:operationResourceRef(m,capability),ExpiresAt:opExpiry,
 	},float64(time.Now().Unix()))
-	if errors.Is(err,ErrIdempotencyConflict) { return failAuthenticated(&Error{"operation.idempotency_conflict","idempotency identity conflicts with an existing operation",409)} }
-	if err != nil { return failAuthenticated(&Error{"operation.ledger_unavailable","operation ledger unavailable",503)} }
+	if errors.Is(err,ErrIdempotencyConflict) { return failAuthenticated(&Error{"operation.idempotency_conflict","idempotency identity conflicts with an existing operation",409}) }
+	if err != nil { return failAuthenticated(&Error{"operation.ledger_unavailable","operation ledger unavailable",503}) }
 	if created || record.State == "ACCEPTED" {
 		record,err = p.Ledger.Transition(opID,"RUNNING",float64(time.Now().Unix()),nil,"","")
-		if err != nil { return failAuthenticated(&Error{"operation.ledger_unavailable","operation could not enter RUNNING",503)} }
+		if err != nil { return failAuthenticated(&Error{"operation.ledger_unavailable","operation could not enter RUNNING",503}) }
 		payload,_ := obj(m,"payload")
 		result,handlerErr := capability.Handler(payload)
 		if handlerErr != nil || result == nil {
@@ -219,7 +219,7 @@ func (p *PeerV02) Handle(m map[string]any, keyID, signature string) (map[string]
 			if handlerErr != nil { record,err = p.Ledger.Transition(opID,"UNKNOWN",float64(time.Now().Unix()),nil,"","operation.outcome_unknown")
 			} else { record,err = p.Ledger.Transition(opID,"SUCCEEDED",float64(time.Now().Unix()),result,"","") }
 		}
-		if err != nil { return failAuthenticated(&Error{"operation.ledger_unavailable","operation result could not be committed",503)} }
+		if err != nil { return failAuthenticated(&Error{"operation.ledger_unavailable","operation result could not be committed",503}) }
 	}
 	return operationResponse(m,p.Peer.ID,record),credential.Secret,nil
 }
