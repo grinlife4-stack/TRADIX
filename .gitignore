@@ -8,4 +8,6 @@ venv/
 .env.*
 !.env.example
 .DS_Store
-\n# Local portfolio storage monitor reports\nartifacts/\n
+
+# Local portfolio storage monitor reports
+artifacts/
