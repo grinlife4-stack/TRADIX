@@ -57,32 +57,32 @@ def create_bridge_project(
         (staging / "src" / module_name).mkdir(parents=True)
         (staging / "tests").mkdir()
         (staging / "bridex.json").write_text(
-            json.dumps(manifest, indent=2, sort_keys=True) + "\\n", encoding="utf-8"
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         (staging / "README.md").write_text(
-            f"# {name}\\n\\nIndependent Bridge project {bridge_id}.\\n\\n"
-            "This generated project is draft-only. No peer is trusted and no capability is enabled.\\n\\n"
+            f"# {name}\n\nIndependent Bridge project {bridge_id}.\n\n"
+            "This generated project is draft-only. No peer is trusted and no capability is enabled.\n\n"
             "The designated owner controls source, configuration, credentials, runtime, records, and release. "
-            "The operator is separately recorded. This project has no BRIDEX or TRADIX runtime dependency.\\n",
+            "The operator is separately recorded. This project has no BRIDEX or TRADIX runtime dependency.\n",
             encoding="utf-8",
         )
         (staging / "config" / "bridge.example.json").write_text(
-            json.dumps({"peers": [], "enabled_capabilities": []}, indent=2) + "\\n",
+            json.dumps({"peers": [], "enabled_capabilities": []}, indent=2) + "\n",
             encoding="utf-8",
         )
         (staging / "src" / module_name / "__init__.py").write_text(
-            '"""Bridge-specific implementation belongs to this independently owned package."""\\n',
+            '"""Bridge-specific implementation belongs to this independently owned package."""\n',
             encoding="utf-8",
         )
         (staging / "tests" / "test_bridge_contract.py").write_text(
-            "def test_generated_bridge_starts_with_no_enabled_peers_or_capabilities():\\n"
-            "    import json\\n"
-            "    from pathlib import Path\\n"
-            "    root = Path(__file__).parents[1]\\n"
-            "    manifest = json.loads((root / \"bridex.json\").read_text())\\n"
-            "    assert manifest[\"peers\"] == []\\n"
-            "    assert manifest[\"capabilities\"] == []\\n"
-            "    assert manifest[\"lifecycle\"] == \"draft\"\\n",
+            "def test_generated_bridge_starts_with_no_enabled_peers_or_capabilities():\n"
+            "    import json\n"
+            "    from pathlib import Path\n"
+            "    root = Path(__file__).parents[1]\n"
+            "    manifest = json.loads((root / \"bridex.json\").read_text())\n"
+            "    assert manifest[\"peers\"] == []\n"
+            "    assert manifest[\"capabilities\"] == []\n"
+            "    assert manifest[\"lifecycle\"] == \"draft\"\n",
             encoding="utf-8",
         )
         os.replace(staging, target)
