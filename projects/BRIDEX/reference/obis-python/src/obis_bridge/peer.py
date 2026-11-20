@@ -576,6 +576,7 @@ def _deadline_http_exchange(
     body: bytes,
     headers: dict[str, str],
     deadline: float,
+    message_path: str = MESSAGE_PATH,
 ) -> tuple[int, Any, bytes]:
     """Perform one loopback HTTP exchange under an absolute monotonic deadline.
 

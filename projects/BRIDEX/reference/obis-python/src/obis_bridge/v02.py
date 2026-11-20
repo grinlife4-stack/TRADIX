@@ -7,11 +7,17 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import http.client
+import json
 import math
 import secrets
+import socket
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Callable
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse
 
 import rfc8785
 
@@ -24,10 +30,14 @@ from .peer import (
     CLOCK_SKEW_SECONDS,
     MAX_MESSAGE_BYTES,
     MAX_TTL_SECONDS,
+    MESSAGE_PATH_V02,
     OBISPeer,
     OBISRequestError,
     canonical_json,
+    sign_message,
+    strict_json_loads,
     verify_signature,
+    _deadline_http_exchange,
 )
 
 
