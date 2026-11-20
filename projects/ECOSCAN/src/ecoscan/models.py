@@ -23,7 +23,6 @@ class SourceDescriptor:
     locator: str
     adapter_id: str
     adapter_version: str
-    credential_ref: str | None
     enabled: bool
     scope_tags: tuple[str, ...]
     budget: ScanBudget
