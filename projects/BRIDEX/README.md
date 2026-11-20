@@ -59,7 +59,21 @@ python -m pytest -q
 
 The root CI also runs these reference tests. The reference now includes `ecoscan.inventory.read@1.0` and an explicit per-credential `allowed_resources` grant. Its provider handler is called only after the OBIS peer validates the authenticated credential's project/source grant. This is a development/conformance prototype only: loopback transport and the shared-secret HMAC profile are not approved for production or sensitive workloads. See [implementation status and release gates](reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
 
-## 3C. Relationship to existing TRADIX infrastructure
+## 3C. Generic BRIDEX Core package foundation
+
+A first standalone generic core package is now maintained at [BRIDEX Core](core/README.md). Version 0.1 provides an owner-portable Bridge package manifest schema and strict validation library. It records the Bridge identity, explicit owner/operator, source integrity, supported OBIS/adapter versions, peer scopes, capability declarations, dependency/license inventory, configuration schema, and lifecycle/export procedure references.
+
+Run and test it independently:
+
+```bash
+cd projects/BRIDEX/core
+python -m pip install -e ".[dev]"
+python -m pytest -q
+```
+
+The manifest is descriptive package metadata. It does not grant trust or permissions, prove ownership by itself, provide a runtime, generate Bridges, or establish OBIS conformance. The package is included in root CI with wheel-build and isolated-install schema checks. Further generic core work remains: portable project/package layout, protocol-independent conformance harness, lifecycle/health primitives after contract definition, and export/restore independence tests.
+
+## 3D. Relationship to existing TRADIX infrastructure
 
 BRIDEX may reuse the Artifact Gateway, Tool Catalog, and Tool Adapter Contract as optional supporting capabilities, but none is a substitute for an independent Bridge or the OBIS protocol. Their exact boundaries, PR dependency order, and separation tests are recorded in [BRIDEX Existing Component Integration Map](../../docs/BRIDEX_EXISTING_COMPONENT_INTEGRATION_MAP.md). These components must not become mandatory runtime dependencies for released Bridges.
 
