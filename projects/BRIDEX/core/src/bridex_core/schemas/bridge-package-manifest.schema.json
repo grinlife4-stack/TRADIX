@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://bridex.org/schemas/bridge-package-manifest/0.1/manifest.schema.json",
+  "$id": "urn:bridex:schemas:bridge-package-manifest:0.1",
   "title": "BRIDEX Bridge Package Manifest 0.1",
   "description": "Draft, owner-exportable metadata contract for an independently deployable Bridge package. This does not define OBIS wire semantics or approve a security profile.",
   "type": "object",
