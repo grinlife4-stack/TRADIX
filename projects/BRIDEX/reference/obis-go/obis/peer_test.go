@@ -302,6 +302,9 @@ func TestInvokeRejectsSignedDowngradedAndMismatchedResponses(t *testing.T) {
 		{"downgraded protocol version", func(m map[string]any) { m["version"] = "0.0" }},
 		{"wrong correlation id", func(m map[string]any) { m["correlation_id"] = "another-request" }},
 		{"wrong sender peer", func(m map[string]any) { m["sender"] = map[string]any{"peer_id": "peer:attacker"} }},
+		{"wrong recipient peer", func(m map[string]any) { m["recipient"] = map[string]any{"peer_id": "peer:attacker"} }},
+		{"wrong message type", func(m map[string]any) { m["message_type"] = "request" }},
+		{"missing result", func(m map[string]any) { delete(m, "result") }},
 		{"unexpected response field", func(m map[string]any) { m["extra"] = "not-in-contract" }},
 	}
 	for _, tc := range cases {
