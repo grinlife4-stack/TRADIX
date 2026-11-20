@@ -67,6 +67,14 @@ def validate_manifest_data(manifest: Any) -> dict[str, Any]:
     capability_ids = [item["capability_id"] for item in manifest["capabilities"]]
     if len(set(capability_ids)) != len(capability_ids):
         raise BridgeManifestError("capability_ids_must_be_unique")
+    peer_ids = [item["peer_id"] for item in manifest["peers"]]
+    if len(set(peer_ids)) != len(peer_ids):
+        raise BridgeManifestError("peer_ids_must_be_unique")
+    if manifest["lifecycle"] == "draft":
+        if any(item["enabled"] for item in manifest["peers"]):
+            raise BridgeManifestError("draft_bridge_peers_must_be_disabled")
+        if any(item["enabled"] for item in manifest["capabilities"]):
+            raise BridgeManifestError("draft_bridge_capabilities_must_be_disabled")
     normalized_paths = [_safe_relative_path(value).as_posix().casefold() for value in manifest["package_files"]]
     if len(set(normalized_paths)) != len(normalized_paths):
         raise BridgeManifestError("package_paths_must_be_unique_case_insensitively")
