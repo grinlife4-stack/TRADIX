@@ -75,7 +75,7 @@ func TestRequestValidationAndReplayProtection(t *testing.T) {
 	if _, _, err := server.validate(message, "python-key", signature, "", "", now); err != nil {
 		t.Fatalf("valid request rejected: %v", err)
 	}
-	if _, _, err := server.validate(message, "python-key", signature, now); err == nil || err.Error() != "request.replay_detected" {
+	if _, _, err := server.validate(message, "python-key", signature, "", "", now); err == nil || err.Error() != "request.replay_detected" {
 		t.Fatalf("expected replay rejection, got %v", err)
 	}
 }
