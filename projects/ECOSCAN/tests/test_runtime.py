@@ -215,3 +215,22 @@ def test_standalone_schemas_match_canonical_contract_files():
         "export-manifest.schema.json",
     ):
         assert (package_schema_root / name).read_bytes() == (canonical_schema_root / name).read_bytes()
+
+
+def test_cli_validates_registry_without_scanning(tmp_path, capsys):
+    from ecoscan.cli import main
+
+    registry_path = tmp_path / "registry.json"
+    registry_path.write_text(json.dumps(registry(source())), encoding="utf-8")
+    assert main(["validate-registry", str(registry_path)]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "VALID"
+    assert output["source_count"] == 1
+
+
+def test_standalone_package_has_no_tradix_runtime_imports():
+    source_root = Path(__file__).resolve().parents[1] / "src" / "ecoscan"
+    for source_file in source_root.rglob("*.py"):
+        code = source_file.read_text(encoding="utf-8")
+        assert "from tradix" not in code
+        assert "import tradix" not in code
