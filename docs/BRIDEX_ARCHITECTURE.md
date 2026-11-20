@@ -68,6 +68,8 @@ No secret is embedded in generated templates, shared catalogs, source examples, 
 
 ## 4. Protocol boundaries
 
+The detailed protocol contracts are maintained as separate specifications: [OBIS Specification](OBIS_SPECIFICATION.md) governs external interoperability, while [TIIS Specification](TIIS_SPECIFICATION.md) governs TRADIX-internal integration. Both are currently draft baselines at version 0.1.0; neither should be treated as production 1.0 conformance until its open decisions, schemas, profiles, and conformance suites are completed and validated.
+
 ### OBIS
 
 OBIS is the external interoperability contract carried by each Bridge. It must be independently specified, versioned, testable, and implementable without TRADIX or BRIDEX runtime dependencies.
