@@ -198,7 +198,7 @@ class OBISPeer:
             raise OBISRequestError("identity.authentication_failed", "peer identity mismatch", 401)
         if message["authorization"]["principal_ref"] != credential.principal_ref:
             raise OBISRequestError("identity.authentication_failed", "principal mismatch", 401)
-        if not self.replay_guard.accept(message["nonce"]):
+        if not self.replay_guard.accept(f"{key_id}:{message['nonce']}"):
             raise OBISRequestError("request.replay_detected", "duplicate nonce", 409)
 
         cap_key = (message["capability"]["id"], message["capability"]["version"])
@@ -214,7 +214,10 @@ class OBISPeer:
         if not requested_scopes.issubset(credential.allowed_scopes):
             raise OBISRequestError("authorization.denied", "requested scope exceeds grant", 403)
 
-        result = capability.handler(message["payload"])
+        try:
+            result = capability.handler(message["payload"])
+        except Exception as exc:
+            raise OBISRequestError("operation.failed", "capability execution failed", 500) from exc
         if not isinstance(result, dict):
             raise OBISRequestError("internal.error", "capability handler must return an object", 500)
         response = {
@@ -406,10 +409,14 @@ class OBISClient:
             raise OBISRequestError("protocol.invalid_message", "invalid response JSON", 502) from exc
         if not verify_signature(response_message, self.secret, response_signature):
             raise OBISRequestError("identity.authentication_failed", "response signature verification failed", 502)
+        if response_message.get("protocol") != PROTOCOL or response_message.get("version") != VERSION:
+            raise OBISRequestError("protocol.unsupported_version", "unsupported response protocol/version", 502)
         if response_message.get("message_type") != "response":
             raise OBISRequestError("protocol.invalid_message", "expected response message", 502)
         if response_message.get("correlation_id") != message["message_id"]:
             raise OBISRequestError("protocol.invalid_message", "response correlation mismatch", 502)
         if response_message.get("sender", {}).get("peer_id") != self.remote_peer_id:
             raise OBISRequestError("identity.authentication_failed", "response peer mismatch", 502)
+        if response_message.get("recipient", {}).get("peer_id") != self.local_peer_id:
+            raise OBISRequestError("identity.authentication_failed", "response recipient mismatch", 502)
         return response_message
