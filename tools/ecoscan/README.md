@@ -1,77 +1,73 @@
 # ECOSCAN
 
-Optional, read-only, removable utility for measuring storage independently across registered portfolio projects and aggregating the resulting reports.
+ECOSCAN is an optional, independent, read-only inventory tool for the wider project ecosystem. It can be run against the whole registry, one project, or one registered source. The system, each project, and each source have independent enable/disable switches.
 
-**Status: first implementation in progress.** The current code supports GitHub repository tree inventory, configured local directory metadata scans, Railway volume capacity/backup metadata, S3-compatible current-object metadata (B2/R2/S3/Railway-compatible endpoints), normalized JSON/Markdown reports, and optional GitHub issue publication. Provider adapters still require live credential-backed validation. Scheduled execution is defined in a separate GitHub Actions workflow but will not run until that workflow reaches the default branch.
+## Phase 1: local-only runtime
 
-## Run manually
+**The default entry point is offline and local-only.** It uses only the Python standard library and does not initialize or call GitHub, Railway, Backblaze, S3, a database service, or any other network provider.
 
-From the TRADIX repository root with Python 3.11 or newer:
+The local scanner reads filesystem metadata only. It does not open or copy source-file contents, modify source files, follow symbolic links, or execute source code. Missing or inaccessible sources are reported as PARTIAL, never as zero usage.
+
+Run from the repository root with Python 3.11 or newer:
 
 ```bash
 python -m tools.ecoscan
 ```
 
-Optional arguments:
+The default demonstration registry points only to synthetic fixtures under tests/fixtures/ecoscan/sample_project. Replace or extend the registry for real local paths only after reviewing the paths and access scope.
 
 ```bash
-python -m tools.ecoscan --config tools/ecoscan/config/ecoscan.json --output artifacts/ecoscan/latest.json
-```
-
-Reports are written locally as JSON and Markdown. The tool does not upload, delete, modify, or hash source files.
-
-## GitHub access
-
-- Public repositories can be inventoried through the GitHub REST API.
-- Private repositories require a token with read-only metadata and contents access to each registered private repository.
-- For scheduled GitHub Actions, configure a repository secret named `ECOSCAN_GITHUB_TOKEN` containing a fine-grained token limited to the required repositories and read-only contents/metadata permissions.
-- The workflow's built-in `GITHUB_TOKEN` is restricted to TRADIX; it cannot be assumed to read other private repositories.
-- Issue publication uses the workflow's built-in token with `issues: write`; no personal token is needed for publishing the report to TRADIX.
-
-Never commit tokens or private data.
-
-## Current source coverage
-
-The initial registry contains the five repositories visible in the connected GitHub account at implementation time. It intentionally marks other portfolio projects with no registered storage source as NOT_REGISTERED. Railway volume contents, local machines not mounted into the runner, historical object versions, incomplete multipart uploads, Git LFS payload sizes, and unregistered external archives are not yet measured. Current Railway and S3-compatible metadata adapters are not yet live-validated.
-
-## Operating and removal rules
-
-- The registry defaults to MANUAL. No local background process is started.
-- The optional GitHub Actions workflow supports manual dispatch and weekly/monthly schedules after it is merged to the default branch.
-- The workflow updates one GitHub issue titled `ECOSCAN — Latest Report`; incomplete sources are surfaced as warnings.
-- No product runtime, Gateway, EventStore, Railway service, or production infrastructure depends on this tool.
-- Disable scheduled runs by disabling the workflow. Remove the tool by removing this directory and its optional workflow/configuration; no source data is modified.
-
-
-## Manual scan scopes and controls
-
-Set `enabled: false` on a project entry to skip all of its sources, or on an individual source to skip only that source. Disabled entries are reported as `DISABLED` with unknown size, never as zero.
-
-Examples:
-
-```bash
-# Entire configured registry
+# Entire local registry
 python -m tools.ecoscan --scope ecosystem
 
 # One project
-python -m tools.ecoscan --scope project --project NEXORA
+python -m tools.ecoscan --scope project --project ECOSCAN_DEMO
 
-# One source only
-python -m tools.ecoscan --scope source --source nexora-github
+# One source
+python -m tools.ecoscan --scope source --source ecoscan-demo-files
+
+# Choose explicit local state and export directories
+python -m tools.ecoscan --database-dir .ecoscan/db --output-dir .ecoscan/exports --format both
 ```
 
-Selectors are validated before scanning. Unknown IDs and invalid selector combinations stop the run.
+Registry: tools/ecoscan/config/local-registry.json.
 
+Each project receives its own SQLite database file, for example ALPHA.sqlite3. Measurements are append-only by unique scan ID. JSON and JSONL exports include a versioned manifest and can be imported into another local database:
 
-### Railway volume metadata
+```bash
+python -m tools.ecoscan --config tools/ecoscan/config/local-registry.json --import .ecoscan/exports/ECOSCAN_DEMO.jsonl --import-project ECOSCAN_DEMO --database-dir /path/to/other/db
+```
 
-Use `provider: "railway_volume"` and configure either a verified `volume_instance_id`, or `volume_id` plus `environment_id` for environment-scoped discovery. Authentication must use a Railway OAuth access token with the explicit `project:viewer` scope, supplied as `RAILWAY_OAUTH_ACCESS_TOKEN`. The token is sent as a Bearer token.
+## Registry controls
 
-The workflow exposes this secret only during manual dispatch because OAuth access tokens expire after one hour. Scheduled scans remain `NOT_CONFIGURED` until secure refresh-token rotation and persistence are implemented. Do not substitute an account token, workspace token, or Project Token when the required boundary is read-only.
+- system_enabled: false disables scanning before database or export directories are created.
+- projects[].enabled: false disables all sources in that project.
+- projects[].sources[].enabled: false disables only that source.
+- Phase 1 accepts only provider: filesystem_local. Any other provider is rejected during registry validation.
+- Relative source paths are resolved relative to the registry file. Database and export directories are resolved relative to the process working directory.
 
-The adapter reports provisioned capacity and backup inventory metadata without reading volume contents. It does not report used filesystem bytes. Environment-level `volumeInstances` discovery is mocked-tested but still requires live schema validation.
+Example source entry:
 
+```json
+{
+  "source_id": "project-local-files",
+  "provider": "filesystem_local",
+  "path": "/local/path/to/project",
+  "enabled": true
+}
+```
 
-### S3-compatible object storage (B2 / R2 / S3 / Railway buckets)
+## Data and safety boundaries
 
-Use `provider: "s3_compatible"` with an explicit `endpoint`, `bucket`, `region`, `url_style`, and names of environment variables holding read-only access and secret keys. The adapter paginates `ListObjectsV2` and sums current object sizes without downloading object bodies. Historical versions, incomplete multipart uploads, and provider billing bytes are outside this measurement.
+- One SQLite file per project keeps project histories independently exportable and transferable.
+- Exports are portable JSON/JSONL; import validates project ownership, schema version, record counts, IDs, statuses, and non-negative sizes. Re-import is idempotent.
+- The scanner records aggregate file count and byte count, not file contents or full absolute paths.
+- Symbolic links are skipped; a source root containing a symbolic-link path component is rejected.
+- The runtime has no network-client, subprocess, cloud SDK, or external database imports.
+- The previous provider-oriented monitor implementation is not imported by the default entry point. Provider integrations remain outside Phase 1 and must not be enabled as part of local acceptance.
+
+## Phase 1 acceptance boundary
+
+Phase 1 is accepted only after the local test suite passes, the CLI completes a fixture scan, per-project SQLite separation is verified, JSON/JSONL export-import round trips pass, and the default entry point is proven not to import the legacy provider monitor.
+
+GitHub, Backblaze B2, R2, S3, Railway, scheduled jobs, cloud backups, and remote reporting are explicitly deferred. No cloud credentials or services are required for this phase.
