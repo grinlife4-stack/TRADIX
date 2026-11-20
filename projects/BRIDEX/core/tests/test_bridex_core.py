@@ -110,6 +110,7 @@ def test_package_is_reproducible_and_contains_only_project_sources(tmp_path: Pat
         names = set(archive.namelist())
     assert "bridex.json" in names
     assert "README.md" in names
+    assert "pyproject.toml" in names
     assert "config/bridge.example.json" in names
     assert "src/nexora_catalog_bridge/__init__.py" in names
     assert not any(".env" in name or "__pycache__" in name for name in names)
