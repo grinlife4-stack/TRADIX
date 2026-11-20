@@ -70,7 +70,7 @@ The implementation choices, certificate-profile requirements, revocation candida
 
 **Recommendation**
 
-Define HTTPS/TLS 1.3 as the first production transport binding, separately from the OBIS core envelope. Keep transports replaceable and do not require a relay, broker, or shared gateway.
+Define HTTPS/TLS 1.3 as the first production transport-binding candidate, separately from the OBIS core envelope. For the current HTTP binding, negotiate HTTP/1.1 ALPN; OBIS versioning remains in the message envelope and media type. Keep transports replaceable and do not require a relay, broker, or shared gateway.
 
 The current loopback HTTP binding exists only to make the reference tests deterministic and safe to run locally. It is not the production transport binding.
 
@@ -134,8 +134,8 @@ The long-term steward and approval process remain unresolved.
 
 1. Owner review of the identifier and compatibility recommendations.
 2. Security review and threat-model update for the first production profile.
-3. HTTPS/TLS 1.3 mutual-authentication binding implemented without custom cryptography.
-4. Certificate-to-peer identity mapping, rotation, revocation, and trust-bundle tests.
+3. TLS 1.3 mutual-authentication candidate implemented in Python and Go without custom cryptography.
+4. Certificate-to-peer identity and fingerprint mapping tests are present; certificate issuance, rotation, durable revocation, trust-bundle freshness, and emergency denylisting remain open.
 5. Normative request, success-response, error-response, and capability payload schemas.
 6. Runtime schema validation and schema-version negotiation tests.
 7. Durable replay protection and idempotency/outcome reconciliation.
