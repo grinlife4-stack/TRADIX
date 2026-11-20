@@ -33,10 +33,15 @@ func main() {
 	principal:=flags.String("principal","principal:python","authenticated principal")
 	secretHex:=flags.String("secret-hex","","32-byte development secret in hex")
 	scopesRaw:=flags.String("scopes","records:read","comma-separated granted scopes")
+	replayDir:=flags.String("replay-dir","","owner-controlled directory for durable nonce replay state; empty keeps in-memory mode")
 	_ = flags.Parse(args)
 	secret,err:=hex.DecodeString(*secretHex);if err!=nil||len(secret)<32{log.Fatal("secret-hex must encode at least 32 bytes")}
 	scopes:=map[string]bool{};for _,s:=range strings.Split(*scopesRaw,","){if s!=""{scopes[s]=true}}
 	p,err:=obis.NewPeer(*peerID);if err!=nil{log.Fatal(err)}
+	if *replayDir!="" {
+		guard,guardErr:=obis.NewFileReplayGuard(*replayDir);if guardErr!=nil{log.Fatalf("configure durable replay guard: %v",guardErr)}
+		if guardErr=p.SetReplayGuard(guard);guardErr!=nil{log.Fatalf("install durable replay guard: %v",guardErr)}
+	}
 	if err=p.AddCredential(obis.Credential{KeyID:*keyID,PeerID:*remoteID,PrincipalRef:*principal,Secret:secret,AllowedScopes:scopes});err!=nil{log.Fatal(err)}
 	err=p.RegisterCapability(obis.Capability{ID:"records.read",Version:"1.0",RequiredScopes:map[string]bool{"records:read":true},Handler:func(payload map[string]any)(map[string]any,error){return map[string]any{"record_id":payload["record_id"],"served_by":"go-peer"},nil}})
 	if err!=nil{log.Fatal(err)}
