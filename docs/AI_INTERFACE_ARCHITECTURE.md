@@ -38,16 +38,18 @@ TRADIX remains the authority for durable state, policy, capability inventory, ex
 
 ## 3. Bidirectional protocol
 
-All messages use `schemas/ai-interface-message-v1.schema.json` and the Python contract in `src/tradix/factory/interface_contract.py`.
+All factory-conversation messages are carried inside the TRADIX-internal TIIS 0.1 envelope. The TIIS outer envelope uses `standards/tiis/0.1/message.schema.json` and the validator in `src/tradix/tiis`. The existing `schemas/ai-interface-message-v1.schema.json` and `src/tradix/factory/interface_contract.py` remain the domain payload contract; TIIS does not replace them. The adapter in `src/tradix/factory/tiis_adapter.py` maps between these layers.
 
-Every message has:
-- `message_id`: unique message identity;
+The outer TIIS envelope has its own component sender/recipient identities, message ID, correlation ID, interface/version, issue/expiry timestamps, and request/event type. The nested domain message retains:
+- `message_id`: unique domain-message identity;
 - `conversation_id`: conversational thread identity, not the durable project identity;
 - `project_key`: explicit product scope;
 - `correlation_id`: mission or request correlation;
-- `sender` and `message_type`: role-constrained message semantics;
+- `sender` and `message_type`: role-constrained domain actor semantics;
 - `body`: typed payload;
 - `created_at` and optional `reply_to`.
+
+The domain `sender` value (`user`, `interface_ai`, or `factory`) is not the authenticated TIIS component identity. The receiving service binds the outer TIIS sender to its authenticated transport principal and applies a separate project-scope authorization check to the nested `project_key`.
 
 Supported message directions:
 
@@ -123,6 +125,8 @@ Reuse requires compatibility checks: version, dependency constraints, license, s
 
 Implemented in this change:
 - provider-neutral Python message and factory-need contracts;
+- TIIS 0.1 envelope mapping for the factory conversation contract, with deterministic outer message/correlation IDs and bounded request TTL;
+- inbound TIIS validation that separately checks authenticated component identity, recipient, operation/event consistency, domain payload validity, and project-scope authorization;
 - sender/type restrictions and project/identifier validation;
 - JSON Schema for the versioned message protocol;
 - unit tests for invalid sender combinations, malformed needs, scope errors, and invalid payloads;
@@ -132,6 +136,8 @@ Implemented in this change:
 - architecture and authority-boundary documentation.
 
 Not implemented yet:
+- an approved production TIIS transport/authentication profile for this interface;
+- durable TIIS message inbox/outbox, event delivery, and retry workers;
 - a deployed conversational gateway or chat UI;
 - a live model-provider connection;
 - persistent message inbox/outbox and delivery/retry worker;
