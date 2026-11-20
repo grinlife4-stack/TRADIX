@@ -64,7 +64,6 @@ def test_v02_invoker_narrows_scopes_and_returns_only_committed_result():
     response = invoker.invoke(
         "http://127.0.0.1:9000", "ecoscan.inventory.read", "1.0",
         {"project_id": "project-a", "source_id": "source-a"},
-        scopes={REQUIRED},
     )
 
     used_client = FakeV02Client.instances[-1]
