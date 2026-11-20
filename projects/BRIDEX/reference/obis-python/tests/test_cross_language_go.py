@@ -296,6 +296,24 @@ def _post_raw(endpoint, message, signature):
         return exc.code, exc.read()
 
 
+
+def _post_raw_bytes(endpoint, body, signature=""):
+    request = urllib.request.Request(
+        endpoint.rstrip("/") + "/obis/v0.1/messages",
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/obis+json",
+            "X-OBIS-Key-Id": "python-dev-key",
+            "X-OBIS-Signature": signature,
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=3) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read()
+
 def test_python_raw_malformed_and_unauthenticated_requests_are_rejected_by_go_peer():
     process, endpoint = _start_go_server()
     try:
@@ -400,3 +418,49 @@ def test_go_cli_replay_storage_failure_returns_signed_503_before_execution(tmp_p
     finally:
         process.terminate()
         process.wait(timeout=5)
+
+def test_python_to_go_authenticated_negative_request_matrix():
+    process, endpoint = _start_go_server()
+    try:
+        client = OBISClient(
+            local_peer_id="peer:python", remote_peer_id="peer:go",
+            key_id="python-dev-key", principal_ref="principal:python",
+            secret=SECRET, scopes={"records:read"},
+        )
+
+        expired = client.build_request("records.read", "1.0", {"record_id": "expired"})
+        now = int(__import__("time").time())
+        expired["issued_at"] = now - 60
+        expired["expires_at"] = now - 30
+        status, _ = _post_raw(endpoint, expired, sign_message(expired, SECRET))
+        assert status == 408
+
+        unknown_top_level = client.build_request(
+            "records.read", "1.0", {"record_id": "unknown-top-level"}
+        )
+        unknown_top_level["unexpected"] = "outside-contract"
+        status, _ = _post_raw(
+            endpoint, unknown_top_level, sign_message(unknown_top_level, SECRET)
+        )
+        assert status == 400
+
+        unknown_nested = client.build_request(
+            "records.read", "1.0", {"record_id": "unknown-nested"}
+        )
+        unknown_nested["sender"]["bridge_id"] = "outside-contract"
+        status, _ = _post_raw(
+            endpoint, unknown_nested, sign_message(unknown_nested, SECRET)
+        )
+        assert status == 400
+
+        status, _ = _post_raw_bytes(endpoint, b"{")
+        assert status == 400
+
+        status, _ = _post_raw_bytes(
+            endpoint, b'{"protocol":"obis","protocol":"obis"}'
+        )
+        assert status == 400
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+
