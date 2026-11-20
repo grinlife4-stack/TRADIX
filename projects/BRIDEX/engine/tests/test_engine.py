@@ -189,6 +189,7 @@ def test_verifier_requires_package_file_set_to_match_bridge_manifest(tmp_path: P
     build_package(root, package)
     altered = tmp_path / "manifest-mismatch.zip"
     with zipfile.ZipFile(package, "r") as source:
+        original_infos = {info.filename: info for info in source.infolist()}
         entries = {info.filename: source.read(info.filename) for info in source.infolist()}
     manifest = json.loads(entries["bridge.json"].decode("utf-8"))
     manifest["package_files"] = ["README.md"]
@@ -202,6 +203,6 @@ def test_verifier_requires_package_file_set_to_match_bridge_manifest(tmp_path: P
     entries[PACKAGE_MANIFEST] = json.dumps(package_manifest, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\\n"
     with zipfile.ZipFile(altered, "w", compression=zipfile.ZIP_DEFLATED) as target:
         for name, data in entries.items():
-            target.writestr(name, data)
+            target.writestr(original_infos[name], data)
     with pytest.raises(BridgeManifestError, match="package_manifest_file_set_mismatch"):
         verify_package(altered)
