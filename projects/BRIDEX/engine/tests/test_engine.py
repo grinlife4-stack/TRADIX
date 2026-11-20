@@ -299,3 +299,21 @@ def test_cli_init_reports_generated_bridge_identity(tmp_path: Path, capsys) -> N
     assert output["lifecycle"] == "draft"
     assert output["bridge_id"].startswith("urn:uuid:")
     assert (destination / "bridge.json").is_file()
+
+
+
+def test_init_accepts_explicit_uuid_and_preserves_owner_operator_separation(tmp_path: Path) -> None:
+    bridge_id = "urn:uuid:aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+    root = create_bridge_project(
+        tmp_path / "explicit-id",
+        name="Explicit Identity Bridge",
+        bridge_id=bridge_id,
+        owner_id="project:owner",
+        owner_assignment_ref="approval:owner",
+        operator_id="operator:operator",
+        operator_assignment_ref="approval:operator",
+    )
+    manifest = load_manifest(root)[1]
+    assert manifest["bridge_id"] == bridge_id
+    assert manifest["owner"]["entity_id"] != manifest["operator"]["entity_id"]
+    assert manifest["owner"]["assignment_ref"] != manifest["operator"]["assignment_ref"]
