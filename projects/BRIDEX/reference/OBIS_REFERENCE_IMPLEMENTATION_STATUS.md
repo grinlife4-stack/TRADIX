@@ -18,7 +18,7 @@
 - [x] TLS endpoint hostname verification plus exactly-one URI SAN peer identity `urn:obis:peer:<lowercase-UUID>`.
 - [x] Certificate SHA-256 fingerprint binding to a single configured credential/principal record.
 - [x] Mandatory `http/1.1` ALPN, bounded handshake/request timeouts, and no plaintext fallback for mTLS clients.
-- [x] Python local credential revocation for subsequent requests in the running process.
+- [x] Python and Go process-local credential revocation for subsequent requests in the running process.
 - [x] Positive and negative mTLS tests using ephemeral test certificates; no private keys are committed.
 - [x] Independent Go peer/client with matching certificate URI and SHA-256 fingerprint-to-credential binding.
 - [x] Bidirectional Python client → Go server and Go client → Python server mTLS request/response tests, plus same-URI/different-fingerprint rejection.
@@ -70,9 +70,9 @@ A passing local test suite proves only the implemented reference behavior. It do
 
 This OBIS implementation is carried in Draft PR #78, stacked on the unified BRIDEX Engine branch (PR #77), which itself is stacked on the TIIS/TRADIX tooling integration (PR #70). The older parallel OBIS branches (#72, #75, #76) are reference material only and are not dependencies of this branch.
 
-Latest validated PR #78 head: `c8bfad55098065ba1cde50fbd252563a160e745e`.
+Latest code-tested PR #78 head: `89113c33aa12b71cc59dfe072773b92368955bf7`.
 
-- OBIS conformance run `44743121177` completed successfully: **57 Python tests passed**, Go reference tests passed (`example.com/bridex/obis-go/peer`), the Python wheel built and installed in an isolated target, schema copies were byte-identical, and the installed package imported without TRADIX or BRIDEX Engine.
+- OBIS conformance run `44743858735` completed successfully on the latest code-tested head: **57 Python tests passed**, Go reference tests passed (`example.com/bridex/obis-go/peer`), the Python wheel built and installed in an isolated target, schema copies were byte-identical, and the installed package imported without TRADIX or BRIDEX Engine. The later status-document update does not change implementation code.
 - Shared repository run `44743120802` completed successfully: **104 TRADIX tests passed**.
 - The BRIDEX Engine dependency on PR #77 was separately validated: run `44742859047` completed successfully with **27 BRIDEX Engine tests passed**.
 
