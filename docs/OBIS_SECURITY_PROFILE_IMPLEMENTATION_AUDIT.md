@@ -292,3 +292,38 @@ PR #42 and PR #67 remain Draft and unmerged. This review makes no change to Mega
 - This is not Go OBIS 0.2 Peer/Client implementation and does not establish cross-language conformance.
 
 Reference: RFC 8785 Appendix G lists the cyberphone Go implementation as JCS-compatible; the module's package documentation identifies its Transform API and Apache-2.0 license.
+
+
+## 15. OBIS 0.2 implementation and loopback validation update — 2026-11-20
+
+This section supersedes the earlier “not yet cross-language executable” status in §13.7 and the validation-pending status in §14. It records the current reference implementation state; it does not approve production use.
+
+### Implemented and CI-tested
+
+- Go JCS is pinned to `github.com/cyberphone/json-canonicalization` at `v0.0.0-20241213102144-19d51d7fe467`; `go.sum` is committed. The Go JCS wrapper rejects duplicate keys and is used by the OBIS 0.2 request-hash projection.
+- Go `OperationRequestHash` hashes the protocol-defined request projection, not the transport envelope.
+- Go `PeerV02`, `ClientV02`, and `/obis/v0.2/messages` are implemented alongside the unchanged 0.1 route.
+- The Go peer reserves operations in its owner-local file ledger, records RUNNING before invoking the handler, persists terminal results, and recovers interrupted RUNNING records as UNKNOWN.
+- Idempotent duplicate delivery returns the prior operation record without invoking the handler again. Status queries verify operation identity and, for resource-bound capabilities, the original project/source identity stored in the ledger.
+- Credentials carry explicit scopes and resource grants. Resource-bound capability authorization is checked before handler execution.
+- The Go development HTTP server binds to loopback and configures bounded header/read/write/idle timeouts and header/body size limits. This is a local conformance harness, not a production server profile.
+- Bidirectional Python↔Go OBIS 0.2 loopback tests cover request/response signing, operation results, duplicate delivery, status lookup, and resource-bound authorization.
+- A separate-process ECOSCAN integration test starts the Go peer on loopback, uses a synthetic inventory capability, and verifies that only a committed SUCCEEDED result becomes ECOSCAN measurements. UNKNOWN/RUNNING/ACCEPTED outcomes are not converted into measurements.
+- Separate BRIDEX and TRADIX owner fixtures use distinct peer identities, credentials, scopes, resource grants, and operation ledgers. Tests reject cross-owner credentials and cross-project resource access.
+
+### Validation evidence
+
+- PR #42 Go/Python test workflow passed on commit `edd3d3f96fb6c6db46c1915dc783939b4574b762`, workflow run `44806996730`. A newer PR #42 head was still under CI review when this audit update was prepared.
+- PR #67 standalone ECOSCAN workflow and repository test workflow passed on commit `17d3416d2e2ede583817c84fb7617eb009d85312`, runs `44806912276` and `44806912157`. The workflow checks out a pinned OBIS reference commit, builds the Go peer for tests, and does not add it as an ECOSCAN runtime dependency.
+- Both PRs remain Draft and unmerged. Passing CI is not a merge, deployment, provider connection, or production approval.
+
+### Remaining blockers and limits
+
+1. OBIS 0.2 error responses are not yet signed correlated error envelopes. Successful responses are signed and checked; HTTP/protocol rejection paths still return unsigned errors. Define and test the authenticated error contract before relying on remote error details.
+2. Production TLS/mTLS, certificate-to-peer identity binding, trust-anchor management, rotation/revocation, and production credential lifecycle are not implemented.
+3. The Go server has no explicit concurrency cap or rate limiter. The Python threaded server also needs bounded concurrency and request-resource controls.
+4. The capability recovery class is registered as metadata; a complete policy engine for IDEMPOTENT, QUERYABLE, and NON_RECOVERABLE recovery behavior is still required. UNKNOWN remains fail-closed.
+5. Crash/power-loss durability and stale-lock operator recovery need broader platform testing. Linux CI does not prove Windows behavior or power-loss guarantees.
+6. Independent security review and production threat-model review remain outstanding.
+
+No live provider, non-loopback peer, deployment, or production pilot was used or authorized. MegaMarket and NEXORA remain untouched.
