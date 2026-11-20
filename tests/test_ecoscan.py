@@ -332,18 +332,18 @@ def test_railway_volume_requires_instance_or_volume_environment_and_token():
     assert missing_token["logical_bytes"] is None
 
 
-def test_scan_source_uses_railway_oauth_access_token(monkeypatch):
-    monkeypatch.setenv("RAILWAY_OAUTH_ACCESS_TOKEN", "oauth-viewer-token")
-    monkeypatch.setenv("RAILWAY_PROJECT_TOKEN", "unused-project-token")
-    monkeypatch.setenv("RAILWAY_API_TOKEN", "unused-account-token")
+def test_scan_source_uses_supplied_railway_oauth_access_token(monkeypatch):
     captured = {}
     def fake_scan(source, token):
         captured["token"] = token
         return {"status": "COMPLETE"}
     monkeypatch.setattr(monitor, "scan_railway_volume", fake_scan)
-    result = monitor.scan_source({"source_id": "r1", "project_id": "P1", "provider": "railway_volume"}, None)
+    result = monitor.scan_source(
+        {"source_id": "r1", "project_id": "P1", "provider": "railway_volume"},
+        None, "persisted-oauth-viewer-token",
+    )
     assert result["status"] == "COMPLETE"
-    assert captured["token"] == "oauth-viewer-token"
+    assert captured["token"] == "persisted-oauth-viewer-token"
 
 
 def test_railway_graphql_uses_bearer_oauth_access_token(monkeypatch):
