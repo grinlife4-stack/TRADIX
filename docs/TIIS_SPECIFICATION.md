@@ -75,6 +75,8 @@ Every TIIS interface MUST publish a contract containing:
 
 Operations SHOULD be narrow and domain-oriented. Generic command execution, unrestricted filesystem access, unrestricted database access, or broad administrative capabilities MUST NOT be exposed as ordinary integration operations.
 
+TIIS defines the outer component-to-component envelope; it does not replace interface-owned domain contracts. A domain message schema MUST remain the payload contract for its interface. A domain actor or conversational role carried inside that payload is not the TIIS component identity and MUST NOT be used as proof of the authenticated sender.
+
 ## 6. Message and event model
 
 TIIS 0.1 defines a transport-neutral JSON envelope. HTTP, local IPC, queues, or another transport MAY carry the envelope, but transport selection MUST be declared by the interface owner and MUST NOT change the envelope's identity or authorization rules.
