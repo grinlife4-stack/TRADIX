@@ -10,7 +10,7 @@ from pathlib import Path, PurePosixPath
 
 from .manifest import load_manifest
 
-_PACKAGE_FILES = ("bridex.json", "README.md", "config/bridge.example.json")
+_PACKAGE_FILES = ("bridex.json", "README.md", "pyproject.toml", "config/bridge.example.json")
 
 
 class PackageError(ValueError):
