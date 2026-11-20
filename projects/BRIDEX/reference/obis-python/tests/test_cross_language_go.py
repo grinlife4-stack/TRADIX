@@ -672,6 +672,25 @@ def test_go_v02_client_invokes_python_v02_peer(tmp_path):
                 "--source-id", "source-b",
             ],
             capture_output=True, text=True, timeout=15,
+
+        missing = subprocess.run(
+            [
+                GO_PEER_BINARY, "invoke-v02",
+                "--endpoint", server.address,
+                "--local-peer", "peer:go",
+                "--remote-peer", "peer:python-v02",
+                "--key-id", "go-v02-key",
+                "--principal", "principal:go",
+                "--secret-hex", SECRET.hex(),
+                "--scopes", "inventory.read",
+                "--capability", "missing.capability",
+                "--capability-version", "1.0",
+                "--operation-id", "go-missing-op",
+                "--idempotency-key", "go-missing-idem",
+                "--payload", json.dumps({"project_id": "project-b", "source_id": "source-b"}),
+            ],
+            capture_output=True, text=True, timeout=15,
+        )
         )
     assert result.returncode == 0, result.stdout + result.stderr
     response = json.loads(result.stdout)
@@ -682,3 +701,28 @@ def test_go_v02_client_invokes_python_v02_peer(tmp_path):
     status_response = json.loads(status.stdout)
     assert status_response["state"] == "SUCCEEDED"
     assert status_response["result"]["served_by"] == "python-peer-v02"
+    assert missing.returncode != 0
+    assert "capability.unknown" in missing.stderr
+
+
+def test_python_v02_client_verifies_signed_error_from_go_peer(tmp_path):
+    from obis_bridge.peer import OBISRequestError
+    from obis_bridge.v02 import OBISV02Client
+
+    process, endpoint = _start_go_v02_server(tmp_path)
+    try:
+        client = OBISV02Client(
+            "peer:python", "peer:go-v02", "python-v02-key",
+            "principal:python", SECRET, {"inventory.read"},
+        )
+        with pytest.raises(OBISRequestError) as raised:
+            client.invoke(
+                endpoint, "missing.capability", "1.0",
+                {"project_id": "project-a", "source_id": "source-a", "measurement_kinds": ["logical_bytes", "file_count"]},
+                operation_id="signed-error-op", idempotency_key="signed-error-idem",
+            )
+        assert raised.value.code == "capability.unknown"
+        assert raised.value.http_status == 404
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
