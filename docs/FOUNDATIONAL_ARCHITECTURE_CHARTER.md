@@ -208,7 +208,7 @@ The detailed governing specification is maintained in [EXVARLI — Multi-Project
 
 Every current and future product, project, application, service, tool, agent, factory, and technical subsystem must follow the governing [Portfolio-Wide Independence and Bridge Standard](PORTFOLIO_INDEPENDENCE_AND_BRIDGE_STANDARD.md).
 
-TRADIX owns and maintains the shared Bridge protocol, generation foundations, documentation, versioning, and conformance tests. Each product or tool owns, secures, operates, and maintains its own dedicated Bridge. A Bridge must be independently operable without TRADIX and must not make the product's core runtime depend on TRADIX availability. Separate-process execution is the default; an in-process Bridge requires a documented justification and equivalent fault/resource isolation.
+TRADIX defines and maintains TIIS, the standard for communication among TRADIX's own internal tools, services, agents, records, workflows, and technical subsystems. Each product or tool owns, secures, operates, and maintains its own dedicated Bridge. Each Bridge carries OBIS, an independent interoperability standard for connecting to non-TRADIX tools, services, platforms, and other Bridges. OBIS must remain usable without TRADIX repositories, services, credentials, registry, identity provider, or infrastructure. A Bridge may include an optional TIIS-facing adapter for authorized TRADIX integration, but external connections must use OBIS or a separately declared, replaceable adapter and must never depend on TIIS. Separate-process execution is the default; an in-process Bridge requires a documented justification and equivalent fault/resource isolation.
 
 This requirement is automatic for all new work and applies to existing systems during material changes, integration, and production-readiness review. Every project dossier and relevant technical decision record must state its Bridge status and record the required independence, security, data-boundary, conformance, and recovery checks. A project that has not yet integrated with TRADIX must explicitly record that status; it must not claim Bridge conformance until the checks pass.
 
@@ -218,3 +218,31 @@ No project-specific file, template, workflow, or implementation may silently wai
 ### Multi-party interoperability requirement
 
 A product's Bridge is not a TRADIX-only connector. It must be designed, where applicable, to communicate securely with other portfolio products, independent third-party applications and services, and other independently operated Bridges. TRADIX is one optional peer, not a mandatory hub, relay, registry, or identity provider. Peer relationships require explicit trust, authentication, scoped authorization, capability negotiation, and auditable data-sharing rules. The Bridge protocol must remain vendor-neutral, and integrations must not require all traffic to pass through TRADIX. See the governing [Portfolio-Wide Independence and Bridge Standard](PORTFOLIO_INDEPENDENCE_AND_BRIDGE_STANDARD.md).
+
+
+## 15. Two distinct integration standards: TIIS and OBIS
+
+The portfolio uses two separate standards with different ownership boundaries and purposes. They must not be collapsed into one protocol or treated as interchangeable conformance profiles.
+
+### 15.1 TIIS — TRADIX Internal Integration Standard
+
+TIIS governs communication among TRADIX's own internal tools, services, agents, records, workflows, and technical subsystems. TRADIX defines, versions, documents, tests, and governs TIIS. TIIS applies inside the TRADIX boundary and to an explicitly authorized TIIS-facing adapter on a product Bridge when that Bridge connects to TRADIX.
+
+TIIS is not a prerequisite for external interoperability. Independent tools and third-party systems do not need to implement TIIS to communicate with a product Bridge.
+
+### 15.2 OBIS — Open Bridge Interoperability Standard
+
+OBIS is implemented and carried by each product-owned Bridge. It governs that Bridge's independent connections to non-TRADIX tools, services, platforms, and other independently operated Bridges. Its specification, schemas, compatibility behavior, and required implementation must remain available and operable with the Bridge after separation from TRADIX.
+
+OBIS must not depend on TRADIX repositories, runtime services, registry, relay, identity provider, credentials, or infrastructure. A Bridge's external requests must not be forced through TIIS or translated into TIIS as a mandatory intermediate step.
+
+### 15.3 Mandatory protocol selection
+
+- TRADIX internal component ↔ TRADIX internal component: TIIS.
+- Product Bridge ↔ authorized TRADIX internal component: optional, scoped TIIS-facing adapter.
+- Product Bridge ↔ external tool/service/platform or independent Bridge: OBIS, or a separately declared and replaceable adapter.
+- Independent Bridge ↔ independent Bridge outside TRADIX: direct OBIS communication where supported; no mandatory TRADIX hub or relay.
+
+Each standard must have its own specification, versioning, conformance tests, and failure boundary. A Bridge must pass OBIS interoperability tests independently of TIIS tests. Loss or removal of TRADIX may disable only the optional TRADIX-facing adapter; it must not disable OBIS or the Bridge's external interoperability.
+
+This separation is mandatory for new designs and must be applied to existing Bridge and integration work during material changes, integration, or production-readiness review.
