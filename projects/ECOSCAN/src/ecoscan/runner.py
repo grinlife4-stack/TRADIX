@@ -215,6 +215,7 @@ class ScanRunner:
         try:
             adapter.validate_config(source)
             result = adapter.scan(context)
+            guard.check_time()
             if not isinstance(result, AdapterResult):
                 raise AdapterContractError("adapter must return AdapterResult")
             if result.coverage_state not in {"COMPLETE", "PARTIAL", "FAILED"}:
