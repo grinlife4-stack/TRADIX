@@ -8,7 +8,7 @@ import urllib.request
 import pytest
 
 from obis_bridge import Credential, OBISClient, OBISPeer, OBISRequestError, OBISServer
-from obis_bridge.peer import MAX_TTL_SECONDS, canonical_json, sign_message, validate_request
+from obis_bridge.peer import MAX_TTL_SECONDS, ReplayGuard, canonical_json, sign_message, strict_json_loads, validate_request
 
 
 SECRET = b"test-only-shared-secret-material-32-bytes-minimum"
@@ -281,3 +281,31 @@ def test_published_and_packaged_schemas_are_identical():
     canonical_path = Path(__file__).resolve().parents[5] / "standards" / "obis" / "0.1" / "message.schema.json"
     canonical = canonical_path.read_bytes()
     assert packaged == canonical
+
+
+def test_duplicate_json_object_keys_are_rejected():
+    with pytest.raises(ValueError, match="duplicate"):
+        strict_json_loads('{"protocol":"obis","protocol":"evil"}')
+
+
+def test_replay_guard_is_atomic_under_concurrent_duplicate_requests():
+    from concurrent.futures import ThreadPoolExecutor
+
+    guard = ReplayGuard()
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        outcomes = list(pool.map(lambda _: guard.accept("same-nonce", now=1000), range(64)))
+    assert outcomes.count(True) == 1
+    assert outcomes.count(False) == 63
+
+
+def test_non_finite_and_negative_timestamps_are_rejected():
+    peer_b, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    request["issued_at"] = float("nan")
+    with pytest.raises(OBISRequestError, match="finite"):
+        validate_request(request)
+
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    request["issued_at"] = -1
+    with pytest.raises(OBISRequestError, match="non-negative"):
+        validate_request(request)
