@@ -158,6 +158,6 @@ The candidate is not production-approved. Durable replay/idempotency, durable re
 
 - OBIS 0.1 specification and schema remain draft baselines.
 - The Python reference and independent Go reference are development/conformance prototypes; their HTTP/HMAC mode is loopback-only and is not a production security profile.
-- The earlier Draft PR #76 failed Go compilation due to an unused import and is not the accepted implementation line. The corrected mTLS implementation is being carried on the ordered BRIDEX/OBIS branch after PR #77; its own latest-head CI must pass before this candidate is considered verified.
+- The earlier Draft PR #76 failed Go compilation due to an unused import and is not the accepted implementation line. The corrected ordered implementation is Draft PR #78, stacked on PR #77. Its head `c8bfad55098065ba1cde50fbd252563a160e745e` passed OBIS conformance run `44743121177` (57 Python tests, Go tests, wheel build/install, schema parity, and independence checks) and repository run `44743120802` (104 TRADIX tests). These runs validate the loopback candidate only, not production security.
 - Certificate issuance, rotation, revocation, trust-bundle freshness, emergency denylisting, durable replay/idempotency, production audit, and independent security review remain open.
 - No production endpoint, credential, live peer, deployment, or external connection is authorized by this status record.
