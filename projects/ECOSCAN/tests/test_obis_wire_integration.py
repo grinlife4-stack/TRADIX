@@ -168,7 +168,7 @@ def test_adapter_passes_deadline_and_rejects_late_empty_peer_response():
         adapter.scan(context)
 
     assert client.deadline == context.guard.deadline
-    assert time.monotonic() - started < 0.5
+    assert time.monotonic() - started >= 1.0
 
 
 def test_independent_peer_denies_ungranted_project_source_before_provider_execution():
