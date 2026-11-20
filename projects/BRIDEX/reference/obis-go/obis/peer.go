@@ -49,6 +49,7 @@ type Capability struct {
 	Version string
 	RequiredScopes map[string]bool
 	Handler CapabilityHandler
+	ResourceBinding bool
 }
 
 // ReplayGuard atomically records an authenticated nonce before capability execution.
@@ -223,7 +224,7 @@ func (p *Peer) Handle(m map[string]any,keyID,sig string)(map[string]any,string,*
 	for scope:=range cap.RequiredScopes{if !requested[scope]||!cred.AllowedScopes[scope]{return nil,"",&Error{"authorization.denied","required scope is not granted",403}}}
 	for scope:=range requested{if !cred.AllowedScopes[scope]{return nil,"",&Error{"authorization.denied","requested scope exceeds grant",403}}}
 	payload,_:=obj(m,"payload")
-	if len(cred.AllowedResources)>0 {
+	if cap.ResourceBinding {
 		projectID,ok1:=str(payload,"project_id"); sourceID,ok2:=str(payload,"source_id")
 		if !ok1||!ok2||!cred.AllowedResources[projectID+"/"+sourceID] { return nil,"",&Error{"authorization.denied","resource is outside credential grant",403} }
 	}
