@@ -6,6 +6,8 @@ runtime dependency.
 """
 from __future__ import annotations
 
+import os
+import subprocess
 import time
 
 import pytest
@@ -21,7 +23,7 @@ from obis_bridge import (
 
 from ecoscan.contracts import BudgetExceeded, BudgetGuard, ScanContext, TransportOutcomeUnknown
 from ecoscan.models import RetentionPolicy, ScanBudget, SourceDescriptor
-from ecoscan.obis_bridge import OBISBridgeAdapter, REQUIRED_SCOPE
+from ecoscan.obis_bridge import OBISBridgeAdapter, OBISV02Invoker, REQUIRED_SCOPE
 
 
 SECRET = b"0123456789abcdef0123456789abcdef"
@@ -226,3 +228,57 @@ def test_adapter_classifies_peer_timeout_as_indeterminate_not_budget_failure():
     adapter = OBISBridgeAdapter(TimedOutClient(), "http://127.0.0.1:8080")
     with pytest.raises(TransportOutcomeUnknown):
         adapter.scan(_context(source))
+
+
+
+def test_ecoscan_adapter_scans_through_independent_go_obis_v02_peer(tmp_path):
+    binary = os.environ.get("OBIS_GO_PEER_BINARY")
+    if not binary or not os.path.isfile(binary):
+        pytest.skip("independent Go peer binary is built by the repository CI workflow")
+
+    command = [
+        binary, "server-v02",
+        "--peer-id", OWNER_PEER_ID,
+        "--listen", "127.0.0.1:0",
+        "--key-id", "ecoscan-dev-key",
+        "--remote-peer", ECOSCAN_PEER_ID,
+        "--principal", "principal:ecoscan",
+        "--secret-hex", SECRET.hex(),
+        "--scopes", REQUIRED_SCOPE,
+        "--required-scope", REQUIRED_SCOPE,
+        "--ledger-path", str(tmp_path / "go-obis-operations.json"),
+        "--allowed-resource", f"{PROJECT_ID}/{SOURCE_ID}",
+    ]
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    try:
+        assert process.stdout is not None
+        address = process.stdout.readline().strip()
+        if not address:
+            stderr = process.stderr.read() if process.stderr else ""
+            raise AssertionError(f"Go OBIS 0.2 peer did not publish its address: {stderr}")
+        client = OBISV02Client(
+            ECOSCAN_PEER_ID, OWNER_PEER_ID, "ecoscan-dev-key",
+            "principal:ecoscan", SECRET, {REQUIRED_SCOPE}, timeout=3.0,
+        )
+        adapter = OBISBridgeAdapter(OBISV02Invoker(client), f"http://{address}")
+        source = _source()
+        adapter.validate_config(source)
+        result = adapter.scan(_context(source))
+        assert result.coverage_state == "COMPLETE"
+        assert result.items_seen == 2
+        assert result.pages_seen == 1
+        assert {item["kind"]: item["value"] for item in result.measurements} == {
+            "logical_bytes": 4096,
+            "file_count": 2,
+        }
+        assert all(item["project_id"] == PROJECT_ID for item in result.measurements)
+        assert all(item["source_id"] == SOURCE_ID for item in result.measurements)
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
