@@ -209,3 +209,12 @@ The Python integration harness now submits signed and raw malformed requests to 
 CI run #1189 (run ID `44761677327`) passed on PR #42 head `2157d1de0fe60326898615b1b9fd037eac11139e`. The run completed Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated package wheel/install/schema checks.
 
 This is additional selected Python→Go server-side negative coverage. It does not establish full bidirectional negative conformance, signed-error response parity for all authenticated failure classes, production security approval, or release readiness. HMAC remains development/conformance-only. No normative OBIS schema, wire envelope, TIIS contract, or version-negotiation semantics changed.
+
+
+## 16. Go authenticated signed-error response verification by Python client — 2026-11-20
+
+CI run #1194 (run ID `44763190803`) passed on PR #42 head `b68cd039cd66b29a4a650a49a46f9420d46d41de`. A Python integration harness sends authenticated requests to the independent Go peer and verifies the Go error response HMAC, response envelope, correlation binding, sender/recipient peer identities, HTTP status, and error code for expired requests (408), unsupported protocol versions (426), unknown capabilities (404), unauthorized scopes (403), and nonce replay (409 after an initial successful request).
+
+The Go peer authenticates the original request before constructing a signed protocol error. For the version/time-window cases, it validates a shallow copy with only those fields normalized; the original message and its signature remain unchanged. The normalized timestamps use the strict decoder's `json.Number` representation. The full configured CI job also passed Go tests/build, the Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated wheel/install/schema checks.
+
+This evidence is limited to the listed Python→Go authenticated signed-error cases. It does not establish full bidirectional signed-error parity or full OBIS conformance. It does not change normative OBIS/TIIS contracts or version-negotiation semantics. HMAC remains development/conformance-only; production TLS/mTLS, credential lifecycle, distributed replay coordination, business-operation idempotency/outcome reconciliation, persistent audit/evidence storage, and independent security review remain unresolved.
