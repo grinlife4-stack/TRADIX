@@ -29,8 +29,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ECOSCAN_GITHUB_TOKEN: ${{ secrets.ECOSCAN_GITHUB_TOKEN }}
-          RAILWAY_PROJECT_TOKEN: ${{ secrets.RAILWAY_PROJECT_TOKEN }}
-          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+          RAILWAY_OAUTH_ACCESS_TOKEN: ${{ github.event_name == 'workflow_dispatch' && secrets.RAILWAY_OAUTH_ACCESS_TOKEN || '' }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: >-
           python -m tools.ecoscan
