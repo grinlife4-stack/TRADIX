@@ -301,3 +301,72 @@ def test_railway_graphql_errors_fail_closed(monkeypatch):
         assert exc.status == "NOT_AUTHORIZED_OR_NOT_FOUND"
     else:
         raise AssertionError("GraphQL authorization errors must fail closed")
+
+
+def test_s3_compatible_adapter_lists_metadata_with_pagination(monkeypatch):
+    monkeypatch.setenv("ECOSCAN_TEST_ACCESS", "access")
+    monkeypatch.setenv("ECOSCAN_TEST_SECRET", "secret")
+    bodies = [
+        b'<ListBucketResult><IsTruncated>true</IsTruncated><NextContinuationToken>next-page</NextContinuationToken><Contents><Key>a.bin</Key><Size>10</Size></Contents></ListBucketResult>',
+        b'<ListBucketResult><IsTruncated>false</IsTruncated><Contents><Key>b.bin</Key><Size>25</Size></Contents></ListBucketResult>',
+    ]
+    requests = []
+    class FakeResponse:
+        def __init__(self, body):
+            self.body = body
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self):
+            return self.body
+    def fake_urlopen(request, timeout):
+        requests.append(request)
+        return FakeResponse(bodies.pop(0))
+    monkeypatch.setattr(monitor.urllib.request, "urlopen", fake_urlopen)
+    result = monitor.scan_s3_compatible({
+        "source_id": "r2-main", "project_id": "P1", "provider": "s3_compatible",
+        "endpoint": "https://account.r2.cloudflarestorage.com", "bucket": "assets",
+        "region": "auto", "url_style": "path",
+        "access_key_env": "ECOSCAN_TEST_ACCESS", "secret_key_env": "ECOSCAN_TEST_SECRET",
+    })
+    assert result["status"] == "COMPLETE"
+    assert result["file_count"] == 2
+    assert result["logical_bytes"] == 35
+    assert result["page_count"] == 2
+    assert "Authorization" in requests[0].headers
+    assert "continuation-token=next-page" in requests[1].full_url
+    assert "no object bodies downloaded" in result["method"]
+
+
+def test_s3_compatible_adapter_does_not_report_missing_credentials_as_zero(monkeypatch):
+    monkeypatch.delenv("ECOSCAN_MISSING_ACCESS", raising=False)
+    monkeypatch.delenv("ECOSCAN_MISSING_SECRET", raising=False)
+    result = monitor.scan_s3_compatible({
+        "source_id": "b2-archive", "project_id": "P1",
+        "endpoint": "https://s3.us-west-004.backblazeb2.com", "bucket": "archive",
+        "access_key_env": "ECOSCAN_MISSING_ACCESS", "secret_key_env": "ECOSCAN_MISSING_SECRET",
+    })
+    assert result["status"] == "NOT_CONFIGURED"
+    assert result["logical_bytes"] is None
+    assert result["file_count"] is None
+
+
+def test_s3_compatible_adapter_marks_truncated_listing_partial(monkeypatch):
+    monkeypatch.setenv("ECOSCAN_TEST_ACCESS", "access")
+    monkeypatch.setenv("ECOSCAN_TEST_SECRET", "secret")
+    class FakeResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self):
+            return b'<ListBucketResult><IsTruncated>true</IsTruncated><Contents><Key>a</Key><Size>7</Size></Contents></ListBucketResult>'
+    monkeypatch.setattr(monitor.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse())
+    result = monitor.scan_s3_compatible({
+        "source_id": "s3-partial", "project_id": "P1", "endpoint": "https://s3.example.test",
+        "bucket": "bucket", "access_key_env": "ECOSCAN_TEST_ACCESS",
+        "secret_key_env": "ECOSCAN_TEST_SECRET", "max_pages": 1,
+    })
+    assert result["status"] == "PARTIAL"
+    assert result["logical_bytes"] == 7
