@@ -158,3 +158,12 @@ The first CI attempt (#1176) exposed that Python 3.12 can raise `TimeoutError` d
 The Go-to-Python raw negative integration test sends an authenticated unsupported-version request and an invalid-signature request from the independent Go test harness to the Python peer. The Python capability handler must not execute for either rejected request. CI #1175 passed for this cross-peer test and the full suite. CI #1177 passed on commit `d630ada3683ec0793c818bf1281b5b04aa4f6e12`, including the Go tests/build, full Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
 
 This remains selected negative-path coverage, not a complete two-way negative conformance matrix. OBIS schema, wire envelope, TIIS contract, version negotiation semantics, and production security profile were not changed. HMAC remains development/conformance-only; production TLS/mTLS, credential lifecycle, distributed replay policy, business-operation idempotency/outcome reconciliation, persistent audit, and independent security review remain open.
+
+
+## Go-to-Python durable replay across Python process restart — 2026-11-20
+
+The cross-language integration harness now verifies durable replay protection in the opposite direction as well: a Go-originated, correctly signed OBIS request is accepted by the Python peer, then the Python peer process is terminated and restarted against the same owner-local SQLite replay database. The identical Go-originated request is sent again and must receive a signed HTTP 409 `request.replay_detected` response. A durable counter written by the capability handler confirms that the handler ran exactly once and was not re-entered after restart.
+
+The test runs the Go request probe twice against two separate Python peer processes. It verifies response HMAC signatures and correlation IDs on both the initial success and replay rejection. CI run #1185 passed on commit `515079aeb0d4a69494d7dba3b2f6d8cd4d385d1e`, including Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
+
+This closes the specific local durable replay persistence gap for Go→Python across a real Python process restart, using the same SQLite database. It does not provide distributed replay coordination, business-operation idempotency or unknown-outcome reconciliation, persistent audit/evidence records, or production transport security. HMAC remains development/conformance-only; no normative OBIS schema, wire envelope, TIIS contract, or version negotiation semantics changed.
