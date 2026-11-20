@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"time"
@@ -19,7 +20,6 @@ func required(name string) string {
 	return value
 }
 
-
 func envOr(name, fallback string) string {
 	if value := os.Getenv(name); value != "" {
 		return value
@@ -30,37 +30,55 @@ func envOr(name, fallback string) string {
 func main() {
 	endpoint := required("OBIS_REMOTE_ENDPOINT")
 	parsed, err := url.Parse(endpoint)
-	if err != nil {
-		log.Fatal(err)
+	if err != nil || parsed.Hostname() == "" {
+		log.Fatal("OBIS_REMOTE_ENDPOINT must be a valid peer URL")
 	}
-	serverName := os.Getenv("OBIS_TLS_SERVER_NAME")
-	if serverName == "" {
-		serverName = parsed.Hostname()
+	localPeerID := envOr("OBIS_LOCAL_PEER_ID", "go-peer")
+	remotePeerID := envOr("OBIS_REMOTE_PEER_ID", "python-peer")
+	keyID := envOr("OBIS_KEY_ID", "go-key")
+	principal := envOr("OBIS_PRINCIPAL_REF", "principal:go")
+
+	caPath := os.Getenv("OBIS_TLS_CA")
+	certPath := os.Getenv("OBIS_TLS_CERT")
+	keyPath := os.Getenv("OBIS_TLS_KEY")
+	tlsEnabled := caPath != "" || certPath != "" || keyPath != ""
+	if tlsEnabled && (caPath == "" || certPath == "" || keyPath == "") {
+		log.Fatal("OBIS_TLS_CA, OBIS_TLS_CERT, and OBIS_TLS_KEY must be configured together")
 	}
-	caPEM, err := os.ReadFile(required("OBIS_TLS_CA"))
-	if err != nil {
-		log.Fatal(err)
+
+	var httpClient *http.Client
+	var secret []byte
+	if tlsEnabled {
+		caPEM, err := os.ReadFile(caPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		certificatePEM, err := os.ReadFile(certPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		privateKeyPEM, err := os.ReadFile(keyPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		serverName := envOr("OBIS_TLS_SERVER_NAME", parsed.Hostname())
+		httpClient, err = peer.NewTLS13HTTPClient(caPEM, certificatePEM, privateKeyPEM, serverName, remotePeerID)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		if parsed.Scheme != "http" {
+			log.Fatal("HMAC development mode is loopback HTTP only")
+		}
+		secret = []byte(required("OBIS_TEST_SECRET"))
+		httpClient = &http.Client{Timeout: 5 * time.Second}
 	}
-	certificatePEM, err := os.ReadFile(required("OBIS_TLS_CERT"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	privateKeyPEM, err := os.ReadFile(required("OBIS_TLS_KEY"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	httpClient, err := peer.NewTLS13HTTPClient(caPEM, certificatePEM, privateKeyPEM, serverName)
-	if err != nil {
-		log.Fatal(err)
-	}
+
 	client, err := peer.NewClient(peer.ClientConfig{
-		LocalPeerID: envOr("OBIS_LOCAL_PEER_ID", "go-peer"),
-		RemotePeerID: envOr("OBIS_REMOTE_PEER_ID", "python-peer"),
-		KeyID: envOr("OBIS_KEY_ID", "go-key"),
-		PrincipalRef: envOr("OBIS_PRINCIPAL_REF", "principal:go"),
-		Secret: []byte(required("OBIS_TEST_SECRET")),
-		Scopes: map[string]bool{"catalog:read": true},
-		HTTPClient: httpClient,
+		LocalPeerID: localPeerID, RemotePeerID: remotePeerID,
+		KeyID: keyID, PrincipalRef: principal,
+		Secret: secret, Scopes: map[string]bool{"catalog:read": true},
+		HTTPClient: httpClient, MTLS: tlsEnabled,
 	})
 	if err != nil {
 		log.Fatal(err)
