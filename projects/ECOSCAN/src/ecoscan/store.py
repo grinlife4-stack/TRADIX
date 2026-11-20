@@ -55,6 +55,9 @@ class ProjectStore:
                   updated_at TEXT NOT NULL, PRIMARY KEY(source_id, scan_id)
                 );
                 """)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(coverage)")}
+            if "schema_version" not in columns:
+                db.execute("ALTER TABLE coverage ADD COLUMN schema_version TEXT NOT NULL DEFAULT '0.1'")
 
     @staticmethod
     def _coverage_values(record: Mapping[str, Any]):
