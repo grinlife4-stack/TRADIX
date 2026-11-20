@@ -46,7 +46,7 @@ A delivery that provides only a hosted endpoint, opaque binary, or generator-dep
 
 ## 4. Portability and exit requirements
 
-Every released Bridge must be capable of being separated from BRIDEX and TRADIX without losing its essential operation.
+Every released Bridge must be capable of being separated from BRIDEX and TRADIX without losing its essential operation. It is built for its designated project/tool and must remain capable of connecting to authorized applications, services, and independent systems outside the originating ecosystem. Separation must not turn it into an unusable ecosystem-only connector.
 
 The release package must include or identify:
 - Source and reproducible build/deployment instructions.
@@ -126,7 +126,15 @@ A Bridge is not accepted as independently portable until tests demonstrate that:
 
 Unit tests alone do not prove ownership, portability, or interoperability.
 
-## 9. Relationship to governing architecture
+## 9. External application connectivity and separation
+
+A project Bridge is not restricted to connecting only to TRADIX portfolio projects. Subject to its owner's authorization, it must support documented connections to independent third-party applications, services, tools, and independently operated Bridges. OBIS is the default external contract; any alternative adapter must be explicit, versioned, replaceable, and independently testable. TIIS remains optional and limited to authorized TRADIX-internal integration.
+
+The owner must be able to take the Bridge, its source/package, non-secret configuration, schemas, and operational documentation into a separate repository, build environment, operator, or ecosystem; install and operate it there; and configure new authorized peers without BRIDEX/TRADIX services. This is portability and adaptability, not a claim of automatic compatibility with every application. Each target integration requires its own protocol mapping, peer trust, scopes, and conformance evidence.
+
+The detailed installation, operation, separation, and external interoperability requirements are defined in [Bridge Installation, Operation, Separation, and External Interoperability Standard](BRIDGE_INSTALLATION_OPERATION_AND_EXTERNAL_INTEROPERABILITY_STANDARD.md).
+
+## 10. Relationship to governing architecture
 
 This policy supplements and clarifies:
 - [Portfolio-Wide Independence and Bridge Standard](PORTFOLIO_INDEPENDENCE_AND_BRIDGE_STANDARD.md)
@@ -138,8 +146,9 @@ Where earlier wording could be read as assigning ownership to the generator or t
 
 ## 10. Version history
 
+- **1.2.0 (2026-11-20):** made external application connectivity and continued usability after ecosystem separation explicit owner rights and Bridge release requirements; added the dedicated installation/operation/separation standard.
 - **1.1.0 (2026-11-20):** clarified and made mandatory that every project-specific Bridge is owned by the project whose resources, data, or capabilities it exposes; BRIDEX is never the owner. Added source-side/receiving-side separation and explicit joint-ownership exception controls.
 
 ## 11. Governing statement
 
-**BRIDEX owns and evolves only its independent engineering/generation project. The project whose resources or capabilities a Bridge exposes owns and controls that Bridge instance. Each project retains its own Bridges; BRIDEX never owns them. Every Bridge must be transferable, forkable, independently operable, and adaptable without mandatory dependence on BRIDEX or TRADIX.**
+**BRIDEX owns and evolves only its independent engineering/generation project. The project/tool for which a Bridge is built owns and controls that Bridge instance. The owner may connect it to authorized independent applications and systems and may separate it from the originating ecosystem without losing ownership or essential operation. BRIDEX never owns or permanently mediates project Bridges.**
