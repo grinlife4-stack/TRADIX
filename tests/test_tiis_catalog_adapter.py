@@ -118,6 +118,17 @@ def test_catalog_rejects_caller_supplied_actor_on_read_request(tmp_path):
     assert response["error"]["code"] == "catalog.request-invalid"
 
 
+def test_catalog_missing_record_returns_normalized_not_found(tmp_path):
+    _, service = adapter(tmp_path)
+    response = service.handle(
+        request("get", {"tool_id": "missing-tool", "version": "1.0.0"}),
+        authenticated_sender=SENDER,
+        now=NOW,
+    )
+    assert response["outcome"] == "failed"
+    assert response["error"]["code"] == "catalog.not-found"
+
+
 def test_catalog_requires_tiis_authorization_policy(tmp_path):
     catalog = ToolCatalog(tmp_path / "catalog.sqlite")
     service = ToolCatalogTIISAdapter(catalog, TIISValidator(), CATALOG)
