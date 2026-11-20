@@ -29,14 +29,14 @@ func NewPeerV02(peer *Peer, ledger *FileOperationLedger) (*PeerV02, error) {
 	return &PeerV02{Peer: peer, Ledger: ledger, capabilities: map[string]OperationCapabilityV02{}}, nil
 }
 
-func (p *PeerV02) RegisterCapability(id, version string, scopes map[string]bool, handler CapabilityHandler, recoveryClass string) error {
+func (p *PeerV02) RegisterCapability(id, version string, scopes map[string]bool, handler CapabilityHandler, recoveryClass string) error {\n\treturn p.RegisterCapabilityWithResourceBinding(id,version,scopes,handler,recoveryClass,false)\n}\n\nfunc (p *PeerV02) RegisterCapabilityWithResourceBinding(id, version string, scopes map[string]bool, handler CapabilityHandler, recoveryClass string, resourceBinding bool) error {
 	if id == "" || version == "" || handler == nil || len(scopes) == 0 { return errors.New("capability ID, version, handler, and required scopes are mandatory") }
 	if recoveryClass != "IDEMPOTENT" && recoveryClass != "QUERYABLE" && recoveryClass != "NON_RECOVERABLE" { return errors.New("invalid capability recovery class") }
 	key := id + "\x00" + version
 	if _, exists := p.capabilities[key]; exists { return errors.New("duplicate OBIS 0.2 capability") }
 	copyScopes := make(map[string]bool, len(scopes))
 	for scope, allowed := range scopes { if scope == "" || !allowed { return errors.New("required scopes must be non-empty and true") }; copyScopes[scope] = true }
-	p.capabilities[key] = OperationCapabilityV02{ID:id, Version:version, RequiredScopes:copyScopes, Handler:handler, RecoveryClass:recoveryClass}
+	p.capabilities[key] = OperationCapabilityV02{ID:id, Version:version, RequiredScopes:copyScopes, Handler:handler, RecoveryClass:recoveryClass, ResourceBinding:resourceBinding}
 	return nil
 }
 
