@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -161,8 +160,7 @@ func (c *Client) Invoke(ctx context.Context, endpoint, capabilityID, capabilityV
 		responseMessage["outcome"] != "succeeded" {
 		return nil, errors.New("OBIS response identity, correlation, or outcome invalid")
 	}
-	result, ok := responseMessage["result"].(map[string]any)
-	if !ok {
+	if _, ok := responseMessage["result"].(map[string]any); !ok {
 		return nil, errors.New("OBIS response result must be an object")
 	}
 	return responseMessage, nil
