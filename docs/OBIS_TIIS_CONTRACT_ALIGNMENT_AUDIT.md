@@ -142,3 +142,12 @@ The cross-language integration harness was extended to submit raw OBIS request e
 CI run #1151 passed on commit `e65da4841226d25ac93feb98487d11323b11de63`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated wheel/install/schema checks.
 
 Scope limitation: this is server-side negative coverage for two independent implementations, not a complete bidirectional negative matrix for every malformed/authentication/replay/transport condition. No normative OBIS schema, wire behavior, TIIS contract, or production security decision was changed. HMAC remains development/conformance-only.
+
+
+## 14. Go client signed-response negative matrix — 2026-11-20
+
+The independent Go client was extended to reject correctly signed but contract-invalid peer responses: downgraded protocol version, mismatched correlation, wrong sender identity, unexpected response fields, and malformed structured error objects. These tests use a loopback peer to ensure rejection occurs after signature verification but before a response is accepted by the caller.
+
+CI run #1154 passed on commit `0a58ebe18cabb58feab1a9eb8c512186aeb2c1ee`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
+
+This is a selected Go client response-validation matrix. It is not protocol version negotiation, a complete cross-language downgrade suite, or production security approval. Unsupported versions remain rejected; no negotiation semantics or normative wire contract were added.
