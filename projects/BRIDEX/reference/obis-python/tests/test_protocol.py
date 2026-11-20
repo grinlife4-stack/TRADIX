@@ -8,7 +8,7 @@ import urllib.request
 import pytest
 
 from obis_bridge import Credential, OBISClient, OBISPeer, OBISRequestError, OBISServer
-from obis_bridge.peer import MAX_TTL_SECONDS, ReplayGuard, canonical_json, sign_message, strict_json_loads, validate_request, validate_response
+from obis_bridge.peer import MAX_MESSAGE_BYTES, MAX_TTL_SECONDS, MESSAGE_PATH, ReplayGuard, canonical_json, sign_message, strict_json_loads, validate_request, validate_response, verify_signature
 
 
 SECRET = b"test-only-shared-secret-material-32-bytes-minimum"
@@ -93,19 +93,16 @@ def test_credential_cannot_claim_another_peer_identity():
 
 def test_valid_identity_without_required_scope_is_denied():
     peer_b, client = make_pair()
-    request = client.build_request(
-        "inventory.get", "1.0", {"item_id": "x"}, scopes={"profile:read"}
-    )
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    request["authorization"]["scopes"] = ["profile:read"]
     with pytest.raises(OBISRequestError, match="required scope"):
         peer_b.handle(request, KEY_ID, sign_message(request, SECRET))
 
 
 def test_capability_cannot_be_invoked_with_ungranted_scope():
     peer_b, client = make_pair()
-    request = client.build_request(
-        "inventory.get", "1.0", {"item_id": "x"},
-        scopes={"inventory:read", "admin:all"},
-    )
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    request["authorization"]["scopes"].append("admin:all")
     with pytest.raises(OBISRequestError, match="exceeds grant"):
         peer_b.handle(request, KEY_ID, sign_message(request, SECRET))
 
@@ -266,17 +263,30 @@ def test_published_json_schema_rejects_unknown_fields_and_invalid_error_envelope
 
 def test_http_error_is_a_signed_correlated_obis_response():
     peer_b, client = make_pair()
+    request_message = client.build_request("inventory.get", "1.0", {"item_id": "sku-42"})
+    request_message["authorization"]["scopes"] = ["profile:read"]
+    body = canonical_json(request_message)
+    signature = sign_message(request_message, SECRET)
     with OBISServer(peer_b) as server:
-        with pytest.raises(OBISRequestError) as exc:
-            client.invoke(
-                server.address,
-                "inventory.get",
-                "1.0",
-                {"item_id": "sku-42"},
-                scopes={"profile:read"},
-            )
-    assert exc.value.code == "authorization.denied"
-    assert "required scope" in str(exc.value)
+        request = urllib.request.Request(
+            server.address + MESSAGE_PATH,
+            data=body,
+            method="POST",
+            headers={
+                "Content-Type": "application/obis+json",
+                "X-OBIS-Key-Id": KEY_ID,
+                "X-OBIS-Signature": signature,
+            },
+        )
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(request, timeout=2)
+        error_body = exc.value.read(MAX_MESSAGE_BYTES + 1)
+        response_signature = exc.value.headers.get("X-OBIS-Signature", "")
+    error_message = strict_json_loads(error_body.decode("utf-8"))
+    assert verify_signature(error_message, SECRET, response_signature)
+    validate_response(error_message, request_message, PEER_A, PEER_B, "failed")
+    assert error_message["error"]["code"] == "authorization.denied"
+    assert "required scope" in error_message["error"]["message"]
 
 
 def test_unknown_capability_returns_signed_correlated_obis_error():
@@ -403,3 +413,51 @@ def test_response_validator_rejects_correlation_mismatch():
     response["correlation_id"] = "different-request"
     with pytest.raises(OBISRequestError, match="correlation"):
         validate_response(response, request, PEER_A, PEER_B, "succeeded")
+
+
+def test_client_cannot_request_scopes_outside_its_local_grant():
+    peer_b, client = make_pair()
+    with pytest.raises(ValueError, match="local client grant"):
+        client.build_request("inventory.get", "1.0", {"item_id": "x"}, scopes={"admin:all"})
+
+
+def test_capability_result_must_be_json_serializable():
+    credential = Credential(KEY_ID, PEER_A, PRINCIPAL_A, SECRET, frozenset({"inventory:read"}))
+    peer = OBISPeer(PEER_B, [credential])
+    peer.register_capability("inventory.get", "1.0", {"inventory:read"}, lambda _: {"bad": {1, 2}})
+    _, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    with pytest.raises(OBISRequestError) as exc:
+        peer.handle(request, KEY_ID, sign_message(request, SECRET))
+    assert exc.value.code == "operation.invalid_result"
+
+
+def test_capability_result_size_is_bounded():
+    credential = Credential(KEY_ID, PEER_A, PRINCIPAL_A, SECRET, frozenset({"inventory:read"}))
+    peer = OBISPeer(PEER_B, [credential])
+    peer.register_capability(
+        "inventory.get", "1.0", {"inventory:read"},
+        lambda _: {"data": "x" * (MAX_MESSAGE_BYTES + 100)},
+    )
+    _, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    with pytest.raises(OBISRequestError) as exc:
+        peer.handle(request, KEY_ID, sign_message(request, SECRET))
+    assert exc.value.code == "operation.result_too_large"
+
+
+def test_client_rejects_non_bare_loopback_urls():
+    peer_b, client = make_pair()
+    for endpoint in (
+        "http://user:pass@127.0.0.1:8080",
+        "http://127.0.0.1:8080/path",
+        "http://127.0.0.1:8080/?token=x",
+        "http://127.0.0.1:8080/#fragment",
+    ):
+        with pytest.raises(ValueError, match="endpoint"):
+            client.invoke(endpoint, "inventory.get", "1.0", {"item_id": "x"})
+
+
+def test_client_timeout_must_be_finite_and_positive():
+    with pytest.raises(ValueError, match="timeout"):
+        OBISClient(PEER_A, PEER_B, KEY_ID, PRINCIPAL_A, SECRET, {"inventory:read"}, timeout=0)
