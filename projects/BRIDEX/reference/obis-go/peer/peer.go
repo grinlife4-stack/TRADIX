@@ -2,6 +2,8 @@ package peer
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -14,6 +16,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"regexp"
 	"sync"
 	"time"
 )
@@ -263,6 +266,25 @@ func randomID() string {
 	return hex.EncodeToString(raw)
 }
 
+
+var peerIDPattern = regexp.MustCompile("^[a-z][a-z0-9-]{2,62}$")
+
+func PeerIDFromCertificate(certificate *x509.Certificate) (string, error) {
+	if certificate == nil {
+		return "", errors.New("client certificate is missing")
+	}
+	var found []string
+	for _, uri := range certificate.URIs {
+		if uri.Scheme == "urn" && strings.HasPrefix(uri.Opaque, "obis:peer:") {
+			found = append(found, strings.TrimPrefix(uri.Opaque, "obis:peer:"))
+		}
+	}
+	if len(found) != 1 || !peerIDPattern.MatchString(found[0]) {
+		return "", errors.New("certificate must contain exactly one valid OBIS peer URI SAN")
+	}
+	return found[0], nil
+}
+
 func (p *Peer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	if request.URL.Path == "/healthz" && request.Method == http.MethodGet {
 		writer.WriteHeader(http.StatusNoContent)
@@ -286,6 +308,18 @@ func (p *Peer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		http.Error(writer, "invalid JSON message", http.StatusBadRequest)
 		return
+	}
+	if request.TLS != nil {
+		if request.TLS.Version != tls.VersionTLS13 || request.TLS.NegotiatedProtocol != "http/1.1" || len(request.TLS.PeerCertificates) == 0 {
+			http.Error(writer, "OBIS requires TLS 1.3 mTLS and ALPN obis/1", http.StatusForbidden)
+			return
+		}
+		certificatePeerID, certErr := PeerIDFromCertificate(request.TLS.PeerCertificates[0])
+		senderPeerID, senderOK := peerRef(message["sender"])
+		if certErr != nil || !senderOK || certificatePeerID != senderPeerID {
+			http.Error(writer, "TLS certificate peer identity mismatch", http.StatusForbidden)
+			return
+		}
 	}
 	payload, capability, err := p.validate(message, request.Header.Get("X-OBIS-Key-Id"), request.Header.Get("X-OBIS-Signature"), time.Now())
 	if err != nil {

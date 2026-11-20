@@ -45,17 +45,19 @@ A production candidate must provide:
 
 - Use Python's standard `ssl` module backed by a maintained OpenSSL build.
 - Do not add a third-party TLS implementation to the Python runtime.
-- Keep the current loopback HTTP + HMAC mode isolated as a development-only profile.
-- Add a separate TLS integration mode only after the certificate profile and test fixtures are reviewed.
-- Keep certificate loading, trust configuration, and private-key paths owner-supplied. Never commit test or production private keys.
+- The opt-in TLS 1.3 mTLS candidate is implemented in the Python client/server with owner-supplied trust CA and certificate paths, mandatory verification, and ALPN http/1.1.
+- The Python server binds the client certificate's single OBIS URI SAN to the authenticated sender and configured credential peer.
+- Keep the loopback HTTP + HMAC mode isolated as a development-only profile.
+- Certificate loading, trust configuration, and private-key paths remain owner-supplied. Never commit test or production private keys.
 
 ### 4.2 Independent second implementation
 
-- A standalone Go OBIS 0.1 development peer now exists at `projects/BRIDEX/reference/obis-go`, using the Go standard library and its own Go module/tests.
-- The Python client has completed a real loopback HTTP request/response against the Go peer. Both implementations pass a shared canonical JSON/HMAC development-profile vector; initial Go replay and scope-denial tests also pass.
+- A standalone Go OBIS 0.1 peer exists at `projects/BRIDEX/reference/obis-go`, using the Go standard library and its own Go module/tests.
+- The Go peer has an opt-in TLS 1.3 mTLS candidate using `crypto/tls` and `crypto/x509`, requiring client certificates, ALPN http/1.1, and a single URI SAN mapped to the OBIS sender identity.
+- Python client ↔ Go server and Go client ↔ Python server mTLS request/response and Python server mTLS tests pass with ephemeral certificates; both implementations also pass the shared HMAC development-profile vector.
 - The Go peer does not import or execute the Python reference.
-- Separate maintainer assignment, independent CI ownership, TLS/mTLS, certificate-to-peer mapping, and the full shared negative/security suite remain open.
-- Use Go's standard `crypto/tls` and `crypto/x509` packages as the candidate production transport/security implementation; do not mistake the current HMAC loopback peer for that profile.
+- Separate maintainer assignment, independent CI ownership, certificate lifecycle/revocation, trust-bundle freshness, and the full shared negative/security suite remain open.
+- The HMAC profile remains development-only. TLS 1.3 mTLS is a candidate implementation pending owner approval and independent security review.
 
 ### 4.3 Certificate authority and trust distribution
 
