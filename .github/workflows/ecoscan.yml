@@ -25,11 +25,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install ECOSCAN PostgreSQL backend
+        run: python -m pip install --disable-pip-version-check "psycopg[binary]>=3.2" "cryptography>=43"
       - name: Run read-only portfolio inventory
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ECOSCAN_GITHUB_TOKEN: ${{ secrets.ECOSCAN_GITHUB_TOKEN }}
-          RAILWAY_OAUTH_ACCESS_TOKEN: ${{ github.event_name == 'workflow_dispatch' && secrets.RAILWAY_OAUTH_ACCESS_TOKEN || '' }}
+          ECOSCAN_DATABASE_URL: ${{ secrets.ECOSCAN_DATABASE_URL }}
+          ECOSCAN_TOKEN_ENCRYPTION_KEY: ${{ secrets.ECOSCAN_TOKEN_ENCRYPTION_KEY }}
+          RAILWAY_OAUTH_CLIENT_ID: ${{ secrets.RAILWAY_OAUTH_CLIENT_ID }}
+          RAILWAY_OAUTH_CLIENT_SECRET: ${{ secrets.RAILWAY_OAUTH_CLIENT_SECRET }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: >-
           python -m tools.ecoscan
