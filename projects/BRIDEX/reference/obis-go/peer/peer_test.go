@@ -78,6 +78,18 @@ func TestRequestValidationAndReplayProtection(t *testing.T) {
 	if _, _, err := server.validate(message, "python-key", signature, "", "", now); err == nil || err.Error() != "request.replay_detected" {
 		t.Fatalf("expected replay rejection, got %v", err)
 	}
+	if !server.RevokeCredential("python-key") {
+		t.Fatal("credential revocation did not take effect")
+	}
+	message["message_id"] = "m-after-revoke"
+	message["nonce"] = "n-after-revoke"
+	signature, err = Sign(message, secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := server.validate(message, "python-key", signature, "", "", now); err == nil || err.Error() != "identity.credential_revoked" {
+		t.Fatalf("expected revoked credential rejection, got %v", err)
+	}
 }
 
 func TestRejectsUnauthorizedScope(t *testing.T) {
@@ -152,5 +164,27 @@ func TestPeerIDFromCertificateRequiresOneCanonicalOBISURI(t *testing.T) {
 	invalid, _ := url.Parse("urn:obis:peer:not-a-uuid")
 	if _, err := PeerIDFromCertificate(&x509.Certificate{URIs: []*url.URL{invalid}}); err == nil {
 		t.Fatal("invalid OBIS URI SAN accepted")
+	}
+}
+
+
+func TestRevokeCredentialRejectsUnknownOrRepeatedKey(t *testing.T) {
+	credential := Credential{
+		KeyID: "key-1", PeerID: "peer-1", PrincipalRef: "principal:one",
+		Secret: []byte("0123456789abcdef0123456789abcdef"),
+		AllowedScopes: map[string]bool{"catalog:read": true},
+	}
+	server, err := NewPeer("peer-2", credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if server.RevokeCredential("unknown") {
+		t.Fatal("unknown key was revoked")
+	}
+	if !server.RevokeCredential("key-1") {
+		t.Fatal("configured key was not revoked")
+	}
+	if server.RevokeCredential("key-1") {
+		t.Fatal("repeated revocation must be idempotent and report no new change")
 	}
 }
