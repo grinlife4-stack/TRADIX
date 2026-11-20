@@ -144,11 +144,11 @@ This policy supplements and clarifies:
 
 Where earlier wording could be read as assigning ownership to the generator or treating owner/operator as a single role, this policy controls: the source/resource-owning project is the owner, BRIDEX is never the owner, and the owning project must receive the rights and portable deliverables defined here.
 
-## 10. Version history
+## 11. Version history
 
 - **1.2.0 (2026-11-20):** made external application connectivity and continued usability after ecosystem separation explicit owner rights and Bridge release requirements; added the dedicated installation/operation/separation standard.
 - **1.1.0 (2026-11-20):** clarified and made mandatory that every project-specific Bridge is owned by the project whose resources, data, or capabilities it exposes; BRIDEX is never the owner. Added source-side/receiving-side separation and explicit joint-ownership exception controls.
 
-## 11. Governing statement
+## 12. Governing statement
 
 **BRIDEX owns and evolves only its independent engineering/generation project. The project/tool for which a Bridge is built owns and controls that Bridge instance. The owner may connect it to authorized independent applications and systems and may separate it from the originating ecosystem without losing ownership or essential operation. BRIDEX never owns or permanently mediates project Bridges.**
