@@ -77,7 +77,7 @@ func InvokeV02(endpoint,localPeerID,remotePeerID,keyID,principal string,secret [
 }
 
 func GetOperationStatusV02(endpoint,localPeerID,remotePeerID,keyID,principal string,secret []byte,scopes []string,
-	capabilityID,capabilityVersion,operationID string) (OperationResultV02,error) {
+	capabilityID,capabilityVersion,operationID string, resource ...map[string]any) (OperationResultV02,error) {
 	if localPeerID==""||remotePeerID==""||keyID==""||principal==""||len(secret)<32||len(scopes)==0||capabilityID==""||capabilityVersion==""||operationID=="" {
 		return OperationResultV02{},errors.New("OBIS 0.2 status query identity and operation fields are required")
 	}
