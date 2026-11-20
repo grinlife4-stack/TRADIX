@@ -264,6 +264,20 @@ Import must reject unknown schema versions by default, preserve IDs and timestam
 - Test backup/restore, migration, and package installation without network services.
 - Exit: independence acceptance suite passes; user approves any operational deployment separately.
 
+## 11. Phase 0 evidence and remaining decisions
+
+Phase 0 artifacts now exist:
+- Four versioned JSON Schemas for source registry, measurement, coverage, and export manifest under `standards/ecoscan/0.1/`.
+- A threat model and 20-row acceptance-test matrix.
+- Automated Draft 2020-12 schema validation tests in `tests/test_ecoscan_schemas.py`.
+- Explicit schema constraints for measurement kind/unit/value consistency, completed coverage timestamps, non-empty credential references, and safe relative export-path forms.
+- Runtime obligations documented for credential-reference resolution, duplicate export paths, timestamp ordering, project/source ownership, and filesystem containment.
+
+The latest completed CI on this branch passed **50 tests**, including the ECOSCAN schema tests, and built the TRADIX and OBIS reference wheels. This validates the current contract fixtures and repository test suite; it does not prove every cross-field/runtime invariant or authorize deployment.
+
+Before moving from the foundation to a concrete scanner, review owner/operator identity evidence, data retention, local allowed-root/mount policy, checkpoint integrity, and export/import semantics. Continue using synthetic fixtures only. Do not begin network adapters or provision credentials before the relevant source owner explicitly authorizes them.
+
+
 ## 12. Phase 1 foundation — implemented
 
 The independent package foundation now exists under `projects/ECOSCAN/`:
@@ -285,24 +299,12 @@ Not implemented yet: concrete local filesystem adapter, safe traversal, resumabl
 ### Next engineering sequence
 
 1. Implement a local filesystem adapter with explicit allowed roots, no-follow symlink handling, mount-boundary checks, bounded traversal, and resumable checkpoints.
-3. Add end-to-end tests using synthetic temporary directories only.
-4. Add export/manifest generation and a round-trip test before any provider adapter.
-5. Only then consider separately authorized GitHub and Backblaze B2 adapters.
+2. Add end-to-end tests using synthetic temporary directories only.
+3. Add export/manifest generation and a round-trip test before any provider adapter.
+4. Only then consider separately authorized GitHub and Backblaze B2 adapters.
 
-## 11. Phase 0 evidence and next action
 
-Phase 0 artifacts now exist:
-- Four versioned JSON Schemas for source registry, measurement, coverage, and export manifest under `standards/ecoscan/0.1/`.
-- A threat model and 20-row acceptance-test matrix.
-- Automated Draft 2020-12 schema validation tests in `tests/test_ecoscan_schemas.py`.
-- Explicit schema constraints for measurement kind/unit/value consistency, completed coverage timestamps, non-empty credential references, and safe relative export-path forms.
-- Runtime obligations documented for credential-reference resolution, duplicate export paths, timestamp ordering, project/source ownership, and filesystem containment.
-
-The latest completed CI on this branch passed **50 tests**, including the ECOSCAN schema tests, and built the TRADIX and OBIS reference wheels. This validates the current contract fixtures and repository test suite; it does not prove every cross-field/runtime invariant or authorize deployment.
-
-Next: review owner/operator identity evidence, data retention, local allowed-root/mount policy, checkpoint integrity, and export/import semantics. Only after those contract decisions are approved should Phase 1 begin, using synthetic/local fixtures and no network credentials. Do not begin network adapters or provision credentials before the relevant source owner explicitly authorizes them.
-
-## 12. Explicit non-claims
+## 13. Explicit non-claims
 
 This plan does not establish that:
 - any B2 credentials are configured or working;
