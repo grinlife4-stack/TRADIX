@@ -2,7 +2,7 @@
 
 **Document ID:** BRIDEX-GOV-OWN-001  
 **Status:** GOVERNING / MANDATORY  
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Effective date:** 2026-11-20  
 **Authority:** Project owner  
 **Scope:** BRIDEX and every Bridge generated, packaged, maintained, or governed using the BRIDEX method
@@ -136,6 +136,10 @@ This policy supplements and clarifies:
 
 Where earlier wording could be read as assigning ownership to the generator or treating owner/operator as a single role, this policy controls: ownership is explicitly assigned per Bridge instance, BRIDEX is not the default owner, and the designated owner must receive the rights and portable deliverables defined here.
 
-## 10. Governing statement
+## 10. Version history
+
+- **1.1.0 (2026-11-20):** clarified and made mandatory that every project-specific Bridge is owned by the project whose resources, data, or capabilities it exposes; BRIDEX is never the owner. Added source-side/receiving-side separation and explicit joint-ownership exception controls.
+
+## 11. Governing statement
 
 **BRIDEX owns and evolves only its independent engineering/generation project. The project whose resources or capabilities a Bridge exposes owns and controls that Bridge instance. Each project retains its own Bridges; BRIDEX never owns them. Every Bridge must be transferable, forkable, independently operable, and adaptable without mandatory dependence on BRIDEX or TRADIX.**
