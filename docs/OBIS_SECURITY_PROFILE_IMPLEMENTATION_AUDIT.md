@@ -203,3 +203,19 @@ This is selected Go-client-to-Python-peer authenticated error coverage. It does 
 - [Smallstep step-ca](https://github.com/smallstep/certificates)
 
 **Conclusion:** Reuse maintained TLS/X.509 stacks. Keep trust, certificate lifecycle, and OBIS peer authorization owner-controlled. The proposed profile remains a candidate until its client identity mapping, revocation behavior, interoperability evidence, and independent review are complete.
+
+
+## 12. Go client rejection of invalid authenticated error responses — 2026-11-20
+
+The independent Go client test suite now verifies that an HTTP error response is not trusted merely because it has the expected error status or shape. Using locally generated HMAC-signed error envelopes, the tests confirm that Invoke rejects:
+
+- An error response with an invalid HMAC signature.
+- A correctly signed error response with a mismatched correlation ID.
+- A correctly signed error response claiming the wrong sender peer identity.
+- A correctly signed error response claiming the wrong recipient peer identity.
+
+These checks complement the existing Go client tests for downgraded successful responses, wrong correlation/sender identity, unexpected fields, and malformed signed error objects. The tests exercise the client validation boundary independently of the Python integration harness.
+
+CI run #1199 passed on consolidated PR #42 head 02270e2bd44d704718e3ef033c6be9d6c125b741 (run ID 44765422084). The run completed Go tests and binary build, the configured Python/BRIDEX Core/OBIS/ECOSCAN test suites, and isolated wheel build/install/schema checks for all three Python packages.
+
+This closes the listed Go-client rejection tests for invalid signatures and mismatched error-response correlation/peer identities. It does not establish full bidirectional negative conformance, production TLS/mTLS, credential lifecycle, distributed replay protection, durable business-operation idempotency, persistent audit/evidence, or independent security approval. HMAC remains development/conformance-only. No normative OBIS/TIIS contract, schema, or version-negotiation semantics changed.
