@@ -61,7 +61,7 @@ The root CI also runs these reference tests. The reference now includes `ecoscan
 
 ## 3C. Generic BRIDEX Core package foundation
 
-A first standalone generic core package is now maintained at [BRIDEX Core](core/README.md). Version 0.1 provides an owner-portable Bridge package manifest schema and strict validation library. It records the Bridge identity, explicit owner/operator, source integrity, supported OBIS/adapter versions, peer scopes, capability declarations, dependency/license inventory, configuration schema, and lifecycle/export procedure references.
+A standalone generic core package is maintained at [BRIDEX Core](core/README.md). Version 0.1 provides an owner-portable Bridge package manifest schema, strict validation, package-directory verification, deterministic ZIP export, and safe restore. It records the Bridge identity, explicit owner/operator, artifact integrity, supported OBIS/adapter versions, peer scopes, capability declarations, dependency/license inventory, configuration schema, and lifecycle procedure references. Restore validates archive paths and file types, refuses to overwrite an existing destination, and verifies the artifact digest after extraction.
 
 Run and test it independently:
 
@@ -71,7 +71,7 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-The manifest is descriptive package metadata. It does not grant trust or permissions, prove ownership by itself, provide a runtime, generate Bridges, or establish OBIS conformance. The package is included in root CI with wheel-build and isolated-install schema checks. Further generic core work remains: portable project/package layout, protocol-independent conformance harness, lifecycle/health primitives after contract definition, and export/restore independence tests.
+The manifest is descriptive package metadata. It does not grant trust or permissions, prove ownership by itself, provide a runtime, generate Bridges, or establish OBIS conformance. The package is included in root CI with wheel-build and isolated-install schema checks. The next generic-core gates are deterministic build/reproducibility metadata, a protocol-independent OBIS conformance harness, and lifecycle/health primitives only after their state transitions and failure semantics are specified.
 
 ## 3D. Relationship to existing TRADIX infrastructure
 
