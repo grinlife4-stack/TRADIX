@@ -62,7 +62,7 @@ Subject to the owning product's authorization and security policies, a Bridge mu
 - TRADIX, when the product chooses to use TRADIX capabilities.
 - Other products and tools within the portfolio.
 - Independent third-party applications, platforms, and services.
-- Other independently owned Bridges, using the shared protocol or an explicitly supported protocol adapter.
+- Other independently owned Bridges, using OBIS or an explicitly supported, replaceable protocol adapter.
 
 The Bridge must support both sides of an integration where relevant: exposing the owner's approved capabilities to authorized peers and consuming approved capabilities exposed by other systems. It must not require every message or transaction to pass through TRADIX.
 
