@@ -14,7 +14,7 @@ The canonical draft schema is published independently at [standards/obis/0.1/mes
 - Optional credential-bound resource grants for capabilities that must be restricted to explicit project/source pairs.
 - ECOSCAN read-only inventory capability registration with strict schema and measurement bounds.
 - Loopback HTTP tests for a valid ECOSCAN inventory request and rejection of a project/source outside the credential grant before the provider handler runs.
-- Expiry, maximum TTL, payload-size limits, and in-memory nonce replay rejection.
+- Expiry, maximum TTL, payload-size limits, and nonce replay rejection. The default guard is in-memory for development; an optional owner-local SQLite guard persists replay state across process restarts and fails closed on storage errors.
 - Correlated and signed responses.
 - Negative tests for spoofing, unknown credentials, excess scopes, replay, expiry, unsupported versions, unknown capabilities, and oversized payloads.
 
@@ -72,7 +72,7 @@ The reference server and client deliberately bind to loopback addresses only. Th
 
 ## Security limitations — do not deploy for real workloads
 
-The shared-secret HMAC profile is only a local conformance/development mechanism. It does not provide a complete production identity lifecycle, certificate validation, asymmetric signatures, TLS, durable replay storage, distributed revocation, or a formal cryptographic profile. The in-memory replay guard resets on process restart. Error responses for authentication failures are intentionally not signed.
+The shared-secret HMAC profile is only a local conformance/development mechanism. It does not provide a complete production identity lifecycle, certificate validation, asymmetric signatures, TLS, durable replay storage, distributed revocation, or a formal cryptographic profile. The default in-memory replay guard resets on process restart. Deployments that need restart-persistent replay rejection can inject `SQLiteReplayGuard('/owner-controlled/path/obis-replay.sqlite3')` into `OBISPeer`. The database is local to the Bridge owner; it is not a shared service, distributed revocation mechanism, or production security approval. Backups, filesystem permissions, disk protection, and retention operations remain the Bridge owner's responsibility. Error responses for authentication failures are intentionally not signed.
 
 Before production use, OBIS requires a reviewed security profile covering mutual peer authentication, authenticated encrypted transport, key issuance/storage/rotation/revocation, authorization context binding, durable replay/idempotency, audit integrity, and threat-model validation. The current implementation must not be used for financial, personal, safety-critical, or otherwise sensitive operations.
 
