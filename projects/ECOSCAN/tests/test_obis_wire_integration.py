@@ -349,3 +349,96 @@ def test_ecoscan_adapter_go_peer_rejects_ungranted_resource_before_execution():
         process.wait(timeout=5)
 
     assert raised.value.code == "authorization.denied"
+
+
+
+def test_ecoscan_adapter_scans_against_independent_go_obis_v02_peer(tmp_path):
+    import os
+    import subprocess
+    import uuid
+
+    from obis_bridge.v02 import OBISV02Client
+
+    go_binary = os.environ.get("OBIS_GO_PEER_BINARY")
+    if not go_binary or not os.path.isfile(go_binary):
+        pytest.skip("independent Go peer binary is built by the repository CI workflow")
+
+    command = [
+        go_binary, "server-v02",
+        "--peer-id", OWNER_PEER_ID,
+        "--listen", "127.0.0.1:0",
+        "--key-id", "ecoscan-dev-key",
+        "--remote-peer", ECOSCAN_PEER_ID,
+        "--principal", "principal:ecoscan",
+        "--secret-hex", SECRET.hex(),
+        "--scopes", REQUIRED_SCOPE,
+        "--required-scope", REQUIRED_SCOPE,
+        "--allowed-resource", f"{PROJECT_ID}/{SOURCE_ID}",
+        "--ledger-path", str(tmp_path / "go-peer-operations.json"),
+    ]
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert process.stdout is not None
+    address = process.stdout.readline().strip()
+    if not address:
+        stderr = process.stderr.read() if process.stderr else ""
+        process.kill()
+        raise AssertionError(f"Go OBIS 0.2 peer did not publish loopback address: {stderr}")
+    endpoint = f"http://{address}"
+
+    class V02AdapterInvoker:
+        local_peer_id = ECOSCAN_PEER_ID
+        remote_peer_id = OWNER_PEER_ID
+        scopes = frozenset({REQUIRED_SCOPE})
+
+        def __init__(self):
+            self.client = OBISV02Client(
+                local_peer_id=ECOSCAN_PEER_ID,
+                remote_peer_id=OWNER_PEER_ID,
+                key_id="ecoscan-dev-key",
+                principal_ref="principal:ecoscan",
+                secret=SECRET,
+                scopes={REQUIRED_SCOPE},
+            )
+
+        def invoke(self, endpoint, capability_id, capability_version, payload, scopes=None, deadline=None):
+            remaining = deadline - time.monotonic() if deadline is not None else 3.0
+            if remaining <= 0:
+                raise TimeoutError("ECOSCAN deadline elapsed before OBIS 0.2 invocation")
+            self.client.timeout = min(self.client.timeout, remaining)
+            operation_id = f"ecoscan-{uuid.uuid4()}"
+            response = self.client.invoke(
+                endpoint, capability_id, capability_version, payload,
+                operation_id=operation_id,
+                idempotency_key=operation_id,
+                operation_ttl=300,
+            )
+            operation = response["operation"]
+            if operation["state"] != "SUCCEEDED" or not isinstance(operation["result"], dict):
+                error = RuntimeError(f"OBIS operation ended in {operation['state']}")
+                error.code = operation.get("failure_code") or "operation.indeterminate"
+                raise error
+            return {
+                "sender": response["sender"],
+                "recipient": response["recipient"],
+                "outcome": "succeeded",
+                "result": operation["result"],
+            }
+
+    try:
+        source = _source()
+        adapter = OBISBridgeAdapter(V02AdapterInvoker(), endpoint)
+        adapter.validate_config(source)
+        result = adapter.scan(_context(source))
+        assert result.coverage_state == "COMPLETE"
+        assert result.items_seen == 2
+        assert result.pages_seen == 1
+        assert {item["kind"]: item["value"] for item in result.measurements} == {
+            "logical_bytes": 4096,
+            "file_count": 2,
+        }
+        assert all(item["project_id"] == PROJECT_ID for item in result.measurements)
+        assert all(item["source_id"] == SOURCE_ID for item in result.measurements)
+        assert all(item["adapter_id"] == "obis_bridge" for item in result.measurements)
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
