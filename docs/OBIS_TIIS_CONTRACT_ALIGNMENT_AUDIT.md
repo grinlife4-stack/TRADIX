@@ -109,3 +109,16 @@ Validation:
 - PR #42 remains Draft and unmerged.
 
 The following gates remain open: normative OBIS identity and extension decisions; TIIS schema/profile freeze; production TLS/mTLS and certificate-to-peer mapping; credential lifecycle and revocation; business-operation idempotency and unknown-outcome reconciliation; durable audit/evidence records; independent second-language peer; cross-language conformance; and combined ECOSCAN-to-OBIS integration. No production readiness claim follows from this implementation follow-up.
+
+
+## 11. Independent second-language peer follow-up — 2026-11-20
+
+An independently buildable Go 1.23 peer was added at `projects/BRIDEX/reference/obis-go`. It uses the Go standard library and does not import or execute the Python reference, BRIDEX Core, or TRADIX runtime services. It currently supports the OBIS 0.1 development HMAC profile, strict JSON parsing, request-envelope validation, peer/principal binding, scoped capability authorization, in-memory nonce replay rejection, and a loopback HTTP binding.
+
+Cross-implementation evidence:
+- Python reference client → Go peer server: success.
+- Go client → Python reference peer server: success.
+- Shared OBIS request vectors are exercised by the Go test package.
+- CI run #1119 completed successfully on commit `2e06ad11b54e71298d006edbd28168b5fadb4b82`, including Go tests/build, both cross-language directions, the Python test suite, and package wheel/install checks.
+
+This closes only the initial two-peer success-path proof. It does not establish full OBIS Core or Interoperability Conformance. Remaining gaps include authenticated error-response parity on the Go server, broader malformed/negative cross-language tests, TLS/mTLS and certificate-to-peer mapping, credential rotation/revocation, durable replay and business-operation idempotency/outcome reconciliation, audit persistence, and clean-environment portability with TRADIX/BRIDEX unavailable. HMAC remains development-only; no production profile or deployment is approved.
