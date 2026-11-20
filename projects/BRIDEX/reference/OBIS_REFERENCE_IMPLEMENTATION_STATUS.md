@@ -75,9 +75,9 @@ The combined ECOSCAN adapter-to-BRIDEX OBIS wire test remains intentionally defe
 
 Both reference paths now support an opt-in TLS 1.3 mutual-authentication candidate:
 
-- Python reference client and server build owner-supplied SSL contexts with certificate verification required, TLS 1.3 only, and ALPN obis/1.
+- Python reference client and server build owner-supplied SSL contexts with certificate verification required, TLS 1.3 only, and ALPN http/1.1.
 - Python server maps the client certificate's single URI SAN urn:obis:peer:<peer-id> to the OBIS sender field and configured credential peer.
-- Go reference server requires a client certificate, TLS 1.3, ALPN obis/1, validates the certificate chain against an owner-supplied CA bundle, and applies the same URI-SAN-to-peer binding.
+- Go reference server requires a client certificate, TLS 1.3, ALPN http/1.1, validates the certificate chain against an owner-supplied CA bundle, and applies the same URI-SAN-to-peer binding.
 - The cross-language test creates ephemeral CA/server/client certificates and exercises Python-to-Go mTLS request/response. It also exercises the Python server with the same client certificate.
 - The Go reference listener is explicitly loopback-only in both HTTP and HTTPS modes.
 
