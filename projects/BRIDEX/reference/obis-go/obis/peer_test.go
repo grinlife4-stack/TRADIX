@@ -57,7 +57,7 @@ func TestPublishedMessageVectorsAcrossEnvelopeTypes(t *testing.T) {
 		var validationErr error
 		switch vector.Message["message_type"] {
 		case "request":
-			validationErr = ValidateRequest(vector.Message, time.Unix(1795168810, 0))
+			if requestErr := ValidateRequest(vector.Message, time.Unix(1795168810, 0)); requestErr != nil { validationErr = requestErr }
 		case "response":
 			sender, _ := obj(vector.Message, "sender")
 			recipient, _ := obj(vector.Message, "recipient")
