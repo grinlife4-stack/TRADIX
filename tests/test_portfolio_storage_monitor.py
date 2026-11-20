@@ -96,3 +96,20 @@ def test_github_inventory_supports_independent_path_scopes(monkeypatch):
     assert result["file_count"] == 1
     assert result["logical_bytes"] == 20
     assert result["repository_size_bytes"] is None
+
+
+def test_disabled_mode_performs_no_scan(tmp_path, monkeypatch):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps({"mode": "DISABLED", "projects": [], "sources": []}), encoding="utf-8")
+    monkeypatch.setattr(monitor, "scan_source", lambda *args: (_ for _ in ()).throw(AssertionError("scan must not run")))
+    assert monitor.main(["--config", str(config_path), "--output", str(tmp_path / "out.json")]) == 0
+    assert not (tmp_path / "out.json").exists()
+
+
+def test_scheduled_mode_can_be_disabled_without_scanning(tmp_path, monkeypatch):
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps({"mode": "MANUAL", "scheduled_enabled": False, "projects": [], "sources": []}), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "schedule")
+    monkeypatch.setattr(monitor, "scan_source", lambda *args: (_ for _ in ()).throw(AssertionError("scan must not run")))
+    assert monitor.main(["--config", str(config_path), "--output", str(tmp_path / "out.json")]) == 0
+    assert not (tmp_path / "out.json").exists()
