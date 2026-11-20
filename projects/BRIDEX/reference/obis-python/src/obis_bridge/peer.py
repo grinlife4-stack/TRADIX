@@ -486,15 +486,28 @@ class OBISPeer:
 class OBISServer:
     """Small HTTP binding for local conformance and development tests."""
 
-    def __init__(self, peer: OBISPeer, host: str = "127.0.0.1", port: int = 0):
-        if host not in ("127.0.0.1", "::1", "localhost"):
-            raise ValueError("reference server is loopback-only; production transport is not implemented")
+    def __init__(
+        self,
+        peer: OBISPeer,
+        host: str = "127.0.0.1",
+        port: int = 0,
+        tls_context: ssl.SSLContext | None = None,
+    ):
+        if tls_context is None:
+            if host not in ("127.0.0.1", "::1", "localhost"):
+                raise ValueError("plaintext reference server is loopback-only")
+        else:
+            _validate_tls_server_context(tls_context)
         self.peer = peer
+        self.tls_context = tls_context
         self.httpd = ThreadingHTTPServer((host, port), self._handler_class())
+        if tls_context is not None:
+            self.httpd.socket = tls_context.wrap_socket(self.httpd.socket, server_side=True)
         self.thread: threading.Thread | None = None
 
     def _handler_class(self):
         peer = self.peer
+        tls_enabled = self.tls_context is not None
 
         class Handler(BaseHTTPRequestHandler):
             server_version = "OBIS-Reference/0.1"
@@ -518,17 +531,29 @@ class OBISServer:
                     message = strict_json_loads(raw.decode("utf-8"))
                     if not isinstance(message, dict):
                         raise OBISRequestError("protocol.invalid_message", "message must be an object")
+                    certificate_uri = None
+                    certificate_fingerprint = None
+                    if tls_enabled:
+                        certificate = self.connection.getpeercert()
+                        certificate_der = self.connection.getpeercert(binary_form=True)
+                        certificate_uri = _certificate_peer_uri(certificate)
+                        if not certificate_der:
+                            raise OBISRequestError("identity.certificate_invalid", "client certificate is unavailable", 401)
+                        certificate_fingerprint = hashlib.sha256(certificate_der).hexdigest()
                     response, secret = peer.handle(
                         message,
                         self.headers.get("X-OBIS-Key-Id", ""),
                         self.headers.get("X-OBIS-Signature", ""),
+                        authenticated_certificate_uri=certificate_uri,
+                        authenticated_certificate_sha256=certificate_fingerprint,
                     )
                     body = canonical_json(response)
-                    signature = hmac.new(secret, body, hashlib.sha256).hexdigest()
+                    signature = hmac.new(secret, body, hashlib.sha256).hexdigest() if secret is not None else None
                     self.send_response(200)
                     self.send_header("Content-Type", "application/obis+json")
                     self.send_header("Content-Length", str(len(body)))
-                    self.send_header("X-OBIS-Signature", signature)
+                    if signature is not None:
+                        self.send_header("X-OBIS-Signature", signature)
                     self.end_headers()
                     self.wfile.write(body)
                 except OBISRequestError as exc:
@@ -547,13 +572,16 @@ class OBISServer:
                             "error": {"code": exc.code, "message": str(exc)},
                         }
                         body = canonical_json(error_response)
-                        response_signature = hmac.new(
-                            exc.authenticated_credential.secret, body, hashlib.sha256
-                        ).hexdigest()
+                        response_secret = exc.authenticated_credential.secret
+                        response_signature = (
+                            hmac.new(response_secret, body, hashlib.sha256).hexdigest()
+                            if response_secret is not None else None
+                        )
                         self.send_response(exc.http_status)
                         self.send_header("Content-Type", "application/obis+json")
                         self.send_header("Content-Length", str(len(body)))
-                        self.send_header("X-OBIS-Signature", response_signature)
+                        if response_signature is not None:
+                            self.send_header("X-OBIS-Signature", response_signature)
                         self.end_headers()
                         self.wfile.write(body)
                     else:
@@ -575,7 +603,8 @@ class OBISServer:
     @property
     def address(self) -> str:
         host, port = self.httpd.server_address[:2]
-        return f"http://{host}:{port}"
+        scheme = "https" if self.tls_context is not None else "http"
+        return f"{scheme}://{host}:{port}"
 
     def start(self) -> "OBISServer":
         if self.thread and self.thread.is_alive():
