@@ -21,6 +21,10 @@ func main() {
 	if address == "" {
 		address = "127.0.0.1:18081"
 	}
+	host, _, err := net.SplitHostPort(address)
+	if err != nil || (host != "127.0.0.1" && host != "::1" && host != "localhost") {
+		log.Fatal("reference peer is loopback-only")
+	}
 	credential := peer.Credential{
 		KeyID: "python-key",
 		PeerID: "python-peer",
