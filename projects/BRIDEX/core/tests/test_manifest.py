@@ -13,7 +13,7 @@ VALID = {
         "operator": {"id": "operator:alpha", "name": "Alpha Operations"},
         "assignment_record": "records/ownership.json"
     },
-    "source": {"package_uri": "file:./bridge.tar.gz", "sha256": "a" * 64},
+    "source": {"package_uri": "artifact/bridge.tar.gz", "sha256": "a" * 64},
     "contracts": {"obis_versions": ["0.1"], "adapters": []},
     "peers": [{"peer_id": "peer:beta", "approved_scopes": ["records:read"]}],
     "capabilities": [{"id": "records.read", "version": "1.0", "direction": "consumes", "scopes": ["records:read"]}],
@@ -75,3 +75,70 @@ def test_cli_rejects_invalid_manifest(tmp_path, capsys):
     path.write_text('{"manifest_version":"invalid"}', encoding="utf-8")
     assert main(["validate", str(path)]) == 2
     assert "invalid:" in capsys.readouterr().err
+
+
+def _write_portable_package(root):
+    import hashlib
+    root.mkdir(parents=True, exist_ok=True)
+    artifact = root / "artifact" / "bridge.tar"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(b"independent bridge artifact")
+    (root / "schemas").mkdir()
+    (root / "schemas" / "config.schema.json").write_text('{"type":"object"}', encoding="utf-8")
+    (root / "docs" / "lifecycle").mkdir(parents=True)
+    lifecycle = {}
+    for name in ("build", "deploy", "backup", "restore", "upgrade", "rollback", "revocation", "export", "decommission"):
+        relative = f"docs/lifecycle/{name}.md"
+        (root / relative).write_text(f"# {name}", encoding="utf-8")
+        lifecycle[name] = relative
+    data = json.loads(json.dumps(VALID))
+    data["source"]["package_uri"] = "artifact/bridge.tar"
+    data["source"]["sha256"] = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    data["configuration_schema"] = "schemas/config.schema.json"
+    data["lifecycle"] = lifecycle
+    (root / "bridge-manifest.json").write_text(json.dumps(data), encoding="utf-8")
+    return root
+
+
+def test_portable_package_verifies_artifact_and_all_referenced_files(tmp_path):
+    from bridex_core import verify_package
+    package = _write_portable_package(tmp_path / "export")
+    report = verify_package(package)
+    assert report["bridge_id"] == VALID["bridge"]["id"]
+    assert report["lifecycle_documents"] == 9
+
+
+def test_portable_package_rejects_artifact_digest_mismatch(tmp_path):
+    from bridex_core import verify_package
+    package = _write_portable_package(tmp_path / "export")
+    (package / "artifact" / "bridge.tar").write_bytes(b"tampered")
+    with pytest.raises(ManifestValidationError, match="digest mismatch"):
+        verify_package(package)
+
+
+def test_portable_package_rejects_path_traversal(tmp_path):
+    from bridex_core import verify_package
+    package = _write_portable_package(tmp_path / "export")
+    manifest = json.loads((package / "bridge-manifest.json").read_text())
+    manifest["source"]["package_uri"] = "../outside.tar"
+    (package / "bridge-manifest.json").write_text(json.dumps(manifest))
+    with pytest.raises(ManifestValidationError, match="traversal"):
+        verify_package(package)
+
+
+def test_portable_package_rejects_symlink_escape(tmp_path):
+    from bridex_core import verify_package
+    package = _write_portable_package(tmp_path / "export")
+    outside = tmp_path / "outside.tar"
+    outside.write_bytes(b"external")
+    (package / "artifact" / "bridge.tar").unlink()
+    (package / "artifact" / "bridge.tar").symlink_to(outside)
+    with pytest.raises(ManifestValidationError, match="escapes package root"):
+        verify_package(package)
+
+
+def test_cli_verifies_portable_package(tmp_path, capsys):
+    from bridex_core.cli import main
+    package = _write_portable_package(tmp_path / "export")
+    assert main(["verify-package", str(package)]) == 0
+    assert "valid: BRIDEX portable Bridge package" in capsys.readouterr().out
