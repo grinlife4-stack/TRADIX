@@ -236,9 +236,14 @@ class ScanRunner:
                 raise AdapterContractError("adapter counters do not match budget guard")
             if not isinstance(result.measurements, (list, tuple)):
                 raise AdapterContractError("measurements must be a list or tuple")
-            maximum_measurements = len(source.expected_measurements) * max(1, result.items_seen)
-            if len(result.measurements) > maximum_measurements:
-                raise AdapterContractError("measurement count exceeds configured metric budget")
+            if len(result.measurements) > len(source.expected_measurements):
+                raise AdapterContractError("measurement count exceeds declared measurement kinds")
+            measurement_kinds = [
+                item.get("kind") for item in result.measurements
+                if isinstance(item, Mapping)
+            ]
+            if len(measurement_kinds) != len(result.measurements) or len(set(measurement_kinds)) != len(measurement_kinds):
+                raise AdapterContractError("measurement kinds must be present and unique within a scan")
             if result.coverage_state == "FAILED" and result.measurements:
                 raise AdapterContractError("failed scan cannot publish measurements")
             if result.reason_code is not None and (not isinstance(result.reason_code, str) or not result.reason_code):
