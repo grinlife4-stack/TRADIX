@@ -624,3 +624,108 @@ def test_replay_storage_failure_fails_closed_before_capability_execution():
     assert exc.value.http_status == 503
     assert executed == []
 
+
+
+def test_obis_02_operation_schema_is_valid_and_packaged_copies_match():
+    from importlib.resources import files
+    from jsonschema import Draft202012Validator
+
+    canonical_path = Path(__file__).resolve().parents[5] / "standards" / "obis" / "0.2" / "message.schema.json"
+    canonical_bytes = canonical_path.read_bytes()
+    package_root = files("obis_bridge").joinpath("schemas")
+    packaged_bytes = package_root.joinpath("obis-0.2-message.schema.json").read_bytes()
+    source_copy = package_root.joinpath("message-0.2.schema.json").read_bytes()
+    assert canonical_bytes == packaged_bytes == source_copy
+    schema = json.loads(canonical_bytes)
+    Draft202012Validator.check_schema(schema)
+
+
+def test_obis_02_schema_accepts_operation_request_status_and_unknown_response():
+    from importlib.resources import files
+    from jsonschema import Draft202012Validator
+
+    schema_path = files("obis_bridge").joinpath("schemas/obis-0.2-message.schema.json")
+    validator = Draft202012Validator(json.loads(schema_path.read_text(encoding="utf-8")))
+    common = {
+        "protocol": "obis",
+        "version": "0.2",
+        "message_id": "message-1",
+        "nonce": "nonce-1",
+        "attempt_id": "attempt-1",
+        "sender": {"peer_id": "peer:caller"},
+        "recipient": {"peer_id": "peer:owner"},
+        "issued_at": 1795168810,
+        "expires_at": 1795168840,
+        "capability": {"id": "records.write", "version": "1.0"},
+        "authorization": {"principal_ref": "principal:caller", "scopes": ["records:write"]},
+    }
+    operation_request = {
+        **common,
+        "message_type": "request",
+        "operation": {
+            "operation_id": "operation-42",
+            "idempotency_key": "idem-42",
+            "request_hash": "a" * 64,
+            "expires_at": 1795169810,
+        },
+        "payload": {"record_id": "record-42"},
+    }
+    status_request = {
+        **common,
+        "message_type": "operation_status_request",
+        "operation_id": "operation-42",
+    }
+    operation_response = {
+        "protocol": "obis",
+        "version": "0.2",
+        "message_type": "operation_response",
+        "message_id": "response-1",
+        "correlation_id": "message-1",
+        "sender": {"peer_id": "peer:owner"},
+        "recipient": {"peer_id": "peer:caller"},
+        "issued_at": 1795168811,
+        "operation": {
+            "operation_id": "operation-42",
+            "request_hash": "a" * 64,
+            "state": "UNKNOWN",
+            "result": None,
+            "result_ref": None,
+            "failure_code": None,
+            "created_at": 1795168810,
+            "updated_at": 1795168811,
+            "expires_at": 1795169810,
+        },
+    }
+    for message in (operation_request, status_request, operation_response):
+        validator.validate(message)
+
+
+def test_obis_02_schema_rejects_invalid_request_hash():
+    from importlib.resources import files
+    from jsonschema import Draft202012Validator, ValidationError
+
+    schema_path = files("obis_bridge").joinpath("schemas/obis-0.2-message.schema.json")
+    validator = Draft202012Validator(json.loads(schema_path.read_text(encoding="utf-8")))
+    invalid = {
+        "protocol": "obis",
+        "version": "0.2",
+        "message_type": "request",
+        "message_id": "message-1",
+        "nonce": "nonce-1",
+        "attempt_id": "attempt-1",
+        "sender": {"peer_id": "peer:caller"},
+        "recipient": {"peer_id": "peer:owner"},
+        "issued_at": 1795168810,
+        "expires_at": 1795168840,
+        "capability": {"id": "records.write", "version": "1.0"},
+        "authorization": {"principal_ref": "principal:caller", "scopes": ["records:write"]},
+        "operation": {
+            "operation_id": "operation-42",
+            "idempotency_key": "idem-42",
+            "request_hash": "not-a-sha256",
+            "expires_at": 1795169810,
+        },
+        "payload": {"record_id": "record-42"},
+    }
+    with pytest.raises(ValidationError):
+        validator.validate(invalid)
