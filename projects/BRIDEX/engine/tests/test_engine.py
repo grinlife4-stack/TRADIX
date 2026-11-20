@@ -9,6 +9,7 @@ import pytest
 from bridex_engine.manifest import BridgeManifestError, load_manifest, resolve_package_files, validate_manifest_data
 from bridex_engine.package import PACKAGE_MANIFEST, build_package, verify_package
 from bridex_engine.cli import main
+from bridex_engine.scaffold import create_bridge_project
 
 
 def sample_manifest() -> dict:
@@ -17,8 +18,8 @@ def sample_manifest() -> dict:
         "bridge_id": "urn:uuid:12345678-1234-4234-8234-123456789abc",
         "version": "0.1.0",
         "name": "Example Bridge",
-        "owner": {"entity_id": "project:owner"},
-        "operator": {"entity_id": "operator:primary"},
+        "owner": {"entity_id": "project:owner", "assignment_ref": "approval:owner-001"},
+        "operator": {"entity_id": "operator:primary", "assignment_ref": "approval:operator-001"},
         "obis": {
             "version": "0.1",
             "transport_binding": "loopback-http",
@@ -36,8 +37,11 @@ def sample_manifest() -> dict:
                 "max_payload_bytes": 65536,
                 "input_schema_uri": "https://example.invalid/schemas/catalog-input.json",
                 "output_schema_uri": "https://example.invalid/schemas/catalog-output.json",
+                "enabled": False,
             }
         ],
+        "peers": [],
+        "lifecycle": "draft",
         "package_files": ["README.md", "src/bridge.py"],
         "dependencies": [{"name": "python", "version": "3.11+", "license_id": "PSF-2.0"}],
     }
@@ -206,3 +210,73 @@ def test_verifier_requires_package_file_set_to_match_bridge_manifest(tmp_path: P
             target.writestr(original_infos[name], data)
     with pytest.raises(BridgeManifestError, match="package_manifest_file_set_mismatch"):
         verify_package(altered)
+
+
+
+def test_init_generates_safe_independent_bridge_and_package(tmp_path: Path) -> None:
+    root = create_bridge_project(
+        tmp_path / "generated",
+        name="Sample Independent Bridge",
+        owner_id="project:sample-owner",
+        owner_assignment_ref="approval:owner-001",
+        operator_id="operator:sample",
+        operator_assignment_ref="approval:operator-001",
+    )
+    loaded_root, manifest = load_manifest(root)
+    assert loaded_root == root.resolve()
+    assert manifest["bridge_id"].startswith("urn:uuid:")
+    assert manifest["owner"]["assignment_ref"] == "approval:owner-001"
+    assert manifest["operator"]["assignment_ref"] == "approval:operator-001"
+    assert manifest["lifecycle"] == "draft"
+    assert manifest["peers"] == []
+    assert manifest["capabilities"] == []
+    assert manifest["obis"]["transport_binding"] == "unconfigured"
+
+    package = tmp_path / "generated-bridge.zip"
+    built = build_package(root, package)
+    verified = verify_package(package)
+    assert built["sha256"] == verified["sha256"]
+    assert verified["valid"] is True
+    assert verified["bridge_id"] == manifest["bridge_id"]
+
+
+def test_init_refuses_existing_destination_and_requires_assignment_evidence(tmp_path: Path) -> None:
+    destination = tmp_path / "existing"
+    destination.mkdir()
+    with pytest.raises(FileExistsError, match="bridge_destination_must_not_exist"):
+        create_bridge_project(
+            destination,
+            name="Existing Bridge",
+            owner_id="project:owner",
+            owner_assignment_ref="approval:owner",
+            operator_id="operator:one",
+            operator_assignment_ref="approval:operator",
+        )
+    with pytest.raises(BridgeManifestError):
+        create_bridge_project(
+            tmp_path / "invalid",
+            name="Invalid Bridge",
+            owner_id="",
+            owner_assignment_ref="",
+            operator_id="operator:one",
+            operator_assignment_ref="approval:operator",
+        )
+
+
+def test_draft_manifest_cannot_enable_peer_or_capability() -> None:
+    enabled_capability = sample_manifest()
+    enabled_capability["capabilities"][0]["enabled"] = True
+    with pytest.raises(BridgeManifestError, match="draft_bridge_capabilities_must_be_disabled"):
+        validate_manifest_data(enabled_capability)
+
+    enabled_peer = sample_manifest()
+    enabled_peer["peers"] = [{"peer_id": "remote-peer", "trust_ref": "trust:pending", "enabled": True}]
+    with pytest.raises(BridgeManifestError, match="draft_bridge_peers_must_be_disabled"):
+        validate_manifest_data(enabled_peer)
+
+
+def test_draft_manifest_can_start_with_zero_capabilities_and_peers() -> None:
+    manifest = sample_manifest()
+    manifest["capabilities"] = []
+    manifest["peers"] = []
+    assert validate_manifest_data(manifest)["capabilities"] == []
