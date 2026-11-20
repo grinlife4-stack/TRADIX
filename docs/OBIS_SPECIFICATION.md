@@ -341,6 +341,8 @@ BRIDEX may steward reference implementations and test tooling. No steward may ma
 The standard's governance process and long-term stewardship arrangement remain to be finalized before OBIS 1.0.0.
 
 ## 20. Open decisions before 1.0.0
+The engineering recommendations and explicit evidence gates are tracked in [OBIS 0.1 Decision Register](OBIS_0.1_DECISION_REGISTER.md). They are proposals for review, not normative decisions or production approval.
+
 
 An executable Python reference peer, its draft JSON Schema 2020-12 artifact, local integration tests, and an explicit implementation-status record are maintained in [BRIDEX OBIS Reference Implementation](../projects/BRIDEX/reference/obis-python/README.md). The prototype uses loopback-only HTTP and a shared-secret HMAC development profile; it is not a production security profile or OBIS 1.0 implementation.
 
