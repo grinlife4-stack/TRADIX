@@ -174,7 +174,7 @@ func TestIndependentBridexAndTradixOwnerIsolation(t *testing.T) {
 	deniedMessage,deniedSignature:=build("peer:bridex","bridex.inventory.read","bridex:inventory:read","denied-op","bridex-key",bridexSecret,"project-b","source-b","bridex-denied")
 	if _,_,e=bridexV02.Handle(deniedMessage,"bridex-key",deniedSignature);e==nil||e.Code!="authorization.denied"{t.Fatalf("cross-project resource accepted by BRIDEX: %+v",e)}
 	if bridexCalls!=1||tradixCalls!=1{t.Fatal("denied cross-owner/resource request executed a handler")}
-	if _,e=bridexLedger.Get("shared-op","caller","principal:caller","bridex.inventory.read","1.0");e!=nil{t.Fatalf("BRIDEX ledger missing own operation: %v",e)}
-	if _,e=tradixLedger.Get("shared-op","caller","principal:caller","tradix.tools.read","1.0");e!=nil{t.Fatalf("TRADIX ledger missing own operation: %v",e)}
-	if _,e=bridexLedger.Get("shared-op","caller","principal:caller","tradix.tools.read","1.0");e==nil{t.Fatal("BRIDEX ledger exposed TRADIX operation")}
+	if _,ledgerErr:=bridexLedger.Get("shared-op","caller","principal:caller","bridex.inventory.read","1.0");ledgerErr!=nil{t.Fatalf("BRIDEX ledger missing own operation: %v",ledgerErr)}
+	if _,ledgerErr:=tradixLedger.Get("shared-op","caller","principal:caller","tradix.tools.read","1.0");ledgerErr!=nil{t.Fatalf("TRADIX ledger missing own operation: %v",ledgerErr)}
+	if _,ledgerErr:=bridexLedger.Get("shared-op","caller","principal:caller","tradix.tools.read","1.0");ledgerErr==nil{t.Fatal("BRIDEX ledger exposed TRADIX operation")}
 }
