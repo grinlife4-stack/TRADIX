@@ -1,4 +1,4 @@
-package obisgo
+package peer
 
 import (
 	"bytes"
