@@ -9,6 +9,9 @@ description = "Standalone BRIDEX package-manifest validation core"
 requires-python = ">=3.11"
 dependencies = ["jsonschema>=4.22"]
 
+[project.scripts]
+bridex-manifest = "bridex_core.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 
