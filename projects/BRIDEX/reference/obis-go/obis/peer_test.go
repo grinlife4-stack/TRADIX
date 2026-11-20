@@ -317,6 +317,61 @@ func TestInvokeRejectsSignedDowngradedAndMismatchedResponses(t *testing.T) {
 	}
 }
 
+func TestInvokeRejectsSignedErrorsWithMismatchedCorrelationOrPeerIdentity(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	cases := []struct {
+		name string
+		mutate func(map[string]any)
+	}{
+		{"wrong correlation id", func(m map[string]any) { m["correlation_id"] = "another-request" }},
+		{"wrong sender peer", func(m map[string]any) { m["sender"] = map[string]any{"peer_id": "peer:attacker"} }},
+		{"wrong recipient peer", func(m map[string]any) { m["recipient"] = map[string]any{"peer_id": "peer:attacker"} }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := signedResponseTestServer(t, secret, http.StatusForbidden, tc.mutate)
+			defer server.Close()
+			_, err := Invoke(
+				server.URL, "peer:go", "peer:python", "go-key", "principal:go",
+				secret, []string{"records:read"}, "records.read", "1.0",
+				map[string]any{"record_id": "signed-error-validation"},
+			)
+			if err == nil { t.Fatal("client accepted a signed error with mismatched correlation or peer identity") }
+		})
+	}
+}
+
+func TestInvokeRejectsSignedErrorWithInvalidSignature(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		if err != nil { t.Errorf("read request: %v", err); return }
+		request, err := DecodeStrict(raw)
+		if err != nil { t.Errorf("decode request: %v", err); return }
+		response := map[string]any{
+			"protocol": Protocol, "version": Version, "message_type": "response",
+			"message_id": "response-test-id", "correlation_id": request["message_id"],
+			"sender": map[string]any{"peer_id": "peer:python"},
+			"recipient": map[string]any{"peer_id": "peer:go"},
+			"issued_at": float64(time.Now().Unix()), "outcome": "failed",
+			"error": map[string]any{"code": "authorization.denied", "message": "denied"},
+		}
+		body, err := CanonicalJSON(response)
+		if err != nil { t.Errorf("encode response: %v", err); return }
+		w.Header().Set("Content-Type", "application/obis+json")
+		w.Header().Set("X-OBIS-Signature", strings.Repeat("0", 64))
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write(body)
+	}))
+	defer server.Close()
+	_, err := Invoke(
+		server.URL, "peer:go", "peer:python", "go-key", "principal:go",
+		secret, []string{"records:read"}, "records.read", "1.0",
+		map[string]any{"record_id": "invalid-signature"},
+	)
+	if err == nil { t.Fatal("client accepted an error response with an invalid signature") }
+}
+
 func TestInvokeRejectsMalformedSignedErrorResponse(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
 	server := signedResponseTestServer(t, secret, http.StatusForbidden, func(response map[string]any) {
