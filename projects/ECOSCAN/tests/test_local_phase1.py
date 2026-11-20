@@ -537,7 +537,7 @@ def test_filesystem_traversal_stays_on_open_directory_after_path_replacement(mon
         store,
     ).run("fs-local", "operator-a")
     assert outcome.coverage_state == "COMPLETE"
-    assert store.list_measurements("fs-local")[0]["value"] == 1
+    assert next(item for item in store.list_measurements("fs-local") if item["kind"] == "file_count")["value"] == 1
     assert (root / "outside-secret.bin").exists() is False
 
 
@@ -570,6 +570,7 @@ def test_append_scan_rolls_back_coverage_when_measurement_insert_fails(tmp_path)
     })
     broken_measurement = copy.deepcopy(existing_measurement)
     broken_measurement["measurement_id"] = "forced-measurement-failure"
+    broken_measurement["scan_id"] = "forced-transaction-failure"
     broken_measurement.pop("kind")
 
     with pytest.raises(KeyError):
