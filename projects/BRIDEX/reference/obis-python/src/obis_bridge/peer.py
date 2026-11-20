@@ -327,6 +327,9 @@ class OBISPeer:
         supplied_credentials = credentials or []
         if len({c.key_id for c in supplied_credentials}) != len(supplied_credentials):
             raise ValueError("duplicate credential key_id")
+        certificate_fingerprints = [c.certificate_sha256 for c in supplied_credentials if c.certificate_sha256 is not None]
+        if len(set(certificate_fingerprints)) != len(certificate_fingerprints):
+            raise ValueError("duplicate mTLS certificate fingerprint")
         self.credentials = {c.key_id: c for c in supplied_credentials}
         self.capabilities: dict[tuple[str, str], Capability] = {}
         self.replay_guard = ReplayGuard()
@@ -336,7 +339,17 @@ class OBISPeer:
         with self._lock:
             if credential.key_id in self.credentials:
                 raise ValueError("duplicate credential key_id")
+            if credential.certificate_sha256 is not None and any(
+                item.certificate_sha256 == credential.certificate_sha256
+                for item in self.credentials.values()
+            ):
+                raise ValueError("duplicate mTLS certificate fingerprint")
             self.credentials[credential.key_id] = credential
+
+    def revoke_credential(self, key_id: str) -> bool:
+        """Revoke one configured credential for subsequent requests."""
+        with self._lock:
+            return self.credentials.pop(key_id, None) is not None
 
     def register_capability(
         self,
@@ -363,13 +376,39 @@ class OBISPeer:
                 capability_id, version, frozenset(required_scopes), handler, resource_binding
             )
 
-    def handle(self, message: dict[str, Any], key_id: str, signature: str) -> tuple[dict[str, Any], bytes]:
+    def handle(
+        self,
+        message: dict[str, Any],
+        key_id: str,
+        signature: str,
+        *,
+        authenticated_certificate_uri: str | None = None,
+        authenticated_certificate_sha256: str | None = None,
+    ) -> tuple[dict[str, Any], bytes | None]:
         validate_request(message)
-        credential = self.credentials.get(key_id)
+        with self._lock:
+            credential = self.credentials.get(key_id)
         if credential is None:
             raise OBISRequestError("identity.unknown_peer", "unknown credential", 401)
-        if not verify_signature(message, credential.secret, signature):
-            raise OBISRequestError("identity.authentication_failed", "signature verification failed", 401)
+
+        if authenticated_certificate_uri is None:
+            if credential.certificate_uri is not None or credential.secret is None:
+                raise OBISRequestError("identity.authentication_failed", "credential requires mutual TLS", 401)
+            if not verify_signature(message, credential.secret, signature):
+                raise OBISRequestError("identity.authentication_failed", "signature verification failed", 401)
+        else:
+            try:
+                _validate_obis_peer_uri(authenticated_certificate_uri)
+            except ValueError as exc:
+                raise OBISRequestError("identity.authentication_failed", "certificate peer identity is invalid", 401) from exc
+            if (
+                credential.certificate_uri != authenticated_certificate_uri
+                or credential.certificate_sha256 is None
+                or authenticated_certificate_sha256 is None
+                or not hmac.compare_digest(credential.certificate_sha256, authenticated_certificate_sha256)
+                or credential.secret is not None
+            ):
+                raise OBISRequestError("identity.authentication_failed", "certificate is not bound to this credential", 401)
 
         sender = message["sender"]["peer_id"]
         recipient = message["recipient"]["peer_id"]
@@ -381,6 +420,9 @@ class OBISPeer:
             "authenticated_credential": credential,
             "request_message": message,
         }
+        with self._lock:
+            if self.credentials.get(key_id) is not credential:
+                raise OBISRequestError("identity.credential_revoked", "credential is no longer active", 401)
         if not self.replay_guard.accept(f"{key_id}:{message['nonce']}"):
             raise OBISRequestError("request.replay_detected", "duplicate nonce", 409, **error_context)
 
