@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import stat
 import uuid
@@ -100,7 +101,8 @@ def load_manifest(root: str | Path, manifest_name: str = "bridge.json") -> tuple
         raise BridgeManifestError("manifest_must_be_root_bridge_json")
     manifest_path = _resolve_regular_file(root_path, manifest_relative)
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest_bytes = read_regular_file(root_path, manifest_relative, max_bytes=1_048_576)
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise BridgeManifestError("manifest_unreadable_or_invalid_json") from exc
     validate_manifest_data(manifest)
@@ -114,3 +116,55 @@ def resolve_package_files(root: Path, manifest: dict[str, Any]) -> list[tuple[st
         path = _resolve_regular_file(root, relative)
         resolved.append((relative.as_posix(), path))
     return sorted(resolved, key=lambda item: item[0])
+
+def read_regular_file(root: Path, relative: PurePosixPath, *, max_bytes: int) -> bytes:
+    """Read a bounded regular file without following symlink path components."""
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    if hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY"):
+        directory_fds: list[int] = []
+        file_fd: int | None = None
+        try:
+            current_fd = os.open(root, flags | os.O_DIRECTORY)
+            directory_fds.append(current_fd)
+            for part in relative.parts[:-1]:
+                current_fd = os.open(
+                    part,
+                    flags | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=current_fd,
+                )
+                directory_fds.append(current_fd)
+            file_fd = os.open(
+                relative.parts[-1],
+                flags | os.O_NOFOLLOW,
+                dir_fd=directory_fds[-1],
+            )
+            metadata = os.fstat(file_fd)
+            if not stat.S_ISREG(metadata.st_mode):
+                raise BridgeManifestError("package_entry_must_be_regular_file")
+            if metadata.st_size > max_bytes:
+                raise BridgeManifestError("package_file_size_limit_exceeded")
+            with os.fdopen(file_fd, "rb") as source:
+                file_fd = None
+                data = source.read(max_bytes + 1)
+            if len(data) > max_bytes:
+                raise BridgeManifestError("package_file_size_limit_exceeded")
+            return data
+        except OSError as exc:
+            raise BridgeManifestError("package_file_missing_or_unsafe") from exc
+        finally:
+            if file_fd is not None:
+                os.close(file_fd)
+            for descriptor in reversed(directory_fds):
+                os.close(descriptor)
+
+    path = _resolve_regular_file(root, relative)
+    with path.open("rb") as source:
+        metadata = os.fstat(source.fileno())
+        if not stat.S_ISREG(metadata.st_mode):
+            raise BridgeManifestError("package_entry_must_be_regular_file")
+        if metadata.st_size > max_bytes:
+            raise BridgeManifestError("package_file_size_limit_exceeded")
+        data = source.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise BridgeManifestError("package_file_size_limit_exceeded")
+    return data
