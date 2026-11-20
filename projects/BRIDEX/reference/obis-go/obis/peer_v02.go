@@ -51,7 +51,9 @@ func validateV02Message(m map[string]any, now time.Time) *Error {
 	required := append([]string(nil), common...)
 	switch messageType {
 	case "request": required = append(required, "operation", "payload")
-	case "operation_status_request": required = append(required, "operation_id")
+	case "operation_status_request":
+        required = append(required, "operation_id")
+        if _, exists := m["resource"]; exists { required = append(required, "resource") }
 	default: return &Error{"protocol.invalid_message","invalid OBIS 0.2 message_type",400}
 	}
 	if !exactKeys(m, required...) { return &Error{"protocol.invalid_message","unknown or missing OBIS 0.2 fields",400} }
@@ -121,7 +123,9 @@ func (p *PeerV02) authorize(m map[string]any, credential Credential) (OperationC
 	for scope := range capability.RequiredScopes { if !requested[scope] || !credential.AllowedScopes[scope] { return OperationCapabilityV02{}, &Error{"authorization.denied","required scope is not granted",403} } }
 	for scope := range requested { if !credential.AllowedScopes[scope] { return OperationCapabilityV02{}, &Error{"authorization.denied","requested scope exceeds credential grant",403} } }
 	if capability.ResourceBinding {
-		payload,ok:=obj(m,"payload"); if !ok { return OperationCapabilityV02{}, &Error{"authorization.denied","resource-bound capability requires payload resource identity",403} }
+		payload,ok:=obj(m,"payload")
+        if !ok { payload,ok=obj(m,"resource") }
+        if !ok { return OperationCapabilityV02{}, &Error{"authorization.denied","resource-bound capability requires resource identity",403} }
 		projectID,ok1:=str(payload,"project_id"); sourceID,ok2:=str(payload,"source_id")
 		if !ok1||!ok2||!credential.AllowedResources[projectID+"/"+sourceID] { return OperationCapabilityV02{}, &Error{"authorization.denied","resource is outside credential grant",403} }
 	}
