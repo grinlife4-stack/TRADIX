@@ -59,4 +59,14 @@ A passing local test suite proves only the implemented reference behavior. It do
 
 ## Latest ECOSCAN capability branch verification note
 
-The ECOSCAN inventory capability, credential-bound project/source grant, and three loopback HTTP tests were added on the open Draft PR #66 branch. Current branch head: `7c40d7e81d76a3bb322df809809a1ca41e3f51ab`. The last recorded successful CI remains the earlier head `ae52784ce20f006bade68a35f24d0489bb29be78` with 45 tests. No check run or commit status is recorded for the latest head, so the new capability/resource-grant changes are **not yet CI-verified**. Do not treat the newly added tests as passed until a fresh run completes successfully.
+The ECOSCAN inventory capability, credential-bound project/source grant, and three loopback HTTP tests were synchronized from PR #66 into the consolidated PR #42 review branch.
+
+- PR #66 source head synchronized at content level: `c44b6a87e91531ab4c8333c33b5b71e0f4dde9d0`.
+- Consolidated implementation commit in PR #42: `d7271fa2f365d1006ee1d599bb34be319790b5aa`.
+- CI run #1014 for the consolidated implementation: **completed successfully**. It ran the Python suite, built OBIS and ECOSCAN wheels, installed both packages in isolated targets, and checked packaged schemas.
+- Follow-up documentation-only commit: `ae7f55f52df71a1462dc6fbdbd49c11fd9648a8e`.
+- CI run #1016 for that current PR #42 head: **completed successfully**.
+
+The two PR branches have not had their commit histories merged; the implementation files were synchronized. PR #42 remains Draft and unmerged. PR #66 remains open/Draft for traceability and must not be merged independently.
+
+These CI results verify the tests and packaging checks that actually ran. They do **not** close the production security, durable replay/idempotency, audit persistence, second-language interoperability, or combined ECOSCAN-to-OBIS integration gates listed above.
