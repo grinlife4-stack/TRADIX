@@ -11,7 +11,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from .manifest import BridgeManifestError, _safe_relative_path, load_manifest, resolve_package_files, validate_manifest_data
+from .manifest import BridgeManifestError, _safe_relative_path, load_manifest, read_regular_file, resolve_package_files, validate_manifest_data
 
 PACKAGE_MANIFEST = "BRIDEX_PACKAGE_MANIFEST.json"
 PACKAGE_FORMAT = "BRIDEX-PACKAGE-0.1"
@@ -34,14 +34,19 @@ def _zip_info(name: str) -> zipfile.ZipInfo:
 
 def build_package(root: str | Path, output: str | Path, *, max_package_bytes: int = MAX_PACKAGE_BYTES) -> dict[str, Any]:
     root_path, manifest = load_manifest(root)
-    output_path = Path(output).expanduser().absolute()
+    requested_output = Path(output).expanduser()
+    if not requested_output.name or requested_output.name in {".", ".."}:
+        raise BridgeManifestError("package_output_path_invalid")
+    requested_output.parent.mkdir(parents=True, exist_ok=True)
+    output_parent = requested_output.parent.absolute().resolve(strict=True)
+    output_path = output_parent / requested_output.name
     try:
         output_path.relative_to(root_path)
     except ValueError:
         pass
     else:
         raise BridgeManifestError("package_output_must_be_outside_bridge_root")
-    if output_path.exists():
+    if output_path.exists() or output_path.is_symlink():
         raise BridgeManifestError("package_output_already_exists")
     if not isinstance(max_package_bytes, int) or max_package_bytes < 1:
         raise ValueError("max_package_bytes_must_be_positive")
@@ -49,8 +54,8 @@ def build_package(root: str | Path, output: str | Path, *, max_package_bytes: in
     source_files = [("bridge.json", root_path / "bridge.json")] + resolve_package_files(root_path, manifest)
     entries: list[tuple[str, bytes]] = []
     total_bytes = 0
-    for name, path in source_files:
-        data = path.read_bytes()
+    for name, _path in source_files:
+        data = read_regular_file(root_path, _safe_relative_path(name, allow_reserved=True), max_bytes=MAX_FILE_BYTES)
         if len(data) > MAX_FILE_BYTES:
             raise BridgeManifestError("package_file_size_limit_exceeded")
         total_bytes += len(data)
@@ -81,9 +86,11 @@ def build_package(root: str | Path, output: str | Path, *, max_package_bytes: in
             for name, data in sorted(entries, key=lambda item: item[0]):
                 archive.writestr(_zip_info(name), data, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
             archive.writestr(_zip_info(PACKAGE_MANIFEST), package_manifest_bytes, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
-        if output_path.exists():
-            raise BridgeManifestError("package_output_already_exists")
-        os.replace(temporary_path, output_path)
+        try:
+            os.link(temporary_path, output_path)
+        except FileExistsError as exc:
+            raise BridgeManifestError("package_output_already_exists") from exc
+        temporary_path.unlink(missing_ok=True)
     finally:
         temporary_path.unlink(missing_ok=True)
 
@@ -139,6 +146,7 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
         records = package_manifest.get("files")
         if not isinstance(records, list) or len(records) > MAX_PACKAGE_ENTRIES - 1:
             raise BridgeManifestError("package_file_manifest_invalid")
+        declared_names = {"bridge.json"} | set(bridge_manifest["package_files"])
         expected_names = {"bridge.json"}
         total_bytes = 0
         seen: set[str] = set()
@@ -160,6 +168,8 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
             if len(data) != record["size_bytes"] or _sha256(data) != record["sha256"]:
                 raise BridgeManifestError("package_file_integrity_failed")
             total_bytes += len(data)
+        if seen != declared_names - {"bridge.json"} or expected_names != declared_names:
+            raise BridgeManifestError("package_manifest_file_set_mismatch")
         if expected_names | {PACKAGE_MANIFEST} != set(names):
             raise BridgeManifestError("package_unlisted_entry_rejected")
         bridge_bytes = archive.read("bridge.json")
