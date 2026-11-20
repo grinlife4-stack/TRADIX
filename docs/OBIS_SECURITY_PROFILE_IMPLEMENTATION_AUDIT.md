@@ -179,7 +179,18 @@ Do not mark `OBIS-TLS-MTLS-1` production-approved until:
 6. An independent security review finds no unresolved critical/high issue.
 7. The owner approves production deployment separately.
 
-## 10. References
+## 10. Go client validation of signed errors from the Python peer — 2026-11-20
+
+The cross-language Python integration harness now explicitly checks two authenticated failure paths received by the independent Go client:
+
+- **Authorization denial:** the Python peer has a registered `records.read` capability, but the Go request does not carry the required scope. The Go client must validate the signed failed response and report `authorization.denied`; the registered capability handler's invocation counter must remain empty.
+- **Unknown capability:** the Python peer registers `records.read`, while the Go client requests `missing.capability`. The Go client must validate the signed failed response and report `capability.unknown`; the registered handler's invocation counter must remain empty.
+
+For both cases, the Go `Invoke` path verifies the response HMAC before validating the failed-response envelope, including the request correlation ID and expected remote/local peer identities. The tests assert the surfaced error code and prove that no registered capability handler ran.
+
+This is selected Go-client-to-Python-peer authenticated error coverage. It does not replace the separate Go unit tests for rejection of invalid signatures, mismatched correlation IDs, and wrong peer identities; nor does it establish the complete bidirectional negative conformance matrix. HMAC remains development/conformance-only. Production TLS/mTLS, credential lifecycle, independent security review, and full OBIS conformance remain open.
+
+## 11. References
 
 - [RFC 8446 — TLS 1.3](https://www.rfc-editor.org/rfc/rfc8446.html)
 - [RFC 5280 — Internet X.509 Public Key Infrastructure Certificate and CRL Profile](https://www.rfc-editor.org/rfc/rfc5280.html)
