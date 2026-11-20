@@ -18,6 +18,13 @@ class ControlState:
     enabled_subsystems: frozenset[tuple[str, str]] = frozenset()
     enabled_sources: frozenset[tuple[str, str]] = frozenset()
 
+    def __post_init__(self) -> None:
+        if type(self.global_enabled) is not bool:
+            raise ValueError("global_enabled must be a boolean")
+        object.__setattr__(self, "enabled_projects", frozenset(self.enabled_projects))
+        object.__setattr__(self, "enabled_subsystems", frozenset(self.enabled_subsystems))
+        object.__setattr__(self, "enabled_sources", frozenset(self.enabled_sources))
+
 
 @dataclass(frozen=True, slots=True)
 class GateDecision:
@@ -52,8 +59,14 @@ class ExecutionGate:
             return GateDecision(False, "DISABLED", "subsystem_disabled")
         if not source.enabled or (project_id, source.source_id) not in self._controls.enabled_sources:
             return GateDecision(False, "DISABLED", "source_disabled")
-        if self._authorizer is None or not self._authorizer(
-            actor_id, project_id, source.owner_id, source.operator_id, source.source_id
-        ):
+        if self._authorizer is None:
+            return GateDecision(False, "NOT_AUTHORIZED", "owner_operator_authorization_missing")
+        try:
+            authorized = self._authorizer(
+                actor_id, project_id, source.owner_id, source.operator_id, source.source_id
+            )
+        except Exception:
+            authorized = False
+        if not authorized:
             return GateDecision(False, "NOT_AUTHORIZED", "owner_operator_authorization_missing")
         return GateDecision(True, None, None)
