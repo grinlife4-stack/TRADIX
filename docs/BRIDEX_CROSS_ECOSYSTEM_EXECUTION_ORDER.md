@@ -62,6 +62,8 @@ The governing architecture remains:
 3. Package source or independently buildable artifacts, schemas, dependency/license inventory, reproducible build/deploy instructions, configuration templates, tests, evidence, migration, rollback, and export procedures.
 4. Prove destination-specific changes do not alter the generic core or unrelated Bridge instances.
 5. Prove the generated Bridge can be built, deployed, operated, maintained, and exported without BRIDEX/TRADIX services, repositories, registries, credentials, or online license checks.
+6. Prove the owner can install and operate the Bridge in a clean environment outside the originating ecosystem and establish an authorized connection to an independently operated external application or peer.
+7. Prove peer identity, scopes, credentials, endpoint, and adapter can be reconfigured or revoked by the owner without a BRIDEX/TRADIX control plane.
 
 **Exit gate:** a generated Bridge is a separately usable and maintainable product, not merely a module or an entry in a catalog.
 
@@ -99,6 +101,8 @@ Every integration must test, as applicable:
 - Destination-specific change isolation from BRIDEX core and unrelated Bridges.
 - Operation with TRADIX unavailable and BRIDEX unavailable.
 - Export, restore, upgrade, rollback, replacement, and decommissioning.
+- Clean-environment installation and continued operation after the owner separates from the originating ecosystem.
+- Authorized connection to an independently operated external application/peer, including owner-controlled peer replacement and revocation.
 - Optional TIIS adapter removal without breaking OBIS external communication.
 
 ## 4. Current known baseline and open gates
@@ -134,3 +138,4 @@ No production connection, credential provisioning, deployment, PR merge, or proj
 - `docs/OBIS_SPECIFICATION.md`
 - `docs/TIIS_SPECIFICATION.md`
 - `projects/BRIDEX/README.md`
+- `docs/BRIDGE_INSTALLATION_OPERATION_AND_EXTERNAL_INTEROPERABILITY_STANDARD.md`
