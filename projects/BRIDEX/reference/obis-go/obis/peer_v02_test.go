@@ -197,6 +197,7 @@ func TestPeerV02StatusLookupIsBoundToOriginalResource(t *testing.T) {
 		},"IDEMPOTENT",true);err!=nil{t.Fatal(err)}
 	request,signature:=testV02Message(t,secret,"resource-status-nonce","resource-status-attempt","resource-status-op","resource-status-idem","")
 	request["capability"]=map[string]any{"id":"ecoscan.inventory.read","version":"1.0"}
+	request["authorization"]=map[string]any{"principal_ref":"principal-a","scopes":[]any{"inventory.read"}}
 	request["payload"]=map[string]any{"project_id":"project-a","source_id":"source-a"}
 	hash,err:=OperationRequestHash(request);if err!=nil{t.Fatal(err)}
 	request["operation"].(map[string]any)["request_hash"]=hash
