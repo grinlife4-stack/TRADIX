@@ -70,6 +70,21 @@ with OBISServer(peer_b) as server:
 
 The reference server and client deliberately bind to loopback addresses only. This prevents this draft prototype from being mistaken for a production internet-facing service.
 
+## TLS 1.3 mutual-authentication candidate
+
+The Python reference client/server and the Go reference server now include an opt-in TLS 1.3 mTLS transport candidate:
+
+- TLS 1.3 only; TLS 1.2 and plaintext fallback are not accepted by the TLS-enabled listener.
+- Both peers validate certificates against an owner-supplied trust CA.
+- The Go server requires a client certificate and checks that its single OBIS URI SAN is exactly of the form urn:obis:peer:<peer-id>, matching the authenticated OBIS sender.
+- The Python client validates the server certificate and hostname and supplies its own client certificate.
+- ALPN is fixed to obis/1.
+- The reference listener remains loopback-only.
+
+Python setup uses create_tls13_client_context(...) and create_tls13_server_context(...). The Go reference server enables TLS when OBIS_TLS_CERT, OBIS_TLS_KEY, and OBIS_TLS_CA are all supplied; partial configuration fails closed. The Python-to-Go test generates short-lived test certificates at runtime and exercises a real mTLS request/response.
+
+This is a tested candidate transport profile, not production approval. Certificate issuance, rotation, revocation, trust-bundle freshness, emergency denylisting, operational key custody, independent security review, and removal/replacement of the HMAC development authentication layer remain open.
+
 ## Security limitations — do not deploy for real workloads
 
 The shared-secret HMAC profile is only a local conformance/development mechanism. It does not provide a complete production identity lifecycle, certificate validation, asymmetric signatures, TLS, durable replay storage, distributed revocation, or a formal cryptographic profile. The in-memory replay guard resets on process restart. Error responses for authentication failures are intentionally not signed.
