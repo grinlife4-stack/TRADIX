@@ -1,12 +1,12 @@
 # ECOSCAN — Ecosystem Resource and Infrastructure Monitor
 
 **Document ID:** ECOSCAN-SPEC-001  
-**Status:** PHASE 1 FOUNDATION IMPLEMENTED / SCANNER NOT YET IMPLEMENTED  
+**Status:** ARCHITECTURE BASELINE / IMPLEMENTATION NOT YET VERIFIED  
 **System identity:** ECOSCAN  
-**System type:** Independent portfolio-wide monitoring tool produced by the TRADIX factory  
+**System type:** Independent portfolio-wide monitoring tool built by TRADIX  
 **Canonical location:** `grinlife4-stack/TRADIX/docs/tools/ECOSCAN_SPEC.md`
 **Ready-made capability audit:** [ECOSCAN Ready-Made Capability Audit](ECOSCAN_READY_MADE_CAPABILITY_AUDIT.md) (2026-11-20)
-**Implementation plan:** [ECOSCAN Implementation Plan and MVP Boundary](ECOSCAN_IMPLEMENTATION_PLAN.md) (Phase 1 foundation implemented; adapter/runner and scanner remain pending)
+**Implementation plan:** [ECOSCAN Implementation Plan and MVP Boundary](ECOSCAN_IMPLEMENTATION_PLAN.md) (proposed; no implementation or runtime authorization implied)
 **Threat model and acceptance matrix:** [ECOSCAN Threat Model and Acceptance-Test Matrix](ECOSCAN_THREAT_MODEL_AND_ACCEPTANCE_MATRIX.md) (draft)
 
 ## 1. Purpose and identity
@@ -55,7 +55,7 @@ Each registered project has a stable project_id and separately registered source
 - project_id and source_id;
 - source/provider type and opaque locator;
 - measurement adapter and measurement type;
-- authorized credential reference (never the secret value);
+- authorization reference for direct, project-approved source access (never the secret value); for Bridge-backed sources, store only the approved Bridge peer identity and source/project grant reference, never the provider credential or its secret reference;
 - enabled/disabled state;
 - expected measurement fields and units;
 - scan budget, pagination/checkpoint rules, and optional schedule;
@@ -128,7 +128,28 @@ Its design must support local execution, user-owned servers, and replaceable com
 
 ECOSCAN can be stopped, moved, upgraded, replaced, or removed without changing monitored project resources. Removing ECOSCAN must not delete source data, backups, credentials, or project records. Historical reports are retained or deleted only according to explicit policy.
 
-## 10. Acceptance gates
+## 10. Bridge ownership and optional external integration
+
+### Permanent engineering-capability access
+
+The portfolio-wide Bridge standard also applies to ECOSCAN's engineering lifecycle. ECOSCAN may use authorized OBIS Bridge peers to access capabilities exposed by TRADIX and BRIDEX during initial construction and ongoing development, testing, maintenance, and upgrades. This is a continuing engineering capability, not a one-time bootstrap exception.
+
+Each exposing project owns and controls the Bridge instance that exposes its own capabilities: TRADIX owns its capability Bridge, and BRIDEX owns its capability Bridge. BRIDEX does not own Bridges belonging to TRADIX or other projects. ECOSCAN receives only approved peer identity, non-secret connection metadata, and scoped grants; credentials remain with the Bridge-owning project.
+
+This engineering relationship is separate from operational source Bridges used to inventory project resources. It does not require an always-on connection and does not make TRADIX or BRIDEX a runtime dependency for ECOSCAN's independent local operation. Endpoints and grants require separate authorization and are not implied to be configured or live.
+
+
+ECOSCAN core does not require a Bridge to operate. Local inventory, controls, storage, history, and export/import must remain usable when every Bridge, BRIDEX, TRADIX, network, and cloud service is unavailable.
+
+When an external project/provider source must be inventoried, the project that owns that source/resource owns the Bridge instance that accesses and exposes it. BRIDEX may generate, package, test, and document that Bridge, but never owns or centrally operates it and is never a runtime dependency. The source project controls the Bridge identity, source/package, credentials, permissions, deployment, operator, lifecycle, and revocation.
+
+ECOSCAN owns its receiving adapter, peer validation, authorization, measurement acceptance, and project-isolated storage. It does not own another project's source-side Bridge and must not receive the source project's provider credentials or credential references. Its local configuration may contain only the approved peer identity, non-secret endpoint/connection metadata, and project/source grant required for the integration.
+
+Cross-project inventory uses separately owned Bridge instances at each project boundary by default. A shared Bridge is prohibited unless every affected project owner explicitly approves a written joint-ownership agreement defining governance, per-project identity, credentials, scopes, data isolation, audit, export, exit, and replacement rights. BRIDEX is never the owner or default operator of a shared Bridge.
+
+Bridge connectivity is optional. A missing, failed, disabled, or revoked Bridge is a coverage gap, never zero usage, and must not disable ECOSCAN's local functions. OBIS handshake or conformance does not grant access; ECOSCAN independently authorizes every project/source pair and validates peer identity, capability, schema, freshness, limits, and provenance. No live endpoint, credentials, or provider access may be inferred from an adapter or test fixture.
+
+## 11. Acceptance gates
 
 ECOSCAN is not operationally complete until evidence demonstrates:
 
@@ -142,6 +163,9 @@ ECOSCAN is not operationally complete until evidence demonstrates:
 - bounded, resumable scans and correct rate-limit/timeout handling;
 - durable history, export/import, and report attribution;
 - independent operation without TRADIX runtime availability;
+- local-only operation with no Bridge and when all Bridge peers are unavailable;
+- project ownership of every source-side Bridge, with BRIDEX excluded from ownership and runtime control;
+- source-project provider credential isolation and ECOSCAN-side independent authorization;
 - safe stop, replacement, and removal without effects on monitored projects;
 - default configuration requires no paid provider or always-on service.
 

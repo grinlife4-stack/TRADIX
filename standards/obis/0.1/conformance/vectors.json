@@ -1,0 +1,191 @@
+{
+  "suite_version": "0.1",
+  "protocol": "obis",
+  "protocol_version": "0.1",
+  "validation_layer": "message-schema",
+  "schema": "../message.schema.json",
+  "vectors": [
+    {
+      "id": "request.valid.basic",
+      "expected": "accept",
+      "message": {
+        "protocol": "obis",
+        "version": "0.1",
+        "message_type": "request",
+        "message_id": "req-001",
+        "nonce": "nonce-001",
+        "sender": {
+          "peer_id": "peer:alpha"
+        },
+        "recipient": {
+          "peer_id": "peer:beta"
+        },
+        "issued_at": 1795168800,
+        "expires_at": 1795168830,
+        "capability": {
+          "id": "records.read",
+          "version": "1.0"
+        },
+        "authorization": {
+          "principal_ref": "principal:alpha",
+          "scopes": [
+            "records:read"
+          ]
+        },
+        "payload": {
+          "record_id": "record-001"
+        }
+      }
+    },
+    {
+      "id": "response.success.valid",
+      "expected": "accept",
+      "message": {
+        "protocol": "obis",
+        "version": "0.1",
+        "message_type": "response",
+        "message_id": "res-001",
+        "correlation_id": "req-001",
+        "sender": {
+          "peer_id": "peer:beta"
+        },
+        "recipient": {
+          "peer_id": "peer:alpha"
+        },
+        "issued_at": 1795168801,
+        "outcome": "succeeded",
+        "result": {
+          "record_id": "record-001"
+        }
+      }
+    },
+    {
+      "id": "response.error.valid",
+      "expected": "accept",
+      "message": {
+        "protocol": "obis",
+        "version": "0.1",
+        "message_type": "response",
+        "message_id": "res-002",
+        "correlation_id": "req-002",
+        "sender": {
+          "peer_id": "peer:beta"
+        },
+        "recipient": {
+          "peer_id": "peer:alpha"
+        },
+        "issued_at": 1795168801,
+        "outcome": "failed",
+        "error": {
+          "code": "authorization.denied",
+          "message": "scope not granted"
+        }
+      }
+    },
+    {
+      "id": "request.reject.unknown-field",
+      "expected": "reject",
+      "message": {
+        "protocol": "obis",
+        "version": "0.1",
+        "message_type": "request",
+        "message_id": "req-003",
+        "nonce": "nonce-003",
+        "sender": {
+          "peer_id": "peer:alpha"
+        },
+        "recipient": {
+          "peer_id": "peer:beta"
+        },
+        "issued_at": 1795168800,
+        "expires_at": 1795168830,
+        "capability": {
+          "id": "records.read",
+          "version": "1.0"
+        },
+        "authorization": {
+          "principal_ref": "principal:alpha",
+          "scopes": [
+            "records:read"
+          ]
+        },
+        "payload": {},
+        "unexpected": true
+      }
+    },
+    {
+      "id": "request.reject.negative-timestamp",
+      "expected": "reject",
+      "message": {
+        "protocol": "obis",
+        "version": "0.1",
+        "message_type": "request",
+        "message_id": "req-004",
+        "nonce": "nonce-004",
+        "sender": {
+          "peer_id": "peer:alpha"
+        },
+        "recipient": {
+          "peer_id": "peer:beta"
+        },
+        "issued_at": -1,
+        "expires_at": 1795168830,
+        "capability": {
+          "id": "records.read",
+          "version": "1.0"
+        },
+        "authorization": {
+          "principal_ref": "principal:alpha",
+          "scopes": [
+            "records:read"
+          ]
+        },
+        "payload": {}
+      }
+    },
+    {
+      "id": "response.reject.missing-error-message",
+      "expected": "reject",
+      "message": {
+        "protocol": "obis",
+        "version": "0.1",
+        "message_type": "response",
+        "message_id": "res-003",
+        "correlation_id": "req-005",
+        "sender": {
+          "peer_id": "peer:beta"
+        },
+        "recipient": {
+          "peer_id": "peer:alpha"
+        },
+        "issued_at": 1795168801,
+        "outcome": "failed",
+        "error": {
+          "code": "authorization.denied"
+        }
+      }
+    },
+    {
+      "id": "response.reject.unknown-outcome",
+      "expected": "reject",
+      "message": {
+        "protocol": "obis",
+        "version": "0.1",
+        "message_type": "response",
+        "message_id": "res-004",
+        "correlation_id": "req-006",
+        "sender": {
+          "peer_id": "peer:beta"
+        },
+        "recipient": {
+          "peer_id": "peer:alpha"
+        },
+        "issued_at": 1795168801,
+        "outcome": "maybe",
+        "result": {
+          "ok": true
+        }
+      }
+    }
+  ]
+}

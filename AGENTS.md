@@ -10,10 +10,11 @@
 Before planning, reviewing, or changing code, configuration, infrastructure, or project documentation:
 
 1. Read this file.
-2. Read `docs/FOUNDATIONAL_ARCHITECTURE_CHARTER.md`.
-3. Read the target project's own entry-point instructions and authoritative documents.
-4. Check relevant cross-project documents and dependencies when the task affects more than one project.
-5. Verify the current repository, branch, working tree/PR state, and actual connected permissions before making changes.
+2. Read the canonical [Ecosystem Master Map](docs/ECOSYSTEM_MASTER_MAP.md) for portfolio boundaries, shared-toolbox rules, and cross-project relationships.
+3. Read `docs/FOUNDATIONAL_ARCHITECTURE_CHARTER.md`.
+4. Read the target project's own entry-point instructions and authoritative documents.
+5. Check relevant cross-project documents and dependencies when the task affects more than one project.
+6. Verify the current repository, branch, working tree/PR state, and actual connected permissions before making changes.
 
 If an expected canonical document (including an ecosystem master map) is missing or inaccessible, report that fact. Do not invent its contents or silently treat an older draft as authoritative.
 
@@ -39,10 +40,15 @@ A conversational authorization does not create a technical connection or grant p
 
 - TRADIX is the shared product/software factory and engineering workspace; it is not the default owner or operator of the products it builds.
 - Every product remains independently owned and operated.
+- The shared toolbox grows from demonstrated project needs. Each project decides what it needs and may build a tool, improve an existing one, or contribute reusable capabilities. Adoption by another project is optional, never imposed.
 - Shared tools and foundations may be reused through documented interfaces; reuse must not merge project data, credentials, accounts, funds, or authority.
+- TRADIX is the factory and toolbox, not the owner of the projects or the mandatory runtime of completed tools.
+- EXVARLI provides specialist financial-management capabilities but is not above, owner of, or custodian of the projects it serves.
+- Repository/folder placement does not establish ownership, hierarchy, or permission to share data or code.
 - Do not copy project-specific private data, secrets, or artifacts into TRADIX merely for convenience.
 - Do not make an independent product dependent on TRADIX at runtime unless that dependency is explicitly approved and documented.
 - Cross-project integration must preserve attribution, access boundaries, exportability, and replaceability.
+- **Bridge ownership, external connectivity, and separation are mandatory portfolio rules:** each Bridge is built for and owned by its designated project/tool; BRIDEX only designs/generates/tests/packages Bridge tools and never owns or centrally operates project Bridges. The owner must be able to install, operate, modify, export, transfer, and replace its Bridge independently, connect it to explicitly authorized external applications and independent systems, and continue using it after separation from the originating ecosystem. OBIS is the default external contract; TIIS is optional and limited to authorized TRADIX-internal integration. A receiving project owns its own ingress adapter and acceptance boundary, not the source project's Bridge. Use separately owned Bridges at project boundaries by default; a shared Bridge requires explicit written joint-ownership approval and per-project isolation. No project may depend on BRIDEX at runtime. Apply `docs/BRIDGE_INSTALLATION_OPERATION_AND_EXTERNAL_INTEROPERABILITY_STANDARD.md`.
 
 ## 4. Change authority and safety gates
 
@@ -80,3 +86,45 @@ At the end of work:
 ## 7. Conflict resolution
 
 The Foundational Architecture Charter governs portfolio-wide builder/owner boundaries. A project's own approved documents govern its internal requirements and operations. If documents conflict, preserve the stricter ownership, security, and data-isolation boundary, record the conflict, and request an explicit owner decision where resolution changes authority or scope. Do not silently rewrite project identity or ownership.
+
+
+## 8. Mandatory ready-made capability audit
+
+Before designing or developing a new capability, or making a material architectural change, audit suitable existing tools, services, libraries, and toolbox capabilities across the relevant production lifecycle:
+
+- Design and development.
+- Testing and quality assurance.
+- Security.
+- Deployment and infrastructure.
+- Monitoring and maintenance.
+- Documentation.
+
+The audit must assess actual capability, not name similarity. Record:
+1. Suitable existing options and relevant toolbox capabilities.
+2. Whether each can be used directly, integrated through a defined interface, or adapted.
+3. Total cost, licensing, security, operational, and maintenance risks.
+4. Data ownership, portability/export, replaceability, and vendor lock-in implications.
+5. Why reuse/integration is selected, or why custom development is materially better.
+
+Do not adopt a ready-made tool merely because it exists. This gate applies to new capabilities and material architectural changes, not routine bug fixes or minor maintenance.
+
+## 9. Required pre-edit checklist
+
+Before editing:
+1. Identify the exact project/tool and its owner/operator boundary.
+2. Verify repository, branch, paths, and current PR state.
+3. Read this file, the Ecosystem Master Map, the Foundational Architecture Charter, and the target project's entry-point instructions.
+4. Identify cross-project interface, data, permission, maintenance, and operational effects.
+5. Confirm that the proposed reuse does not create an unapproved runtime dependency or transfer ownership.
+6. Use only permissions actually provided by connected tools. If scope or ownership is ambiguous, stop and ask rather than guessing.
+
+Never:
+- merge independent project data or ledgers for convenience;
+- force a project to adopt a shared tool;
+- make a project permanently dependent on a shared tool without explicit approval;
+- let a shared tool retain project secrets or private data after its authorized need ends;
+- expose project-specific implementation or data merely to make a capability reusable;
+- edit neighboring projects merely because they share a repository;
+- infer hierarchy from folder names or repository layout.
+
+For Claude Code, also read the applicable `CLAUDE.md`. For other agents, follow their repository-instruction conventions. If the agent does not load these files automatically, retrieve them explicitly before work.
