@@ -59,3 +59,45 @@ A Bridge package lifecycle may use existing components as optional helpers:
 - The OBIS Python reference is a loopback-only development prototype. Its candidate production TLS/mTLS profile and cross-language interoperability remain unimplemented.
 
 These boundaries must be preserved when the PR chain is integrated. No existing component should be relabeled as a completed Bridge or a production execution/security layer.
+
+
+## 7. TIIS integration status inside TRADIX
+
+TIIS 0.1 is the internal envelope and validation contract only. Its canonical specification, schema, validator, and baseline tests are byte-identical across the standalone TIIS baseline (Draft PR #68), the factory conversation adapter lane (Draft PR #69), and the TRADIX tooling adapter lane (Draft PR #70). This avoids three competing definitions of the same protocol.
+
+### TRADIX tooling lane — Draft PR #70
+
+The current consolidated tooling integration branch provides local, in-process adapters for:
+
+- **Artifact Gateway:** project-bound read-only receipt metadata and extraction summary. No object download or artifact bytes.
+- **Tool Catalog:** read-only `get`, `list`, and `history`. Registration and lifecycle mutations remain disabled until durable idempotency and audit controls exist.
+- **Tool Adapter Contract:** typed TIIS invocation/result codec only. It does not execute tools, create workers, start sandboxes, schedule jobs, or invoke a shell.
+
+Latest recorded CI for PR #70: run `44732000618`, completed successfully with 104 tests passed. This is local contract evidence, not a production transport or security claim.
+
+### Factory conversation lane — Draft PR #69
+
+A separate integration branch adapts the existing factory conversation domain message to the TIIS envelope. The outer TIIS sender/recipient remain authenticated component identities; the inner factory actor remains domain payload data. Project-scope authorization is a separate fail-closed policy.
+
+Latest recorded CI for PR #69: run `44730132944`, completed successfully with 116 tests passed. This adapter maps and validates messages; it does not provide a transport, persistence, outbox, broker, or live model connection.
+
+### Draft PR overlap and merge discipline
+
+- PR #70 is the consolidated tooling-adapter lane.
+- PR #71 and PR #73 are earlier/narrower Tool Catalog TIIS adapter variants. They overlap with PR #70 and must not be merged in addition to it without a deliberate reconciliation.
+- PR #68 is the standalone TIIS 0.1 contract baseline. Its canonical TIIS artifacts are byte-identical to the copies carried by PRs #69 and #70.
+- These branches have different dependency bases. Their PR bases must not be changed or rebased automatically to manufacture a linear history.
+
+### Remaining TIIS gates
+
+The following remain deliberately unimplemented:
+
+1. Approved authentication/credential profiles for each deployment class.
+2. A reviewed transport binding and component-principal lifecycle.
+3. Durable replay/idempotency storage for state-changing operations.
+4. Durable producer outbox and consumer inbox/checkpoint where loss is unacceptable.
+5. Tamper-evident audit records and retention/export controls.
+6. Real component-to-component failure-injection and end-to-end conformance.
+7. Production security review and owner approval.
+
+Until these gates pass, the adapters remain local prototypes. TIIS does not authorize a live endpoint, network listener, production write, or deployment.
