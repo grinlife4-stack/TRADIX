@@ -91,3 +91,6 @@ Markers are not automatically deleted, including after request expiry. This deli
 
 
 The CLI-level cross-language test starts the Go server with `--replay-dir`, sends one signed Python-built request, restarts the Go process with the same directory, and verifies that the same signed request is rejected with HTTP 409. CI run #1166 passed this process-restart integration test.
+
+
+A second HTTP-level failure test removes the configured replay directory after startup and verifies that the Go peer returns a signed `replay.storage_unavailable` error with HTTP 503. The capability is not executed when durable replay storage cannot be used. CI run #1170 passed this check together with the full repository test/build/package workflow.
