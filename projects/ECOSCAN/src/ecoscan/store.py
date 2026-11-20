@@ -97,6 +97,8 @@ class ProjectStore:
         self,
         coverage_record: Mapping[str, Any],
         measurements: list[Mapping[str, Any]],
+        checkpoint: Mapping[str, Any] | None = None,
+        checkpoint_updated_at: str | None = None,
     ) -> None:
         if coverage_record.get("project_id") != self.project_id:
             raise StoreError("coverage project_id does not match this project store")
@@ -123,6 +125,13 @@ class ProjectStore:
             ))
 
         coverage_json = self._payload(coverage_record)
+        checkpoint_json = None
+        if checkpoint is not None:
+            if not isinstance(checkpoint_updated_at, str) or not checkpoint_updated_at:
+                raise StoreError("checkpoint_updated_at is required when a checkpoint is supplied")
+            checkpoint_json = self._payload(checkpoint)
+        elif checkpoint_updated_at is not None:
+            raise StoreError("checkpoint_updated_at cannot be supplied without a checkpoint")
         with self._connect() as connection:
             connection.execute(
                 "INSERT INTO coverage(scan_id, project_id, source_id, started_at, payload_json) VALUES(?, ?, ?, ?, ?)",
@@ -132,6 +141,15 @@ class ProjectStore:
                 "INSERT INTO measurements(measurement_id, project_id, source_id, observed_at, payload_json) VALUES(?, ?, ?, ?, ?)",
                 prepared,
             )
+            if checkpoint_json is not None:
+                connection.execute(
+                    """INSERT INTO checkpoints(source_id, scan_id, payload_json, updated_at)
+                       VALUES(?, ?, ?, ?)
+                       ON CONFLICT(source_id, scan_id) DO UPDATE SET
+                         payload_json = excluded.payload_json,
+                         updated_at = excluded.updated_at""",
+                    (source_id, scan_id, checkpoint_json, checkpoint_updated_at),
+                )
 
     def save_checkpoint(
         self, source_id: str, scan_id: str, payload: Mapping[str, Any], updated_at: str
