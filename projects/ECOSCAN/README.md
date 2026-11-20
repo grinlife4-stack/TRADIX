@@ -48,3 +48,11 @@ The local filesystem adapter records logical bytes and file count from lstat met
 ## Independence proof
 
 The package can be installed and tested from this directory without installing TRADIX. Its runtime modules contain no network clients, subprocess launchers, cloud SDKs, or imports from TRADIX. All Phase 1 tests run offline against synthetic fixtures.
+
+## Future Bridge connection
+
+The external integration path is deliberately preserved as a separate, independently deployable ECOSCAN Bridge using OBIS. Provider-specific clients and credentials must live in that Bridge, not in the ECOSCAN core. ECOSCAN accepts only bounded, typed, project/source-authorized inventory records through its own validation boundary.
+
+The connection is staged: local Phase 1 acceptance first; synthetic OBIS conformance second; production transport/security review third; and only then an explicitly approved, read-only provider pilot. The current BRIDEX OBIS peer is a loopback-only development prototype, not production-ready. No live Bridge, GitHub, Backblaze, S3/R2, Railway, or other remote connection is enabled in Phase 1.
+
+See [ECOSCAN Bridge Integration Plan](docs/ECOSCAN_BRIDGE_INTEGRATION_PLAN.md) for the topology, proposed capabilities, trust boundaries, staged gates, and independence tests.
