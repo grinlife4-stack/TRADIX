@@ -461,3 +461,41 @@ def test_timeout_budget_is_enforced_before_page_work(monkeypatch, tmp_path):
     )
     with pytest.raises(BudgetExceeded, match="time budget"):
         guard.consume_page()
+
+
+
+def test_filesystem_adapter_skips_nested_symlink_directories(tmp_path):
+    root = tmp_path / "source"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    (outside / "secret.bin").write_bytes(b"outside")
+    try:
+        (root / "external").symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("directory symlinks unavailable")
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [source(root)],
+    })
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(
+        registry,
+        gate(),
+        {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)},
+        store,
+    ).run("fs-local", "operator-a")
+    assert outcome.coverage_state == "PARTIAL"
+    assert "SYMLINK_DIRECTORY_SKIPPED" in store.list_coverage()[0]["limitations"]
+    assert store.list_measurements("fs-local")[0]["value"] == 0
+
+
+def test_corrupted_sqlite_file_fails_closed_instead_of_initializing_empty_store(tmp_path):
+    import sqlite3
+
+    db_dir = tmp_path / "corrupted-db"
+    db_dir.mkdir()
+    (db_dir / "project-a.sqlite3").write_bytes(b"not a sqlite database")
+    with pytest.raises(sqlite3.DatabaseError):
+        ProjectStore(db_dir, "project-a")
