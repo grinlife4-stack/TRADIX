@@ -219,31 +219,31 @@ These controls and scope-selection behavior have unit-test coverage. They do not
 
 ## 15. Railway volume and backup metadata adapter
 
-The `railway_volume` provider is implemented as a read-only Railway GraphQL adapter. It requires:
-- `RAILWAY_API_TOKEN` in the runtime environment.
-- `volume_instance_id` in the source registry. Do not substitute a project-level volume ID unless Railway identifies it as the volume-instance ID.
+The `railway_volume` provider is a read-only Railway GraphQL adapter. It requires:
+- `RAILWAY_API_TOKEN` in the ECOSCAN execution environment.
+- Either an explicit `volume_instance_id`, or both `volume_id` and `environment_id` so the adapter can attempt environment-scoped instance discovery.
 
-The adapter queries `volumeInstance.currentSizeMB` and `volumeInstanceBackupList`. It reports provisioned capacity and backup metadata separately. It deliberately leaves `logical_bytes` unknown: Railway volume capacity is not the amount of filesystem data currently used. Backup `usedMB` and `referencedMB` are not added to the volume capacity.
+The documented direct lookup is `volumeInstance(id)`; Railway's public API documentation also documents `currentSizeMB` and `volumeInstanceBackupList`. The environment-level discovery query uses `environment.volumeInstances`. That field selection is implemented and unit-tested with mocked responses, but it has **not** been validated against the live account/schema yet. Treat discovery as provisional until a read-only live query succeeds. If the field is unavailable, authorization is denied, or the result is not exactly one matching instance, the scan fails closed. A direct instance ID can be configured after it has been independently obtained and verified.
 
-Example source entry:
+The adapter reports `currentSizeMB` as provisioned capacity and backup metadata separately. It deliberately leaves `logical_bytes` unknown: provisioned capacity is not filesystem usage. Backup `usedMB` and `referencedMB` are not added to volume capacity.
+
+The TRADIX staging source is registered using its known project volume ID and environment ID, not an invented volume-instance ID:
 
 ```json
 {
-  "source_id": "tradix-railway-artifact-data",
+  "source_id": "tradix-artifact-data-railway",
   "project_id": "TRADIX",
   "provider": "railway_volume",
-  "volume_instance_id": "RAILWAY_VOLUME_INSTANCE_ID",
+  "reference": "artifact-data",
+  "volume_id": "35fe5a11-7391-414a-85e4-a37c0cc49d27",
+  "environment_id": "b7e611ec-67b8-4f10-997e-b6a7dfd60d11",
   "enabled": true
 }
 ```
 
-No volume content is read. The adapter does not create, resize, attach, detach, restore, or delete volumes/backups. A missing instance ID or token produces `NOT_CONFIGURED`, not a zero-size measurement.
+The connected Railway inventory confirms one live staging volume named `artifact-data`, configured at 500 MB and mounted at `/data` on `artifact-gateway`. This is configured capacity, not actual filesystem usage. The connected inventory does not expose the environment-specific volume-instance ID.
 
-The connected Railway inventory currently exposes one live staging volume named `artifact-data`, provisioned at 500 MB and mounted at `/data` on `artifact-gateway`. This is configured capacity, not actual filesystem usage. Its volume-instance ID has not been independently verified, so the resource is not inserted into the ECOSCAN registry using a guessed identifier.
-
-
-
-For environment-specific instances, configure `volume_id` and `environment_id`; ECOSCAN resolves the matching `volumeInstance.id` through the Railway environment's `volumeInstances` field. A direct `volume_instance_id` remains supported as an explicit override. The registered TRADIX staging source is `artifact-data` in `TRADIX Artifact Gateway Staging`. Set `RAILWAY_API_TOKEN` in the execution environment; do not commit the token. Resolution fails closed unless exactly one matching instance is returned.
+No volume content is read. The adapter does not create, resize, attach, detach, restore, or delete volumes/backups. Missing credentials or identifiers produce `NOT_CONFIGURED`; failed or ambiguous discovery produces a non-success status, never a zero-size measurement. Do not commit the Railway token. The live validation gate remains open until the exact discovery query and subsequent instance/backup queries succeed against this staging resource.
 
 ## 16. S3-compatible object-storage adapter
 
