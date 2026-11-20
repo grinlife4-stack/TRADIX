@@ -126,7 +126,8 @@ class SQLiteReplayGuard:
             raise ValueError("replay database parent directory must already exist")
         self.retention_seconds = retention_seconds
         self._lock = threading.Lock()
-        with self._connect() as connection:
+        connection = self._connect()
+        try:
             connection.execute(
                 "CREATE TABLE IF NOT EXISTS obis_replay_nonces ("
                 "nonce_key TEXT PRIMARY KEY, expires_at REAL NOT NULL)"
@@ -135,6 +136,8 @@ class SQLiteReplayGuard:
                 "CREATE INDEX IF NOT EXISTS obis_replay_nonces_expiry "
                 "ON obis_replay_nonces(expires_at)"
             )
+        finally:
+            connection.close()
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(str(self.database_path), timeout=5.0, isolation_level=None)
