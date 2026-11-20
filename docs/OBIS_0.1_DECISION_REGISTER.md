@@ -147,7 +147,7 @@ The long-term steward and approval process remain unresolved.
 
 ## 10. Current implementation boundary
 
-The Python and Go reference peers are local development/conformance prototypes. They implement direct loopback HTTP with the shared-secret HMAC development profile and an opt-in TLS 1.3 mTLS candidate. The Python client has completed real HTTP/HMAC and TLS 1.3 mTLS request/response exchanges with the Go peer; the Python TLS server has also passed the mTLS test. The mTLS candidate validates owner-supplied trust anchors, requires client certificates, uses ALPN obis/1, and binds the certificate URI SAN urn:obis:peer:<peer-id> to the OBIS sender.
+The Python and Go reference peers are local development/conformance prototypes. They implement direct loopback HTTP with the shared-secret HMAC development profile and an opt-in TLS 1.3 mTLS candidate. The Python client has completed real HTTP/HMAC and TLS 1.3 mTLS request/response exchanges with the Go peer; the Python TLS server has also passed the mTLS test. The mTLS candidate validates owner-supplied trust anchors, requires client certificates, uses ALPN http/1.1, and binds the certificate URI SAN urn:obis:peer:<peer-id> to the OBIS sender.
 
 They do not implement a production-approved certificate lifecycle, durable replay/idempotency, trust-bundle freshness/revocation, production audit, asynchronous operations, or the complete cross-language negative/security suite. The HMAC application profile remains development-only; TLS 1.3 mTLS is a candidate implementation pending owner approval and independent security review. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
 
