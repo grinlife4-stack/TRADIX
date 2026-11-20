@@ -36,7 +36,8 @@ go build -o obis-go-peer ./cmd/obis-go-peer
   --remote-peer=peer:python \
   --principal=principal:python \
   --secret-hex=<64-hex-character-development-secret> \
-  --scopes=records:read
+  --scopes=records:read \\
+  --replay-dir=/var/lib/my-bridge/obis-replay
 ```
 
 The server prints its bound address on startup. Its sample capability is records.read@1.0.
@@ -76,7 +77,7 @@ Do not expose this peer to the public internet or use it for real credentials or
 
 ## Durable replay guard
 
-The Go peer offers an opt-in standard-library-only `FileReplayGuard` for owner-local persistence:
+The Go peer offers an opt-in standard-library-only `FileReplayGuard`, configurable in the standalone server CLI with `--replay-dir` for owner-local persistence:
 
 ```go
 guard, err := obis.NewFileReplayGuard("/var/lib/my-bridge/obis-replay")
@@ -87,3 +88,6 @@ if err := peer.SetReplayGuard(guard); err != nil { return err }
 Create the directory before startup and restrict it to the Bridge owner. Configure the guard before the peer begins serving requests. A nonce claim is created atomically with exclusive file creation; the marker and containing directory are synced before capability execution is allowed. A duplicate is rejected even after constructing a new guard or restarting the process. Any uncertain write/sync failure is fail-closed and prevents the handler from running.
 
 Markers are not automatically deleted, including after request expiry. This deliberately trades storage growth for avoiding unsafe cleanup races and replay-window reopening. Operators must monitor capacity and treat the directory as persistent security state. Do not manually delete markers while the peer is active. This guard is not distributed coordination, an operation idempotency ledger, or a production authentication profile.
+
+
+The CLI-level cross-language test starts the Go server with `--replay-dir`, sends one signed Python-built request, restarts the Go process with the same directory, and verifies that the same signed request is rejected with HTTP 409. CI run #1166 passed this process-restart integration test.
