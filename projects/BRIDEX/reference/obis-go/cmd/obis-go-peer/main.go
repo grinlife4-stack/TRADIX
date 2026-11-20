@@ -37,6 +37,7 @@ func main() {
 	principal:=flags.String("principal","principal:python","authenticated principal")
 	secretHex:=flags.String("secret-hex","","32-byte development secret in hex")
 	scopesRaw:=flags.String("scopes","records:read","comma-separated granted scopes")
+	allowedResourcesRaw:=flags.String("allowed-resource","","comma-separated project/source resource grants")
 	replayDir:=flags.String("replay-dir","","owner-controlled directory for durable nonce replay state; empty keeps in-memory mode")
 	_ = flags.Parse(args)
 	secret,err:=hex.DecodeString(*secretHex);if err!=nil||len(secret)<32{log.Fatal("secret-hex must encode at least 32 bytes")}
@@ -46,9 +47,21 @@ func main() {
 		guard,guardErr:=obis.NewFileReplayGuard(*replayDir);if guardErr!=nil{log.Fatalf("configure durable replay guard: %v",guardErr)}
 		if guardErr=p.SetReplayGuard(guard);guardErr!=nil{log.Fatalf("install durable replay guard: %v",guardErr)}
 	}
-	if err=p.AddCredential(obis.Credential{KeyID:*keyID,PeerID:*remoteID,PrincipalRef:*principal,Secret:secret,AllowedScopes:scopes});err!=nil{log.Fatal(err)}
+	allowedResources:=map[string]bool{};for _,pair:=range strings.Split(*allowedResourcesRaw,","){parts:=strings.SplitN(pair,"/",2);if len(parts)==2&&parts[0]!=""&&parts[1]!=""{allowedResources[parts[0]+"/"+parts[1]]=true}}
+	if err=p.AddCredential(obis.Credential{KeyID:*keyID,PeerID:*remoteID,PrincipalRef:*principal,Secret:secret,AllowedScopes:scopes,AllowedResources:allowedResources});err!=nil{log.Fatal(err)}
 	err=p.RegisterCapability(obis.Capability{ID:"records.read",Version:"1.0",RequiredScopes:map[string]bool{"records:read":true},Handler:func(payload map[string]any)(map[string]any,error){return map[string]any{"record_id":payload["record_id"],"served_by":"go-peer"},nil}})
 	if err!=nil{log.Fatal(err)}
+	if err=p.RegisterCapability(obis.Capability{ID:"ecoscan.inventory.read",Version:"1.0",RequiredScopes:map[string]bool{"ecoscan:inventory:read":true},Handler:func(payload map[string]any)(map[string]any,error){
+		projectID,ok1:=payload["project_id"].(string);sourceID,ok2:=payload["source_id"].(string)
+		if !ok1||!ok2{return nil,fmt.Errorf("project_id and source_id are required")}
+		rawKinds,_:=payload["measurement_kinds"].([]any)
+		measurements:=map[string]any{}
+		for _,raw:=range rawKinds{
+			kind,ok:=raw.(string);if !ok{return nil,fmt.Errorf("invalid measurement kind")}
+			switch kind{case "logical_bytes":measurements[kind]=int64(4096);case "file_count":measurements[kind]=int64(2);default:return nil,fmt.Errorf("unsupported measurement kind: %s",kind)}
+		}
+		return map[string]any{"project_id":projectID,"source_id":sourceID,"coverage_state":"COMPLETE","items_seen":2,"pages_seen":1,"measurements":measurements,"source_timestamp":"2026-11-20T10:00:00Z","limitations":[]any{},"evidence_ref":"test-evidence:go-peer-v01"},nil
+	}});err!=nil{log.Fatal(err)}
 	listener,err:=obis.ListenLoopback(*addr,p.Handler());if err!=nil{log.Fatal(err)}
 	fmt.Println(listener.Addr().String())
 	if err=http.Serve(listener,p.Handler());err!=nil{log.Fatal(err)}
