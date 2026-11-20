@@ -44,3 +44,35 @@ func TestPublishedRequestVectors(t *testing.T) {
 		if actual!=v.Expected{t.Errorf("%s: expected %s, got %s (%v)",v.ID,v.Expected,actual,err)}
 	}
 }
+
+func TestPublishedMessageVectorsAcrossEnvelopeTypes(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "..", "..", "standards", "obis", "0.1", "conformance", "vectors.json")
+	raw, err := os.ReadFile(path)
+	if err != nil { t.Skipf("repository conformance vectors not present in standalone checkout: %v", err) }
+	var suite struct { Vectors []struct { ID string `json:"id"`; Expected string `json:"expected"`; Message map[string]any `json:"message"` } `json:"vectors"` }
+	dec := json.NewDecoder(bytes.NewReader(raw)); dec.UseNumber()
+	if err = dec.Decode(&suite); err != nil { t.Fatal(err) }
+	for _, vector := range suite.Vectors {
+		var validationErr error
+		switch vector.Message["message_type"] {
+		case "request":
+			validationErr = ValidateRequest(vector.Message, time.Unix(1795168810, 0))
+		case "response":
+			sender, _ := obj(vector.Message, "sender")
+			recipient, _ := obj(vector.Message, "recipient")
+			senderID, _ := str(sender, "peer_id")
+			recipientID, _ := str(recipient, "peer_id")
+			correlation, _ := str(vector.Message, "correlation_id")
+			if vector.Message["outcome"] == "succeeded" {
+				validationErr = validateSuccessResponse(vector.Message, correlation, recipientID, senderID)
+			} else {
+				validationErr = validateFailureResponse(vector.Message, correlation, recipientID, senderID)
+			}
+		default:
+			validationErr = errors.New("unsupported message type")
+		}
+		actual := "accept"
+		if validationErr != nil { actual = "reject" }
+		if actual != vector.Expected { t.Errorf("%s: expected %s, got %s (%v)", vector.ID, vector.Expected, actual, validationErr) }
+	}
+}
