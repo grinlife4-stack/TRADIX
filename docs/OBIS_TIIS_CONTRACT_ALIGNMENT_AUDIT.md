@@ -170,3 +170,15 @@ The optional Go replay store is also exposed by the standalone server CLI as `--
 
 
 An additional HTTP-level cross-language test removes the Go replay directory after server startup. The Python reference client receives and validates the Go peer's signed `replay.storage_unavailable` response (HTTP 503); a separate Go unit test confirms the capability handler is not executed. CI run #1170 passed on commit `afbc6e9f1b877b24ebebcabc06820cee7ccd18a3`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks. This verifies the fail-closed storage path through the HTTP response layer as well as at the peer handler boundary.
+
+
+## 12. Cross-peer negative tests and Python transport error classification — 2026-11-20
+
+Additional implementation evidence, without normative contract changes:
+
+- CI #1175 passed a Go-originated raw request test against the Python peer. An authenticated unsupported-version request is rejected with HTTP 426; an invalid-signature request is rejected with HTTP 401; neither may execute the registered capability handler.
+- Python client transport errors are now distinguished: direct `TimeoutError` / `socket.timeout` is reported as `peer.timeout` / HTTP 504, while non-timeout connection failures remain `peer.unavailable` / HTTP 503.
+- CI #1176 failed because Python 3.12 raised a direct `TimeoutError` while reading the HTTP response, outside the original `URLError` handler. The implementation was corrected to catch the direct exception.
+- CI #1177 passed on commit `d630ada3683ec0793c818bf1281b5b04aa4f6e12`, including the full Python/BRIDEX Core/OBIS/ECOSCAN test suite, Go tests/build, and isolated wheel/install/schema checks.
+
+The evidence increases selected negative-path coverage but does not establish a complete two-way negative conformance matrix. It does not change OBIS schema/envelope, TIIS contract, version negotiation semantics, or the production security profile. HMAC remains development/conformance-only. Production TLS/mTLS, identity lifecycle, distributed replay, business-operation idempotency/outcome reconciliation, persistent audit, and independent security review remain unresolved.
