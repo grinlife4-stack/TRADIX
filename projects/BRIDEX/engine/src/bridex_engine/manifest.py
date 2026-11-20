@@ -40,7 +40,7 @@ def _safe_relative_path(value: Any, *, allow_reserved: bool = False) -> PurePosi
     if any(part in {"", ".", ".."} for part in raw_parts):
         raise BridgeManifestError("package_path_traversal_rejected")
     path = PurePosixPath(value)
-    if path.is_absolute() or any(part.lower() in _FORBIDDEN_SEGMENTS for part in path.parts):
+    if path.is_absolute() or any(":" in part for part in path.parts) or any(part.lower() in _FORBIDDEN_SEGMENTS for part in path.parts):
         raise BridgeManifestError("package_path_forbidden")
     if not allow_reserved and path.name.lower() in _RESERVED_NAMES:
         raise BridgeManifestError("package_path_reserved")
@@ -67,8 +67,9 @@ def validate_manifest_data(manifest: Any) -> dict[str, Any]:
     capability_ids = [item["capability_id"] for item in manifest["capabilities"]]
     if len(set(capability_ids)) != len(capability_ids):
         raise BridgeManifestError("capability_ids_must_be_unique")
-    for value in manifest["package_files"]:
-        _safe_relative_path(value)
+    normalized_paths = [_safe_relative_path(value).as_posix().casefold() for value in manifest["package_files"]]
+    if len(set(normalized_paths)) != len(normalized_paths):
+        raise BridgeManifestError("package_paths_must_be_unique_case_insensitively")
     return manifest
 
 
