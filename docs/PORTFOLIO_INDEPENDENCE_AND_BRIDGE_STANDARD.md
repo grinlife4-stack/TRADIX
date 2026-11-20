@@ -121,6 +121,8 @@ A Bridge must not be declared externally interoperable solely because it can con
 
 ## 5. OBIS: independent interoperability contract
 
+The detailed normative draft is maintained in [OBIS Specification](OBIS_SPECIFICATION.md) (version 0.1.0). The TRADIX-only internal contract is separately maintained in [TIIS Specification](TIIS_SPECIFICATION.md) (version 0.1.0). These are independent specifications with separate scopes, governance, versioning, and conformance suites; both remain draft baselines pending schemas, concrete profiles, prototypes, and validation.
+
 OBIS is the protocol contract implemented by each Bridge for communication with non-TRADIX tools, services, platforms, and other independently operated Bridges. Its specification, schemas, compatibility rules, and required runtime behavior must be available with the Bridge and must not require TRADIX repositories, services, credentials, registries, identity systems, or infrastructure to operate.
 
 OBIS must remain vendor-neutral, versioned, transport-adaptable, and independently implementable. Each Bridge must be able to retain and use its OBIS implementation after separation from TRADIX. External requests must never be forced through TIIS, translated into TIIS as a prerequisite, or routed through TRADIX merely to reach an external peer.
