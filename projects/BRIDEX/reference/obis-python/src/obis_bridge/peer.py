@@ -28,7 +28,8 @@ from urllib.parse import urlparse
 
 PROTOCOL = "obis"
 VERSION = "0.1"
-MESSAGE_PATH = "/obis/v0.1/messages"\nMESSAGE_PATH_V02 = "/obis/v0.2/messages"
+MESSAGE_PATH = "/obis/v0.1/messages"
+MESSAGE_PATH_V02 = "/obis/v0.2/messages"
 MAX_MESSAGE_BYTES = 64 * 1024
 MAX_TTL_SECONDS = 60
 CLOCK_SKEW_SECONDS = 30
