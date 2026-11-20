@@ -142,3 +142,47 @@ def test_cli_verifies_portable_package(tmp_path, capsys):
     package = _write_portable_package(tmp_path / "export")
     assert main(["verify-package", str(package)]) == 0
     assert "valid: BRIDEX portable Bridge package" in capsys.readouterr().out
+
+
+def test_package_export_is_deterministic_and_restore_is_verified(tmp_path):
+    import hashlib
+    from bridex_core import export_package, restore_package
+    package = _write_portable_package(tmp_path / "package")
+    first = tmp_path / "first.zip"
+    second = tmp_path / "second.zip"
+    export_package(package, first)
+    export_package(package, second)
+    assert hashlib.sha256(first.read_bytes()).digest() == hashlib.sha256(second.read_bytes()).digest()
+    restored = restore_package(first, tmp_path / "restored")
+    assert restored["bridge_id"] == VALID["bridge"]["id"]
+    assert (tmp_path / "restored" / "bridge-manifest.json").is_file()
+
+
+def test_restore_rejects_zip_path_traversal(tmp_path):
+    import zipfile
+    from bridex_core import restore_package
+    archive = tmp_path / "malicious.zip"
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr("../escaped.txt", "must not be written")
+    with pytest.raises(ManifestValidationError, match="traversal"):
+        restore_package(archive, tmp_path / "restored")
+    assert not (tmp_path / "escaped.txt").exists()
+    assert not (tmp_path / "restored").exists()
+
+
+def test_export_rejects_output_inside_package_root(tmp_path):
+    from bridex_core import export_package
+    package = _write_portable_package(tmp_path / "package")
+    with pytest.raises(ManifestValidationError, match="outside"):
+        export_package(package, package / "nested.zip")
+
+
+def test_restore_refuses_to_overwrite_existing_directory(tmp_path):
+    from bridex_core import export_package, restore_package
+    package = _write_portable_package(tmp_path / "package")
+    archive = tmp_path / "package.zip"
+    export_package(package, archive)
+    destination = tmp_path / "existing"
+    destination.mkdir()
+    with pytest.raises(ManifestValidationError, match="already exists"):
+        restore_package(archive, destination)
