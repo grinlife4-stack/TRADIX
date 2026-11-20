@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: grinlife4-stack/TRADIX
-          ref: 698f369f2910a0180f9359c8e0c49b3d082f9315
+          ref: 5bdd9dce0aa6cf918491e6e23875b70bf2b90661
           path: bridex-obis-reference
       - uses: actions/setup-go@v5
         with:
