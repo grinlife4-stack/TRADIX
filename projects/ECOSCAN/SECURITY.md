@@ -6,6 +6,7 @@ Implemented:
 - Strict project-registry parsing, exact field sets, unique source IDs, timezone-aware timestamps, and bounded scan budgets.
 - Default-deny global/project/subsystem/source controls.
 - Single-source runner validates adapter identity, budget counters, measurement shape, project/source boundaries, and records denied/failed coverage.
+- The runner rechecks all controls and owner/operator authorization before every page/item when the adapter consumes the BudgetGuard; a concrete adapter must obey this contract.
 - Budget guard exposes item/page/time limits to adapters; the runner checks elapsed time after adapter return.
 - Owner/operator authorization callback; missing authorization denies.
 - Per-project SQLite files and append-only measurement/coverage APIs.
