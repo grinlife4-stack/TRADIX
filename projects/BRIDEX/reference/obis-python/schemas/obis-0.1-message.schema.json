@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bridex.example/spec/obis/0.1/message.schema.json",
+  "title": "OBIS 0.1 Message",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/successResponse"
+    }
+  ],
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "version",
+        "message_type",
+        "message_id",
+        "nonce",
+        "sender",
+        "recipient",
+        "issued_at",
+        "expires_at",
+        "capability",
+        "authorization",
+        "payload"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "obis"
+        },
+        "version": {
+          "const": "0.1"
+        },
+        "message_type": {
+          "const": "request"
+        },
+        "message_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "nonce": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "sender": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "recipient": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "issued_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "expires_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "capability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "version"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "authorization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "principal_ref",
+            "scopes"
+          ],
+          "properties": {
+            "principal_ref": {
+              "type": "string",
+              "minLength": 1
+            },
+            "scopes": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "payload": {
+          "type": "object"
+        }
+      }
+    },
+    "successResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "version",
+        "message_type",
+        "message_id",
+        "correlation_id",
+        "sender",
+        "recipient",
+        "issued_at",
+        "outcome",
+        "result"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "obis"
+        },
+        "version": {
+          "const": "0.1"
+        },
+        "message_type": {
+          "const": "response"
+        },
+        "message_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correlation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sender": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "recipient": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "issued_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "outcome": {
+          "const": "succeeded"
+        },
+        "result": {
+          "type": "object"
+        }
+      }
+    },
+    "peerRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "peer_id"
+      ],
+      "properties": {
+        "peer_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
