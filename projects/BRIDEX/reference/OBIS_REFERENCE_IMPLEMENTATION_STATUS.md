@@ -17,7 +17,7 @@
 - [x] Candidate `OBIS-TLS-MTLS-1` reference binding using Python `ssl` / OpenSSL, TLS 1.3 only, mutual certificate authentication, and no shared HMAC secret.
 - [x] TLS endpoint hostname verification plus exactly-one URI SAN peer identity `urn:obis:peer:<lowercase-UUID>`.
 - [x] Certificate SHA-256 fingerprint binding to a single configured credential/principal record.
-- [x] Mandatory `obis/0.1` ALPN, bounded handshake/request timeouts, and no plaintext fallback for mTLS clients.
+- [x] Mandatory `http/1.1` ALPN, bounded handshake/request timeouts, and no plaintext fallback for mTLS clients.
 - [x] Local credential revocation for subsequent requests in the running process.
 - [x] Positive and negative mTLS tests using ephemeral test certificates; no private keys are committed.
 - [x] Capability registration and receiver-side scope authorization.
@@ -35,7 +35,7 @@
 - [x] Positive integration test and negative security/validation tests.
 
 ## Deliberately not implemented
-The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/message.schema.json` and packaged with the reference peer. CI validates the schema and checks the packaged copy against the canonical artifact. Runtime schema negotiation and automatic schema-driven validation are not implemented.
+The draft JSON Schema 2020-12 artifact is published at `standards/http/1.1/message.schema.json` and packaged with the reference peer. CI validates the schema and checks the packaged copy against the canonical artifact. Runtime schema negotiation and automatic schema-driven validation are not implemented.
 
 
 - Production approval of the `OBIS-TLS-MTLS-1` candidate profile.
