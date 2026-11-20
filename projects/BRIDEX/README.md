@@ -82,7 +82,7 @@ bridex package ../generated/example-bridge --output ../generated/example-bridge.
 
 This is a scaffolding and packaging foundation, not a complete Bridge runtime, OBIS transport, credential manager, or production release system. The generated project deliberately has no enabled peer or capability.
 
-## 3C. Relationship to existing TRADIX infrastructure
+## 3D. Relationship to existing TRADIX infrastructure
 
 BRIDEX may reuse the Artifact Gateway, Tool Catalog, and Tool Adapter Contract as optional supporting capabilities, but none is a substitute for an independent Bridge or the OBIS protocol. Their exact boundaries, PR dependency order, and separation tests are recorded in [BRIDEX Existing Component Integration Map](../../docs/BRIDEX_EXISTING_COMPONENT_INTEGRATION_MAP.md). These components must not become mandatory runtime dependencies for released Bridges.
 
