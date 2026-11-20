@@ -17,7 +17,7 @@ It currently provides:
 - Per-capability scope checks with default-deny behavior.
 - In-memory nonce replay rejection.
 - Direct loopback HTTP request handling at `/obis/v0.1/messages`.
-- HMAC-authenticated success responses compatible with the Python development client.
+- HMAC-authenticated success responses compatible with the Python development client.\n- A Go client that can invoke the Python reference peer over the same local development profile.
 - Tests consuming the shared published OBIS request vectors.
 
 ## Run independently
@@ -44,6 +44,6 @@ The server prints its bound address on startup. The sample capability is `record
 
 The HMAC profile reproduces the existing Python prototype's local development behavior. It is not a normative production security profile, certificate identity mapping, TLS/mTLS, key lifecycle, or a substitute for the unresolved OBIS security decisions. The server refuses non-loopback listen addresses.
 
-The current shared test proves that the Python reference client can send a request to the independent Go server and verify its correlated signed response. It does not yet prove the reverse direction, authenticated error-response parity, production TLS/mTLS interoperability, durable replay/idempotency, audit persistence, or full OBIS Core Conformance.
+The shared integration tests exercise both directions: Python client → Go server and Go client → Python server. They verify correlated, HMAC-authenticated success responses using the development-only profile. They do not prove authenticated error-response parity, production TLS/mTLS interoperability, durable replay/idempotency, audit persistence, or full OBIS Core Conformance.
 
 Do not expose this peer to the public internet or use it for real credentials or business data.
