@@ -215,12 +215,12 @@ def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> dict[
             "project_id": project["project_id"], "name": project["name"], "enabled": project.get("enabled", True),
             "source_count": len(expected_ids), "measured_source_count": len(known),
             "coverage": "DISABLED" if not project.get("enabled", True) else ("NOT_REGISTERED" if not expected_ids else ("INCOMPLETE" if has_gaps else "COMPLETE")),
-            "known_logical_bytes": sum(r["logical_bytes"] for r in known),
+            "known_logical_bytes": None if not project.get("enabled", True) else sum(r["logical_bytes"] for r in known),
             "logical_bytes_complete": bool(expected_ids) and not has_gaps,
             "missing_source_ids": missing_ids,
             "sources": selected
         })
-    known_total = sum(p["known_logical_bytes"] for p in projects)
+    known_total = sum(p["known_logical_bytes"] or 0 for p in projects)
     incomplete = [r for r in results if r.get("status") not in SUCCESS_STATUSES]
     alerts = []
     for project in projects:
