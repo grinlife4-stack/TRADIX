@@ -279,3 +279,16 @@ The reviewed Go 0.1 HTTP handler enforces a body-size limit and rejects transfer
 OBIS 0.2 is not yet cross-language executable or production-approved. The current reference transports use loopback HTTP and shared-secret HMAC for development/conformance only. No TLS/mTLS production profile, certificate-to-peer identity binding, trust-anchor lifecycle, revocation mechanism, independent security review, or production credential lifecycle is complete. No live provider connection, deployment, or production pilot is authorized by this review.
 
 PR #42 and PR #67 remain Draft and unmerged. This review makes no change to MegaMarket or NEXORA and authorizes no merge, deployment, or live external connection.
+
+
+## 14. Go RFC 8785 canonicalization integration started — 2026-11-20
+
+- Added a dedicated Go JCS boundary in `projects/BRIDEX/reference/obis-go/obis/jcs.go`, using the Go implementation listed in RFC 8785 Appendix G: `github.com/cyberphone/json-canonicalization/go`.
+- Pinned module version: `v0.0.0-20241213102144-19d51d7fe467`; pkg.go.dev reports Apache-2.0 licensing and publication on 2024-12-13.
+- The wrapper rejects duplicate JSON object keys before canonicalization and checks that canonicalizer output is valid JSON.
+- Added Go tests for the RFC 8785 Appendix B sample, duplicate keys, scalar top-level rejection, and Unicode property ordering.
+- The JCS wrapper is intentionally separate from the existing OBIS 0.1 HMAC serializer. It has not yet been wired into OBIS 0.2 operation request hashing.
+- **Validation pending:** no CI result has been observed for the commits adding this dependency and test. The import path, module resolution, exact vector bytes, and test behavior must be confirmed by CI before treating the integration as validated.
+- This is not Go OBIS 0.2 Peer/Client implementation and does not establish cross-language conformance.
+
+Reference: RFC 8785 Appendix G lists the cyberphone Go implementation as JCS-compatible; the module's package documentation identifies its Transform API and Apache-2.0 license.
