@@ -17,10 +17,10 @@ import secrets
 import sqlite3
 import threading
 import time
-from pathlib import Path
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
 from urllib.parse import urlparse
