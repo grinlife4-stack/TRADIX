@@ -263,7 +263,7 @@ PR #67 now runs a separate Go peer process on loopback and tests the ECOSCAN inv
 - OBIS 0.2 path: a test-only adapter invoker wraps OBISV02Client, checks the operation state, and maps the authenticated operation result into ECOSCAN's current adapter contract. This is a conformance bridge for testing only, not an ECOSCAN runtime dependency.
 - The standalone workflow pins the BRIDEX Go/Python reference implementation to commit ab6cf9ba108d5368844428eabbd5c492ad2e6069, builds the Go binary, and runs the tests without deploying or contacting an external provider.
 
-PR #67 standalone CI run 44808610978 completed successfully against the updated pin, with 74 passed including the OBIS 0.2 Go-peer integration; registry validation and the local-only synthetic scan also passed. The companion test workflow against the same pinned OBIS 0.2 reference peer is run 44808609957 and was still running at this note's update. PR #67 remains Draft and unmerged.
+PR #67 standalone CI run 44808610978 completed successfully against the updated pin, with 74 passed including the OBIS 0.2 Go-peer integration; registry validation and the local-only synthetic scan also passed. The companion test workflow against the same pinned OBIS 0.2 reference peer, run 44808609957, also completed successfully with 181 tests passed. PR #67 remains Draft and unmerged.
 
 ## Shared request-hash vectors and authenticated error parity — 2026-11-20
 
