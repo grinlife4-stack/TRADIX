@@ -656,3 +656,34 @@ def test_independent_go_peer_accepts_python_reference_client():
     finally:
         process.terminate()
         process.wait(timeout=5)
+
+
+def test_independent_go_client_invokes_python_reference_peer():
+    import os
+    import subprocess
+    binary = os.environ.get("OBIS_GO_PEER_BINARY")
+    if not binary:
+        pytest.skip("Go peer integration binary is not configured in this environment")
+    credential = Credential(
+        key_id="go-key", peer_id="peer:go", principal_ref="principal:go",
+        secret=SECRET, allowed_scopes=frozenset({"inventory:read"}),
+    )
+    peer = OBISPeer("peer:python", [credential])
+    peer.register_capability(
+        "inventory.get", "1.0", {"inventory:read"},
+        lambda payload: {"item_id": payload["item_id"], "served_by": "python-peer"},
+    )
+    with OBISServer(peer) as server:
+        result = subprocess.run(
+            [binary, "invoke", "--endpoint=" + server.address,
+             "--local-peer=peer:go", "--remote-peer=peer:python",
+             "--key-id=go-key", "--principal=principal:go",
+             "--secret-hex=" + SECRET.hex(), "--scopes=inventory:read",
+             "--capability=inventory.get", "--capability-version=1.0",
+             '--payload={"item_id":"sku-42"}'],
+            check=True, capture_output=True, text=True, timeout=10,
+        )
+    response = json.loads(result.stdout)
+    assert response["sender"]["peer_id"] == "peer:python"
+    assert response["recipient"]["peer_id"] == "peer:go"
+    assert response["result"] == {"item_id": "sku-42", "served_by": "python-peer"}
