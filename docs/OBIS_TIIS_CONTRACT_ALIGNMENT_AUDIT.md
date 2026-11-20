@@ -122,3 +122,14 @@ Cross-implementation evidence:
 - CI run #1119 completed successfully on commit `2e06ad11b54e71298d006edbd28168b5fadb4b82`, including Go tests/build, both cross-language success directions, the Python test suite, and package wheel/install checks. CI run #1131 completed successfully on commit `121cdca51ea5812bbc06c709c1e31b06b793be61`, adding signed authenticated error-response coverage in both directions.
 
 This closes only the initial two-peer success-path proof. It does not establish full OBIS Core or Interoperability Conformance. Remaining gaps include broader malformed-input, authentication-failure, replay, timeout, and downgrade tests; TLS/mTLS and certificate-to-peer mapping; credential rotation/revocation; durable replay and business-operation idempotency/outcome reconciliation; audit persistence; and clean-environment portability with TRADIX/BRIDEX unavailable. HMAC remains development-only; no production profile or deployment is approved.
+
+
+## 12. Go negative and transport-failure follow-up — 2026-11-20
+
+The independent Go peer's negative test coverage was extended without changing the normative OBIS schema, wire envelope, or production security decisions.
+
+Added test coverage includes malformed envelope cases (unknown/missing fields, nested-object shape, empty/duplicate scopes, timestamp type, expiry and TTL), authentication and identity rejection (unknown key, invalid signature, sender/recipient/principal mismatch), scope denial before capability execution, and replay rejection without a second capability execution. CI run #1147 passed on commit `f39c24553e53b6bbf475de195eb4e8c7be72cc3c`.
+
+The Go client also gained tests for request timeout against a non-responsive loopback peer and connection failure against an unavailable loopback endpoint. CI run #1148 passed on commit `7da228cfe799e6b1cef4b87dac83017effd52148`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated package wheel/install/schema checks.
+
+This closes only these specific development-profile test cases. It does not establish production transport security, complete cross-language negative conformance, durable replay/idempotency, audit persistence, or release readiness. No normative contract or security profile was changed.
