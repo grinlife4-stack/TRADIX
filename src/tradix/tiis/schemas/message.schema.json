@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tradix:tiis:0.1:message",
+  "title": "TIIS 0.1 Message Envelope",
+  "description": "Transport-neutral envelope for authorized communication between TRADIX-internal components.",
+  "oneOf": [
+    {
+      "allOf": [
+        { "$ref": "#/$defs/commonEnvelope" },
+        {
+          "type": "object",
+          "properties": {
+            "message_type": { "const": "request" },
+            "correlation_id": { "type": "string", "format": "uuid" },
+            "operation": { "$ref": "#/$defs/identifier" },
+            "expires_at": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$" },
+            "idempotency_key": { "type": "string", "minLength": 16, "maxLength": 128 },
+            "payload": { "type": "object" }
+          },
+          "required": ["message_type", "correlation_id", "operation", "expires_at", "payload"]
+        }
+      ]
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/commonEnvelope" },
+        {
+          "type": "object",
+          "properties": {
+            "message_type": { "const": "response" },
+            "correlation_id": { "type": "string", "format": "uuid" },
+            "in_reply_to": { "type": "string", "format": "uuid" },
+            "outcome": { "enum": ["succeeded", "accepted", "failed", "rejected"] },
+            "payload": { "type": "object" },
+            "error": { "$ref": "#/$defs/error" }
+          },
+          "required": ["message_type", "correlation_id", "in_reply_to", "outcome", "payload"],
+          "allOf": [
+            {
+              "if": { "properties": { "outcome": { "const": "failed" } }, "required": ["outcome"] },
+              "then": { "required": ["error"] }
+            },
+            {
+              "if": { "properties": { "outcome": { "const": "rejected" } }, "required": ["outcome"] },
+              "then": { "required": ["error"] }
+            },
+            {
+              "if": { "properties": { "outcome": { "enum": ["succeeded", "accepted"] } }, "required": ["outcome"] },
+              "then": { "not": { "required": ["error"] } }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "allOf": [
+        { "$ref": "#/$defs/commonEnvelope" },
+        {
+          "type": "object",
+          "properties": {
+            "message_type": { "const": "event" },
+            "event_type": { "$ref": "#/$defs/identifier" },
+            "payload": { "type": "object" }
+          },
+          "required": ["message_type", "event_type", "payload"]
+        }
+      ]
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 96
+    },
+    "componentRef": {
+      "type": "object",
+      "properties": {
+        "project_id": { "$ref": "#/$defs/identifier" },
+        "component_id": { "$ref": "#/$defs/identifier" },
+        "instance_id": { "$ref": "#/$defs/identifier" }
+      },
+      "required": ["project_id", "component_id"],
+      "additionalProperties": false
+    },
+    "traceContext": {
+      "type": "object",
+      "properties": {
+        "trace_id": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+        "span_id": { "type": "string", "pattern": "^[a-f0-9]{16}$" },
+        "parent_span_id": { "type": "string", "pattern": "^[a-f0-9]{16}$" }
+      },
+      "required": ["trace_id", "span_id"],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": { "$ref": "#/$defs/identifier" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "retryable": { "type": "boolean" },
+        "evidence_ref": { "type": "string", "minLength": 1, "maxLength": 512 }
+      },
+      "required": ["code", "message", "retryable"],
+      "additionalProperties": false
+    },
+    "commonEnvelope": {
+      "type": "object",
+      "properties": {
+        "protocol": { "const": "TIIS" },
+        "protocol_version": { "const": "0.1" },
+        "message_type": { "enum": ["request", "response", "event"] },
+        "message_id": { "type": "string", "format": "uuid" },
+        "correlation_id": { "type": "string", "format": "uuid" },
+        "sender": { "$ref": "#/$defs/componentRef" },
+        "recipient": { "$ref": "#/$defs/componentRef" },
+        "interface_id": { "$ref": "#/$defs/identifier" },
+        "interface_version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "issued_at": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "trace": { "$ref": "#/$defs/traceContext" },
+        "payload": { "type": "object" }
+      },
+      "required": [
+        "protocol",
+        "protocol_version",
+        "message_id",
+        "sender",
+        "recipient",
+        "interface_id",
+        "interface_version",
+        "issued_at"
+      ]
+    }
+  },
+  "unevaluatedProperties": false
+}
