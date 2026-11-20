@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from obis_bridge import OBISClient, OBISPeer, OBISServer, Credential, OBISRequestError
+from obis_bridge import OBISClient, OBISPeer, OBISServer, Credential, OBISRequestError, OBISRequestError
 
 
 GO_PEER_BINARY = os.environ.get("OBIS_GO_PEER_BINARY")
@@ -157,3 +157,57 @@ def test_go_client_validates_signed_error_from_python_peer():
         )
     assert result.returncode != 0
     assert "authorization.denied" in result.stderr
+
+
+def test_python_client_validates_authenticated_error_from_go_peer():
+    process, endpoint = _start_go_server()
+    try:
+        client = OBISClient(
+            local_peer_id="peer:python",
+            remote_peer_id="peer:go",
+            key_id="python-dev-key",
+            principal_ref="principal:python",
+            secret=SECRET,
+            scopes={"records:read"},
+        )
+        with pytest.raises(OBISRequestError) as raised:
+            client.invoke(endpoint, "missing.capability", "1.0", {"record_id": "unknown"})
+        assert raised.value.code == "capability.unknown"
+        assert raised.value.status_code == 404
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+
+
+def test_go_client_validates_authenticated_error_from_python_peer():
+    credential = Credential(
+        key_id="go-dev-key",
+        peer_id="peer:go",
+        principal_ref="principal:go",
+        secret=SECRET,
+        allowed_scopes=frozenset({"records:read"}),
+    )
+    peer = OBISPeer("peer:python", [credential])
+    with OBISServer(peer) as server:
+        result = subprocess.run(
+            [
+                GO_PEER_BINARY,
+                "invoke",
+                "--local-peer", "peer:go",
+                "--endpoint", server.address,
+                "--remote-peer", "peer:python",
+                "--key-id", "go-dev-key",
+                "--principal", "principal:go",
+                "--secret-hex", SECRET.hex(),
+                "--scopes", "records:read",
+                "--capability", "records.read",
+                "--capability-version", "1.0",
+                "--payload", json.dumps({"record_id": "missing"}),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    assert result.returncode != 0
+    assert "capability.unknown" in result.stderr
