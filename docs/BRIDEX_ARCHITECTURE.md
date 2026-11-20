@@ -121,6 +121,14 @@ A Bridge may use other protocols through explicit, replaceable adapters. Such ad
 
 ## 7. Ownership, lifecycle, and portability
 
+Ownership, generation, operation, and maintenance are distinct roles. BRIDEX is the generator and engineering-method provider, not the default owner of a generated Bridge. Each instance must explicitly designate its owner; the commissioning/using project or tool may own it, or another entity may be named. If operator or maintainer differs, record that role separately.
+
+The designated owner must have access to the complete source or independently buildable package and, subject to third-party licenses, the rights to run, configure, modify, fork, transfer, independently maintain, appoint/replace operators, and export owner-controlled configuration and operational records. An opaque binary, hosted endpoint, or generator-dependent package alone is insufficient unless a documented exception is explicitly approved.
+
+Portability means the released Bridge can be built, deployed, operated, and maintained without BRIDEX/TRADIX runtime services, repositories, registries, credentials, or license checks. Its release package includes reproducible build/deployment instructions, OBIS specifications, configuration schemas, replaceable adapter contracts, dependency/license inventory, conformance evidence, and migration/export procedures.
+
+The owner can adapt the Bridge to other ecosystems through documented interfaces and replaceable adapters. This does not imply automatic compatibility with every target; it means a new adapter or mapping can be added without surrendering ownership or rebuilding the entire Bridge. The binding detail is in [BRIDEX Ownership, Control, and Portability Policy](BRIDEX_OWNERSHIP_AND_PORTABILITY_POLICY.md).
+
 Every Bridge instance must record:
 - Bridge ID and implementation version.
 - Owner/operator and maintenance contact/authority.
