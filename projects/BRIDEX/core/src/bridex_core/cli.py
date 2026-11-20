@@ -8,6 +8,7 @@ import sys
 from collections.abc import Sequence
 
 from .archive import export_package, restore_package
+from .conformance import ConformanceSuiteError, run_schema_suite
 from .layout import verify_package
 from .manifest import ManifestValidationError, load_manifest
 
@@ -25,6 +26,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     restore = commands.add_parser("restore", help="safely restore and verify a ZIP package")
     restore.add_argument("archive", help="Bridge package ZIP archive")
     restore.add_argument("directory", help="new restore destination directory")
+    conformance = commands.add_parser("conformance", help="run a published OBIS conformance suite")
+    conformance.add_argument("layer", choices=["schema"], help="conformance layer")
+    conformance.add_argument("suite", help="path to versioned conformance suite JSON")
     args = parser.parse_args(argv)
     try:
         if args.command == "validate":
@@ -38,11 +42,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             report = export_package(args.directory, args.archive)
             print("exported: BRIDEX portable Bridge package 0.1")
             print(json.dumps(report, sort_keys=True))
-        else:
+        elif args.command == "restore":
             report = restore_package(args.archive, args.directory)
             print("restored: BRIDEX portable Bridge package 0.1")
             print(json.dumps(report, sort_keys=True))
-    except ManifestValidationError as exc:
+        else:
+            report = run_schema_suite(args.suite)
+            print("passed: OBIS schema conformance suite")
+            print(json.dumps(report, sort_keys=True))
+    except (ManifestValidationError, ConformanceSuiteError) as exc:
         print(f"invalid: {exc}", file=sys.stderr)
         return 2
     return 0
