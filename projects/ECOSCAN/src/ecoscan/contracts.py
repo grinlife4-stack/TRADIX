@@ -30,10 +30,20 @@ class BudgetGuard:
         self.pages_seen = 0
         self.items_seen = 0
         self.started = time.monotonic()
+        self.deadline = self.started + min(
+            self.budget.timeout_seconds,
+            self.budget.max_duration_seconds,
+        )
+
+    def remaining_seconds(self) -> float:
+        return max(0.0, self.deadline - time.monotonic())
+
+    def check_deadline(self) -> None:
+        if time.monotonic() >= self.deadline:
+            raise BudgetExceeded("scan time budget exceeded")
 
     def _check_time(self) -> None:
-        if time.monotonic() - self.started > min(self.budget.timeout_seconds, self.budget.max_duration_seconds):
-            raise BudgetExceeded("scan time budget exceeded")
+        self.check_deadline()
 
     def consume_page(self) -> None:
         if self.before_page is not None and self.before_page() is not True:
