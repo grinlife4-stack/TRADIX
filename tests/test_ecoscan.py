@@ -579,7 +579,8 @@ def test_railway_refresh_rejects_response_without_rotated_refresh_token():
             store, _TestRefreshLock(), "id", "secret", now=100, opener=opener,
         )
     assert store.state.refresh_token == "old-refresh"
-    assert not store.saved
+    assert store.state.status == "REFRESHING"
+    assert len(store.saved) == 1
 
 
 def test_railway_refresh_does_not_leak_credentials_in_http_error():
