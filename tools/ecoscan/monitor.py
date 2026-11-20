@@ -376,7 +376,7 @@ def scan_source(
     if provider == "local":
         return scan_local(source)
     if provider == "railway_volume":
-        return scan_railway_volume(source, railway_access_token or os.environ.get("RAILWAY_OAUTH_ACCESS_TOKEN"))
+        return scan_railway_volume(source, railway_access_token)
     if provider == "s3_compatible":
         return scan_s3_compatible(source)
     return {"source_id": source.get("source_id", "unknown"), "project_id": source.get("project_id", "unknown"), "provider": str(provider), "reference": source.get("reference"), "measured_at": utc_now(), "status": "UNSUPPORTED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": source.get("capacity_bytes"), "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "not implemented", "error": f"Provider adapter not implemented: {provider}", "limitations": []}
