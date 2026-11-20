@@ -12,6 +12,8 @@ EXTRA = "admin:write"
 
 class FakeV02Client:
     instances = []
+    default_state = "SUCCEEDED"
+    default_failure_code = None
 
     def __init__(
         self, *, local_peer_id, remote_peer_id, key_id, principal_ref,
@@ -28,9 +30,9 @@ class FakeV02Client:
             "sender": {"peer_id": remote_peer_id},
             "recipient": {"peer_id": local_peer_id},
             "operation": {
-                "state": "SUCCEEDED",
+                "state": self.default_state,
                 "result": {"items_seen": 1},
-                "failure_code": None,
+                "failure_code": self.default_failure_code,
             },
         }
         self.calls = []
@@ -43,6 +45,8 @@ class FakeV02Client:
 
 def make_invoker():
     FakeV02Client.instances.clear()
+    FakeV02Client.default_state = "SUCCEEDED"
+    FakeV02Client.default_failure_code = None
     original = FakeV02Client(
         local_peer_id="peer:ecoscan",
         remote_peer_id="peer:owner",
@@ -74,8 +78,8 @@ def test_v02_invoker_narrows_scopes_and_returns_only_committed_result():
 
 
 def test_v02_invoker_never_converts_unknown_operation_into_success():
+    FakeV02Client.default_state = "UNKNOWN"
     invoker, _ = make_invoker()
-    FakeV02Client.instances[-1].response["operation"]["state"] = "UNKNOWN"
     with pytest.raises(TransportOutcomeUnknown):
         invoker.invoke(
             "http://127.0.0.1:9000", "ecoscan.inventory.read", "1.0",
@@ -85,10 +89,9 @@ def test_v02_invoker_never_converts_unknown_operation_into_success():
 
 
 def test_v02_invoker_surfaces_known_terminal_failure():
+    FakeV02Client.default_state = "FAILED"
+    FakeV02Client.default_failure_code = "provider.denied"
     invoker, _ = make_invoker()
-    FakeV02Client.instances[-1].response["operation"].update(
-        {"state": "FAILED", "failure_code": "provider.denied"}
-    )
     with pytest.raises(OBISV02OperationFailed) as raised:
         invoker.invoke(
             "http://127.0.0.1:9000", "ecoscan.inventory.read", "1.0",
