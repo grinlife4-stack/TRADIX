@@ -179,6 +179,8 @@ Catalog records MUST NOT contain secret values. They SHOULD include component id
 
 A catalog outage MUST NOT silently expand permissions or cause a component to accept an unknown peer. Where practical, components should retain the minimum local configuration needed for safe operation during discovery-service outages.
 
+The first TRADIX Tool Catalog interface is `tool.catalog@1.0.0`, implemented by `src/tradix/tools/tiis_adapter.py`. It exposes only `tool.get` and `tool.list` read operations and returns correlated TIIS response envelopes. It is an in-process adapter contract: the caller must supply a principal from a trusted authentication boundary. It does not create a network listener, authenticate credentials, mutate lifecycle state, install tools, or execute tools. Artifact Gateway and other network-facing components remain outside TIIS until an approved transport identity profile and scoped authorization mapping are implemented and tested.
+
 ## 13. Relationship with OBIS and Bridge adapters
 
 TIIS and OBIS are separate standards with separate scopes, versioning, schemas, conformance tests, and failure boundaries.
