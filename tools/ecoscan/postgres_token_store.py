@@ -27,9 +27,12 @@ class PostgresBackendError(RuntimeError):
 
 def _require_direct_connection(dsn: str) -> None:
     try:
-        hostname = urlsplit(dsn).hostname or ""
+        parsed = urlsplit(dsn)
+        hostname = parsed.hostname or ""
     except ValueError:
         raise ValueError("invalid PostgreSQL DSN") from None
+    if parsed.scheme not in {"postgres", "postgresql"} or not hostname:
+        raise ValueError("ECOSCAN requires a PostgreSQL URI with an explicit host")
     if "-pooler" in hostname.lower():
         raise ValueError(
             "ECOSCAN requires a direct PostgreSQL endpoint for session advisory locks"
@@ -52,7 +55,7 @@ def _connect(dsn: str):
     except ImportError as exc:
         raise PostgresBackendError("psycopg is required for PostgreSQL token storage") from exc
     try:
-        return psycopg.connect(dsn, connect_timeout=10)
+        return psycopg.connect(dsn, connect_timeout=10, sslmode="require")
     except Exception:
         raise PostgresBackendError("PostgreSQL connection failed") from None
 
