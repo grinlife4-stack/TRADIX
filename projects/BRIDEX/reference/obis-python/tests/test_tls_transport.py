@@ -36,15 +36,9 @@ def create_ca(tmp_path: Path):
         .add_extension(x509.BasicConstraints(ca=True, path_length=1), critical=True)
         .add_extension(
             x509.KeyUsage(
-                digital_signature=True,
-                content_commitment=False,
-                key_encipherment=False,
-                data_encipherment=False,
-                key_agreement=False,
-                key_cert_sign=True,
-                crl_sign=True,
-                encipher_only=None,
-                decipher_only=None,
+                digital_signature=True, content_commitment=False, key_encipherment=False,
+                data_encipherment=False, key_agreement=False, key_cert_sign=True,
+                crl_sign=True, encipher_only=None, decipher_only=None,
             ),
             critical=True,
         )
@@ -55,15 +49,7 @@ def create_ca(tmp_path: Path):
     return key, cert, ca_path
 
 
-def create_leaf(
-    tmp_path: Path,
-    ca_key,
-    ca_cert,
-    peer_uri: str,
-    *,
-    server: bool,
-    filename: str,
-):
+def create_leaf(tmp_path: Path, ca_key, ca_cert, peer_uri: str, *, server: bool, filename: str):
     tmp_path.mkdir(parents=True, exist_ok=True)
     now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
     key = ec.generate_private_key(ec.SECP256R1())
@@ -86,15 +72,9 @@ def create_leaf(
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .add_extension(
             x509.KeyUsage(
-                digital_signature=True,
-                content_commitment=False,
-                key_encipherment=False,
-                data_encipherment=False,
-                key_agreement=False,
-                key_cert_sign=False,
-                crl_sign=False,
-                encipher_only=None,
-                decipher_only=None,
+                digital_signature=True, content_commitment=False, key_encipherment=False,
+                data_encipherment=False, key_agreement=False, key_cert_sign=False,
+                crl_sign=False, encipher_only=None, decipher_only=None,
             ),
             critical=True,
         )
@@ -137,46 +117,30 @@ def client_context(ca_path: Path, cert_path: Path | None, key_path: Path | None)
     return context
 
 
-def make_pair(tmp_path: Path, *, server_peer_uri: str = SERVER_URI, client_peer_uri: str = CLIENT_URI):
+def make_pair(tmp_path: Path):
     ca_key, ca_cert, ca_path = create_ca(tmp_path)
-    _, server_cert, server_key, _ = create_leaf(
-        tmp_path, ca_key, ca_cert, server_peer_uri, server=True, filename="server"
-    )
-    _, client_cert, client_key, client_fingerprint = create_leaf(
-        tmp_path, ca_key, ca_cert, client_peer_uri, server=False, filename="client"
-    )
+    _, server_cert, server_key, _ = create_leaf(tmp_path, ca_key, ca_cert, SERVER_URI, server=True, filename="server")
+    _, client_cert, client_key, client_fingerprint = create_leaf(tmp_path, ca_key, ca_cert, CLIENT_URI, server=False, filename="client")
     peer = OBISPeer(
-        server_peer_uri,
+        SERVER_URI,
         credentials=[
             Credential(
                 key_id="client-certificate-1",
-                peer_id=client_peer_uri,
+                peer_id=CLIENT_URI,
                 principal_ref="principal:client",
                 secret=None,
                 allowed_scopes=frozenset({"echo:read"}),
-                certificate_uri=client_peer_uri,
+                certificate_uri=CLIENT_URI,
                 certificate_sha256=client_fingerprint,
             )
         ],
     )
-    peer.register_capability(
-        ECHO_CAPABILITY,
-        ECHO_VERSION,
-        {"echo:read"},
-        lambda payload: {"echo": payload["value"]},
-    )
-    server_tls = server_context(ca_path, server_cert, server_key)
-    client_tls = client_context(ca_path, client_cert, client_key)
+    peer.register_capability(ECHO_CAPABILITY, ECHO_VERSION, {"echo:read"}, lambda payload: {"echo": payload["value"]})
     client = OBISClient(
-        local_peer_id=client_peer_uri,
-        remote_peer_id=server_peer_uri,
-        key_id="client-certificate-1",
-        principal_ref="principal:client",
-        secret=None,
-        scopes={"echo:read"},
-        tls_context=client_tls,
+        CLIENT_URI, SERVER_URI, "client-certificate-1", "principal:client", None,
+        {"echo:read"}, tls_context=client_context(ca_path, client_cert, client_key)
     )
-    return peer, server_tls, client, ca_key, ca_cert, ca_path, client_cert, client_key
+    return peer, server_context(ca_path, server_cert, server_key), client, ca_key, ca_cert, ca_path, client_cert, client_key
 
 
 def test_mtls_profile_direct_peer_request_succeeds_without_shared_hmac_secret(tmp_path: Path) -> None:
@@ -189,7 +153,7 @@ def test_mtls_profile_direct_peer_request_succeeds_without_shared_hmac_secret(tm
 
 
 def test_mtls_error_response_is_authenticated_by_tls_and_preserves_obis_error(tmp_path: Path) -> None:
-    peer, server_tls, client = make_pair(tmp_path)
+    peer, server_tls, client, *_ = make_pair(tmp_path)
     client.scopes = frozenset({"echo:read", "echo:admin"})
     with OBISServer(peer, tls_context=server_tls) as server:
         with pytest.raises(OBISRequestError) as caught:
@@ -200,9 +164,8 @@ def test_mtls_error_response_is_authenticated_by_tls_and_preserves_obis_error(tm
 def test_mtls_rejects_client_certificate_not_bound_to_configured_peer(tmp_path: Path) -> None:
     ca_key, ca_cert, ca_path = create_ca(tmp_path)
     _, server_cert, server_key, _ = create_leaf(tmp_path, ca_key, ca_cert, SERVER_URI, server=True, filename="server")
-    _, other_client_cert, other_client_key, _ = create_leaf(
-        tmp_path, ca_key, ca_cert, OTHER_CLIENT_URI, server=False, filename="other-client"
-    )
+    _, expected_cert, _, expected_fingerprint = create_leaf(tmp_path, ca_key, ca_cert, CLIENT_URI, server=False, filename="expected-client")
+    _, other_cert, other_key, _ = create_leaf(tmp_path, ca_key, ca_cert, OTHER_CLIENT_URI, server=False, filename="other-client")
     peer = OBISPeer(
         SERVER_URI,
         credentials=[
@@ -213,25 +176,24 @@ def test_mtls_rejects_client_certificate_not_bound_to_configured_peer(tmp_path: 
                 secret=None,
                 allowed_scopes=frozenset({"echo:read"}),
                 certificate_uri=CLIENT_URI,
-                certificate_sha256="a" * 64,
+                certificate_sha256=expected_fingerprint,
             )
         ],
     )
     peer.register_capability(ECHO_CAPABILITY, ECHO_VERSION, {"echo:read"}, lambda payload: {"echo": payload["value"]})
     client = OBISClient(
         OTHER_CLIENT_URI, SERVER_URI, "client-certificate-1", "principal:client", None,
-        {"echo:read"}, tls_context=client_context(ca_path, other_client_cert, other_client_key)
+        {"echo:read"}, tls_context=client_context(ca_path, other_cert, other_key)
     )
-    with OBISServer(peer, tls_context=server_tls) as server:
+    with OBISServer(peer, tls_context=server_context(ca_path, server_cert, server_key)) as server:
         with pytest.raises(OBISRequestError):
             client.invoke(server.address, ECHO_CAPABILITY, ECHO_VERSION, {"value": "blocked"})
 
 
 def test_mtls_rejects_server_certificate_uri_mismatch(tmp_path: Path) -> None:
-    peer, _, client = make_pair(tmp_path, server_peer_uri=OTHER_CLIENT_URI)
-    ca_key, ca_cert, ca_path = create_ca(tmp_path / "second-ca")
+    peer, _, client, ca_key, ca_cert, ca_path, _, _ = make_pair(tmp_path)
     _, wrong_server_cert, wrong_server_key, _ = create_leaf(
-        tmp_path / "second-ca", ca_key, ca_cert, OTHER_CLIENT_URI, server=True, filename="wrong-server"
+        tmp_path, ca_key, ca_cert, OTHER_CLIENT_URI, server=True, filename="wrong-server"
     )
     wrong_context = server_context(ca_path, wrong_server_cert, wrong_server_key)
     with OBISServer(peer, tls_context=wrong_context) as server:
@@ -241,27 +203,19 @@ def test_mtls_rejects_server_certificate_uri_mismatch(tmp_path: Path) -> None:
 
 def test_mtls_requires_client_certificate(tmp_path: Path) -> None:
     peer, server_tls, _, _, _, ca_path, _, _ = make_pair(tmp_path)
-    ca_key, ca_cert, ca_path = create_ca(tmp_path / "no-client")
-    _, server_cert, server_key, _ = create_leaf(
-        tmp_path / "no-client", ca_key, ca_cert, SERVER_URI, server=True, filename="server-no-client"
-    )
-    client = OBISClient(
+    no_certificate_client = OBISClient(
         CLIENT_URI, SERVER_URI, "client-certificate-1", "principal:client", None,
         {"echo:read"}, tls_context=client_context(ca_path, None, None)
     )
-    with OBISServer(peer, tls_context=server_context(ca_path, server_cert, server_key)) as server:
+    with OBISServer(peer, tls_context=server_tls) as server:
         with pytest.raises(OBISRequestError, match="TLS peer connection"):
-            client.invoke(server.address, ECHO_CAPABILITY, ECHO_VERSION, {"value": "blocked"})
+            no_certificate_client.invoke(server.address, ECHO_CAPABILITY, ECHO_VERSION, {"value": "blocked"})
 
 
 def test_mtls_rejects_untrusted_server_ca(tmp_path: Path) -> None:
-    peer, server_tls, client = make_pair(tmp_path)
+    peer, server_tls, _, _, _, _, client_cert, client_key = make_pair(tmp_path)
     wrong_ca_dir = tmp_path / "wrong-ca"
-    wrong_ca_dir.mkdir()
     _, _, wrong_ca_path = create_ca(wrong_ca_dir)
-    _, client_cert, client_key, _ = create_leaf(
-        wrong_ca_dir, *create_ca(wrong_ca_dir)[:2], CLIENT_URI, server=False, filename="untrusted-client"
-    )
     untrusted_client = OBISClient(
         CLIENT_URI, SERVER_URI, "client-certificate-1", "principal:client", None,
         {"echo:read"}, tls_context=client_context(wrong_ca_path, client_cert, client_key)
@@ -271,7 +225,7 @@ def test_mtls_rejects_untrusted_server_ca(tmp_path: Path) -> None:
             untrusted_client.invoke(server.address, ECHO_CAPABILITY, ECHO_VERSION, {"value": "blocked"})
 
 
-def test_mtls_contexts_must_be_tls13_and_server_must_require_client_cert(tmp_path: Path) -> None:
+def test_mtls_contexts_must_be_tls13_and_server_must_require_client_cert() -> None:
     context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.maximum_version = ssl.TLSVersion.TLSv1_2
@@ -286,13 +240,13 @@ def test_mtls_contexts_must_be_tls13_and_server_must_require_client_cert(tmp_pat
 
 
 def test_mtls_endpoint_cannot_fall_back_to_plaintext_http(tmp_path: Path) -> None:
-    _, _, client = make_pair(tmp_path)
+    _, _, client, *_ = make_pair(tmp_path)
     with pytest.raises(ValueError, match="HTTPS endpoint"):
         client.invoke("http://127.0.0.1:12345", ECHO_CAPABILITY, ECHO_VERSION, {"value": "blocked"})
 
 
 def test_mtls_credential_revocation_blocks_subsequent_requests(tmp_path: Path) -> None:
-    peer, server_tls, client = make_pair(tmp_path)
+    peer, server_tls, client, *_ = make_pair(tmp_path)
     assert peer.revoke_credential("client-certificate-1") is True
     assert peer.revoke_credential("client-certificate-1") is False
     with OBISServer(peer, tls_context=server_tls) as server:
