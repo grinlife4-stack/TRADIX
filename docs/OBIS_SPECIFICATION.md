@@ -135,7 +135,7 @@ Capabilities MUST be narrow and typed. Generic shell execution, arbitrary code e
 
 ## 9. Message envelope
 
-The base OBIS message representation uses UTF-8 JSON. Alternative encodings require a separately declared profile. The following is an illustrative structural example, not a complete schema:
+The base OBIS 0.1 message representation uses UTF-8 JSON. Alternative encodings require a separately declared profile. The following request is an example of the **actual OBIS 0.1 wire envelope** and MUST validate against the canonical JSON Schema at `standards/obis/0.1/message.schema.json`:
 
 ```json
 {
@@ -143,16 +143,15 @@ The base OBIS message representation uses UTF-8 JSON. Alternative encodings requ
   "version": "0.1",
   "message_type": "request",
   "message_id": "msg-unique-value",
-  "correlation_id": "optional-parent-or-trace-id",
+  "nonce": "nonce-unique-value",
   "sender": {
-    "peer_id": "peer:example-a",
-    "bridge_id": "bridge:example-a-to-b"
+    "peer_id": "peer:example-a"
   },
   "recipient": {
     "peer_id": "peer:example-b"
   },
-  "issued_at": "2026-11-20T10:00:00Z",
-  "expires_at": "2026-11-20T10:00:30Z",
+  "issued_at": 1795168800,
+  "expires_at": 1795168830,
   "capability": {
     "id": "example.read-record",
     "version": "1.0"
@@ -163,10 +162,11 @@ The base OBIS message representation uses UTF-8 JSON. Alternative encodings requ
   },
   "payload": {
     "record_id": "record-123"
-  },
-  "evidence_ref": "optional-owner-controlled-reference"
+  }
 }
 ```
+
+The strict OBIS 0.1 request schema does not permit `correlation_id`, `bridge_id`, or `evidence_ref` in this request envelope. Request timestamps are non-negative Unix epoch numbers. Response messages carry `correlation_id` referencing the request's `message_id`. Bridge-instance identity and evidence references remain distinct from peer identity and must be handled through the explicitly configured implementation/deployment metadata or a separately versioned extension; implementations MUST NOT add them as undeclared OBIS 0.1 request fields.
 
 Required envelope fields and their schema constraints MUST be defined in the versioned OBIS schema package. Implementations MUST reject malformed messages, invalid identifiers, unsupported required features, expired messages, oversized payloads, and schema-invalid payloads before executing the requested capability.
 
