@@ -6,7 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"\n\t"net"\n\t"time"
+	"net/http"
+	"net"
+	"time"
 	"os"
 	"strings"
 
