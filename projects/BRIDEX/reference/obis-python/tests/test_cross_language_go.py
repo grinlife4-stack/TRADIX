@@ -608,7 +608,8 @@ def test_python_v02_client_invokes_go_v02_peer_and_queries_status(tmp_path):
         assert first["operation"]["state"] == "SUCCEEDED"
         assert second["operation"]["result"] == first["operation"]["result"]
         assert status["operation"]["state"] == "SUCCEEDED"
-        assert first["operation"]["result"]["served_by"] == "go-peer-v02"
+        assert first["operation"]["result"]["items_seen"] == 2
+        assert first["operation"]["result"]["source_id"] == "source-a"
     finally:
         process.terminate()
         process.wait(timeout=5)
