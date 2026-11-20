@@ -38,6 +38,18 @@ Tool descriptors are immutable per version. Corrections require registering a ne
 
 The repository CI runs catalog tests alongside the artifact intake/gateway suite. Passing tests establish tested local behavior only; they do not establish that listed tools are installed, reachable, licensed for a particular use, or safe to execute.
 
+## TIIS integration
+
+The catalog exposes a narrow, read-only TIIS interface (`tool.catalog@1.0.0`) through `ToolCatalogTIISAdapter`:
+
+- `tool.get`: retrieve one immutable tool-version descriptor and its current lifecycle state.
+- `tool.list`: list metadata with optional lifecycle/category filters.
+- All requests pass through the TIIS envelope validator and a caller-supplied authenticated principal and authorization policy.
+- The adapter returns correlated TIIS response envelopes with normalized errors.
+- Lifecycle mutation, installation, execution, network probing, and credential operations are deliberately not exposed.
+
+This is an in-process adapter contract, not a network transport or authentication profile. It does not claim end-to-end TIIS runtime conformance. A trusted caller must supply the authenticated component identity; the adapter never trusts the message's claimed sender by itself.
+
 ## Next phase
 
-Add a read-only import/inventory path with source evidence, then define a versioned adapter contract and contract tests. Do not add arbitrary command execution or expose credentials to agents.
+Add a read-only import/inventory path with source evidence, then add an approved transport/authentication profile and a durable audit/replay strategy before exposing any remote catalog endpoint. Do not add arbitrary command execution or expose credentials to agents.
