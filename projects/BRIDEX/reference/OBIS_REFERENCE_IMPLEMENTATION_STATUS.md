@@ -70,7 +70,7 @@ The standalone BRIDEX engineering-plane package is now implemented at `projects/
 - Generated Bridge manifests require explicit owner and operator assignment evidence.
 - Generated projects declare OBIS 0.1 and begin with no trusted peers, no enabled capabilities, and draft lifecycle.
 - The generated source tree includes its own `pyproject.toml`, README, configuration template, and contract test.
-- ZIP export uses fixed timestamps for reproducibility, rejects symlinks and secret-named files, and returns a SHA-256 digest.
-- Root CI now installs and tests BRIDEX Core and builds its wheel. Verification is pending until CI completes on this branch's latest commit.
+- ZIP export uses fixed timestamps for reproducibility, rejects symlinks, secret-named files, private-key markers, and common token patterns, and returns a SHA-256 digest.
+- Root CI now installs and tests BRIDEX Core and builds its wheel. The generated OBIS peer uses the same loopback/HMAC development profile as the reference package; it is not a production transport or security profile. Verification is pending until CI completes on this branch's latest commit.
 
 This generator is an engineering-plane foundation only. It does not implement a production Bridge runtime, network transport, peer authentication, secret lifecycle, or full security scanning of arbitrary source contents.
