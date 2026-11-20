@@ -2,31 +2,42 @@
 
 Optional, read-only, removable utility for measuring storage independently across registered portfolio projects and aggregating the resulting reports.
 
-**Current status: DESIGN DOSSIER ONLY.** No scanner, scheduler, notification integration, or live inventory runner is implemented yet.
+**Status: first implementation in progress.** The current code supports GitHub repository tree inventory, configured local directory metadata scans, normalized JSON/Markdown reports, and optional GitHub issue publication. Scheduled execution is defined in a separate GitHub Actions workflow but will not run until that workflow reaches the default branch.
 
-## Rules
+## Run manually
 
-- Read [the governing specification](../../docs/PORTFOLIO_STORAGE_MONITOR.md) before implementation.
-- Default mode is MANUAL. No background work is permitted unless SCHEDULED mode is explicitly enabled.
-- Keep project/source boundaries independent; aggregate normalized measurement records only.
-- Never interpret failed or inaccessible sources as zero.
-- Do not make TRADIX core, Gateway, EventStore, or any product depend on this tool.
-- Keep this directory removable without changing product behavior.
-- Do not add provider credentials, private project data, or secrets to this directory or repository.
+From the TRADIX repository root with Python 3.11 or newer:
 
-## Planned structure
+```bash
+python -m tools.portfolio_storage_monitor
+```
 
-The implementation may introduce these components as needed:
+Optional arguments:
 
-- `registry/`: project/source references and measurement policies (no secrets)
-- `scanners/`: read-only provider-specific inventory adapters
-- `schemas/`: normalized measurement records
-- `aggregator/`: portfolio summary and coverage validation
-- `reports/`: exportable JSON/CSV/Markdown outputs
-- `config/`: optional schedule and alert thresholds
+```bash
+python -m tools.portfolio_storage_monitor --config tools/portfolio_storage_monitor/config/portfolio.json --output artifacts/storage-monitor/latest.json
+```
 
-Do not create empty placeholder modules or claim functionality before implementation and tests exist.
+Reports are written locally as JSON and Markdown. The tool does not upload, delete, modify, or hash source files.
 
-## First implementation milestone
+## GitHub access
 
-Build a local/manual read-only inventory runner and test it against isolated sample fixtures. Add real provider adapters only after their access, cost, and regional eligibility are verified. Scheduling and notifications are separate later milestones.
+- Public repositories can be inventoried through the GitHub REST API.
+- Private repositories require a token with read-only metadata and contents access to each registered private repository.
+- For scheduled GitHub Actions, configure a repository secret named `PORTFOLIO_GITHUB_TOKEN` containing a fine-grained token limited to the required repositories and read-only contents/metadata permissions.
+- The workflow's built-in `GITHUB_TOKEN` is restricted to TRADIX; it cannot be assumed to read other private repositories.
+- Issue publication uses the workflow's built-in token with `issues: write`; no personal token is needed for publishing the report to TRADIX.
+
+Never commit tokens or private data.
+
+## Current source coverage
+
+The initial registry contains the five repositories visible in the connected GitHub account at implementation time. It intentionally marks other portfolio projects with no registered storage source as NOT_REGISTERED. Railway volume contents, local machines, object-storage buckets, backups, Git LFS payloads, and external archives are not yet measured.
+
+## Operating and removal rules
+
+- The registry defaults to MANUAL. No local background process is started.
+- The optional GitHub Actions workflow supports manual dispatch and weekly/monthly schedules after it is merged to the default branch.
+- The workflow updates one GitHub issue titled `Portfolio Storage Monitor — Latest Report`; incomplete sources are surfaced as warnings.
+- No product runtime, Gateway, EventStore, Railway service, or production infrastructure depends on this tool.
+- Disable scheduled runs by disabling the workflow. Remove the tool by removing this directory and its optional workflow/configuration; no source data is modified.
