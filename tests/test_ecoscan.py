@@ -242,3 +242,62 @@ def test_disabled_project_is_reported_as_disabled_not_unregistered_or_zero(tmp_p
     assert project["known_logical_bytes"] == 0
     assert project["sources"][0]["status"] == "DISABLED"
     assert any(alert["code"] == "PROJECT_DISABLED" for alert in report["alerts"])
+
+
+def test_railway_volume_adapter_reports_capacity_and_backup_metadata_only(monkeypatch):
+    def fake_graphql(query, variables, token):
+        assert variables == {"id": "instance-1", "volumeInstanceId": "instance-1"}
+        assert token == "test-token"
+        assert "volumeInstanceBackupList" in query
+        return {
+            "volumeInstance": {
+                "id": "instance-1",
+                "mountPath": "/data",
+                "currentSizeMB": 500,
+                "state": "READY",
+                "volume": {"id": "volume-1", "name": "artifact-data"},
+                "serviceInstance": {"serviceName": "artifact-gateway"},
+            },
+            "volumeInstanceBackupList": [
+                {"id": "backup-1", "name": "daily", "createdAt": "2026-11-19T00:00:00Z", "expiresAt": None, "usedMB": 120, "referencedMB": 90}
+            ],
+        }
+    monkeypatch.setattr(monitor, "_railway_graphql", fake_graphql)
+    result = monitor.scan_railway_volume(
+        {"source_id": "railway-vol-1", "project_id": "TRADIX", "volume_instance_id": "instance-1"},
+        "test-token",
+    )
+    assert result["status"] == "COMPLETE"
+    assert result["capacity_bytes"] == 500 * 1024 * 1024
+    assert result["logical_bytes"] is None
+    assert result["backup_used_bytes"] == 120 * 1024 * 1024
+    assert result["backup_referenced_bytes"] == 90 * 1024 * 1024
+    assert result["service_name"] == "artifact-gateway"
+    assert "no volume contents read" in result["method"]
+
+
+def test_railway_volume_requires_instance_id_and_token():
+    source = {"source_id": "railway-vol-1", "project_id": "TRADIX"}
+    missing_id = monitor.scan_railway_volume(source, "test-token")
+    assert missing_id["status"] == "NOT_CONFIGURED"
+    assert missing_id["capacity_bytes"] is None
+    missing_token = monitor.scan_railway_volume({**source, "volume_instance_id": "instance-1"}, None)
+    assert missing_token["status"] == "NOT_CONFIGURED"
+    assert missing_token["logical_bytes"] is None
+
+
+def test_railway_graphql_errors_fail_closed(monkeypatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self):
+            return b'{"errors":[{"message":"Not Authorized"}]}'
+    monkeypatch.setattr(monitor.urllib.request, "urlopen", lambda *args, **kwargs: FakeResponse())
+    try:
+        monitor._railway_graphql("query { me { id } }", {}, "bad-token")
+    except monitor.ScanError as exc:
+        assert exc.status == "NOT_AUTHORIZED_OR_NOT_FOUND"
+    else:
+        raise AssertionError("GraphQL authorization errors must fail closed")
