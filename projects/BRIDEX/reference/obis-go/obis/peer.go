@@ -132,7 +132,7 @@ func ValidateRequest(m map[string]any, now time.Time) *Error {
 	if !exactKeys(m,keys...){return &Error{"protocol.invalid_message","unknown or missing request fields",400}}
 	for k,want:=range map[string]string{"protocol":Protocol,"version":Version,"message_type":"request"}{v,_:=str(m,k);if v!=want{return &Error{"protocol.unsupported_version","unsupported protocol/version",426}}}
 	for _,k:=range []string{"message_id","nonce"}{v,ok:=str(m,k);if !ok||v==""||len(v)>200{return &Error{"protocol.invalid_message","invalid "+k,400}}}
-	sender,ok1:=obj(m,"sender");recipient,ok2:=obj(m,"recipient");auth,ok3:=obj(m,"authorization");capability,ok4:=obj(m,"capability");payload,ok5:=obj(m,"payload")
+	sender,ok1:=obj(m,"sender");recipient,ok2:=obj(m,"recipient");auth,ok3:=obj(m,"authorization");capability,ok4:=obj(m,"capability");_,ok5:=obj(m,"payload")
 	if !ok1||!ok2||!ok3||!ok4||!ok5||!exactKeys(sender,"peer_id")||!exactKeys(recipient,"peer_id")||!exactKeys(auth,"principal_ref","scopes")||!exactKeys(capability,"id","version"){return &Error{"protocol.invalid_message","invalid nested request object",400}}
 	for _,pair:=range []struct{m map[string]any;k string}{{sender,"peer_id"},{recipient,"peer_id"},{auth,"principal_ref"},{capability,"id"},{capability,"version"}}{v,ok:=str(pair.m,pair.k);if !ok||v==""{return &Error{"protocol.invalid_message","invalid nested string field",400}}}
 	scopes,ok:=auth["scopes"].([]any);if !ok||len(scopes)==0{return &Error{"protocol.invalid_message","authorization scopes must be non-empty",400}}
