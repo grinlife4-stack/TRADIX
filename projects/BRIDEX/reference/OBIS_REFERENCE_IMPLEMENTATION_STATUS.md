@@ -15,6 +15,10 @@
 - [x] Explicit credential-to-peer and credential-to-principal binding.
 - [x] HMAC-SHA256 request and response integrity for local tests.
 - [x] Capability registration and receiver-side scope authorization.
+- [x] Client-side scope narrowing prevents requests beyond the configured local grant.
+- [x] Capability result JSON serializability and response-size bounds.
+- [x] Loopback URL restrictions and finite positive client timeout.
+- [x] HTTP content-type enforcement and rejection of unsupported transfer encoding.
 - [x] Nonce replay rejection within one running process.
 - [x] Correlation ID verification.
 - [x] Signed, correlated error envelopes for authenticated request failures.
