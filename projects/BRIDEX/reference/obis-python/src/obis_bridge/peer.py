@@ -635,14 +635,22 @@ class OBISClient:
         remote_peer_id: str,
         key_id: str,
         principal_ref: str,
-        secret: bytes,
+        secret: bytes | None,
         scopes: set[str] | frozenset[str],
         timeout: float = 3.0,
+        tls_context: ssl.SSLContext | None = None,
     ):
         if not local_peer_id or not remote_peer_id or not key_id or not principal_ref:
             raise ValueError("peer, key, and principal identifiers must be non-empty")
-        if not isinstance(secret, bytes) or len(secret) < 32:
-            raise ValueError("reference-profile secret must be bytes of at least 32 bytes")
+        if tls_context is None:
+            if not isinstance(secret, bytes) or len(secret) < 32:
+                raise ValueError("HMAC development profile requires a secret of at least 32 bytes")
+        else:
+            _validate_tls_client_context(tls_context)
+            if secret is not None:
+                raise ValueError("OBIS mTLS client must not carry an HMAC shared secret")
+            _validate_obis_peer_uri(local_peer_id)
+            _validate_obis_peer_uri(remote_peer_id)
         if (
             not isinstance(scopes, (set, frozenset))
             or not scopes
@@ -658,6 +666,7 @@ class OBISClient:
         self.secret = secret
         self.scopes = frozenset(scopes)
         self.timeout = timeout
+        self.tls_context = tls_context
 
     def build_request(
         self,
@@ -695,6 +704,86 @@ class OBISClient:
             "payload": payload,
         }
 
+    def _invoke_tls(
+        self,
+        endpoint: str,
+        capability_id: str,
+        capability_version: str,
+        payload: dict[str, Any],
+        scopes: set[str] | frozenset[str] | None,
+    ) -> dict[str, Any]:
+        parsed = urlparse(endpoint)
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ValueError("OBIS mTLS profile requires an HTTPS endpoint")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("endpoint must not contain user information")
+        if parsed.path not in ("", "/") or parsed.params or parsed.query or parsed.fragment:
+            raise ValueError("endpoint must be a bare peer base URL without path, query, or fragment")
+
+        connection = http.client.HTTPSConnection(
+            parsed.hostname,
+            parsed.port or 443,
+            context=self.tls_context,
+            timeout=self.timeout,
+        )
+        request_message = self.build_request(capability_id, capability_version, payload, scopes)
+        body = canonical_json(request_message)
+        try:
+            connection.connect()
+            if connection.sock is None:
+                raise OBISRequestError("peer.tls_failed", "TLS connection was not established", 502)
+            remote_certificate = connection.sock.getpeercert()
+            remote_peer_uri = _certificate_peer_uri(remote_certificate)
+            if remote_peer_uri != self.remote_peer_id:
+                raise OBISRequestError(
+                    "identity.peer_certificate_mismatch",
+                    "server certificate peer identity does not match configured remote peer",
+                    502,
+                )
+            connection.request(
+                "POST",
+                MESSAGE_PATH,
+                body=body,
+                headers={
+                    "Content-Type": "application/obis+json",
+                    "X-OBIS-Key-Id": self.key_id,
+                },
+            )
+            response = connection.getresponse()
+            response_body = response.read(MAX_MESSAGE_BYTES + 1)
+            if len(response_body) > MAX_MESSAGE_BYTES:
+                raise OBISRequestError("payload.too_large", "response exceeds size limit", 502)
+            if response.getheader("X-OBIS-Signature") is not None:
+                raise OBISRequestError("protocol.unexpected_signature", "mTLS profile does not use HMAC response signatures", 502)
+            try:
+                response_message = strict_json_loads(response_body.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError) as exc:
+                raise OBISRequestError("protocol.invalid_message", "invalid response JSON", 502) from exc
+
+            if response.status >= 400:
+                if isinstance(response_message, dict) and response_message.get("message_type") == "response":
+                    validate_response(
+                        response_message, request_message, self.local_peer_id, self.remote_peer_id, "failed"
+                    )
+                    error = response_message["error"]
+                    raise OBISRequestError(
+                        error.get("code", "peer.request_rejected"),
+                        error.get("message", f"peer returned HTTP {response.status}"),
+                        response.status,
+                    )
+                raise OBISRequestError("peer.request_rejected", f"peer returned HTTP {response.status}", response.status)
+
+            validate_response(
+                response_message, request_message, self.local_peer_id, self.remote_peer_id, "succeeded"
+            )
+            return response_message
+        except OBISRequestError:
+            raise
+        except (ssl.SSLError, socket.timeout, OSError, http.client.HTTPException) as exc:
+            raise OBISRequestError("peer.tls_failed", "TLS peer connection or authentication failed", 502) from exc
+        finally:
+            connection.close()
+
     def invoke(
         self,
         endpoint: str,
@@ -703,6 +792,8 @@ class OBISClient:
         payload: dict[str, Any],
         scopes: set[str] | frozenset[str] | None = None,
     ) -> dict[str, Any]:
+        if self.tls_context is not None:
+            return self._invoke_tls(endpoint, capability_id, capability_version, payload, scopes)
         parsed = urlparse(endpoint)
         if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "::1", "localhost"):
             raise ValueError("reference client is loopback-only; production transport is not implemented")
