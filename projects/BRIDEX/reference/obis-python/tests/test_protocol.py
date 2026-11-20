@@ -705,7 +705,7 @@ def test_obis_02_schema_rejects_invalid_request_hash():
     from importlib.resources import files
     from jsonschema import Draft202012Validator, ValidationError
 
-    schema_path = files("obis_bridge").joinpath("schemas/obis-0.2-message.schema.json")
+    schema_path = files("obis_bridge").joinpath("schemas/message-0.2.schema.json")
     validator = Draft202012Validator(json.loads(schema_path.read_text(encoding="utf-8")))
     invalid = {
         "protocol": "obis",
