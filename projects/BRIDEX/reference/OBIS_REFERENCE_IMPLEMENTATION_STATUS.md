@@ -214,3 +214,28 @@ The Go client's Invoke validation now has explicit negative unit coverage for au
 CI run #1199 passed on consolidated PR #42 head 02270e2bd44d704718e3ef033c6be9d6c125b741 (run ID 44765422084). The run completed Go tests/build, the configured Python/BRIDEX Core/OBIS/ECOSCAN suites, and isolated wheel build/install/schema checks for BRIDEX Core, OBIS, and ECOSCAN.
 
 This is targeted Go-client validation coverage, not full bidirectional negative conformance or production security approval. HMAC remains development/conformance-only. Production TLS/mTLS, credential lifecycle, complete conformance, business-operation idempotency/outcome reconciliation, durable audit/evidence, and independent security review remain open. No normative OBIS/TIIS contract, schema, or version-negotiation semantics changed.
+
+## Absolute client request deadline — 2026-11-20
+
+The Python reference client now accepts an optional absolute monotonic deadline
+for `OBISClient.invoke`. The HTTP exchange is bounded as a whole, including
+response-body reads. The transport waits only until the effective deadline,
+then shuts down the active socket; a slow-drip response cannot extend the
+caller-visible request duration by repeatedly delivering small chunks. The
+client's configured transport timeout remains an upper bound.
+
+A loopback regression test covers a peer that sends response bytes slowly over
+a period longer than the supplied deadline. The client must return the
+normalized `peer.timeout` / HTTP 504 result within the bounded test interval.
+
+This is a local reference-client deadline guarantee, not a remote cancellation
+or exactly-once guarantee. A peer may already have executed the capability
+before the caller times out. Callers must treat the outcome as potentially
+unknown and must not retry without an explicit idempotency/outcome-reconciliation
+contract.
+
+The OBIS Python reference remains loopback-only and development/conformance
+only. HMAC remains non-production. TLS/mTLS, production credential lifecycle,
+distributed replay, business-operation idempotency, durable audit, full
+cross-language conformance, and independent security review remain open.
+
