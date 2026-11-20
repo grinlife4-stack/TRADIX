@@ -77,3 +77,22 @@ def test_missing_configured_source_marks_project_incomplete():
     assert project["coverage"] == "INCOMPLETE"
     assert project["missing_source_ids"] == ["s2"]
     assert any(alert["code"] == "SOURCE_NOT_SCANNED" for alert in report["alerts"])
+
+
+def test_github_inventory_supports_independent_path_scopes(monkeypatch):
+    responses = [
+        ({"size": 50, "default_branch": "main"}, {}),
+        ({"tree": [
+            {"path": "README.md", "type": "blob", "size": 10},
+            {"path": "products/megamarket/brief.md", "type": "blob", "size": 20},
+            {"path": "projects/NEXORA/notes.md", "type": "blob", "size": 30},
+        ], "truncated": False}, {}),
+    ]
+    monkeypatch.setattr(monitor, "_json_request", lambda url, token=None: responses.pop(0))
+    result = monitor.scan_github({
+        "source_id": "market", "project_id": "MEGAMARKET", "repository": "owner/repo",
+        "ref": "main", "include_paths": ["products/megamarket/"]
+    }, None)
+    assert result["file_count"] == 1
+    assert result["logical_bytes"] == 20
+    assert result["repository_size_bytes"] is None
