@@ -1,7 +1,7 @@
 # ECOSCAN Bridge Integration Plan
 
 **Document ID:** ECOSCAN-BRIDGE-PLAN-001  
-**Status:** Planned integration boundary; no live Bridge connection authorized  
+**Status:** OBIS adapter implemented and synthetic-tested; live Bridge connection not enabled  
 **Applies to:** ECOSCAN Phase 1 and its future external-source integration  
 **Protocol:** OBIS for independent external peer communication
 
@@ -75,15 +75,15 @@ The Bridge integration must use OBIS as the independent peer-to-peer contract. I
 - Data classification, payload limits, request limits, TTL, timeout, and replay/idempotency behavior.
 - Revocation behavior and audit/evidence references.
 
-A proposed capability family is `ecoscan.inventory.read` for retrieving bounded provider inventory metadata and `ecoscan.measurement.submit` for submitting already-normalized measurement records. These names are proposals until the capability schemas and authorization rules are reviewed and versioned.
+The first capability is now fixed for this integration: `ecoscan.inventory.read` version `1.0`, requiring the read-only scope `ecoscan:inventory:read`. The ECOSCAN adapter is implemented in `src/ecoscan/obis_bridge.py`. It accepts an injected authenticated OBIS client and endpoint, verifies sender/recipient identity and the project/source binding in the response, enforces local page/item budgets, and maps only the declared `logical_bytes` and `file_count` measurements. A separate `ecoscan.measurement.submit` capability is not part of this read-only integration.
 
 The receiving ECOSCAN peer must authorize every request independently. A Bridge may submit only for the project/source pair explicitly bound to its peer grant. It cannot choose or widen the project boundary from payload data alone.
 
 ## 5. Staged connection gates
 
 1. **Local Phase 1 acceptance:** Complete and pass the local path-boundary, symlink, control-precedence, budget/timeout, corrupted-transfer, SQLite portability, and independence tests. No external connection is enabled.
-2. **Bridge contract:** Version the ECOSCAN capability schemas, peer identity binding, project/source mapping, data classification, authorization, revocation, limits, and error behavior.
-3. **Development conformance:** Use synthetic records and loopback-only peers. Prove valid/invalid peer, scope, replay, expiry, malformed payload, cross-project, timeout, and revocation behavior. This stage is not production approval.
+2. **Bridge contract:** The initial `ecoscan.inventory.read@1.0` adapter contract and synthetic conformance tests now exist. The Bridge implementation must register that exact capability and independently bind its authenticated peer grant to the allowed project/source. Revocation, production transport, and durable replay handling remain additional requirements.
+3. **Development conformance:** Synthetic tests now cover successful adapter invocation, peer mismatch, and cross-project rejection. Next, connect the adapter to the BRIDEX loopback reference OBIS client/server and test invalid scope, replay, expiry, malformed payload, timeout, and revocation. The current CI fake-client tests do not prove wire-level interoperability and this stage is not production approval.
 4. **Production security profile:** Before any non-loopback connection, implement and independently review maintained TLS/mTLS or another approved authenticated transport, trust-anchor and certificate lifecycle, durable replay/idempotency, secret isolation, audit persistence, and operational revocation. The current BRIDEX OBIS reference prototype is loopback-only and its shared-secret HMAC profile is development-only.
 5. **Provider pilot:** Only after explicit owner approval, select one synthetic or specifically authorized low-risk source, use read-only credentials held by the Bridge, and prove bounded operation and complete export/restore. No broad ecosystem scan.
 6. **Expansion:** Add other providers only as separate Bridge-owned adapters after the previous source passes its own acceptance tests.
@@ -108,8 +108,17 @@ The receiving ECOSCAN peer must authorize every request independently. A Bridge 
 - No automatic peer discovery or implicit trust.
 - No production use of the current loopback-only OBIS prototype.
 - No mandatory BRIDEX/TRADIX service, shared relay, central broker, or shared cross-project database.
-- No live connection or provider pilot is authorized by this plan.
+- The adapter is not registered by the Phase 1 CLI and no live connection or provider pilot is authorized by this plan.
 
 ## 8. Acceptance statement
 
 The Bridge connection is a required future integration path, not a reason to weaken or bypass ECOSCAN's local independence. Phase 1 is accepted only on its own local evidence. The Bridge is accepted separately only after its OBIS security, authorization, portability, provider read-only, and failure-isolation gates pass.
+
+
+## 9. Implemented adapter contract and current connection status
+
+The ECOSCAN package now contains `src/ecoscan/obis_bridge.py`. Its transport is dependency-injected: the caller supplies an OBIS client that is responsible for authenticating the peer, verifying response signatures, applying expiry/replay protection, and keeping credentials outside ECOSCAN. The adapter never imports a network client or reads a secret.
+
+The adapter invokes `ecoscan.inventory.read@1.0` with `ecoscan:inventory:read`, passing only the registered project ID, source ID, and requested measurement kinds. It rejects mismatched sender/recipient identity, project/source mismatch, unexpected result fields, unsupported measurement kinds, invalid counters, and budget overflow. The local runner remains the final authority and commits no measurement if adapter validation fails.
+
+Synthetic tests exercise the injected-client boundary. They do not yet constitute a live OBIS wire test. The CLI intentionally registers only the local filesystem adapter. A real Bridge endpoint, peer IDs, credential reference, and runtime secret injection must be supplied by the owner after local Phase 1 acceptance. The BRIDEX loopback reference implementation may be used for the next development conformance step, but its HTTP/HMAC profile must not be exposed beyond loopback or treated as production security.
