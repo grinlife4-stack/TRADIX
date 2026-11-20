@@ -48,6 +48,7 @@ A conversational authorization does not create a technical connection or grant p
 - Do not copy project-specific private data, secrets, or artifacts into TRADIX merely for convenience.
 - Do not make an independent product dependent on TRADIX at runtime unless that dependency is explicitly approved and documented.
 - Cross-project integration must preserve attribution, access boundaries, exportability, and replaceability.
+- **Bridge ownership is project-level and non-transferable by generation:** the project whose resources, data, or capabilities a Bridge exposes owns that Bridge instance. BRIDEX only designs/generates/tests/packages Bridge tools; it never owns or centrally operates project Bridges. A receiving project owns its own ingress adapter and acceptance boundary, not the source project's Bridge. Use separately owned Bridges at project boundaries by default; a shared Bridge requires explicit written joint-ownership approval and per-project isolation. No project may depend on BRIDEX at runtime.
 
 ## 4. Change authority and safety gates
 
