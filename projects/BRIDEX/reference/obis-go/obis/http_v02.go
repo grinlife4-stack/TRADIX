@@ -35,7 +35,7 @@ func (p *PeerV02) HandlerV02() http.Handler {
 		if err != nil { http.Error(w,"invalid JSON",http.StatusBadRequest); return }
 		response,secret,protocolErr := p.Handle(message,r.Header.Get("X-OBIS-Key-Id"),r.Header.Get("X-OBIS-Signature"))
 		if protocolErr != nil {
-			http.Error(w,protocolErr.Error(),protocolErr.Status); return
+			http.Error(w,protocolErr.Code+": "+protocolErr.Message,protocolErr.Status); return
 		}
 		body,err := CanonicalJSON(response)
 		if err != nil { http.Error(w,"response encoding failed",http.StatusInternalServerError); return }
