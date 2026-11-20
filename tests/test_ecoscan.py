@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from tools.ecoscan import monitor
+from tools.ecoscan import monitor, oauth_refresh
 
 
 def test_github_tree_inventory_counts_blob_sizes(monkeypatch):
@@ -475,3 +475,125 @@ def test_railway_volume_resolution_accepts_relay_connection_shape(monkeypatch):
     assert result["volume_instance_id"] == "instance-1"
     assert len(calls) == 2
 
+
+class _MemoryTokenStore:
+    def __init__(self, state):
+        self.state = state
+        self.saved = []
+        self.allow_commit = True
+
+    def load(self):
+        return self.state
+
+    def compare_and_swap(self, expected_version, replacement):
+        if not self.allow_commit or self.state.version != expected_version:
+            return False
+        self.state = replacement
+        self.saved.append(replacement)
+        return True
+
+
+class _TestRefreshLock:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+class _FakeHttpResponse:
+    def __init__(self, payload):
+        self.payload = json.dumps(payload).encode()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self):
+        return self.payload
+
+
+def test_railway_refresh_persists_rotated_pair_before_return():
+    store = _MemoryTokenStore(oauth_refresh.TokenState(4, "expired-access", "old-refresh", 10))
+    calls = []
+
+    def opener(request, timeout):
+        calls.append((request, timeout))
+        return _FakeHttpResponse({
+            "access_token": "new-access", "refresh_token": "new-refresh", "expires_in": 3600,
+        })
+
+    token = oauth_refresh.get_valid_access_token(
+        store, _TestRefreshLock(), "client-id", "client-secret",
+        now=100, opener=opener,
+    )
+    assert token == "new-access"
+    assert len(calls) == 1
+    assert store.state.version == 5
+    assert store.state.access_token == "new-access"
+    assert store.state.refresh_token == "new-refresh"
+    assert store.state.expires_at == 3700
+    assert calls[0][0].full_url == oauth_refresh.TOKEN_ENDPOINT
+    assert calls[0][0].get_header("Authorization").startswith("Basic ")
+
+
+def test_railway_refresh_reuses_unexpired_access_token_without_network():
+    store = _MemoryTokenStore(oauth_refresh.TokenState(2, "still-valid", "refresh", 5000))
+    def forbidden(*args, **kwargs):
+        raise AssertionError("network must not be called")
+    assert oauth_refresh.get_valid_access_token(
+        store, _TestRefreshLock(), "id", "secret", now=1000, opener=forbidden,
+    ) == "still-valid"
+
+
+def test_railway_refresh_fails_closed_when_durable_commit_fails():
+    store = _MemoryTokenStore(oauth_refresh.TokenState(1, "expired", "old-refresh", 0))
+    store.allow_commit = False
+    def opener(request, timeout):
+        return _FakeHttpResponse({
+            "access_token": "new-access", "refresh_token": "new-refresh", "expires_in": 3600,
+        })
+    with pytest.raises(oauth_refresh.RefreshError, match="durable commit failed"):
+        oauth_refresh.get_valid_access_token(
+            store, _TestRefreshLock(), "id", "secret", now=100, opener=opener,
+        )
+    assert store.state.refresh_token == "old-refresh"
+    assert not store.saved
+
+
+def test_railway_refresh_rejects_response_without_rotated_refresh_token():
+    store = _MemoryTokenStore(oauth_refresh.TokenState(1, "expired", "old-refresh", 0))
+    def opener(request, timeout):
+        return _FakeHttpResponse({"access_token": "new-access", "expires_in": 3600})
+    with pytest.raises(oauth_refresh.RefreshError, match="omitted refresh_token"):
+        oauth_refresh.get_valid_access_token(
+            store, _TestRefreshLock(), "id", "secret", now=100, opener=opener,
+        )
+    assert store.state.refresh_token == "old-refresh"
+    assert not store.saved
+
+
+def test_railway_refresh_does_not_leak_credentials_in_http_error():
+    import urllib.error
+    store = _MemoryTokenStore(oauth_refresh.TokenState(1, "expired", "secret-refresh-value", 0))
+    def opener(request, timeout):
+        raise urllib.error.HTTPError(request.full_url, 401, "unauthorized", {}, None)
+    with pytest.raises(oauth_refresh.RefreshError) as exc:
+        oauth_refresh.get_valid_access_token(
+            store, _TestRefreshLock(), "secret-client-id", "secret-client-secret",
+            now=100, opener=opener,
+        )
+    message = str(exc.value)
+    assert "secret-refresh-value" not in message
+    assert "secret-client-secret" not in message
+    assert "secret-client-id" not in message
+
+
+def test_railway_refresh_requires_persisted_token_state():
+    store = _MemoryTokenStore(None)
+    with pytest.raises(oauth_refresh.RefreshError, match="No persisted"):
+        oauth_refresh.get_valid_access_token(
+            store, _TestRefreshLock(), "id", "secret", now=100,
+        )
