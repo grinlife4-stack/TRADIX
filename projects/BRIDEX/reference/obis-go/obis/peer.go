@@ -245,8 +245,10 @@ func (p *Peer) authenticatedCredential(m map[string]any,keyID,signature string)(
 	for key,value:=range m { normalized[key]=value }
 	now:=time.Now().Unix()
 	normalized["version"]=Version
-	normalized["issued_at"]=now
-	normalized["expires_at"]=now+30
+	// ValidateRequest reads timestamps as json.Number (DecodeStrict uses UseNumber).
+	// Keep the normalized copy in that same numeric representation.
+	normalized["issued_at"]=json.Number(fmt.Sprint(now))
+	normalized["expires_at"]=json.Number(fmt.Sprint(now+30))
 	if ValidateRequest(normalized,time.Now())!=nil{return Credential{},false}
 
 	sender,_:=obj(m,"sender");recipient,_:=obj(m,"recipient");authorization,_:=obj(m,"authorization")
