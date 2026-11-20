@@ -351,14 +351,32 @@ def scan_s3_compatible(source: dict[str, Any]) -> dict[str, Any]:
         status = "NOT_AUTHORIZED_OR_NOT_FOUND" if isinstance(exc, urllib.error.HTTPError) and exc.code in (401, 403, 404) else "FAILED"
         return {"source_id": source_id, "project_id": project_id, "provider": "s3_compatible", "reference": f"{endpoint}/{bucket}", "measured_at": measured_at, "status": status, "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "method": "S3 ListObjectsV2; object metadata only", "error": f"Object-storage listing failed: {exc.__class__.__name__}", "limitations": []}
 
-def scan_source(source: dict[str, Any], token: str | None) -> dict[str, Any]:
+def resolve_railway_access_token() -> str:
+    """Load and rotate the persisted Railway OAuth pair under a shared DB lock."""
+    from .oauth_refresh import get_valid_access_token
+    from .postgres_token_store import PostgresRefreshLock, PostgresTokenStore
+
+    client_id = os.environ.get("RAILWAY_OAUTH_CLIENT_ID", "")
+    client_secret = os.environ.get("RAILWAY_OAUTH_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise RuntimeError("Railway OAuth client credentials are not configured")
+    store = PostgresTokenStore.from_env()
+    lock = PostgresRefreshLock.from_env()
+    return get_valid_access_token(store, lock, client_id, client_secret)
+
+
+def scan_source(
+    source: dict[str, Any],
+    token: str | None,
+    railway_access_token: str | None = None,
+) -> dict[str, Any]:
     provider = source.get("provider")
     if provider == "github":
         return scan_github(source, token)
     if provider == "local":
         return scan_local(source)
     if provider == "railway_volume":
-        return scan_railway_volume(source, os.environ.get("RAILWAY_OAUTH_ACCESS_TOKEN"))
+        return scan_railway_volume(source, railway_access_token or os.environ.get("RAILWAY_OAUTH_ACCESS_TOKEN"))
     if provider == "s3_compatible":
         return scan_s3_compatible(source)
     return {"source_id": source.get("source_id", "unknown"), "project_id": source.get("project_id", "unknown"), "provider": str(provider), "reference": source.get("reference"), "measured_at": utc_now(), "status": "UNSUPPORTED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": source.get("capacity_bytes"), "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "not implemented", "error": f"Provider adapter not implemented: {provider}", "limitations": []}
@@ -558,6 +576,24 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     token = os.environ.get("ECOSCAN_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")
     projects_by_id = {p["project_id"]: p for p in scoped_config.get("projects", [])}
+    active_railway_sources = [
+        source for source in scoped_config.get("sources", [])
+        if source.get("provider") == "railway_volume"
+        and source.get("enabled", True)
+        and projects_by_id.get(source.get("project_id"), {}).get("enabled", True)
+    ]
+    railway_access_token = None
+    railway_error = None
+    if active_railway_sources:
+        try:
+            railway_access_token = resolve_railway_access_token()
+        except Exception as exc:
+            # Never print database URLs, OAuth secrets, tokens, or provider payloads.
+            railway_error = (
+                "Railway OAuth configuration is incomplete"
+                if isinstance(exc, RuntimeError) and "not configured" in str(exc)
+                else f"Railway OAuth unavailable ({exc.__class__.__name__})"
+            )
     results = []
     for source in scoped_config.get("sources", []):
         project = projects_by_id.get(source["project_id"], {})
@@ -565,8 +601,26 @@ def main(argv: list[str] | None = None) -> int:
             results.append(disabled_result(source, "Owning project is disabled"))
         elif not source.get("enabled", True):
             results.append(disabled_result(source, "Source is disabled"))
+        elif source.get("provider") == "railway_volume" and railway_error:
+            results.append({
+                "source_id": source.get("source_id", "unknown"),
+                "project_id": source.get("project_id", "unknown"),
+                "provider": "railway_volume",
+                "reference": source.get("reference"),
+                "measured_at": utc_now(),
+                "status": "NOT_CONFIGURED" if "configuration is incomplete" in railway_error else "FAILED",
+                "file_count": None,
+                "logical_bytes": None,
+                "repository_size_bytes": None,
+                "capacity_bytes": None,
+                "backup_used_bytes": None,
+                "backup_referenced_bytes": None,
+                "method": "Railway OAuth refresh with encrypted PostgreSQL token state",
+                "error": railway_error,
+                "limitations": [],
+            })
         else:
-            results.append(scan_source(source, token))
+            results.append(scan_source(source, token, railway_access_token))
     report = build_report(scoped_config, results)
     output = write_report(report, Path(args.output))
     print(render_markdown(report))
