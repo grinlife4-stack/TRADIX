@@ -556,3 +556,101 @@ def test_python_to_go_authenticated_error_responses_are_signed_and_bound():
     finally:
         process.terminate()
         process.wait(timeout=5)
+
+
+def _start_go_v02_server(tmp_path):
+    command = [
+        GO_PEER_BINARY, "server-v02",
+        "--peer-id", "peer:go-v02",
+        "--listen", "127.0.0.1:0",
+        "--key-id", "python-v02-key",
+        "--remote-peer", "peer:python",
+        "--principal", "principal:python",
+        "--secret-hex", SECRET.hex(),
+        "--scopes", "inventory.read",
+        "--ledger-path", str(tmp_path / "go-operations.json"),
+    ]
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert process.stdout is not None
+    address = process.stdout.readline().strip()
+    if not address:
+        stderr = process.stderr.read() if process.stderr else ""
+        process.kill()
+        raise AssertionError(f"Go OBIS 0.2 peer did not publish its loopback address: {stderr}")
+    return process, f"http://{address}"
+
+
+def test_python_v02_client_invokes_go_v02_peer_and_queries_status(tmp_path):
+    from obis_bridge import Credential
+    from obis_bridge.v02 import OBISV02Client
+
+    process, endpoint = _start_go_v02_server(tmp_path)
+    try:
+        client = OBISV02Client(
+            "peer:python", "peer:go-v02", "python-v02-key",
+            "principal:python", SECRET, {"inventory.read"},
+        )
+        first = client.invoke(
+            endpoint, "ecoscan.inventory.read", "1.0",
+            {"project_id": "project-a", "source_id": "source-a"},
+            operation_id="cross-op-1", idempotency_key="cross-idem-1",
+        )
+        second = client.invoke(
+            endpoint, "ecoscan.inventory.read", "1.0",
+            {"project_id": "project-a", "source_id": "source-a"},
+            operation_id="cross-op-1", idempotency_key="cross-idem-1",
+        )
+        status = client.status(endpoint, "ecoscan.inventory.read", "1.0", "cross-op-1")
+        assert first["operation"]["state"] == "SUCCEEDED"
+        assert second["operation"]["result"] == first["operation"]["result"]
+        assert status["operation"]["state"] == "SUCCEEDED"
+        assert first["operation"]["result"]["served_by"] == "go-peer-v02"
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+
+
+def test_go_v02_client_invokes_python_v02_peer(tmp_path):
+    from obis_bridge import Credential
+    from obis_bridge.operations import OperationLedger
+    from obis_bridge.peer import OBISPeer
+    from obis_bridge.v02 import OBISPeerV02, OBISV02Server
+
+    credential = Credential(
+        key_id="go-v02-key", peer_id="peer:go", principal_ref="principal:go",
+        secret=SECRET, allowed_scopes=frozenset({"inventory.read"}),
+    )
+    peer = OBISPeer("peer:python-v02", [credential])
+    calls = []
+    peer_v02 = OBISPeerV02(peer, OperationLedger(tmp_path / "python-operations.sqlite3"))
+    peer_v02.register_capability(
+        "ecoscan.inventory.read", "1.0", {"inventory.read"},
+        lambda payload: calls.append(payload) or {
+            "items_seen": 1, "source_id": payload["source_id"], "served_by": "python-peer-v02",
+        },
+        recovery_class="IDEMPOTENT",
+    )
+    with OBISV02Server(peer_v02) as server:
+        result = subprocess.run(
+            [
+                GO_PEER_BINARY, "invoke-v02",
+                "--endpoint", server.address,
+                "--local-peer", "peer:go",
+                "--remote-peer", "peer:python-v02",
+                "--key-id", "go-v02-key",
+                "--principal", "principal:go",
+                "--secret-hex", SECRET.hex(),
+                "--scopes", "inventory.read",
+                "--capability", "ecoscan.inventory.read",
+                "--capability-version", "1.0",
+                "--operation-id", "go-cross-op-1",
+                "--idempotency-key", "go-cross-idem-1",
+                "--payload", json.dumps({"project_id": "project-b", "source_id": "source-b"}),
+            ],
+            capture_output=True, text=True, timeout=15,
+        )
+    assert result.returncode == 0, result.stdout + result.stderr
+    response = json.loads(result.stdout)
+    assert response["state"] == "SUCCEEDED"
+    assert response["result"]["served_by"] == "python-peer-v02"
+    assert len(calls) == 1
