@@ -99,7 +99,7 @@ func serveV02(args []string) {
 	if *ledgerPath==""{log.Fatal("ledger-path is required")}
 	scopes:=map[string]bool{};for _,scope:=range strings.Split(*scopesRaw,","){if scope!=""{scopes[scope]=true}}
 	peer,err:=obis.NewPeer(*peerID);if err!=nil{log.Fatal(err)}
-	allowedResources:=map[string]bool{};for _,pair:=range strings.Split(*allowedResourcesRaw,","){parts:=strings.SplitN(pair,"/",2);if len(parts)==2&&parts[0]!=""&&parts[1]!=""{allowedResources[parts[0]+"\\x00"+parts[1]]=true}}
+	allowedResources:=map[string]bool{};for _,pair:=range strings.Split(*allowedResourcesRaw,","){parts:=strings.SplitN(pair,"/",2);if len(parts)==2&&parts[0]!=""&&parts[1]!=""{allowedResources[parts[0]+"/"+parts[1]]=true}}
 	if err=peer.AddCredential(obis.Credential{KeyID:*keyID,PeerID:*remoteID,PrincipalRef:*principal,Secret:secret,AllowedScopes:scopes,AllowedResources:allowedResources});err!=nil{log.Fatal(err)}
 	if *replayDir!=""{
 		guard,guardErr:=obis.NewFileReplayGuard(*replayDir);if guardErr!=nil{log.Fatalf("configure durable replay guard: %v",guardErr)}
