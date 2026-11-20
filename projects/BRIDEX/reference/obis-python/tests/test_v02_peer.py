@@ -217,3 +217,37 @@ def test_v02_authenticated_authorization_error_is_signed_and_correlated(tmp_path
     assert raised.value.code == "authorization.denied"
     assert raised.value.http_status == 403
     assert calls == []
+
+
+
+def test_v02_rejects_ambiguous_slash_resource_identity(tmp_path):
+    calls = []
+    credential = Credential(
+        key_id="caller-key",
+        peer_id="peer:caller",
+        principal_ref="principal:caller",
+        secret=SECRET,
+        allowed_scopes=frozenset({"inventory.read"}),
+        allowed_resources=frozenset({("project-a/source-a", "source-b")}),
+    )
+    base = OBISPeer("peer:owner", [credential], replay_guard=ReplayGuard())
+    peer = OBISPeerV02(base, OperationLedger(tmp_path / "resource-identity.sqlite3"))
+    peer.register_capability(
+        "ecoscan.inventory.read", "1.0", {"inventory.read"},
+        lambda payload: calls.append(payload) or {"ok": True},
+        recovery_class="IDEMPOTENT", resource_binding=True,
+    )
+    message = make_request(payload={
+        "project_id": "project-a/source-a",
+        "source_id": "source-b",
+    })
+    message["capability"] = {"id": "ecoscan.inventory.read", "version": "1.0"}
+    message["authorization"] = {
+        "principal_ref": "principal:caller",
+        "scopes": ["inventory.read"],
+    }
+    message["operation"]["request_hash"] = operation_request_hash(message)
+    with pytest.raises(OBISRequestError) as raised:
+        peer.handle(message, "caller-key", sign_message(message, SECRET))
+    assert raised.value.code == "authorization.denied"
+    assert calls == []
