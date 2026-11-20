@@ -215,3 +215,28 @@ Manual CLI scope selection:
 Invalid or unknown selectors fail before any source scan. A project-scope run includes only sources registered to the selected projects. A source-scope run includes only the selected source IDs and their corresponding project attribution, not sibling sources.
 
 These controls and scope-selection behavior have unit-test coverage. They do not yet establish live provider connectivity or operational acceptance. Railway volumes, B2/R2/S3, backup inventories, Git LFS payload sizes, historical growth, and capacity forecasts remain unimplemented.
+
+
+## 15. Railway volume and backup metadata adapter
+
+The `railway_volume` provider is implemented as a read-only Railway GraphQL adapter. It requires:
+- `RAILWAY_API_TOKEN` in the runtime environment.
+- `volume_instance_id` in the source registry. Do not substitute a project-level volume ID unless Railway identifies it as the volume-instance ID.
+
+The adapter queries `volumeInstance.currentSizeMB` and `volumeInstanceBackupList`. It reports provisioned capacity and backup metadata separately. It deliberately leaves `logical_bytes` unknown: Railway volume capacity is not the amount of filesystem data currently used. Backup `usedMB` and `referencedMB` are not added to the volume capacity.
+
+Example source entry:
+
+```json
+{
+  "source_id": "tradix-railway-artifact-data",
+  "project_id": "TRADIX",
+  "provider": "railway_volume",
+  "volume_instance_id": "RAILWAY_VOLUME_INSTANCE_ID",
+  "enabled": true
+}
+```
+
+No volume content is read. The adapter does not create, resize, attach, detach, restore, or delete volumes/backups. A missing instance ID or token produces `NOT_CONFIGURED`, not a zero-size measurement.
+
+The connected Railway inventory currently exposes one live staging volume named `artifact-data`, provisioned at 500 MB and mounted at `/data` on `artifact-gateway`. This is configured capacity, not actual filesystem usage. Its volume-instance ID has not been independently verified, so the resource is not inserted into the ECOSCAN registry using a guessed identifier.
