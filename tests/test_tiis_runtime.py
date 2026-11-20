@@ -119,6 +119,31 @@ def test_message_size_is_bounded_before_policy_execution() -> None:
     assert called is False
 
 
+def test_domain_message_contract_remains_inside_typed_payload() -> None:
+    validator = TIISValidator(authorization_policy=allow_all_for_test)
+    message = request_message()
+    message["interface_id"] = "factory.conversation"
+    message["operation"] = "submit-message"
+    message["payload"] = {
+        "message_id": "domain-message-001",
+        "conversation_id": "conversation-001",
+        "project_key": "nexora",
+        "correlation_id": "mission-001",
+        "sender": "interface_ai",
+        "message_type": "mission_proposal",
+        "body": {"text": "Propose a bounded project task."},
+        "created_at": "2026-11-20T10:00:00Z",
+    }
+    result = validator.validate(
+        message,
+        authenticated_sender=SENDER,
+        expected_recipient=RECIPIENT,
+        now=NOW,
+    )
+    assert result["payload"]["sender"] == "interface_ai"
+    assert result["sender"] == SENDER
+
+
 def test_policy_denial_is_fail_closed() -> None:
     validator = TIISValidator(authorization_policy=lambda *_args: False)
     with pytest.raises(TIISAuthorizationError, match="operation_not_authorized"):
