@@ -169,7 +169,7 @@ This charter applies to all existing and future TRADIX portfolio products and sy
 
 Existing project-specific dossiers remain authoritative for their own product requirements and status. They must be interpreted consistently with this charter. If a project-specific document conflicts with this charter on ownership or authority, the conflict must be recorded and resolved through an explicit, approved amendment; it must not silently override the foundational rule.
 
-## 11. Change control and precedence
+## 12. Change control and precedence
 
 This is a governing architecture document, not an informal note.
 
@@ -178,14 +178,14 @@ This is a governing architecture document, not an informal note.
 - Product-specific documents may add detail but may not silently weaken or reverse the foundational ownership boundaries.
 - Implementation must follow the charter. If existing code or documents conflict with it, record the discrepancy and plan a controlled correction rather than pretending the conflict does not exist.
 
-## 12. Foundational statement
+## 13. Foundational statement
 
 **TRADIX builds complete products and systems. Each product owns itself and operates independently. Shared foundations are built once and reused.**
 
 **One factory. Independent products. Repeatable production.**
 
 
-## 13. EXVARLI multi-project financial architecture
+## 14. EXVARLI multi-project financial architecture
 
 EXVARLI must operate as a reusable, multi-project financial-management system. It must support projects with different business domains, economic models, revenue and expense structures, currencies, jurisdictions, risk profiles, and compliance requirements through separate, versioned project financial profiles.
 
@@ -204,7 +204,7 @@ EXVARLI is a replaceable manager, not the owner or custodian of project assets. 
 The detailed governing specification is maintained in [EXVARLI — Multi-Project Financial Architecture](projects/EXVARLI_FINANCIAL_ARCHITECTURE.md). This section applies to every current and future portfolio project.
 
 
-## 14. TRADIX as the permanent factory and toolbox for independent tools
+## 15. TRADIX as the permanent factory and toolbox for independent tools
 
 TRADIX is not only a product factory; it is also the permanent factory and organized toolbox for every tool in the portfolio. It is responsible for designing, building, testing, documenting, packaging, and preparing all portfolio tools, and it continuously develops its own engineering and production capabilities.
 
@@ -222,7 +222,7 @@ The factory/toolbox relationship must not be confused with runtime dependency or
 
 This section clarifies the tool lifecycle and does not transfer ownership of any product or tool to TRADIX. It must be read together with the applicable tool-specific governing specification.
 
-## 15. Mandatory portfolio-wide Bridge and independence standard
+## 16. Mandatory portfolio-wide Bridge and independence standard
 
 Every current and future product, project, application, service, tool, agent, factory, and technical subsystem must follow the governing [Portfolio-Wide Independence and Bridge Standard](PORTFOLIO_INDEPENDENCE_AND_BRIDGE_STANDARD.md).
 
@@ -243,23 +243,23 @@ This requirement is automatic for all new work and applies to existing systems d
 No project-specific file, template, workflow, or implementation may silently waive this requirement. Exceptions and amendments require explicit, documented project-owner approval.
 
 
-## 16. Two distinct integration standards: TIIS and OBIS
+## 17. Two distinct integration standards: TIIS and OBIS
 
 The portfolio uses two separate standards with different ownership boundaries and purposes. They must not be collapsed into one protocol or treated as interchangeable conformance profiles.
 
-### 16.1 TIIS — TRADIX Internal Integration Standard
+### 17.1 TIIS — TRADIX Internal Integration Standard
 
 TIIS governs communication among TRADIX's own internal tools, services, agents, records, workflows, and technical subsystems. TRADIX defines, versions, documents, tests, and governs TIIS. TIIS applies inside the TRADIX internal boundary and to an explicitly authorized TIIS-facing adapter on a Bridge when that Bridge connects to TRADIX.
 
 TIIS is not a prerequisite for external interoperability. Independent tools and third-party systems do not need to implement TIIS to communicate with a Bridge.
 
-### 16.2 OBIS — Open Bridge Interoperability Standard
+### 17.2 OBIS — Open Bridge Interoperability Standard
 
 OBIS is implemented and carried by each independent Bridge tool. It governs that Bridge's independent connections to non-TRADIX tools, services, platforms, and other independently operated Bridges. Its specification, schemas, compatibility behavior, and required implementation must remain available and operable with the Bridge after separation from TRADIX and BRIDEX.
 
 OBIS must not depend on TRADIX or BRIDEX repositories, runtime services, registry, relay, identity provider, credentials, or infrastructure. A Bridge's external requests must not be forced through TIIS or translated into TIIS as a mandatory intermediate step.
 
-### 16.3 Mandatory protocol selection
+### 17.3 Mandatory protocol selection
 
 - TRADIX internal component ↔ TRADIX internal component: TIIS.
 - Bridge ↔ authorized TRADIX internal component: optional, scoped TIIS-facing adapter.
