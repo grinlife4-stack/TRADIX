@@ -140,6 +140,7 @@ def test_python_client_interoperates_with_go_peer_over_tls13_mtls(tmp_path: Path
         health_url = f"https://127.0.0.1:{port}/healthz"
         client_context = create_tls13_client_context(str(ca_cert), str(client_cert), str(client_key))
         ready = False
+        last_error = None
         for _ in range(150):
             if process.poll() is not None:
                 stderr = process.stderr.read() if process.stderr else ""
@@ -149,9 +150,10 @@ def test_python_client_interoperates_with_go_peer_over_tls13_mtls(tmp_path: Path
                     ready = response.status == 204
                     if ready:
                         break
-            except Exception:
+            except Exception as exc:
+                last_error = repr(exc)
                 time.sleep(0.1)
-        assert ready, "TLS Go OBIS peer did not become ready"
+        assert ready, f"TLS Go OBIS peer did not become ready: {last_error}"
 
         client = OBISClient(
             local_peer_id="python-peer",
