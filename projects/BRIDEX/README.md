@@ -24,6 +24,8 @@ BRIDEX provides one consistent and reusable engineering method for all Bridge in
 
 ## 3. Non-negotiable principles
 
+The detailed protocol contracts are maintained separately: [OBIS Specification](../../docs/OBIS_SPECIFICATION.md) governs external interoperability, while [TIIS Specification](../../docs/TIIS_SPECIFICATION.md) governs TRADIX-internal integration only. Both are draft baselines at version 0.1.0, not production-ready protocol releases.
+
 1. BRIDEX has an independent project identity, source, roadmap, configuration, data, operations, and lifecycle.
 2. Every Bridge is an independent tool and has an explicitly recorded owner/operator. Ownership is not inferred solely from the destination or the generator.
 3. BRIDEX uses one common generation, security, packaging, documentation, and conformance method across projects.
