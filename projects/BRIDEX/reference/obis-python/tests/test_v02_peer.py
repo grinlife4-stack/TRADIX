@@ -132,3 +132,40 @@ def test_v02_loopback_http_client_executes_once_and_recovers_status(tmp_path):
     assert duplicate["operation"]["result"] == {"written": True}
     assert status["operation"]["state"] == "SUCCEEDED"
     assert len(calls) == 1
+
+
+def test_v02_resource_bound_status_cannot_read_another_allowed_resource(tmp_path):
+    from obis_bridge.peer import OBISRequestError
+
+    credential = Credential(
+        key_id="caller-key", peer_id="peer:caller", principal_ref="principal:caller",
+        secret=SECRET, allowed_scopes=frozenset({"records:write"}),
+        allowed_resources=frozenset({("project-a", "source-a"), ("project-b", "source-b")}),
+    )
+    base = OBISPeer("peer:owner", [credential], replay_guard=ReplayGuard())
+    ledger = OperationLedger(tmp_path / "resource-bound.sqlite3")
+    peer = OBISPeerV02(base, ledger)
+    peer.register_capability(
+        "records.write", "1.0", {"records:write"},
+        lambda payload: {"resource": payload["project_id"] + "/" + payload["source_id"]},
+        recovery_class="IDEMPOTENT", resource_binding=True,
+    )
+    request = make_request()
+    request["payload"] = {"project_id": "project-a", "source_id": "source-a"}
+    request["operation"]["request_hash"] = operation_request_hash(request)
+    response, _ = signed(peer, request)
+    assert response["operation"]["state"] == "SUCCEEDED"
+
+    status = {
+        "protocol": "obis", "version": "0.2", "message_type": "operation_status_request",
+        "message_id": "status-resource-1", "nonce": "status-resource-nonce",
+        "attempt_id": "status-resource-attempt",
+        "sender": {"peer_id": "peer:caller"}, "recipient": {"peer_id": "peer:owner"},
+        "issued_at": time.time(), "expires_at": time.time() + 30,
+        "capability": {"id": "records.write", "version": "1.0"},
+        "authorization": {"principal_ref": "principal:caller", "scopes": ["records:write"]},
+        "operation_id": "op-1",
+        "resource": {"project_id": "project-b", "source_id": "source-b"},
+    }
+    with pytest.raises(OBISRequestError, match="operation not found"):
+        signed(peer, status)
