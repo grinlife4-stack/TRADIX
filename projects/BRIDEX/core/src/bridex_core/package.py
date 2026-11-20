@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import stat
+import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
@@ -20,7 +22,10 @@ class PackageError(ValueError):
 def package_bridge(project_dir: str | Path, output: str | Path) -> tuple[Path, str]:
     root = Path(project_dir).resolve(strict=True)
     manifest = load_manifest(root)
-    destination = Path(output).expanduser().resolve()
+    raw_destination = Path(output).expanduser()
+    if raw_destination.is_symlink():
+        raise PackageError("package_output_symlink_not_allowed")
+    destination = raw_destination.resolve()
     if destination == root or root in destination.parents:
         raise PackageError("package_output_must_be_outside_project")
     if destination.exists() and destination.is_dir():
@@ -46,12 +51,29 @@ def package_bridge(project_dir: str | Path, output: str | Path) -> tuple[Path, s
             raise PackageError(f"required_package_file_missing:{relative}")
         if not stat.S_ISREG(path.stat().st_mode):
             raise PackageError("non_regular_file")
-        if path.name.lower() in {".env", "secrets.json", "credentials.json", "id_rsa", "id_ed25519"}:
+        lower_name = path.name.lower()
+        if (
+            lower_name in {".env", "secrets.json", "credentials.json", "id_rsa", "id_ed25519"}
+            or lower_name.endswith((".pem", ".key", ".p12", ".pfx"))
+            or "secret" in lower_name
+            or "credential" in lower_name
+        ):
             raise PackageError("secret_file_not_allowed")
-        entries.append((relative, path.read_bytes()))
+        content = path.read_bytes()
+        secret_patterns = (
+            rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
+            rb"AKIA[0-9A-Z]{16}",
+            rb"gh[pousr]_[A-Za-z0-9_]{20,}",
+            rb"xox[baprs]-[A-Za-z0-9-]{20,}",
+        )
+        if any(re.search(pattern, content) for pattern in secret_patterns):
+            raise PackageError("secret_material_detected")
+        entries.append((relative, content))
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    temp = destination.with_name(destination.name + ".tmp")
+    fd, temp_name = tempfile.mkstemp(prefix=".bridex-package-", dir=destination.parent)
+    os.close(fd)
+    temp = Path(temp_name)
     try:
         with zipfile.ZipFile(temp, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
             for name, content in entries:
