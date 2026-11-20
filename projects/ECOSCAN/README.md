@@ -5,13 +5,14 @@
 ECOSCAN is an independently packageable, read-only resource inventory tool. It must remain operable without TRADIX. This package currently provides:
 
 - Strict parsing of the project registry envelope and unique source IDs.
+- Typed adapter contract, explicit budget guard, and single-source fail-closed scan runner.
 - Default-deny global/project/subsystem/source controls.
 - Explicit owner/operator authorization callback; absence of an authorizer denies execution.
 - One SQLite database per project, with append-only measurement and coverage records.
 - A separately replaceable checkpoint store.
 - Vendored 0.1 contract schemas, byte-compared against the canonical repository schemas.
 
-The local filesystem adapter and scan runner are not yet implemented. The current CLI only validates a registry or initializes a project-local database; it does not scan any path.
+The concrete local filesystem adapter is not yet implemented and no production adapter is registered. The runner is exercised with fake adapters only. The current CLI only validates a registry or initializes a project-local database; it does not scan any path.
 
 ## Install
 
