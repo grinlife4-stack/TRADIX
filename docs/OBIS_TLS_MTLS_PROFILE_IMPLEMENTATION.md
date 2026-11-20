@@ -7,7 +7,7 @@
 
 ## 1. Purpose and boundary
 
-This document records the current Python reference implementation of the OBIS TLS/mutual-TLS candidate. It is evidence for owner and security review, not a decision that the profile is ready for production.
+This document records the current Python and Go reference implementations of the OBIS TLS/mutual-TLS candidate. It is evidence for owner and security review, not a decision that the profile is ready for production.
 
 The Python implementation reuses `ssl` and platform OpenSSL; the Go implementation reuses `crypto/tls` and `crypto/x509`. Neither implementation creates cryptographic primitives, X.509 path validation, a CA, or a custom TLS protocol.
 
@@ -18,7 +18,7 @@ The Python implementation reuses `ssl` and platform OpenSSL; the Go implementati
 - The client requires certificate-chain validation and endpoint hostname verification.
 - The server requires a client certificate (`CERT_REQUIRED`).
 - Both sides must negotiate HTTP/1.1 ALPN (`http/1.1`); absence or mismatch is rejected. OBIS protocol/version is identified by the message envelope and media type.
-- The server bounds TLS handshake time and HTTP request time.
+- The Python server bounds TLS handshake and HTTP request time. The Go reference uses bounded HTTP server read/request timeouts; a dedicated handshake-exhaustion test remains open.
 - The client has a finite request timeout.
 - No HMAC shared secret is accepted in the mTLS client or credential record.
 - The existing HMAC profile remains a loopback-only development/conformance mechanism. It is not a fallback for mTLS.
@@ -68,7 +68,7 @@ The test suite creates ephemeral CA, server, and client certificates in temporar
 - Missing client certificate.
 - Untrusted server CA.
 - TLS 1.2-only context rejection.
-- Missing OBIS ALPN rejection.
+- Missing or mismatched HTTP/1.1 ALPN rejection.
 - Plaintext HTTP fallback rejection.
 - Local credential revocation.
 
