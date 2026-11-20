@@ -272,6 +272,12 @@ class OBISPeer:
     ) -> None:
         if not capability_id or not version or not callable(handler):
             raise ValueError("capability id, version, and handler are required")
+        if (
+            not isinstance(required_scopes, (set, frozenset))
+            or not required_scopes
+            or not all(isinstance(scope, str) and scope for scope in required_scopes)
+        ):
+            raise ValueError("capability must declare explicit non-empty string scopes")
         key = (capability_id, version)
         with self._lock:
             if key in self.capabilities:
@@ -332,6 +338,16 @@ class OBISPeer:
             "outcome": "succeeded",
             "result": result,
         }
+        try:
+            response_bytes = canonical_json(response)
+        except (TypeError, ValueError, OverflowError, RecursionError) as exc:
+            raise OBISRequestError(
+                "operation.invalid_result", "capability returned a non-JSON result", 500, **error_context
+            ) from exc
+        if len(response_bytes) > MAX_MESSAGE_BYTES:
+            raise OBISRequestError(
+                "operation.result_too_large", "capability result exceeds response size limit", 500, **error_context
+            )
         return response, credential.secret
 
 
@@ -356,6 +372,12 @@ class OBISServer:
                     self.send_error(404)
                     return
                 try:
+                    if self.headers.get_content_type() != "application/obis+json":
+                        self.send_error(415, "unsupported content type")
+                        return
+                    if self.headers.get("Transfer-Encoding"):
+                        self.send_error(400, "transfer encoding is not supported")
+                        return
                     length = int(self.headers.get("Content-Length", "0"))
                     if length <= 0 or length > MAX_MESSAGE_BYTES:
                         self.send_error(413)
@@ -460,8 +482,14 @@ class OBISClient:
             raise ValueError("peer, key, and principal identifiers must be non-empty")
         if not isinstance(secret, bytes) or len(secret) < 32:
             raise ValueError("reference-profile secret must be bytes of at least 32 bytes")
-        if not scopes or not all(isinstance(scope, str) and scope for scope in scopes):
+        if (
+            not isinstance(scopes, (set, frozenset))
+            or not scopes
+            or not all(isinstance(scope, str) and scope for scope in scopes)
+        ):
             raise ValueError("client must have explicit non-empty string scopes")
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("timeout must be a finite positive number")
         self.local_peer_id = local_peer_id
         self.remote_peer_id = remote_peer_id
         self.key_id = key_id
@@ -478,6 +506,15 @@ class OBISClient:
         scopes: set[str] | frozenset[str] | None = None,
         now: float | None = None,
     ) -> dict[str, Any]:
+        requested_scopes = self.scopes if scopes is None else scopes
+        if (
+            not isinstance(requested_scopes, (set, frozenset))
+            or not requested_scopes
+            or not all(isinstance(scope, str) and scope for scope in requested_scopes)
+        ):
+            raise ValueError("requested scopes must be an explicit non-empty set of strings")
+        if not requested_scopes.issubset(self.scopes):
+            raise ValueError("requested scopes exceed the local client grant")
         issued_at = time.time() if now is None else now
         return {
             "protocol": PROTOCOL,
@@ -492,7 +529,7 @@ class OBISClient:
             "capability": {"id": capability_id, "version": capability_version},
             "authorization": {
                 "principal_ref": self.principal_ref,
-                "scopes": sorted(self.scopes if scopes is None else scopes),
+                "scopes": sorted(requested_scopes),
             },
             "payload": payload,
         }
@@ -508,8 +545,10 @@ class OBISClient:
         parsed = urlparse(endpoint)
         if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "::1", "localhost"):
             raise ValueError("reference client is loopback-only; production transport is not implemented")
-        if parsed.path not in ("", "/"):
-            raise ValueError("endpoint must be the peer base URL")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("endpoint must not contain user information")
+        if parsed.path not in ("", "/") or parsed.params or parsed.query or parsed.fragment:
+            raise ValueError("endpoint must be a bare peer base URL without path, query, or fragment")
         message = self.build_request(capability_id, capability_version, payload, scopes)
         body = canonical_json(message)
         signature = sign_message(message, self.secret)
