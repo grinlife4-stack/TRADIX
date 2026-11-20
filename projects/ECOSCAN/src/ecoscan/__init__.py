@@ -1,14 +1,25 @@
 """Independent ECOSCAN core; no TRADIX runtime dependency."""
 
+from .contracts import Adapter, AdapterResult, BudgetExceeded, BudgetGuard, ScanContext
 from .controls import ControlState, ExecutionGate
 from .registry import RegistryError, load_registry, parse_registry
-from .store import ProjectStore
+from .runner import ScanError, ScanOutcome, ScanRunner
+from .store import ProjectStore, StoreError
 
 __all__ = [
+    "Adapter",
+    "AdapterResult",
+    "BudgetExceeded",
+    "BudgetGuard",
     "ControlState",
     "ExecutionGate",
     "ProjectStore",
     "RegistryError",
+    "ScanContext",
+    "ScanError",
+    "ScanOutcome",
+    "ScanRunner",
+    "StoreError",
     "load_registry",
     "parse_registry",
 ]
