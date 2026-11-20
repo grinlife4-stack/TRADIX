@@ -30,6 +30,7 @@ class TokenState:
     access_token: str
     refresh_token: str
     expires_at: float
+    status: str = "ACTIVE"
 
 
 class TokenStore(Protocol):
@@ -124,9 +125,23 @@ def get_valid_access_token(
             raise RefreshError("No persisted Railway OAuth token state is configured")
 
         current_time = time.time() if now is None else now
+        if current.status != "ACTIVE":
+            raise RefreshError("Previous refresh outcome is uncertain; refusing to replay the old refresh token")
         if current.access_token and current.expires_at > current_time + refresh_skew_seconds:
             return current.access_token
 
+        # Write-ahead marker: if the process dies after Railway consumes/rotates
+        # the refresh token but before the new pair is committed, a restart must
+        # not blindly replay the possibly revoked old token.
+        pending = TokenState(
+            version=current.version + 1,
+            access_token=current.access_token,
+            refresh_token=current.refresh_token,
+            expires_at=current.expires_at,
+            status="REFRESHING",
+        )
+        if not store.compare_and_swap(current.version, pending):
+            raise RefreshError("Could not durably mark refresh as in progress")
         access, refresh, expires_in = _request_rotated_tokens(
             client_id,
             client_secret,
@@ -135,12 +150,13 @@ def get_valid_access_token(
             opener=opener,
         )
         replacement = TokenState(
-            version=current.version + 1,
+            version=pending.version + 1,
             access_token=access,
             refresh_token=refresh,
             expires_at=current_time + expires_in,
+            status="ACTIVE",
         )
-        if not store.compare_and_swap(current.version, replacement):
+        if not store.compare_and_swap(pending.version, replacement):
             # Never return the access token if durable rotation was not committed.
             raise RefreshError("Token state changed concurrently or durable commit failed")
         return access
