@@ -49,7 +49,7 @@ A production candidate must provide:
 - A separate TLS integration mode is now present as an implementation candidate; it remains disabled unless an owner supplies an explicitly configured TLS context.
 - Keep certificate loading, trust configuration, and private-key paths owner-supplied. Never commit test or production private keys.
 
-### 4.3 Candidate reference profile now implemented
+### 4.2 Candidate reference profile now implemented
 
 The standalone Python reference contains an implementation candidate named `OBIS-TLS-MTLS-1` (PR #75):
 
@@ -64,14 +64,14 @@ The standalone Python reference contains an implementation candidate named `OBIS
 
 This implementation does **not** complete the profile lifecycle. It has no CA service, certificate issuance/renewal, trust-bundle distribution, CRL/OCSP, durable revocation state, durable replay ledger, Go implementation, cross-language conformance evidence, or independent security review. The URI scheme and certificate constraints are implementation candidates that still require owner/security approval before they become normative.
 
-### 4.2 Independent second implementation
+### 4.3 Independent second implementation
 
 - Use Go's standard `crypto/tls` and `crypto/x509` packages as the leading candidate for a second-language peer.
 - Keep the second implementation in a separate repository or independently buildable package with its own maintainer and CI.
 - Run shared positive and negative OBIS conformance vectors against both implementations.
 - A second implementation must not import or execute the Python reference.
 
-### 4.3 Certificate authority and trust distribution
+### 4.4 Certificate authority and trust distribution
 
 Do not mandate a public CA, central CA, hosted identity provider, or automatic certificate service.
 
