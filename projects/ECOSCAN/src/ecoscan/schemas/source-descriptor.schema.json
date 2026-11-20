@@ -13,7 +13,6 @@
     "locator",
     "adapter_id",
     "adapter_version",
-    "credential_ref",
     "enabled",
     "scope_tags",
     "budget",
@@ -40,23 +39,27 @@
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
     },
     "source_type": {
-      "const": "filesystem"
+      "enum": [
+        "filesystem",
+        "obis_bridge"
+      ]
     },
     "locator": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 2048
+      "maxLength": 2048,
+      "description": "For filesystem sources, a local path within an explicitly allowlisted root. For obis_bridge sources, the registered remote peer identity. Never store credentials, secret references, or secret-bearing URLs here."
     },
     "adapter_id": {
-      "const": "filesystem"
+      "enum": [
+        "filesystem",
+        "obis_bridge"
+      ]
     },
     "adapter_version": {
       "type": "string",
       "minLength": 1,
       "maxLength": 64
-    },
-    "credential_ref": {
-      "type": "null"
     },
     "enabled": {
       "type": "boolean"
@@ -146,5 +149,45 @@
       "type": "string",
       "format": "date-time"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "source_type": {
+            "const": "filesystem"
+          }
+        },
+        "required": [
+          "source_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "adapter_id": {
+            "const": "filesystem"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "source_type": {
+            "const": "obis_bridge"
+          }
+        },
+        "required": [
+          "source_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "adapter_id": {
+            "const": "obis_bridge"
+          }
+        }
+      }
+    }
+  ]
 }
