@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -59,6 +60,11 @@ def test_registry_rejects_naive_or_inverted_timestamps():
             "created_at": "2026-11-20T10:00:00Z",
             "updated_at": "2026-11-20T09:00:00Z",
         }))
+
+
+def test_registry_rejects_non_string_measurement_kind():
+    with pytest.raises(RegistryError, match="expected_measurements"):
+        parse_registry(registry({**source(), "expected_measurements": [{"kind": "logical_bytes"}]}))
 
 
 def test_registry_loads_from_disk(tmp_path):
@@ -172,11 +178,19 @@ def test_project_store_transaction_rolls_back_mismatched_measurement(tmp_path):
     assert store.list_coverage() == []
     assert store.list_measurements() == []
 
+    with pytest.raises(sqlite3.IntegrityError):
+        store.append_scan(
+            coverage(scan_id="scan-2"),
+            [measurement(measurement_id="duplicate"), measurement(measurement_id="duplicate")],
+        )
+    assert store.list_coverage() == []
+    assert store.list_measurements() == []
+
 
 def test_project_store_rejects_duplicate_measurement_and_scan_ids(tmp_path):
     store = ProjectStore(tmp_path, "project-a")
     store.append_scan(coverage(), [measurement()])
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.IntegrityError):
         store.append_scan(coverage(), [measurement()])
     assert len(store.list_coverage()) == 1
     assert len(store.list_measurements()) == 1
