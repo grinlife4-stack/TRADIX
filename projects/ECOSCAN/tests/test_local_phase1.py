@@ -607,7 +607,7 @@ class FakeOBISClient:
         }
         self.calls = []
 
-    def invoke(self, endpoint, capability_id, capability_version, payload, scopes=None):
+    def invoke(self, endpoint, capability_id, capability_version, payload, scopes=None, deadline=None):
         self.calls.append((endpoint, capability_id, capability_version, payload, scopes))
         return {
             "sender": {"peer_id": self.remote_peer_id},
