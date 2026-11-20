@@ -186,6 +186,7 @@ def test_python_client_validates_authenticated_error_from_go_peer():
 
 
 def test_go_client_validates_authenticated_error_from_python_peer():
+    calls = []
     credential = Credential(
         key_id="go-dev-key",
         peer_id="peer:go",
@@ -194,6 +195,10 @@ def test_go_client_validates_authenticated_error_from_python_peer():
         allowed_scopes=frozenset({"records:read"}),
     )
     peer = OBISPeer("peer:python", [credential])
+    peer.register_capability(
+        "records.read", "1.0", {"records:read"},
+        lambda payload: calls.append(payload) or {"record_id": payload["record_id"]},
+    )
     with OBISServer(peer) as server:
         result = subprocess.run(
             [
@@ -206,7 +211,7 @@ def test_go_client_validates_authenticated_error_from_python_peer():
                 "--principal", "principal:go",
                 "--secret-hex", SECRET.hex(),
                 "--scopes", "records:read",
-                "--capability", "records.read",
+                "--capability", "missing.capability",
                 "--capability-version", "1.0",
                 "--payload", json.dumps({"record_id": "missing"}),
             ],
@@ -217,6 +222,7 @@ def test_go_client_validates_authenticated_error_from_python_peer():
         )
     assert result.returncode != 0
     assert "capability.unknown" in result.stderr
+    assert calls == []
 
 
 def test_python_client_receives_signed_scope_denial_from_go_peer():
@@ -240,6 +246,7 @@ def test_python_client_receives_signed_scope_denial_from_go_peer():
 
 
 def test_go_client_receives_signed_scope_denial_from_python_peer():
+    calls = []
     credential = Credential(
         key_id="go-dev-key",
         peer_id="peer:go",
@@ -250,7 +257,7 @@ def test_go_client_receives_signed_scope_denial_from_python_peer():
     peer = OBISPeer("peer:python", [credential])
     peer.register_capability(
         "records.read", "1.0", {"records:read"},
-        lambda payload: {"record_id": payload["record_id"]},
+        lambda payload: calls.append(payload) or {"record_id": payload["record_id"]},
     )
     with OBISServer(peer) as server:
         result = subprocess.run(
@@ -275,6 +282,7 @@ def test_go_client_receives_signed_scope_denial_from_python_peer():
         )
     assert result.returncode != 0
     assert "authorization.denied" in result.stderr
+    assert calls == []
 
 
 
