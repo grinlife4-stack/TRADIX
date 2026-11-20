@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import time
 from pathlib import Path
 
 import pytest
@@ -343,6 +344,52 @@ def test_runner_rejects_cross_project_measurement_and_records_failure(tmp_path):
     parsed = parse_registry(registry(source()))
     store = ProjectStore(tmp_path, "project-a")
     invalid = measurement(project_id="project-b")
+    adapter = FakeAdapter(result=AdapterResult("COMPLETE", (invalid,), 1, 1))
+    runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
+
+    outcome = runner.run("fs-main", "operator-a")
+
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "adapter_contract_violation"
+    assert store.list_measurements() == []
+    assert store.list_coverage()[0]["coverage_state"] == "FAILED"
+
+
+def test_runner_rejects_late_empty_result_after_absolute_deadline(tmp_path):
+    parsed = parse_registry(registry({
+        **source(),
+        "budget": {
+            "max_pages": 1,
+            "max_items": 1,
+            "timeout_seconds": 0.01,
+            "max_duration_seconds": 1,
+        },
+    }))
+    store = ProjectStore(tmp_path, "project-a")
+
+    class SlowEmptyAdapter(FakeAdapter):
+        def scan(self, context):
+            self.calls += 1
+            context.guard.consume_page()
+            time.sleep(0.04)
+            return AdapterResult("COMPLETE", (), 0, 1)
+
+    adapter = SlowEmptyAdapter()
+    runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
+    outcome = runner.run("fs-main", "operator-a")
+
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "budget_exhausted"
+    assert store.list_measurements() == []
+    assert store.list_coverage()[0]["coverage_state"] == "FAILED"
+    assert store.list_coverage()[0]["items_seen"] == 0
+    assert store.list_coverage()[0]["pages_seen"] == 1
+
+
+def test_runner_rejects_malformed_source_timestamp_without_measurement_commit(tmp_path):
+    parsed = parse_registry(registry(source()))
+    store = ProjectStore(tmp_path, "project-a")
+    invalid = {**measurement(), "source_timestamp": "not-a-timestamp"}
     adapter = FakeAdapter(result=AdapterResult("COMPLETE", (invalid,), 1, 1))
     runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
 
