@@ -46,7 +46,7 @@ TRADIX is not automatically the owner, operator, runtime host, or mandatory depe
 
 ### 3.2 Independent products and projects
 
-Each product/project has its own purpose, roadmap, acceptance decisions, records, data, assets, accounts, credentials, finances, and operating boundary. Examples include NEXORA, MegaMarket, AAECN, the Trading Intelligence Platform, XENORA AI, and other explicitly registered projects.
+Each product/project has its own purpose, roadmap, acceptance decisions, records, data, assets, accounts, credentials, finances, and operating boundary. Examples include NEXORA, MegaMarket, AAECN, the Trading Intelligence Platform, XENORA AI, BRIDEX, and other explicitly registered projects. BRIDEX is an independent specialist project/tooling system for generating and validating portable Bridge tools; its placement in the TRADIX portfolio does not make its runtime or generated Bridges dependent on TRADIX.
 
 A repository folder or shared development workspace does not merge project identities or ownership.
 
@@ -56,8 +56,11 @@ Tools have their own identity and operating boundary even though TRADIX builds a
 
 - **EXVARLI:** the independent multi-project financial-management system. It provides financial management and oversight capabilities while preserving each project's separate financial perimeter, accounts, funds, ledgers, permissions, and records. Its governing specification is `docs/projects/EXVARLI_FINANCIAL_ARCHITECTURE.md`.
 - **ECOSCAN:** the independent ecosystem resource and infrastructure monitoring system. It measures registered technical/storage resources at whole-ecosystem, project, subsystem, or individual-source scope, only when requested or when an explicitly enabled schedule is due. Its governing specification is `docs/tools/ECOSCAN_SPEC.md`.
+- **BRIDEX:** the independent specialist Bridge engineering project/tool. It defines and maintains the repeatable method, generic foundations, packaging rules, and conformance tooling for generating independent Bridge instances. BRIDEX is not the default owner of generated Bridges; ownership is explicitly assigned per instance and may belong to the commissioning/using project or tool. Each owner must be able to operate, modify, fork, transfer, and adapt its Bridge without BRIDEX or TRADIX runtime dependencies. The governing dossier and specifications are maintained in `projects/BRIDEX/README.md` and the related `docs/BRIDEX_*.md` / protocol specification documents.
 
 EXVARLI and ECOSCAN are peer tools in the TRADIX toolbox. Neither is a submodule, owner, or runtime dependency of the other. Neither requires TRADIX to be running when it performs its own authorized work.
+
+BRIDEX is a specialist project/tooling system within the same independent portfolio model. Its role as Bridge generator does not make it the owner of each generated Bridge. A generated Bridge is a separately identifiable tool with an explicitly assigned owner, operator, and maintainer. Its owner retains the source/package, modification and fork rights, transfer and export rights, and the ability to connect it to other systems through documented, replaceable interfaces. OBIS is the independent external interoperability contract; TIIS applies only to authorized TRADIX-internal integration. The detailed contracts are maintained separately in `docs/OBIS_SPECIFICATION.md` and `docs/TIIS_SPECIFICATION.md`.
 
 ## 4. Independence and separation rules
 
