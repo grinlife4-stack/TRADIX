@@ -24,7 +24,7 @@ A separate `OBIS-TLS-MTLS-1` candidate transport is now available in the Python 
 
 - TLS 1.3 only; the client requires certificate-chain and endpoint hostname verification.
 - The server requires a client certificate.
-- Both sides negotiate ALPN `http/1.1`.
+- Both sides negotiate HTTP/1.1 ALPN (`http/1.1`) because OBIS 0.1 is carried over the HTTP binding; the OBIS protocol/version is identified in the message envelope and media type.
 - The server certificate must contain exactly one canonical URI SAN of the form `urn:obis:peer:<lowercase-UUID>`; the client checks it against the configured remote peer ID.
 - The client certificate must contain the same URI SAN form; the server binds its URI and SHA-256 certificate fingerprint to one explicit local credential/principal record.
 - mTLS credentials carry no HMAC shared secret. The TLS channel protects the response; this does not create a portable detached signature.
