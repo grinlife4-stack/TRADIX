@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+from urllib.parse import urlsplit
 from contextlib import AbstractContextManager
 from typing import Callable
 
@@ -22,6 +23,17 @@ _LOCK_ID = 0x45434F5343414E  # stable signed-64-bit advisory lock key
 
 class PostgresBackendError(RuntimeError):
     """Sanitized persistence or locking error."""
+
+
+def _require_direct_connection(dsn: str) -> None:
+    try:
+        hostname = urlsplit(dsn).hostname or ""
+    except ValueError:
+        raise ValueError("invalid PostgreSQL DSN") from None
+    if "-pooler" in hostname.lower():
+        raise ValueError(
+            "ECOSCAN requires a direct PostgreSQL endpoint for session advisory locks"
+        )
 
 
 def _load_aesgcm():
@@ -70,6 +82,7 @@ class PostgresTokenStore:
     ):
         if not dsn:
             raise ValueError("dsn is required")
+        _require_direct_connection(dsn)
         if len(encryption_key) != 32:
             raise ValueError("AES-256-GCM key must be exactly 32 bytes")
         self._dsn = dsn
@@ -198,6 +211,7 @@ class PostgresRefreshLock(AbstractContextManager):
     def __init__(self, dsn: str, *, connect: Callable | None = None):
         if not dsn:
             raise ValueError("dsn is required")
+        _require_direct_connection(dsn)
         self._dsn = dsn
         self._connect = connect or _connect
         self._conn = None
