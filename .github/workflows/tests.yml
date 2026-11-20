@@ -28,7 +28,10 @@ jobs:
       - run: python -m pip install -e "projects/ECOSCAN[dev]"
       - run: cd projects/BRIDEX/reference/obis-go && go test ./...
       - run: cd projects/BRIDEX/reference/obis-go && go build -o /tmp/obis-go-peer ./cmd/obis-go-peer
-      - run: python -m pytest -q tests projects/BRIDEX/core/tests projects/BRIDEX/reference/obis-python/tests projects/ECOSCAN/tests
+      - run: go version
+      - run: cd projects/BRIDEX/reference/obis-go && go test ./...
+      - run: cd projects/BRIDEX/reference/obis-go && go build -o /tmp/obis-go-peer ./cmd/obis-go-peer
+      - run: OBIS_GO_PEER_BINARY=/tmp/obis-go-peer python -m pytest -q tests projects/BRIDEX/core/tests projects/BRIDEX/reference/obis-python/tests projects/ECOSCAN/tests
         env:
           OBIS_GO_PEER_BINARY: /tmp/obis-go-peer
       - run: python -m pip wheel --no-deps --wheel-dir /tmp/bridex-core-wheel projects/BRIDEX/core
