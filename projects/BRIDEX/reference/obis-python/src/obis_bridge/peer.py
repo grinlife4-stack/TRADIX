@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import secrets
 import threading
 import time
@@ -78,16 +79,31 @@ class ReplayGuard:
 
     retention_seconds: int = MAX_TTL_SECONDS + CLOCK_SKEW_SECONDS
     _seen: dict[str, float] = field(default_factory=dict)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def accept(self, nonce: str, now: float | None = None) -> bool:
         now = time.time() if now is None else now
-        expired = [key for key, until in self._seen.items() if until <= now]
-        for key in expired:
-            del self._seen[key]
-        if not nonce or nonce in self._seen:
-            return False
-        self._seen[nonce] = now + self.retention_seconds
-        return True
+        with self._lock:
+            expired = [key for key, until in self._seen.items() if until <= now]
+            for key in expired:
+                del self._seen[key]
+            if not nonce or nonce in self._seen:
+                return False
+            self._seen[nonce] = now + self.retention_seconds
+            return True
+
+
+def strict_json_loads(raw: str) -> Any:
+    """Parse JSON while rejecting duplicate object keys."""
+    def reject_duplicates(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON object key")
+            result[key] = value
+        return result
+
+    return json.loads(raw, object_pairs_hook=reject_duplicates)
 
 
 def canonical_json(value: Any) -> bytes:
@@ -158,6 +174,8 @@ def validate_request(message: dict[str, Any], now: float | None = None) -> None:
         raise OBISRequestError("protocol.invalid_message", "timestamps must be numeric, not boolean")
     if issued_at > now + CLOCK_SKEW_SECONDS:
         raise OBISRequestError("request.expired", "issued_at is in the future", 408)
+    if not math.isfinite(issued_at) or not math.isfinite(expires_at):
+        raise OBISRequestError("protocol.invalid_message", "timestamps must be finite numbers")
     if expires_at <= now or expires_at <= issued_at:
         raise OBISRequestError("request.expired", "request has expired", 408)
     if expires_at - issued_at > MAX_TTL_SECONDS:
@@ -285,7 +303,7 @@ class OBISServer:
                         self.send_error(413)
                         return
                     raw = self.rfile.read(length)
-                    message = json.loads(raw.decode("utf-8"))
+                    message = strict_json_loads(raw.decode("utf-8"))
                     if not isinstance(message, dict):
                         raise OBISRequestError("protocol.invalid_message", "message must be an object")
                     response, secret = peer.handle(
@@ -333,7 +351,7 @@ class OBISServer:
                         self.send_header("Content-Length", str(len(body)))
                         self.end_headers()
                         self.wfile.write(body)
-                except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+                except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
                     self.send_error(400, "invalid JSON message")
 
             def log_message(self, fmt, *args):
@@ -458,7 +476,11 @@ class OBISClient:
             response_signature = exc.headers.get("X-OBIS-Signature", "")
             if error_body and response_signature:
                 try:
-                    error_message = json.loads(error_body.decode("utf-8"))
+                    if len(error_body) > MAX_MESSAGE_BYTES:
+                        raise OBISRequestError("payload.too_large", "error response exceeds size limit", 502)
+                    error_message = strict_json_loads(error_body.decode("utf-8"))
+                    if not isinstance(error_message, dict):
+                        raise OBISRequestError("protocol.invalid_message", "error response must be an object", 502)
                     if not verify_signature(error_message, self.secret, response_signature):
                         raise OBISRequestError("identity.authentication_failed", "error response signature verification failed", 502)
                     if (
@@ -484,7 +506,7 @@ class OBISClient:
             raise OBISRequestError("peer.unavailable", "peer is unavailable", 503) from exc
 
         try:
-            response_message = json.loads(response_body.decode("utf-8"))
+            response_message = strict_json_loads(response_body.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise OBISRequestError("protocol.invalid_message", "invalid response JSON", 502) from exc
         if not verify_signature(response_message, self.secret, response_signature):
