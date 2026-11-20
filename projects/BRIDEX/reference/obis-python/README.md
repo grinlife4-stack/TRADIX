@@ -18,6 +18,20 @@ The canonical draft schema is published independently at [standards/obis/0.1/mes
 - Correlated and signed responses.
 - Negative tests for spoofing, unknown credentials, excess scopes, replay, expiry, unsupported versions, unknown capabilities, and oversized payloads.
 
+## TLS 1.3 mutual-TLS candidate
+
+A separate `OBIS-TLS-MTLS-1` candidate transport is now available in the Python reference:
+
+- TLS 1.3 only; the client requires certificate-chain and endpoint hostname verification.
+- The server requires a client certificate.
+- Both sides negotiate ALPN `obis/0.1`.
+- The server certificate must contain exactly one canonical URI SAN of the form `urn:obis:peer:<lowercase-UUID>`; the client checks it against the configured remote peer ID.
+- The client certificate must contain the same URI SAN form; the server binds its URI and SHA-256 certificate fingerprint to one explicit local credential/principal record.
+- mTLS credentials carry no HMAC shared secret. The TLS channel protects the response; this does not create a portable detached signature.
+- TLS handshake and HTTP request timeouts are bounded. Local credential revocation blocks subsequent requests in that running process.
+
+The owner supplies the SSL contexts, trust anchors, certificate chain, and private-key paths. The package does not create a CA, issue or rotate certificates, distribute trust bundles, or implement CRL/OCSP. The mTLS mode is a reference candidate, not a production-approved security profile. The HMAC example below remains development-only and loopback-only.
+
 ## Run locally
 
 Requires Python 3.11 or newer. No runtime dependencies are required.
@@ -72,9 +86,9 @@ The reference server and client deliberately bind to loopback addresses only. Th
 
 ## Security limitations — do not deploy for real workloads
 
-The shared-secret HMAC profile is only a local conformance/development mechanism. It does not provide a complete production identity lifecycle, certificate validation, asymmetric signatures, TLS, durable replay storage, distributed revocation, or a formal cryptographic profile. The in-memory replay guard resets on process restart. Error responses for authentication failures are intentionally not signed.
+The HMAC profile remains a local conformance/development mechanism and must not be used beyond loopback. The TLS 1.3 mTLS mode is a candidate reference implementation, not production approval. It does not provide automated CA operations, trust-bundle distribution, certificate renewal, CRL/OCSP, durable revocation, durable replay/idempotency, production audit, or cross-language conformance. The in-memory replay guard and local credential revocation state reset on process restart.
 
-Before production use, OBIS requires a reviewed security profile covering mutual peer authentication, authenticated encrypted transport, key issuance/storage/rotation/revocation, authorization context binding, durable replay/idempotency, audit integrity, and threat-model validation. The current implementation must not be used for financial, personal, safety-critical, or otherwise sensitive operations.
+Before production use, OBIS still requires an owner-approved trust model, certificate lifecycle and revocation process, durable replay/idempotency, audit integrity, a second independent language implementation, cross-implementation tests, and independent security review. The current implementation must not be used for financial, personal, safety-critical, or otherwise sensitive operations.
 
 ## Independence check
 
