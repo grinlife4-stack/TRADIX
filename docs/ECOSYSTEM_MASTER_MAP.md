@@ -1,122 +1,114 @@
-# Ecosystem Master Map — Independent Projects and Reusable Equipment
+# Ecosystem Master Map — TRADIX Factory and Independent Systems
 
 **Document ID:** ECOSYSTEM-MAP-001  
 **Status:** Proposed governing portfolio rule; pending owner review  
 **Canonical location:** `grinlife4-stack/TRADIX/docs/ECOSYSTEM_MASTER_MAP.md`
 
-## 1. The simplest correct mental model
+## 1. Core model
 
-The ecosystem contains **independent projects** and a **shared, evolving toolbox**.
+The ecosystem has independent projects and systems, and TRADIX is the permanent factory that builds and develops their tools and products.
 
-- MegaMarket, NEXORA, info_engine, and every other separately defined product/project are independent projects with their own purpose and lifecycle.
-- TRADIX, EXVARLI, and other tools/capabilities are independently maintainable equipment or specialist projects that can contribute capabilities to the shared toolbox and/or serve individual projects.
-- The toolbox is not a parent organization, product owner, command center, or mandatory platform. It is a growing collection of reusable tools and capabilities.
-- Projects develop according to their own needs. A project may create a new tool, improve an existing tool, or contribute one or more reusable options/capabilities to the toolbox.
-- Other projects may use a capability when it fits their needs. Availability never means compulsory adoption.
+- **TRADIX is the factory and the toolbox.** It designs, builds, tests, documents, packages, secures, and prepares every portfolio tool and product. It continuously develops its own production capabilities and remains available to build new tools and improve existing ones.
+- **A tool is not the toolbox.** Once built, each tool has its own identity, purpose, codebase or bounded source, configuration, data, lifecycle, and operating responsibility.
+- **The toolbox is not a runtime dependency.** A completed tool can be installed, operated, maintained, moved, or replaced without carrying or running TRADIX.
+- **The toolbox remains permanent.** TRADIX continues to exist and develop even while individual tools are being used independently.
+- **The factory relationship does not create operational control.** TRADIX building a tool does not give TRADIX authority over the tool's domain, records, decisions, credentials, or day-to-day operation.
+- **Tools are available, not compulsory.** A project uses a tool when it fits its needs; it does not have to run every tool or use TRADIX at runtime.
 
-**Short rule: Independent projects. One evolving shared toolbox. Project-led contributions. Optional reuse. No forced integration.**
+**Short rule: TRADIX builds and continuously develops the toolbox. Every completed tool remains an independent tool.**
 
-## 2. The mechanic's toolbox model
+## 2. The toolbox analogy
 
-Think of a mechanic's toolbox. It contains many tools: wrenches, pliers, drills, measuring instruments, and specialist equipment. The mechanic does not use every tool on every job. A tool is present because it may be useful when a particular need arises.
+TRADIX is like a workshop that builds and maintains a toolbox. The toolbox helps identify, organize, document, version, and retrieve the tools. A wrench remains a wrench after it is made: the mechanic does not need to carry the workshop to use it.
 
-The ecosystem works the same way:
+Applied to the ecosystem:
 
-- The shared toolbox grows gradually as real project needs arise.
-- Each project identifies its own needs and decides what to build or improve.
-- A project may contribute one or several tools, modules, adapters, workflows, or capabilities to the toolbox.
-- A contribution should be made reusable where practical, without forcing the contributing project to expose its private implementation, data, or business logic.
-- A project may use any existing tool that fits, ignore tools it does not need, or use a different solution.
-- The toolbox is not expected to be complete at the beginning. It becomes more capable through actual use and project contributions.
+- TRADIX creates all tools in the portfolio through its engineering lifecycle.
+- TRADIX keeps developing its own factory capabilities and the toolbox/catalogue.
+- Each tool is separately identifiable and can be used without TRADIX being running or reachable.
+- The tool may be listed, documented, versioned, tested, and maintained through TRADIX without surrendering its identity or operational independence.
+- TRADIX may build a new version or replacement, but changes to the factory must not silently break tools already delivered.
+- Tool use does not imply that all tools must be installed together or that they share one runtime, database, credential store, or deployment.
 
-TRADIX and EXVARLI are examples of separately maintainable capabilities/equipment with different functions. Neither is the whole toolbox, and neither automatically governs the projects or tools around it.
+## 3. Distinguish projects, factory, and tools
 
-## 3. Independent project boundary
+### 3.1 TRADIX
 
-Every project remains a separate project, whether its files are stored in a separate repository or in a directory inside another repository.
+TRADIX is the portfolio's permanent product-and-tool factory. Its responsibilities include:
 
-Each project retains control of its own:
-- identity, mission, roadmap, priorities, and acceptance decisions;
-- source records, business data, files, content, and intellectual property;
-- accounts, credentials, permissions, and customer relationships;
-- income, expenses, budgets, liabilities, wallets, and financial records;
-- operational decisions, release approvals, and lifecycle.
+- Building every portfolio product and tool from approved requirements.
+- Continuously improving its own architecture, engineering methods, templates, test systems, security controls, packaging, release processes, and reusable foundations.
+- Keeping a discoverable catalogue and documentation for tools it has built.
+- Maintaining versioned interfaces and migration paths where tools use shared capabilities.
+- Supporting authorized upgrades without acquiring ownership of the systems it builds.
 
-A shared repository path, common developer, common tool, common account used for administration, or service relationship does **not** make one project a child or department of another. Repository layout is not an ownership chart.
+TRADIX is not automatically the owner, operator, runtime host, or mandatory dependency of any completed tool or product.
 
-## 4. Contribution and reuse lifecycle
+### 3.2 Independent products and projects
 
-The shared toolbox grows through real work, not through a speculative central design exercise.
+Each product/project has its own purpose, roadmap, acceptance decisions, records, data, assets, accounts, credentials, finances, and operating boundary. Examples include NEXORA, MegaMarket, AAECN, the Trading Intelligence Platform, XENORA AI, and other explicitly registered projects.
 
-1. **A project identifies a need.** The project defines the problem, scope, and acceptance criteria.
-2. **Choose the least wasteful solution.** Check whether an existing toolbox capability fits. If not, the project may build a project-local solution, extend an existing tool, or create a new tool.
-3. **Separate reusable capability from project-specific material.** Where practical, isolate the generic function, interface, and configuration from the project's private data, secrets, business rules, and identity.
-4. **Contribute when useful.** A project may add the reusable capability or option to the shared toolbox. This is not automatic: suitability, security, documentation, ownership, maintenance, and dependencies must be clear.
-5. **Reuse remains optional.** Other projects may adopt the capability if it meets their needs. They are not required to do so and do not inherit the contributing project's roadmap or dependencies.
-6. **Maintain and replace independently.** Each tool has a clear maintainer, version/interface, dependencies, and removal or replacement path. A project must not lose its own continuity if a shared tool changes or disappears.
+A repository folder or shared development workspace does not merge project identities or ownership.
 
-The toolbox is allowed to grow organically. Do not create tools merely to fill a catalog, and do not impose a shared solution where a project's own simpler solution is better.
+### 3.3 Independent tools built by TRADIX
 
-## 5. Equipment use and service lifecycle
+Tools have their own identity and operating boundary even though TRADIX builds and catalogues them. Current examples include:
 
-When a project uses a tool or specialist service:
+- **EXVARLI:** the independent multi-project financial-management system. It provides financial management and oversight capabilities while preserving each project's separate financial perimeter, accounts, funds, ledgers, permissions, and records. Its governing specification is `docs/projects/EXVARLI_FINANCIAL_ARCHITECTURE.md`.
+- **ECOSCAN:** the independent ecosystem resource and infrastructure monitoring system. It measures registered technical/storage resources at whole-ecosystem, project, subsystem, or individual-source scope, only when requested or when an explicitly enabled schedule is due. Its governing specification is `docs/tools/ECOSCAN_SPEC.md`.
 
-1. The project defines the task and acceptance criteria.
-2. The tool receives only the access and inputs necessary for that task.
-3. Work is performed through a defined interface where practical.
-4. The project accepts or rejects the result.
-5. Temporary access, credentials, and copies are revoked or cleared when no longer needed.
-6. The tool remains independently maintainable and may be used by another project.
+EXVARLI and ECOSCAN are peer tools in the TRADIX toolbox. Neither is a submodule, owner, or runtime dependency of the other. Neither requires TRADIX to be running when it performs its own authorized work.
 
-A project may continue using a tool for later work, but this does not create ownership, hierarchy, or permanent lock-in.
+## 4. Independence and separation rules
 
-## 6. Non-negotiable separation rules
+Every project and every completed tool retains its own boundary.
 
-- Never merge project data, financial records, accounts, wallets, credentials, or customer records merely because projects use the same tool.
-- EXVARLI may provide financial-management capabilities and portfolio-level views, but each project's ledger, account ownership, funds, permissions, and audit trail remain distinct.
-- TRADIX may provide production capabilities such as design, build, test, security, packaging, and release preparation, but this does not make TRADIX the owner or default operator of a product.
-- Shared tools must be replaceable. A project must be able to stop using, replace, or export away from a tool without losing its identity, data, assets, or continuity.
-- Shared tools are not mandatory runtime dependencies unless the project owner explicitly approves that dependency.
-- Reuse common capabilities where they fit; do not force a capability onto a project where it does not fit.
-- Keep project-specific state isolated even when the same tool serves several projects.
-- A contribution to the toolbox does not transfer ownership of the contributing project, its private data, or its entire source code.
-- Do not infer project hierarchy from names, repository paths, folders, deployment accounts, or the order in which projects were created.
-- No project merger, transfer of ownership, or cross-project data integration is authorized by the existence of the toolbox.
+- A tool owns or controls only the records and configuration required for its own function, under its approved mandate.
+- TRADIX's source catalogue may hold tool descriptions, versions, documentation links, build provenance, and compatibility metadata; it must not become the default store for tool runtime data or project secrets.
+- No project data, financial records, accounts, wallets, credentials, customer records, or private assets may be merged merely because they use the same tool.
+- Cross-project views must preserve source attribution and access permissions.
+- A tool must expose export and replacement paths appropriate to its data and role.
+- Stopping, deleting, replacing, or losing access to TRADIX must not stop a completed tool or erase its records.
+- Stopping, deleting, or replacing one tool must not stop TRADIX, other tools, or any project.
+- Shared interfaces are explicit, documented, versioned, and least-privilege. No hidden dependency is permitted.
 
-## 7. How to classify a new item
+## 5. Tool construction and lifecycle
 
-Before treating anything as a project or shared tool, establish its role from an approved project dossier or an explicit owner decision.
+TRADIX uses a repeatable lifecycle for every tool:
 
-Ask:
-- Does it have its own mission, roadmap, data, assets, decisions, and lifecycle? It is an independent project.
-- Does it provide a reusable capability to other projects? It may also be a tool/equipment contributor.
-- Does it do both? Record the project identity and the reusable capability as separate concerns. Its role as a tool does not erase its independent project boundary.
+1. Define the real need, intended users, operating boundary, and acceptance criteria.
+2. Check whether an existing tool already solves the need.
+3. Specify the tool's independent identity, data ownership, access model, and runtime dependencies.
+4. Design and build the tool.
+5. Test functionality, security, isolation, portability, failure handling, and removal.
+6. Document installation, configuration, operation, export, upgrade, rollback, and retirement.
+7. Deliver/version the tool as an independent usable unit.
+8. Maintain its catalogue entry and build provenance in TRADIX.
+9. Develop later versions when authorized, without silently changing existing operational contracts.
 
-Do not invent a parent-child relationship to make a diagram look tidy.
+A tool is not considered complete merely because its code exists or its tests pass. Its documented acceptance gates must be met.
 
-## 8. AI and developer entry protocol
+## 6. Tool discovery versus tool operation
 
-Before any AI-assisted or human engineering work in any project/repository:
+TRADIX provides discovery and engineering continuity, not mandatory runtime mediation.
 
-1. Read this master map first when it is available and applicable.
-2. Read the repository's root `AGENTS.md` and the applicable `CLAUDE.md` or tool-specific instructions.
-3. Identify the exact target project and whether the current task concerns a project, a tool, or a contribution to the shared toolbox.
-4. Read that target's own README, dossier, decision log, and current status.
-5. Confirm repository, branch, and target paths before editing.
-6. Keep changes inside the selected scope. Do not edit another project or shared tool merely because it is nearby.
-7. If a change crosses project boundaries, define the interface, data ownership, permissions, maintenance responsibility, and acceptance responsibilities before implementation.
-8. If documents conflict or the role is unclear, stop and report the conflict. Do not silently choose an interpretation.
+- Finding a tool: use the TRADIX catalogue and documentation.
+- Building or upgrading a tool: use TRADIX's factory lifecycle.
+- Running a completed tool: run that tool directly in its own supported environment.
+- Exporting or moving a tool: use that tool's documented export and migration procedures.
+- Retiring a tool: follow its own data-retention and removal rules.
 
-### Important limitation
+A tool must not call TRADIX merely to authorize its normal operation unless that dependency is separately approved as an explicit product requirement.
 
-`AGENTS.md`, `CLAUDE.md`, and editor-specific instruction files are agent conventions, not a universal GitHub-enforced mechanism. Compatible coding agents can load them automatically. When using an interface that does not automatically load repository instructions, the operator/assistant must explicitly retrieve the applicable instructions. A file existing in GitHub alone does not guarantee every AI product has read it.
+## 7. Change control
 
-## 9. Change control
+This map records the owner's clarified architecture as a proposed reference in this review branch. The Foundational Architecture Charter remains the governing source for builder-versus-owner boundaries. This map specializes that rule for the factory/toolbox relationship.
 
-This map records the project owner's stated architecture as a proposed reference in this review branch. Project-specific dossiers may add details but must not reverse the independence, optional reuse, and data-separation boundaries. Any change to those boundaries requires explicit owner approval and a dated, versioned amendment.
+- Tool-specific specifications may add operational detail but may not make TRADIX a mandatory runtime dependency by implication.
+- If an existing document or implementation describes TRADIX as merely one optional contributor among peer tool builders, that description is superseded by this model: TRADIX is the factory responsible for building all portfolio tools.
+- Changes to identity, ownership, data boundaries, or mandatory runtime dependencies require explicit owner approval and a versioned amendment.
+- Do not claim that a proposed tool is implemented or operational until its acceptance evidence exists.
 
-If implementation or an older document conflicts with this map, record the discrepancy and propose a controlled correction. Do not pretend the conflict does not exist.
+## 8. One-line reminder
 
-## 10. One-line reminder
-
-**Projects remain independent. Their real needs gradually build a shared toolbox. Any project may contribute reusable tools or capabilities, and any other project may use them when useful, without forced adoption, merger, or transfer of identity and data.**
+**TRADIX is the permanent factory and toolbox. It builds every tool and keeps developing itself. Every completed tool has its own identity and operates independently, without needing the toolbox beside it.**
