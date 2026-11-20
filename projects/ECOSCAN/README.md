@@ -40,7 +40,7 @@ The data root is caller-selected. Do not point it at production project data unt
 
 - Runtime dependencies are Python standard library only.
 - No `tradix.*` imports.
-- No secrets are accepted in registry fields; `credential_ref` is an opaque reference only.
+- `credential_ref` is treated only as an opaque reference; this foundation does not resolve it or prove that a supplied string is not raw secret material. No credential resolver exists yet.
 - No network calls, arbitrary command execution, file-content reads, or source discovery.
 - All controls default to disabled and authorization defaults to deny.
 - Each project's database is stored under its own project ID.
