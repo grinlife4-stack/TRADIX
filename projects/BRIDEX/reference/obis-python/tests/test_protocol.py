@@ -191,11 +191,11 @@ def test_capability_handler_failure_does_not_leak_exception_details():
 
 
 def test_published_json_schema_validates_request_and_success_response():
-    from pathlib import Path
     import json
+    from importlib.resources import files
     from jsonschema import Draft202012Validator
 
-    schema_path = Path(__file__).parents[1] / "schemas" / "obis-0.1-message.schema.json"
+    schema_path = files("obis_bridge").joinpath("schemas/message.schema.json")
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
@@ -220,11 +220,11 @@ def test_published_json_schema_validates_request_and_success_response():
 
 
 def test_published_json_schema_rejects_unknown_fields_and_invalid_error_envelope():
-    from pathlib import Path
     import json
+    from importlib.resources import files
     from jsonschema import Draft202012Validator, ValidationError
 
-    schema_path = Path(__file__).parents[1] / "schemas" / "obis-0.1-message.schema.json"
+    schema_path = files("obis_bridge").joinpath("schemas/message.schema.json")
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     validator = Draft202012Validator(schema)
 
@@ -271,3 +271,13 @@ def test_unknown_capability_returns_signed_correlated_obis_error():
         with pytest.raises(OBISRequestError) as exc:
             client.invoke(server.address, "missing.capability", "1.0", {})
     assert exc.value.code == "capability.unknown"
+
+
+def test_published_and_packaged_schemas_are_identical():
+    from importlib.resources import files
+    from pathlib import Path
+
+    packaged = files("obis_bridge").joinpath("schemas/message.schema.json").read_bytes()
+    canonical_path = Path(__file__).resolve().parents[5] / "standards" / "obis" / "0.1" / "message.schema.json"
+    canonical = canonical_path.read_bytes()
+    assert packaged == canonical
