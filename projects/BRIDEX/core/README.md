@@ -43,7 +43,7 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-The schema is packaged at `bridex_core/schemas/bridge-package-manifest.schema.json`.
+The schema is packaged at `bridex_core/schemas/bridge-package-manifest.schema.json`. The installed `bridex-manifest` command exposes the same validator without requiring consumers to import package internals.\n\nValidate a manifest with:\n\n```bash\nbridex-manifest validate ./bridge-manifest.json\n```\n\nThe command exits with `0` for a valid manifest and `2` for invalid or unreadable input.
 
 ## Deliberate limits / next generic-core work
 
