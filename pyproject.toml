@@ -10,8 +10,9 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "cryptography>=43"]
 storage = ["boto3>=1.34"]
+ecoscan-postgres = ["psycopg[binary]>=3.2", "cryptography>=43"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
