@@ -134,8 +134,8 @@ The long-term steward and approval process remain unresolved.
 
 1. Owner review of the identifier and compatibility recommendations.
 2. Security review and threat-model update for the first production profile.
-3. HTTPS/TLS 1.3 mutual-authentication binding implemented without custom cryptography.
-4. Certificate-to-peer identity mapping, rotation, revocation, and trust-bundle tests.
+3. TLS 1.3 mTLS candidate implemented in the Python and Go reference peers using maintained standard-library TLS stacks; owner approval of trust model and production profile remains required.
+4. Certificate-to-peer URI-SAN identity mapping and TLS 1.3 ALPN tests; rotation, revocation, trust-bundle freshness, emergency denylisting, and full negative certificate tests.
 5. Normative request, success-response, error-response, and capability payload schemas.
 6. Runtime schema validation and schema-version negotiation tests.
 7. Durable replay protection and idempotency/outcome reconciliation.
@@ -147,8 +147,8 @@ The long-term steward and approval process remain unresolved.
 
 ## 10. Current implementation boundary
 
-The Python and Go reference peers are local development/conformance prototypes. They implement direct loopback HTTP and the same shared-secret HMAC development profile. The Python client has completed a real request/response exchange with the Go peer; shared canonical JSON/HMAC test vectors and initial replay/scope negative tests pass.
+The Python and Go reference peers are local development/conformance prototypes. They implement direct loopback HTTP with the shared-secret HMAC development profile and an opt-in TLS 1.3 mTLS candidate. The Python client has completed real HTTP/HMAC and TLS 1.3 mTLS request/response exchanges with the Go peer; the Python TLS server has also passed the mTLS test. The mTLS candidate validates owner-supplied trust anchors, requires client certificates, uses ALPN obis/1, and binds the certificate URI SAN urn:obis:peer:<peer-id> to the OBIS sender.
 
-They do not implement the candidate production profile, durable replay/idempotency, certificate lifecycle, production audit, asynchronous operations, or the complete cross-language negative/security suite. The Go peer does not yet implement TLS or certificate-to-peer identity mapping. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
+They do not implement a production-approved certificate lifecycle, durable replay/idempotency, trust-bundle freshness/revocation, production audit, asynchronous operations, or the complete cross-language negative/security suite. The HMAC application profile remains development-only; TLS 1.3 mTLS is a candidate implementation pending owner approval and independent security review. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
 
 **No production or 1.0 claim is authorized by this register.**
