@@ -14,12 +14,14 @@
 - [x] Authenticated response object/type, peer-reference, correlation, timestamp, and structured-error validation.
 - [x] Explicit credential-to-peer and credential-to-principal binding.
 - [x] HMAC-SHA256 request and response integrity for local loopback tests.
-- [x] Candidate `OBIS-TLS-MTLS-1` reference binding using Python `ssl` / OpenSSL, TLS 1.3 only, mutual certificate authentication, and no shared HMAC secret.
+- [x] Candidate `OBIS-TLS-MTLS-1` reference binding in Python `ssl` / OpenSSL and Go `crypto/tls` / `crypto/x509`, TLS 1.3 only, mutual certificate authentication, and no shared HMAC secret.
 - [x] TLS endpoint hostname verification plus exactly-one URI SAN peer identity `urn:obis:peer:<lowercase-UUID>`.
 - [x] Certificate SHA-256 fingerprint binding to a single configured credential/principal record.
 - [x] Mandatory `http/1.1` ALPN, bounded handshake/request timeouts, and no plaintext fallback for mTLS clients.
-- [x] Local credential revocation for subsequent requests in the running process.
+- [x] Python local credential revocation for subsequent requests in the running process.
 - [x] Positive and negative mTLS tests using ephemeral test certificates; no private keys are committed.
+- [x] Independent Go peer/client with matching certificate URI and SHA-256 fingerprint-to-credential binding.
+- [x] Bidirectional Python client → Go server and Go client → Python server mTLS request/response tests, plus same-URI/different-fingerprint rejection.
 - [x] Capability registration and receiver-side scope authorization.
 - [x] Optional resource-bound capabilities with per-credential project/source allowlists, checked before the capability handler runs.
 - [x] ECOSCAN read-only inventory capability `ecoscan.inventory.read@1.0` with strict payload/result validation.
@@ -46,7 +48,7 @@ The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/messa
 - Asynchronous operation lifecycle.
 - Production audit persistence and tamper-evident evidence.
 - Production-hardened non-loopback operations, rate limiting, deployment hardening, and independent security review. The candidate mTLS binding can bind beyond loopback, but is not production-approved.
-- Cross-language interoperability suite.
+- Broader cross-language conformance beyond the current loopback scenarios, including shared malformed-message, expiry, replay, and revocation vectors.
 
 ## Release gates before OBIS 1.0.0
 
@@ -55,8 +57,8 @@ The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/messa
 3. Define owner-operated credential issuance, rotation, revocation, trust-bundle distribution, and principal delegation.
 4. Define durable replay/idempotency and outcome reconciliation.
 5. Define signed evidence/audit formats and retention controls.
-6. Implement at least one independent second-language peer.
-7. Pass cross-implementation positive and negative conformance suites.
+6. Maintain the independent Go implementation with separate ownership/CI and keep it behaviorally aligned with the Python reference.
+7. Expand cross-implementation positive and negative conformance beyond the current loopback scenarios.
 8. Verify portable operation from a clean environment with TRADIX and BRIDEX unavailable.
 9. Complete threat-model review and security testing.
 10. Run the ECOSCAN adapter against this BRIDEX loopback peer in a combined cross-project integration test; the current two projects test their adapter and peer halves independently.
@@ -64,6 +66,8 @@ The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/messa
 A passing local test suite proves only the implemented reference behavior. It does not establish production security or universal interoperability.
 
 
-## Latest ECOSCAN capability branch verification note
+## Current OBIS implementation sequence
 
-PR #66's latest OBIS capability/resource-grant changes are included as the base of PR #74. GitHub Actions run `44733556568` completed successfully on the PR #74 merge commit, ran 68 tests, and built/installed the OBIS reference wheel. PR #66's branch head is still not independently merged or promoted. The additional TLS/mTLS implementation in PR #75 requires its own CI run on the latest PR #75 head before it can be considered verified.
+This OBIS implementation is being carried in Draft PR #78, stacked on the unified BRIDEX Engine branch (PR #77), which itself is stacked on the TIIS/TRADIX tooling integration (PR #70). The older parallel OBIS branches (#72, #75, #76) are reference material only and are not dependencies of this branch.
+
+The Go mTLS path uses no HMAC secret and binds the certificate URI and SHA-256 fingerprint to the configured peer credential. The Python and Go implementations exercise both directions over TLS 1.3 mTLS using ephemeral certificates. CI on the latest PR #78 head is still required before this candidate can be considered verified.
