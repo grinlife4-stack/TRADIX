@@ -52,7 +52,13 @@ def main(argv: list[str] | None = None) -> int:
                 version=args.version,
                 bridge_id=args.bridge_id,
             )
-            result = {"created": True, "path": str(root)}
+            _, manifest = load_manifest(root)
+            result = {
+                "created": True,
+                "path": str(root),
+                "bridge_id": manifest["bridge_id"],
+                "lifecycle": manifest["lifecycle"],
+            }
         elif args.command == "validate":
             root, manifest = load_manifest(args.root)
             files = resolve_package_files(root, manifest)
