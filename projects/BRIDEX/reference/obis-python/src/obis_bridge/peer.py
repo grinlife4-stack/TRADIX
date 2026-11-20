@@ -131,6 +131,59 @@ def _required(mapping: dict[str, Any], key: str, expected_type: type) -> Any:
     return value
 
 
+def validate_response(
+    message: Any,
+    request_message: dict[str, Any],
+    local_peer_id: str,
+    remote_peer_id: str,
+    expected_outcome: str,
+) -> None:
+    """Validate an authenticated response envelope before exposing it to callers."""
+    if not isinstance(message, dict):
+        raise OBISRequestError("protocol.invalid_message", "response must be a JSON object", 502)
+    common_fields = {
+        "protocol", "version", "message_type", "message_id", "correlation_id",
+        "sender", "recipient", "issued_at", "outcome",
+    }
+    outcome_field = "result" if expected_outcome == "succeeded" else "error"
+    if set(message) != common_fields | {outcome_field}:
+        raise OBISRequestError("protocol.invalid_message", "response has unknown or missing fields", 502)
+    if message.get("protocol") != PROTOCOL or message.get("version") != VERSION:
+        raise OBISRequestError("protocol.unsupported_version", "unsupported response protocol/version", 502)
+    if message.get("message_type") != "response" or message.get("outcome") != expected_outcome:
+        raise OBISRequestError("protocol.invalid_message", "unexpected response type or outcome", 502)
+    for key in ("message_id", "correlation_id"):
+        value = message.get(key)
+        if not isinstance(value, str) or not value or len(value) > 200:
+            raise OBISRequestError("protocol.invalid_message", f"invalid response {key}", 502)
+    if message["correlation_id"] != request_message.get("message_id"):
+        raise OBISRequestError("protocol.invalid_message", "response correlation mismatch", 502)
+    for key, expected_peer in (("sender", remote_peer_id), ("recipient", local_peer_id)):
+        peer_ref = message.get(key)
+        if not isinstance(peer_ref, dict) or set(peer_ref) != {"peer_id"}:
+            raise OBISRequestError("protocol.invalid_message", f"invalid response {key} reference", 502)
+        if peer_ref.get("peer_id") != expected_peer:
+            raise OBISRequestError("identity.authentication_failed", f"response {key} peer mismatch", 502)
+    issued_at = message.get("issued_at")
+    if isinstance(issued_at, bool) or not isinstance(issued_at, (int, float)):
+        raise OBISRequestError("protocol.invalid_message", "invalid response timestamp", 502)
+    try:
+        timestamp_is_valid = math.isfinite(issued_at) and issued_at >= 0
+    except (OverflowError, TypeError):
+        timestamp_is_valid = False
+    if not timestamp_is_valid:
+        raise OBISRequestError("protocol.invalid_message", "invalid response timestamp", 502)
+    if expected_outcome == "succeeded":
+        if not isinstance(message.get("result"), dict):
+            raise OBISRequestError("protocol.invalid_message", "success response result must be an object", 502)
+    else:
+        error = message.get("error")
+        if not isinstance(error, dict) or set(error) != {"code", "message"}:
+            raise OBISRequestError("protocol.invalid_message", "invalid structured error response", 502)
+        if not all(isinstance(error.get(key), str) and error[key] for key in ("code", "message")):
+            raise OBISRequestError("protocol.invalid_message", "invalid structured error fields", 502)
+
+
 def validate_request(message: dict[str, Any], now: float | None = None) -> None:
     now = time.time() if now is None else now
     if not isinstance(message, dict):
@@ -488,29 +541,10 @@ class OBISClient:
                         raise OBISRequestError("protocol.invalid_message", "error response must be an object", 502)
                     if not verify_signature(error_message, self.secret, response_signature):
                         raise OBISRequestError("identity.authentication_failed", "error response signature verification failed", 502)
-                    if set(error_message) != {
-                        "protocol", "version", "message_type", "message_id", "correlation_id",
-                        "sender", "recipient", "issued_at", "outcome", "error",
-                    }:
-                        raise OBISRequestError("protocol.invalid_message", "error response has unknown or missing fields", 502)
-                    if not all(isinstance(error_message.get(key), dict) for key in ("sender", "recipient", "error")):
-                        raise OBISRequestError("protocol.invalid_message", "invalid error response object fields", 502)
-                    if not all(isinstance(error_message["error"].get(key), str) and error_message["error"][key] for key in ("code", "message")):
-                        raise OBISRequestError("protocol.invalid_message", "invalid structured error fields", 502)
-                    issued_at = error_message.get("issued_at")
-                    if isinstance(issued_at, bool) or not isinstance(issued_at, (int, float)) or not math.isfinite(issued_at):
-                        raise OBISRequestError("protocol.invalid_message", "invalid error response timestamp", 502)
-                    if (
-                        error_message.get("protocol") != PROTOCOL
-                        or error_message.get("version") != VERSION
-                        or error_message.get("message_type") != "response"
-                        or error_message.get("correlation_id") != message["message_id"]
-                        or error_message.get("sender", {}).get("peer_id") != self.remote_peer_id
-                        or error_message.get("recipient", {}).get("peer_id") != self.local_peer_id
-                        or error_message.get("outcome") != "failed"
-                    ):
-                        raise OBISRequestError("protocol.invalid_message", "invalid correlated error response", 502)
-                    error = error_message.get("error", {})
+                    validate_response(
+                        error_message, message, self.local_peer_id, self.remote_peer_id, "failed"
+                    )
+                    error = error_message["error"]
                     raise OBISRequestError(
                         error.get("code", "peer.request_rejected"),
                         error.get("message", f"peer returned HTTP {exc.code}"),
@@ -528,32 +562,11 @@ class OBISClient:
             raise OBISRequestError("protocol.invalid_message", "invalid response JSON", 502) from exc
         try:
             response_is_authentic = verify_signature(response_message, self.secret, response_signature)
-        except (TypeError, ValueError, OverflowError) as exc:
+        except (TypeError, ValueError, OverflowError, RecursionError) as exc:
             raise OBISRequestError("protocol.invalid_message", "response cannot be canonically encoded", 502) from exc
         if not response_is_authentic:
             raise OBISRequestError("identity.authentication_failed", "response signature verification failed", 502)
-        if response_message.get("protocol") != PROTOCOL or response_message.get("version") != VERSION:
-            raise OBISRequestError("protocol.unsupported_version", "unsupported response protocol/version", 502)
-        if response_message.get("message_type") != "response":
-            raise OBISRequestError("protocol.invalid_message", "expected response message", 502)
-        if set(response_message) != {
-            "protocol", "version", "message_type", "message_id", "correlation_id",
-            "sender", "recipient", "issued_at", "outcome", "result",
-        }:
-            raise OBISRequestError("protocol.invalid_message", "success response has unknown or missing fields", 502)
-        if not isinstance(response_message.get("message_id"), str) or not response_message["message_id"]:
-            raise OBISRequestError("protocol.invalid_message", "invalid response message_id", 502)
-        issued_at = response_message.get("issued_at")
-        if isinstance(issued_at, bool) or not isinstance(issued_at, (int, float)) or not math.isfinite(issued_at):
-            raise OBISRequestError("protocol.invalid_message", "invalid response timestamp", 502)
-        if response_message.get("outcome") != "succeeded" or not isinstance(response_message.get("result"), dict):
-            raise OBISRequestError("protocol.invalid_message", "invalid success response outcome/result", 502)
-        if not isinstance(response_message.get("sender"), dict) or not isinstance(response_message.get("recipient"), dict):
-            raise OBISRequestError("protocol.invalid_message", "invalid response peer references", 502)
-        if response_message.get("correlation_id") != message["message_id"]:
-            raise OBISRequestError("protocol.invalid_message", "response correlation mismatch", 502)
-        if response_message.get("sender", {}).get("peer_id") != self.remote_peer_id:
-            raise OBISRequestError("identity.authentication_failed", "response peer mismatch", 502)
-        if response_message.get("recipient", {}).get("peer_id") != self.local_peer_id:
-            raise OBISRequestError("identity.authentication_failed", "response recipient mismatch", 502)
+        validate_response(
+            response_message, message, self.local_peer_id, self.remote_peer_id, "succeeded"
+        )
         return response_message
