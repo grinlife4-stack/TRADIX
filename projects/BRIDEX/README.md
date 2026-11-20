@@ -2,7 +2,7 @@
 
 **Project ID:** BRIDEX-PROJECT-001  
 **Project type:** Independent specialist software/tooling project  
-**Status:** BRIDEX Engine 0.1 scaffold, manifest validation, deterministic packaging, and package verification implemented; standalone Python/Go OBIS 0.1 reference peers and a TLS 1.3 mTLS candidate implemented; production security and runtime acceptance remain open  
+**Status:** BRIDEX Engine 0.1 scaffold, manifest validation, deterministic packaging, and package verification implemented; standalone Python/Go OBIS 0.1 reference peers and a TLS 1.3 mTLS candidate implemented and CI-verified for loopback conformance; production security and runtime acceptance remain open  
 **Parent portfolio:** TRADIX portfolio  
 **Operating rule:** Independent identity, source, configuration, data, lifecycle, and runtime boundary
 
