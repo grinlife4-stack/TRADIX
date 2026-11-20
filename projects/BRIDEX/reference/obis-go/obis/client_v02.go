@@ -17,15 +17,15 @@ import (
 )
 
 type OperationResultV02 struct {
-	OperationID string
-	RequestHash string
-	State string
-	Result map[string]any
-	ResultRef *string
-	FailureCode *string
-	CreatedAt float64
-	UpdatedAt float64
-	ExpiresAt float64
+	OperationID string `json:"operation_id"`
+	RequestHash string `json:"request_hash"`
+	State string `json:"state"`
+	Result map[string]any `json:"result"`
+	ResultRef *string `json:"result_ref"`
+	FailureCode *string `json:"failure_code"`
+	CreatedAt float64 `json:"created_at"`
+	UpdatedAt float64 `json:"updated_at"`
+	ExpiresAt float64 `json:"expires_at"`
 }
 
 func randomHexV02(size int) (string,error) {
