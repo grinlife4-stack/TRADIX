@@ -2,7 +2,7 @@
 
 **Package:** `bridex-core`  
 **Version:** 0.1.0  
-**Status:** Initial generic foundation; not a complete Bridge runtime or generator  
+**Status:** Initial generic foundation and scaffold generator; not a complete Bridge runtime  
 **Runtime dependency:** JSON Schema validator only  
 **TRADIX/BRIDEX service dependency:** None
 
