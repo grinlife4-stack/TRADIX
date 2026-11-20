@@ -19,6 +19,7 @@ func main() {
 	args:=os.Args[1:]
 	if len(args)>0 && args[0]=="server-v02" { serveV02(args[1:]); return }
 	if len(args)>0 && args[0]=="invoke-v02" { invokeV02(args[1:]); return }
+	if len(args)>0 && args[0]=="status-v02" { statusV02(args[1:]); return }
 	if len(args)>0 && args[0]=="invoke" {
 		invoke(args[1:])
 		return
@@ -166,6 +167,34 @@ func invokeV02(args []string) {
 	secret,err:=hex.DecodeString(*secretHex);if err!=nil||len(secret)<32{log.Fatal("secret-hex must encode at least 32 bytes")}
 	payload,err:=obis.DecodeStrict([]byte(*payloadRaw));if err!=nil{log.Fatal(err)}
 	result,err:=obis.InvokeV02(*endpoint,*local,*remote,*keyID,*principal,secret,strings.Split(*scopesRaw,","),*capability,*version,*operationID,*idempotencyKey,time.Now().Add(24*time.Hour),payload)
+	if err!=nil{log.Fatal(err)}
+	encoder:=json.NewEncoder(os.Stdout);encoder.SetEscapeHTML(false)
+	if err=encoder.Encode(result);err!=nil{log.Fatal(err)}
+}
+
+
+func statusV02(args []string) {
+	flags:=flag.NewFlagSet("obis-go-peer status-v02",flag.ExitOnError)
+	endpoint:=flags.String("endpoint","","bare loopback endpoint of the OBIS 0.2 peer")
+	local:=flags.String("local-peer","peer:go","local peer ID")
+	remote:=flags.String("remote-peer","peer:python","remote peer ID")
+	keyID:=flags.String("key-id","go-dev-key","configured credential key ID")
+	principal:=flags.String("principal","principal:go","configured principal")
+	secretHex:=flags.String("secret-hex","","32-byte development secret in hex")
+	scopesRaw:=flags.String("scopes","inventory.read","comma-separated requested scopes")
+	capability:=flags.String("capability","ecoscan.inventory.read","capability ID")
+	version:=flags.String("capability-version","1.0","capability version")
+	operationID:=flags.String("operation-id","","stable operation ID")
+	projectID:=flags.String("project-id","","resource project ID")
+	sourceID:=flags.String("source-id","","resource source ID")
+	_ = flags.Parse(args)
+	secret,err:=hex.DecodeString(*secretHex);if err!=nil||len(secret)<32{log.Fatal("secret-hex must encode at least 32 bytes")}
+	resource:=map[string]any{}
+	if *projectID!=""||*sourceID!="" {
+		if *projectID==""||*sourceID==""{log.Fatal("project-id and source-id must be supplied together")}
+		resource=map[string]any{"project_id":*projectID,"source_id":*sourceID}
+	}
+	result,err:=obis.GetOperationStatusV02(*endpoint,*local,*remote,*keyID,*principal,secret,strings.Split(*scopesRaw,","),*capability,*version,*operationID,resource)
 	if err!=nil{log.Fatal(err)}
 	encoder:=json.NewEncoder(os.Stdout);encoder.SetEscapeHTML(false)
 	if err=encoder.Encode(result);err!=nil{log.Fatal(err)}
