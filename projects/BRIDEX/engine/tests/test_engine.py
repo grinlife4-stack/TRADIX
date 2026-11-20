@@ -200,7 +200,7 @@ def test_verifier_requires_package_file_set_to_match_bridge_manifest(tmp_path: P
     bridge_record["size_bytes"] = len(changed_bridge)
     bridge_record["sha256"] = hashlib.sha256(changed_bridge).hexdigest()
     package_manifest["total_bytes"] = sum(item["size_bytes"] for item in package_manifest["files"])
-    entries[PACKAGE_MANIFEST] = json.dumps(package_manifest, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\\n"
+    entries[PACKAGE_MANIFEST] = json.dumps(package_manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
     with zipfile.ZipFile(altered, "w", compression=zipfile.ZIP_DEFLATED) as target:
         for name, data in entries.items():
             target.writestr(original_infos[name], data)
