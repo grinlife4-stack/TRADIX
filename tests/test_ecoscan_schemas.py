@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 
 
 SCHEMA_ROOT = Path(__file__).parents[1] / "standards" / "ecoscan" / "0.1"
@@ -25,7 +25,7 @@ def assert_invalid(schema_name: str, instance: dict) -> None:
     validator = Draft202012Validator(
         load_schema(schema_name), format_checker=FORMAT_CHECKER
     )
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         validator.validate(instance)
 
 
