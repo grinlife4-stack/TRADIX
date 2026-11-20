@@ -211,3 +211,8 @@ TRADIX owns and maintains the shared Bridge protocol, generation foundations, do
 This requirement is automatic for all new work and applies to existing systems during material changes, integration, and production-readiness review. Every project dossier and relevant technical decision record must state its Bridge status and record the required independence, security, data-boundary, conformance, and recovery checks. A project that has not yet integrated with TRADIX must explicitly record that status; it must not claim Bridge conformance until the checks pass.
 
 No project-specific file, template, workflow, or implementation may silently waive this requirement. Exceptions and amendments require explicit, documented project-owner approval.
+
+
+### Multi-party interoperability requirement
+
+A product's Bridge is not a TRADIX-only connector. It must be designed, where applicable, to communicate securely with other portfolio products, independent third-party applications and services, and other independently operated Bridges. TRADIX is one optional peer, not a mandatory hub, relay, registry, or identity provider. Peer relationships require explicit trust, authentication, scoped authorization, capability negotiation, and auditable data-sharing rules. The Bridge protocol must remain vendor-neutral, and integrations must not require all traffic to pass through TRADIX. See the governing [Portfolio-Wide Independence and Bridge Standard](PORTFOLIO_INDEPENDENCE_AND_BRIDGE_STANDARD.md).
