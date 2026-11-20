@@ -63,7 +63,7 @@ The root CI also runs these reference tests. The reference now includes `ecoscan
 
 The first executable BRIDEX engineering-plane component is available as a separate, dependency-free Python package at `core/`. It can:
 
-- Generate a standalone Bridge project skeleton with a machine-readable ownership/operator record.
+- Generate a standalone Bridge project skeleton with a machine-readable ownership/operator record and a vendored OBIS 0.1 peer implementation.
 - Require explicit owner and operator assignment evidence.
 - Require an OBIS protocol declaration and strict semantic versions.
 - Start every generated peer and capability disabled and the lifecycle in draft.
@@ -80,7 +80,7 @@ bridex validate ../generated/example-bridge
 bridex package ../generated/example-bridge --output ../generated/example-bridge.zip
 ```
 
-This is a scaffolding and packaging foundation, not a complete Bridge runtime, OBIS transport, credential manager, or production release system. The generated project deliberately has no enabled peer or capability.
+This is a scaffolding foundation that includes the standalone OBIS development peer, not a production Bridge runtime or production security profile. The generated package is independently buildable and does not call BRIDEX or TRADIX at runtime. The generated project deliberately has no enabled peer or capability.
 
 ## 3D. Relationship to existing TRADIX infrastructure
 
