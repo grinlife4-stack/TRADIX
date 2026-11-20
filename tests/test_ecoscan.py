@@ -98,6 +98,37 @@ def test_github_inventory_supports_independent_path_scopes(monkeypatch):
     assert result["repository_size_bytes"] is None
 
 
+def test_exvarli_ascii_path_scope_is_attributed_and_excluded_correctly(monkeypatch):
+    tree = {"tree": [
+        {"path": "README.md", "type": "blob", "size": 23},
+        {"path": "projects/EXVARLI/record.json", "type": "blob", "size": 11},
+        {"path": "docs/projects/EXVARLI_FINANCIAL_ARCHITECTURE.md", "type": "blob", "size": 13},
+        {"path": "projects/EXVARLİ/legacy.txt", "type": "blob", "size": 17},
+        {"path": "projects/NEXORA/notes.md", "type": "blob", "size": 19},
+    ], "truncated": False}
+    responses = [
+        ({"size": 50, "default_branch": "main"}, {}), (tree, {}),
+        ({"size": 50, "default_branch": "main"}, {}), (tree, {}),
+    ]
+    monkeypatch.setattr(monitor, "_json_request", lambda url, token=None: responses.pop(0))
+
+    exvarli = monitor.scan_github({
+        "source_id": "exvarli", "project_id": "EXVARLI", "repository": "owner/repo",
+        "ref": "main",
+        "include_paths": ["projects/EXVARLI/", "docs/projects/EXVARLI_FINANCIAL_ARCHITECTURE.md"],
+    }, None)
+    tradix = monitor.scan_github({
+        "source_id": "tradix", "project_id": "TRADIX", "repository": "owner/repo",
+        "ref": "main",
+        "exclude_paths": ["projects/EXVARLI/", "docs/projects/EXVARLI_FINANCIAL_ARCHITECTURE.md"],
+    }, None)
+
+    assert exvarli["file_count"] == 2
+    assert exvarli["logical_bytes"] == 24
+    assert tradix["file_count"] == 3
+    assert tradix["logical_bytes"] == 59
+
+
 def test_disabled_mode_performs_no_scan(tmp_path, monkeypatch):
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps({"mode": "DISABLED", "projects": [], "sources": []}), encoding="utf-8")
