@@ -8,7 +8,7 @@ import (
 )
 
 func TestOperationRequestHashMatchesSharedVector(t *testing.T) {
-	raw,err:=os.ReadFile("../../obis-contract/testdata/operation-request-hash-vectors.json")
+	raw,err:=os.ReadFile(filepath.Join("..","..","obis-contract","testdata","operation-request-hash-vectors.json"))
 	if err!=nil{t.Fatal(err)}
 	var fixture struct {
 		SchemaVersion string `json:"schema_version"`
@@ -43,28 +43,3 @@ func TestOperationRequestHashRejectsDuplicateScopes(t *testing.T) {
 	if _, err := OperationRequestHash(message); err == nil { t.Fatal("expected duplicate scope rejection") }
 }
 
-
-func TestOperationRequestHashUsesSharedContractVectors(t *testing.T) {
-	path := filepath.Join("..", "..", "obis-contract", "testdata", "operation-request-hash-vectors.json")
-	raw, err := os.ReadFile(path)
-	if err != nil { t.Fatal(err) }
-	var fixture struct {
-		SchemaVersion string `json:"schema_version"`
-		Vectors []struct {
-			Name string `json:"name"`
-			Message map[string]any `json:"message"`
-			SHA256 string `json:"sha256"`
-		} `json:"vectors"`
-	}
-	if err := json.Unmarshal(raw, &fixture); err != nil { t.Fatal(err) }
-	if fixture.SchemaVersion != "0.2" || len(fixture.Vectors) == 0 {
-		t.Fatalf("invalid shared OBIS contract vectors: version=%q count=%d", fixture.SchemaVersion, len(fixture.Vectors))
-	}
-	for _, vector := range fixture.Vectors {
-		t.Run(vector.Name, func(t *testing.T) {
-			got, err := OperationRequestHash(vector.Message)
-			if err != nil { t.Fatal(err) }
-			if got != vector.SHA256 { t.Fatalf("shared vector mismatch: got %s want %s", got, vector.SHA256) }
-		})
-	}
-}
