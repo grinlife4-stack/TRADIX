@@ -9,6 +9,7 @@ from .adapter import (
     validate_adapter,
 )
 from .catalog import ToolCatalog, ToolDescriptor, ToolStatusError
+from .tiis_adapter import ToolCatalogTIISAdapter
 
 __all__ = [
     "AdapterContractError",
@@ -18,6 +19,7 @@ __all__ = [
     "ToolAdapter",
     "ToolInvocation",
     "ToolCatalog",
+    "ToolCatalogTIISAdapter",
     "ToolDescriptor",
     "ToolStatusError",
     "validate_adapter",
