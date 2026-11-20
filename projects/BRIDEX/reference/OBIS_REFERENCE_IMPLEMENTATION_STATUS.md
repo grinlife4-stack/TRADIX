@@ -55,3 +55,8 @@ The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/messa
 10. Run the ECOSCAN adapter against this BRIDEX loopback peer in a combined cross-project integration test; the current two projects test their adapter and peer halves independently.
 
 A passing local test suite proves only the implemented reference behavior. It does not establish production security or universal interoperability.
+
+
+## Latest ECOSCAN capability branch verification note
+
+The ECOSCAN inventory capability, credential-bound project/source grant, and three loopback HTTP tests were added on the open Draft PR #66 branch. Current branch head: `7c40d7e81d76a3bb322df809809a1ca41e3f51ab`. The last recorded successful CI remains the earlier head `ae52784ce20f006bade68a35f24d0489bb29be78` with 45 tests. No check run or commit status is recorded for the latest head, so the new capability/resource-grant changes are **not yet CI-verified**. Do not treat the newly added tests as passed until a fresh run completes successfully.
