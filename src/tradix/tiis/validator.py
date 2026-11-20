@@ -64,7 +64,7 @@ class TIISValidator:
         self._authorization_policy = authorization_policy
         self._max_message_bytes = max_message_bytes
         self._clock_skew = timedelta(seconds=clock_skew_seconds)
-        schema_path = files("tradix.tiis").joinpath("schemas/message.schema.json")
+        schema_path = files("tradix.tiis").joinpath("schemas").joinpath("message.schema.json")
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
         Draft202012Validator.check_schema(schema)
         self._validator = Draft202012Validator(
