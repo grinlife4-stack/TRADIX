@@ -118,7 +118,7 @@ class ToolCatalogTIISAdapter:
                 if record is None:
                     return self._response(
                         checked, sender, "rejected", {},
-                        {"code": "tool.not_found", "message": "The requested tool version was not found.", "retryable": False},
+                        {"code": "tool.not-found", "message": "The requested tool version was not found.", "retryable": False},
                         now,
                     )
                 result = {"tool": self._jsonable(record)}
