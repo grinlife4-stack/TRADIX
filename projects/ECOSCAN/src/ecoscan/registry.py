@@ -113,7 +113,7 @@ def _parse_source(raw: Any, index: int) -> SourceDescriptor:
     if (
         not isinstance(expected, list)
         or not expected
-        or any(item not in MEASUREMENT_KINDS for item in expected)
+        or any(not isinstance(item, str) or item not in MEASUREMENT_KINDS for item in expected)
         or len(set(expected)) != len(expected)
     ):
         raise RegistryError("expected_measurements must contain unique supported measurement kinds")
