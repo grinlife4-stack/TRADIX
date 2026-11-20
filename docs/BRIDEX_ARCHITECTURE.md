@@ -98,6 +98,8 @@ A Bridge may use other protocols through explicit, replaceable adapters. Such ad
 
 ## 5. Security and trust model
 
+The detailed security baseline is maintained in [OBIS Threat Model](OBIS_THREAT_MODEL.md). Production security-profile selection must follow threat-model review and independent negative testing; the existence of this draft does not constitute production security approval.
+
 - No implicit trust based on network location, portfolio membership, catalog registration, or successful handshake.
 - Each peer relationship is explicitly configured and independently revocable.
 - Authentication identifies the peer; authorization separately controls operations and data scopes.
