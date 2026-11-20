@@ -60,8 +60,8 @@ def _parse_project(raw: Any) -> ProjectRegistry:
         ids.add(sid)
         for field in ("owner_id", "operator_id", "subsystem_id", "adapter_id", "adapter_version"):
             _identifier(item[field], field)
-        if item["source_type"] != "filesystem":
-            raise RegistryError("phase one supports filesystem sources only")
+        if item["source_type"] not in {"filesystem", "obis_bridge"}:
+            raise RegistryError("unsupported source_type")
         if not isinstance(item["locator"], str) or not item["locator"].strip():
             raise RegistryError("locator must be a non-empty local path")
         if not isinstance(item["enabled"], bool):
