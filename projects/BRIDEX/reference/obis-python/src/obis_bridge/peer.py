@@ -699,6 +699,8 @@ class OBISClient:
                 except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError) as parse_exc:
                     raise OBISRequestError("protocol.invalid_message", "malformed authenticated error response", 502) from parse_exc
             raise OBISRequestError("peer.request_rejected", f"peer returned HTTP {exc.code}", exc.code) from exc
+        except (TimeoutError, socket.timeout) as exc:
+            raise OBISRequestError("peer.timeout", "peer request timed out", 504) from exc
         except urllib.error.URLError as exc:
             if isinstance(exc.reason, (TimeoutError, socket.timeout)):
                 raise OBISRequestError("peer.timeout", "peer request timed out", 504) from exc
