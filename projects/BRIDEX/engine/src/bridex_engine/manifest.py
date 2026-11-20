@@ -30,7 +30,7 @@ class BridgeManifestError(ValueError):
     """Raised when a Bridge manifest or package file set is unsafe or invalid."""
 
 
-def _safe_relative_path(value: Any) -> PurePosixPath:
+def _safe_relative_path(value: Any, *, allow_reserved: bool = False) -> PurePosixPath:
     if not isinstance(value, str) or not value or "\\" in value or "\x00" in value:
         raise BridgeManifestError("package_path_invalid")
     if value.startswith("/") or re.match(r"^[A-Za-z]:", value):
@@ -41,7 +41,7 @@ def _safe_relative_path(value: Any) -> PurePosixPath:
     path = PurePosixPath(value)
     if path.is_absolute() or any(part.lower() in _FORBIDDEN_SEGMENTS for part in path.parts):
         raise BridgeManifestError("package_path_forbidden")
-    if path.name.lower() in _RESERVED_NAMES:
+    if not allow_reserved and path.name.lower() in _RESERVED_NAMES:
         raise BridgeManifestError("package_path_reserved")
     if path.suffix.lower() in _SECRET_SUFFIXES or path.name.lower().startswith((".env", "id_rsa", "id_ed25519")):
         raise BridgeManifestError("package_secret_path_rejected")
@@ -95,7 +95,7 @@ def load_manifest(root: str | Path, manifest_name: str = "bridge.json") -> tuple
     root_path = Path(root).resolve(strict=True)
     if not root_path.is_dir():
         raise BridgeManifestError("bridge_root_must_be_directory")
-    manifest_relative = _safe_relative_path(manifest_name)
+    manifest_relative = _safe_relative_path(manifest_name, allow_reserved=True)
     if manifest_relative.as_posix() != "bridge.json":
         raise BridgeManifestError("manifest_must_be_root_bridge_json")
     manifest_path = _resolve_regular_file(root_path, manifest_relative)
