@@ -60,3 +60,17 @@ A passing local test suite proves only the implemented reference behavior. It do
 ## Latest ECOSCAN capability branch verification note
 
 The ECOSCAN inventory capability, credential-bound project/source grant, and three loopback HTTP tests were added on the open Draft PR #66 branch. Current branch head: `7c40d7e81d76a3bb322df809809a1ca41e3f51ab`. The last recorded successful CI remains the earlier head `ae52784ce20f006bade68a35f24d0489bb29be78` with 45 tests. No check run or commit status is recorded for the latest head, so the new capability/resource-grant changes are **not yet CI-verified**. Do not treat the newly added tests as passed until a fresh run completes successfully.
+
+
+## BRIDEX Core generator 0.1
+
+The standalone BRIDEX engineering-plane package is now implemented at `projects/BRIDEX/core`:
+
+- Dependency-free Python package with `bridex init`, `bridex validate`, and `bridex package`.
+- Generated Bridge manifests require explicit owner and operator assignment evidence.
+- Generated projects declare OBIS 0.1 and begin with no trusted peers, no enabled capabilities, and draft lifecycle.
+- The generated source tree includes its own `pyproject.toml`, README, configuration template, and contract test.
+- ZIP export uses fixed timestamps for reproducibility, rejects symlinks and secret-named files, and returns a SHA-256 digest.
+- Root CI now installs and tests BRIDEX Core and builds its wheel. Verification is pending until CI completes on this branch's latest commit.
+
+This generator is an engineering-plane foundation only. It does not implement a production Bridge runtime, network transport, peer authentication, secret lifecycle, or full security scanning of arbitrary source contents.
