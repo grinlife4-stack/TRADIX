@@ -144,3 +144,4 @@ No production deployment, credential creation, external account setup, secret pr
 - [Portfolio-Wide Independence and Bridge Standard](../../docs/PORTFOLIO_INDEPENDENCE_AND_BRIDGE_STANDARD.md)
 - [Foundational Architecture Charter](../../docs/FOUNDATIONAL_ARCHITECTURE_CHARTER.md)
 - [BRIDEX Architecture](../../docs/BRIDEX_ARCHITECTURE.md)
+- [Cross-Ecosystem Execution Order](../../docs/BRIDEX_CROSS_ECOSYSTEM_EXECUTION_ORDER.md)
