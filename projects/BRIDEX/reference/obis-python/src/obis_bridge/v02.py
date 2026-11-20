@@ -226,12 +226,17 @@ class OBISPeerV02:
         capability = self._authorize(message, credential)
         capability_id, capability_version = capability.capability_id, capability.version
         principal_ref = credential.principal_ref
+        resource_ref = ""
+        if capability.resource_binding:
+            resource_identity = message.get("payload", message.get("resource", {}))
+            resource_ref = f"{resource_identity['project_id']}/{resource_identity['source_id']}"
         if message["message_type"] == "operation_status_request":
             try:
                 record = self.ledger.get(
                     message["operation_id"], peer_id=credential.peer_id,
                     principal_ref=principal_ref, capability_id=capability_id,
                     capability_version=capability_version,
+                    resource_ref=resource_ref,
                 )
             except OperationLedgerError as exc:
                 raise OBISRequestError("operation.not_found", "operation not found", 404) from exc
@@ -251,6 +256,7 @@ class OBISPeerV02:
                 capability_id=capability_id,
                 capability_version=capability_version,
                 expires_at=operation["expires_at"],
+                resource_ref=resource_ref,
             )
         except IdempotencyConflict as exc:
             raise OBISRequestError("operation.idempotency_conflict", "idempotency identity conflicts with an existing operation", 409) from exc
