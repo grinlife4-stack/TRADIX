@@ -54,6 +54,24 @@ class ProjectStore:
                   source_id TEXT NOT NULL, scan_id TEXT NOT NULL, checkpoint_json TEXT NOT NULL,
                   updated_at TEXT NOT NULL, PRIMARY KEY(source_id, scan_id)
                 );
+                CREATE TABLE IF NOT EXISTS operation_intents (
+                  scan_id TEXT PRIMARY KEY,
+                  operation_id TEXT NOT NULL UNIQUE,
+                  idempotency_key TEXT NOT NULL UNIQUE,
+                  project_id TEXT NOT NULL,
+                  source_id TEXT NOT NULL,
+                  peer_id TEXT NOT NULL,
+                  principal_ref TEXT NOT NULL,
+                  capability_id TEXT NOT NULL,
+                  capability_version TEXT NOT NULL,
+                  resource_json TEXT NOT NULL,
+                  payload_sha256 TEXT NOT NULL,
+                  state TEXT NOT NULL CHECK(state IN ('PREPARED','INDETERMINATE','RECONCILED_SUCCEEDED','RECONCILED_FAILED')),
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_operation_intents_unresolved
+                  ON operation_intents(state, created_at);
                 """)
             columns = {row[1] for row in db.execute("PRAGMA table_info(coverage)")}
             if "schema_version" not in columns:
@@ -115,6 +133,94 @@ class ProjectStore:
         with closing(self._connect()) as db:
             row = db.execute("SELECT checkpoint_json FROM checkpoints WHERE source_id=? AND scan_id=?", (source_id, scan_id)).fetchone()
         return json.loads(row[0]) if row else None
+
+    def create_operation_intent(
+        self, *, scan_id: str, operation_id: str, idempotency_key: str,
+        source_id: str, peer_id: str, principal_ref: str,
+        capability_id: str, capability_version: str,
+        resource: Mapping[str, str], payload_sha256: str, created_at: str,
+    ) -> dict[str, Any]:
+        identifiers = {
+            "scan_id": scan_id, "operation_id": operation_id,
+            "idempotency_key": idempotency_key, "source_id": source_id,
+            "peer_id": peer_id, "principal_ref": principal_ref,
+            "capability_id": capability_id, "capability_version": capability_version,
+        }
+        if any(not isinstance(v, str) or not _ID.fullmatch(v) for v in identifiers.values()):
+            raise StoreError("operation intent contains an invalid identifier")
+        if not isinstance(resource, Mapping) or set(resource) != {"project_id", "source_id"}:
+            raise StoreError("operation intent resource must bind project_id and source_id")
+        if resource.get("project_id") != self.project_id or resource.get("source_id") != source_id:
+            raise StoreError("operation intent resource crosses project/source boundary")
+        if not isinstance(payload_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", payload_sha256):
+            raise StoreError("operation intent payload_sha256 must be lowercase SHA-256")
+        if not isinstance(created_at, str) or not created_at:
+            raise StoreError("operation intent created_at is required")
+        resource_json = json.dumps(dict(resource), sort_keys=True, separators=(",", ":"))
+        with closing(self._connect()) as db:
+            with db:
+                db.execute(
+                    """INSERT INTO operation_intents
+                    (scan_id,operation_id,idempotency_key,project_id,source_id,peer_id,
+                     principal_ref,capability_id,capability_version,resource_json,
+                     payload_sha256,state,created_at,updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,'PREPARED',?,?)""",
+                    (scan_id,operation_id,idempotency_key,self.project_id,source_id,peer_id,
+                     principal_ref,capability_id,capability_version,resource_json,
+                     payload_sha256,created_at,created_at),
+                )
+        return self.get_operation_intent(scan_id)
+
+    def get_operation_intent(self, scan_id: str) -> dict[str, Any] | None:
+        with closing(self._connect()) as db:
+            row = db.execute("SELECT * FROM operation_intents WHERE scan_id=?", (scan_id,)).fetchone()
+        if row is None:
+            return None
+        item = dict(row)
+        item["resource"] = json.loads(item.pop("resource_json"))
+        return item
+
+    def list_unresolved_operation_intents(self, source_id: str | None = None) -> list[dict[str, Any]]:
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                """SELECT * FROM operation_intents
+                   WHERE state IN ('PREPARED','INDETERMINATE')
+                     AND (? IS NULL OR source_id=?)
+                   ORDER BY created_at,scan_id""",
+                (source_id, source_id),
+            ).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["resource"] = json.loads(item.pop("resource_json"))
+            result.append(item)
+        return result
+
+    def transition_operation_intent(self, scan_id: str, state: str, updated_at: str) -> dict[str, Any]:
+        allowed = {
+            "PREPARED": {"INDETERMINATE", "RECONCILED_SUCCEEDED", "RECONCILED_FAILED"},
+            "INDETERMINATE": {"RECONCILED_SUCCEEDED", "RECONCILED_FAILED"},
+            "RECONCILED_SUCCEEDED": set(),
+            "RECONCILED_FAILED": set(),
+        }
+        if state not in allowed or not isinstance(updated_at, str) or not updated_at:
+            raise StoreError("invalid operation intent transition")
+        with closing(self._connect()) as db:
+            with db:
+                row = db.execute("SELECT state FROM operation_intents WHERE scan_id=?", (scan_id,)).fetchone()
+                if row is None:
+                    raise StoreError("operation intent does not exist")
+                current = row["state"]
+                if state not in allowed[current]:
+                    raise StoreError(f"illegal operation intent transition: {current} -> {state}")
+                db.execute(
+                    "UPDATE operation_intents SET state=?,updated_at=? WHERE scan_id=?",
+                    (state, updated_at, scan_id),
+                )
+        result = self.get_operation_intent(scan_id)
+        if result is None:
+            raise StoreError("operation intent disappeared after transition")
+        return result
 
     def export_bundle(self) -> dict[str, Any]:
         with closing(self._connect()) as db:
