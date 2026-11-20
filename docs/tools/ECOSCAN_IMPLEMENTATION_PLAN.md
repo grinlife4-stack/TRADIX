@@ -284,7 +284,7 @@ The independent package foundation now exists under `projects/ECOSCAN/`:
 
 - Standalone Python package `ecoscan==0.1.0`, with no runtime third-party dependencies and no `tradix.*` imports.
 - Strict project-registry parser for one project envelope containing multiple source descriptors; rejects duplicate source IDs, unknown fields, invalid identifiers, malformed budgets, and naive/inverted timestamps.
-- Typed adapter protocol, per-scan budget guard, and single-source fail-closed runner with fake-adapter tests.
+- Typed adapter protocol, per-scan budget guard, and single-source fail-closed runner with fake-adapter tests. The guard rechecks global/project/subsystem/source controls and owner/operator authorization before each page/item.
 - Default-deny global, project, subsystem, and source controls.
 - Explicit owner/operator authorization callback; absent authorization denies.
 - Separate SQLite database per project, append-only measurement/coverage APIs, and separately replaceable scan checkpoints.
