@@ -67,6 +67,6 @@ class ExecutionGate:
             )
         except Exception:
             authorized = False
-        if not authorized:
+        if authorized is not True:
             return GateDecision(False, "NOT_AUTHORIZED", "owner_operator_authorization_missing")
         return GateDecision(True, None, None)
