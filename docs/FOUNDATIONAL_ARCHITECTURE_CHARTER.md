@@ -204,7 +204,25 @@ EXVARLI is a replaceable manager, not the owner or custodian of project assets. 
 The detailed governing specification is maintained in [EXVARLI — Multi-Project Financial Architecture](projects/EXVARLI_FINANCIAL_ARCHITECTURE.md). This section applies to every current and future portfolio project.
 
 
-## 14. Mandatory portfolio-wide Bridge and independence standard
+## 14. TRADIX as the permanent factory and toolbox for independent tools
+
+TRADIX is not only a product factory; it is also the permanent factory and organized toolbox for every tool in the portfolio. It is responsible for designing, building, testing, documenting, packaging, and preparing all portfolio tools, and it continuously develops its own engineering and production capabilities.
+
+The factory/toolbox relationship must not be confused with runtime dependency or operational ownership:
+
+- TRADIX remains continuously developable as the factory and the discoverable catalogue of its tools.
+- Every completed tool has its own identity, purpose, version, configuration, data boundary, lifecycle, and operating responsibility.
+- A completed tool can be installed, run, maintained, moved, exported, or replaced without running or carrying TRADIX.
+- TRADIX may build upgrades and replacements, but it does not automatically control the tool's domain decisions, runtime, records, credentials, or daily operation.
+- Stopping or removing TRADIX must not stop a completed tool or destroy its data. Stopping or removing a tool must not impair TRADIX, another tool, or any product.
+- Tools are catalogued and discoverable through TRADIX; their runtime data and secrets remain within their own authorized boundaries.
+- Tools may serve multiple projects through explicit, least-privilege interfaces while preserving each project's separate records, credentials, finances, and authority.
+
+**EXVARLI and ECOSCAN are independent tools built by TRADIX and maintained as peer entries in its toolbox.** EXVARLI is responsible for multi-project financial management and oversight. ECOSCAN is responsible for on-demand or explicitly scheduled monitoring of technical resources and infrastructure across the ecosystem. Neither tool is a submodule or runtime dependency of TRADIX or of the other tool.
+
+This section clarifies the tool lifecycle and does not transfer ownership of any product or tool to TRADIX. It must be read together with the applicable tool-specific governing specification.
+
+## 15. Mandatory portfolio-wide Bridge and independence standard
 
 Every current and future product, project, application, service, tool, agent, factory, and technical subsystem must follow the governing [Portfolio-Wide Independence and Bridge Standard](PORTFOLIO_INDEPENDENCE_AND_BRIDGE_STANDARD.md).
 
@@ -225,23 +243,23 @@ This requirement is automatic for all new work and applies to existing systems d
 No project-specific file, template, workflow, or implementation may silently waive this requirement. Exceptions and amendments require explicit, documented project-owner approval.
 
 
-## 15. Two distinct integration standards: TIIS and OBIS
+## 16. Two distinct integration standards: TIIS and OBIS
 
 The portfolio uses two separate standards with different ownership boundaries and purposes. They must not be collapsed into one protocol or treated as interchangeable conformance profiles.
 
-### 15.1 TIIS — TRADIX Internal Integration Standard
+### 16.1 TIIS — TRADIX Internal Integration Standard
 
 TIIS governs communication among TRADIX's own internal tools, services, agents, records, workflows, and technical subsystems. TRADIX defines, versions, documents, tests, and governs TIIS. TIIS applies inside the TRADIX internal boundary and to an explicitly authorized TIIS-facing adapter on a Bridge when that Bridge connects to TRADIX.
 
 TIIS is not a prerequisite for external interoperability. Independent tools and third-party systems do not need to implement TIIS to communicate with a Bridge.
 
-### 15.2 OBIS — Open Bridge Interoperability Standard
+### 16.2 OBIS — Open Bridge Interoperability Standard
 
 OBIS is implemented and carried by each independent Bridge tool. It governs that Bridge's independent connections to non-TRADIX tools, services, platforms, and other independently operated Bridges. Its specification, schemas, compatibility behavior, and required implementation must remain available and operable with the Bridge after separation from TRADIX and BRIDEX.
 
 OBIS must not depend on TRADIX or BRIDEX repositories, runtime services, registry, relay, identity provider, credentials, or infrastructure. A Bridge's external requests must not be forced through TIIS or translated into TIIS as a mandatory intermediate step.
 
-### 15.3 Mandatory protocol selection
+### 16.3 Mandatory protocol selection
 
 - TRADIX internal component ↔ TRADIX internal component: TIIS.
 - Bridge ↔ authorized TRADIX internal component: optional, scoped TIIS-facing adapter.
