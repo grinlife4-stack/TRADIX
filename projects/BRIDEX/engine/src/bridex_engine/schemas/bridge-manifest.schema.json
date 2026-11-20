@@ -13,7 +13,9 @@
     "obis",
     "runtime",
     "capabilities",
-    "package_files"
+    "package_files",
+    "peers",
+    "lifecycle"
   ],
   "properties": {
     "manifest_version": {
@@ -95,7 +97,7 @@
     },
     "capabilities": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 0,
       "maxItems": 128,
       "items": {
         "$ref": "#/$defs/capability"
@@ -142,6 +144,44 @@
           }
         }
       }
+    },
+    "peers": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "peer_id",
+          "trust_ref",
+          "enabled"
+        ],
+        "properties": {
+          "peer_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "trust_ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "lifecycle": {
+      "enum": [
+        "draft",
+        "validated",
+        "packaged",
+        "released",
+        "suspended",
+        "retired"
+      ]
     }
   },
   "$defs": {
@@ -149,7 +189,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "entity_id"
+        "entity_id",
+        "assignment_ref"
       ],
       "properties": {
         "entity_id": {
@@ -161,6 +202,11 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 120
+        },
+        "assignment_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
         }
       }
     },
@@ -176,7 +222,8 @@
         "timeout_seconds",
         "max_payload_bytes",
         "input_schema_uri",
-        "output_schema_uri"
+        "output_schema_uri",
+        "enabled"
       ],
       "properties": {
         "capability_id": {
@@ -227,6 +274,9 @@
         "output_schema_uri": {
           "type": "string",
           "format": "uri"
+        },
+        "enabled": {
+          "type": "boolean"
         }
       }
     }
