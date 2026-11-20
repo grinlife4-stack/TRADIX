@@ -13,7 +13,7 @@ from typing import Any
 from uuid import uuid4
 
 from tradix.tiis import TIISValidator
-from .catalog import ToolCatalog, ToolDescriptor, ToolStatusError
+from .catalog import ToolCatalog
 
 
 INTERFACE_ID = "tool.catalog"
@@ -41,24 +41,6 @@ def _fields(payload: Mapping[str, Any], required: set[str], optional: set[str] =
     unknown = set(payload) - required - optional
     if missing or unknown:
         raise CatalogTIISAdapterError("payload_fields_invalid")
-
-
-def _tuple_values(value: Any, field: str) -> tuple[str, ...]:
-    if not isinstance(value, list) or not value or len(value) > 64:
-        raise CatalogTIISAdapterError(f"{field}_must_be_bounded_array")
-    if any(not isinstance(item, str) for item in value):
-        raise CatalogTIISAdapterError(f"{field}_entries_must_be_strings")
-    return tuple(value)
-
-
-def _actor(identity: Mapping[str, Any]) -> str:
-    project = identity.get("project_id")
-    component = identity.get("component_id")
-    instance = identity.get("instance_id")
-    value = f"{project}/{component}" + (f"/{instance}" if instance else "")
-    if not isinstance(project, str) or not isinstance(component, str):
-        raise CatalogTIISAdapterError("authenticated_actor_invalid")
-    return value
 
 
 def _timestamp(now: datetime | None) -> str:
@@ -105,18 +87,21 @@ class ToolCatalogTIISAdapter:
 
         operation = checked["operation"]
         payload = checked["payload"]
-        actor = _actor(authenticated_sender)
-
         try:
-            result = self._dispatch(operation, payload, actor)
-        except CatalogTIISAdapterError:
+            result = self._dispatch(operation, payload)
+        except CatalogTIISAdapterError as exc:
+            disabled = str(exc) == "catalog_mutation_not_enabled"
             return self._response(
                 checked,
                 outcome="rejected",
                 payload={},
                 error={
-                    "code": "catalog.request-invalid",
-                    "message": "The catalog request does not match the declared operation contract.",
+                    "code": "catalog.mutation-disabled" if disabled else "catalog.request-invalid",
+                    "message": (
+                        "Catalog mutations remain disabled until durable idempotency and audit controls are implemented."
+                        if disabled
+                        else "The catalog request does not match the declared operation contract."
+                    ),
                     "retryable": False,
                 },
                 now=now,
@@ -153,7 +138,7 @@ class ToolCatalogTIISAdapter:
             now=now,
         )
 
-    def _dispatch(self, operation: str, payload: Mapping[str, Any], actor: str) -> Any:
+    def _dispatch(self, operation: str, payload: Mapping[str, Any]) -> Any:
         if operation == "get":
             _fields(payload, {"tool_id", "version"})
             return self._catalog.get(payload["tool_id"], payload["version"])
@@ -169,54 +154,8 @@ class ToolCatalogTIISAdapter:
             _fields(payload, {"tool_id", "version"})
             return self._catalog.history(payload["tool_id"], payload["version"])
 
-        if operation == "register":
-            _fields(payload, {"descriptor"}, {"reason"})
-            descriptor_data = payload["descriptor"]
-            descriptor_required = {
-                "tool_id", "version", "category", "source_uri", "license_id",
-                "platforms", "capabilities", "execution_modes",
-                "adapter_contract_version", "free_open_source",
-            }
-            _fields(descriptor_data, descriptor_required, {"notes"})
-            descriptor = ToolDescriptor(
-                tool_id=descriptor_data["tool_id"],
-                version=descriptor_data["version"],
-                category=descriptor_data["category"],
-                source_uri=descriptor_data["source_uri"],
-                license_id=descriptor_data["license_id"],
-                platforms=_tuple_values(descriptor_data["platforms"], "platforms"),
-                capabilities=_tuple_values(descriptor_data["capabilities"], "capabilities"),
-                execution_modes=_tuple_values(descriptor_data["execution_modes"], "execution_modes"),
-                adapter_contract_version=descriptor_data["adapter_contract_version"],
-                free_open_source=descriptor_data["free_open_source"],
-                notes=descriptor_data.get("notes", ""),
-            )
-            self._catalog.register(
-                descriptor,
-                actor=actor,
-                reason=payload.get("reason", "registered through TIIS"),
-            )
-            return {"tool_id": descriptor.tool_id, "version": descriptor.version, "status": "discovered"}
-
-        if operation == "transition":
-            _fields(
-                payload,
-                {"tool_id", "version", "status", "reason"},
-                {"evidence_ref"},
-            )
-            self._catalog.transition(
-                tool_id=payload["tool_id"],
-                version=payload["version"],
-                status=payload["status"],
-                actor=actor,
-                reason=payload["reason"],
-                evidence_ref=payload.get("evidence_ref", ""),
-            )
-            return {
-                "tool_id": payload["tool_id"],
-                "version": payload["version"],
-                "status": payload["status"],
-            }
+        if operation in {"register", "transition"}:
+            raise CatalogTIISAdapterError("catalog_mutation_not_enabled")
 
         raise CatalogTIISAdapterError("unsupported_operation")
 
