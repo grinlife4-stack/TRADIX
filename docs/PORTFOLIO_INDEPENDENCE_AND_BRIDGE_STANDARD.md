@@ -11,7 +11,7 @@
 
 Every portfolio product and tool must retain an independent identity and operating boundary. TRADIX-internal components communicate under the TRADIX Internal Integration Standard (TIIS). When a product or tool communicates across its boundary, its dedicated Bridge uses TIIS only for its explicitly authorized TRADIX-facing interface and the independent Open Bridge Interoperability Standard (OBIS) for connections to non-TRADIX tools, services, and other Bridges.
 
-**TRADIX defines and validates the standard; each product or tool owns, runs, secures, and maintains its own Bridge.**
+**A Bridge is an independent tool in its own right. BRIDEX is the specialist project that designs, generates, tests, and evolves Bridge tools. Each Bridge instance has an explicitly assigned owner and its own identity, code, configuration, permissions, runtime, lifecycle, and operational boundary. The project or tool being connected is a peer and integration party; it is not automatically the Bridge itself or its owner.**
 
 This is a default architectural requirement. It must be applied automatically during the creation, design, implementation, review, testing, release, and maintenance of every new or existing product and tool. Reconfirmation is not required for routine compliance.
 
@@ -28,10 +28,23 @@ This is a default architectural requirement. It must be applied automatically du
 
 TRADIX does not own or control OBIS as a runtime dependency. OBIS is the independent interoperability standard carried and implemented by each Bridge so that the Bridge remains usable outside TRADIX. TRADIX may publish compatible documentation or optional reference tooling, but OBIS must remain implementable and operable without TRADIX.
 
-### Each product or tool owns
+### BRIDEX owns and maintains
 
-- Its dedicated Bridge implementation and its lifecycle.
-- Its internal business/domain logic and all product-specific translations.
+- The specialist Bridge engineering project, its generation method, reusable Bridge Core, protocol implementation tooling, templates, SDKs, and conformance tooling.
+- The common generation and validation process used to produce Bridge tools consistently across projects.
+- The generic capabilities that belong in the reusable Bridge foundation, without absorbing destination-specific business rules.
+
+### Each Bridge instance has
+
+- Its own identity as an independent tool, versioned implementation, repository or independently exportable source package, runtime, configuration, credentials, permissions, logs, and lifecycle.
+- An explicitly recorded owner/operator responsible for its operation, security, maintenance, release, and decommissioning. Ownership is assigned per Bridge instance; it is not inferred solely from which system it connects to or which factory generated it.
+- Its own destination-specific connector, mappings, protocol adapters, and connection settings. These remain inside that Bridge instance and the connected project's own approved interface/configuration boundary.
+
+### Each connected product or tool owns
+
+- Its internal business/domain logic and the capabilities/data it chooses to expose.
+- Its own interface contract, authorization decisions, data classification, and approval of the Bridge's access.
+- Its own configuration and records that are specific to its internal operation.
 - Its own configuration, credentials, permissions, secrets, runtime, logs, and operational controls.
 - Its data-retention, export, recovery, replacement, and decommissioning procedures.
 - Decisions about which capabilities and data it exposes through the Bridge.
@@ -42,7 +55,7 @@ TRADIX must not become the repository of product-specific Bridge logic, operatio
 
 Each Bridge must:
 
-1. Be owned by the product or tool it serves.
+1. Be an independently identifiable tool with an explicitly assigned owner/operator and a documented ownership record.
 2. Be deployable and operable independently of TRADIX.
 3. Support independent operation of its product when TRADIX is unavailable, unless a separately approved product requirement explicitly defines a bounded online dependency.
 4. Avoid making the product's core runtime depend on the Bridge being healthy.
@@ -55,7 +68,7 @@ A Bridge may run as a separate process or service. This is the preferred default
 
 ## 3A. Multi-party and vendor-neutral interoperability
 
-A Bridge is a general-purpose, standards-based integration boundary for the product or tool that owns it. It is **not a TRADIX-only connector** and must not assume that TRADIX is the hub, broker, gateway, identity provider, or permanent intermediary for all communication.
+A Bridge is an independent, general-purpose, standards-based tool that establishes an authorized integration boundary between its peers. It is **not a subcomponent owned automatically by the destination and not a TRADIX-only connector** and must not assume that TRADIX is the hub, broker, gateway, identity provider, or permanent intermediary for all communication.
 
 Subject to the owning product's authorization and security policies, a Bridge must be designed to communicate with:
 
@@ -156,7 +169,7 @@ The catalog must not store product payloads, detailed operational records, custo
 The following checks are mandatory and must be recorded in the project's dossier or technical decision record:
 
 - [ ] Independent product/tool identity and ownership boundary defined.
-- [ ] Dedicated Bridge ownership assigned to the product/tool.
+- [ ] Bridge recorded as an independent tool with explicit owner/operator, lifecycle, and exportable implementation.
 - [ ] Bridge protocol version and supported capabilities declared.
 - [ ] Data disclosure and authorization boundaries documented.
 - [ ] Independent runtime and failure-isolation design documented.
@@ -183,4 +196,4 @@ Amendments to this standard require explicit project-owner approval, a versioned
 
 ## 10. Foundational statement
 
-**Every project owns its own Bridge. TRADIX owns TIIS for its internal systems. Each Bridge carries OBIS for independent external interoperability. Neither standard transfers ownership of the Bridge or product to TRADIX. Every product remains independently operable when TRADIX is unavailable.**
+**Every Bridge is an independent tool. BRIDEX provides a consistent, reusable method to design, generate, test, and evolve Bridge tools. Each Bridge instance has an explicitly assigned owner/operator; connected projects control their own interfaces, data, and permissions. TRADIX owns TIIS for its internal systems. Each Bridge carries OBIS for independent external interoperability. No Bridge requires TRADIX or BRIDEX to remain operational after generation and release.**
