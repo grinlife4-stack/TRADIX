@@ -19,3 +19,17 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev,documents,gateway]"
       - run: python -m pytest -q
+      - run: python -m pip wheel --no-deps --wheel-dir /tmp/tradix-wheel .
+      - run: python -m pip install --no-deps --target /tmp/tradix-install /tmp/tradix-wheel/*.whl
+      - run: python -c 'from importlib.resources import files; assert files("tradix.tiis").joinpath("schemas").joinpath("message.schema.json").is_file()'
+      - name: Test BRIDEX Engine when the standalone package is present
+        run: |
+          if [ -d projects/BRIDEX/engine ]; then
+            python -m pip install -e "projects/BRIDEX/engine[dev]"
+            python -m pytest -q projects/BRIDEX/engine/tests
+            python -m pip wheel --no-deps --wheel-dir /tmp/bridex-wheel projects/BRIDEX/engine
+            python -m pip install --no-deps --target /tmp/bridex-install /tmp/bridex-wheel/*.whl
+            PYTHONPATH=/tmp/bridex-install python -c "from importlib.resources import files; assert files('bridex_engine').joinpath('schemas/bridge-manifest.schema.json').is_file()"
+            python -c "from pathlib import Path; assert Path('standards/bridex/0.1/bridge-manifest.schema.json').read_bytes() == Path('projects/BRIDEX/engine/src/bridex_engine/schemas/bridge-manifest.schema.json').read_bytes()"
+            PYTHONPATH=/tmp/bridex-install python -c "import sys, bridex_engine; assert 'tradix' not in sys.modules"
+          fi
