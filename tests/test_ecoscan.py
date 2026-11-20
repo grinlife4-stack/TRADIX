@@ -331,9 +331,10 @@ def test_railway_volume_requires_instance_or_volume_environment_and_token():
     assert missing_token["logical_bytes"] is None
 
 
-def test_scan_source_prefers_project_scoped_railway_token(monkeypatch):
-    monkeypatch.setenv("RAILWAY_PROJECT_TOKEN", "project-token")
-    monkeypatch.setenv("RAILWAY_API_TOKEN", "account-token")
+def test_scan_source_uses_railway_oauth_access_token(monkeypatch):
+    monkeypatch.setenv("RAILWAY_OAUTH_ACCESS_TOKEN", "oauth-viewer-token")
+    monkeypatch.setenv("RAILWAY_PROJECT_TOKEN", "unused-project-token")
+    monkeypatch.setenv("RAILWAY_API_TOKEN", "unused-account-token")
     captured = {}
     def fake_scan(source, token):
         captured["token"] = token
@@ -341,11 +342,10 @@ def test_scan_source_prefers_project_scoped_railway_token(monkeypatch):
     monkeypatch.setattr(monitor, "scan_railway_volume", fake_scan)
     result = monitor.scan_source({"source_id": "r1", "project_id": "P1", "provider": "railway_volume"}, None)
     assert result["status"] == "COMPLETE"
-    assert captured["token"] == "project-token"
+    assert captured["token"] == "oauth-viewer-token"
 
 
-def test_railway_graphql_uses_project_access_token_header(monkeypatch):
-    monkeypatch.setenv("RAILWAY_PROJECT_TOKEN", "project-token")
+def test_railway_graphql_uses_bearer_oauth_access_token(monkeypatch):
     captured = {}
     class FakeResponse:
         def __enter__(self):
@@ -353,16 +353,16 @@ def test_railway_graphql_uses_project_access_token_header(monkeypatch):
         def __exit__(self, *args):
             return False
         def read(self):
-            return b'{"data":{"projectToken":{"projectId":"project-1","environmentId":"env-1"}}}'
+            return b'{"data":{"environment":{"id":"env-1"}}}'
     def fake_urlopen(request, timeout):
         captured["request"] = request
         return FakeResponse()
     monkeypatch.setattr(monitor.urllib.request, "urlopen", fake_urlopen)
-    data = monitor._railway_graphql("query { projectToken { projectId environmentId } }", {}, "project-token")
+    data = monitor._railway_graphql("query { environment(id: \"env-1\") { id } }", {}, "oauth-viewer-token")
     request = captured["request"]
-    assert request.get_header("Project-access-token") == "project-token"
-    assert request.get_header("Authorization") is None
-    assert data["projectToken"]["environmentId"] == "env-1"
+    assert request.get_header("Authorization") == "Bearer oauth-viewer-token"
+    assert request.get_header("Project-access-token") is None
+    assert data["environment"]["id"] == "env-1"
 
 
 def test_railway_graphql_errors_fail_closed(monkeypatch):
