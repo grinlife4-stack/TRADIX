@@ -149,3 +149,42 @@ def test_payload_size_is_bounded():
     request = client.build_request("inventory.get", "1.0", {"data": "x" * 70000})
     with pytest.raises(OBISRequestError, match="size limit"):
         validate_request(request)
+
+
+def test_unknown_top_level_field_is_rejected():
+    peer_b, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    request["unexpected"] = "must-not-be-accepted"
+    with pytest.raises(OBISRequestError, match="unknown or missing"):
+        validate_request(request)
+
+
+def test_duplicate_authorization_scopes_are_rejected():
+    peer_b, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    request["authorization"]["scopes"] = ["inventory:read", "inventory:read"]
+    with pytest.raises(OBISRequestError, match="unique"):
+        validate_request(request)
+
+
+def test_capability_handler_failure_does_not_leak_exception_details():
+    secret = SECRET
+    credential = Credential(
+        key_id=KEY_ID,
+        peer_id=PEER_A,
+        principal_ref=PRINCIPAL_A,
+        secret=secret,
+        allowed_scopes=frozenset({"inventory:read"}),
+    )
+    peer = OBISPeer(PEER_B, [credential])
+
+    def broken_handler(payload):
+        raise RuntimeError("sensitive internal path /srv/private/config")
+
+    peer.register_capability("inventory.get", "1.0", {"inventory:read"}, broken_handler)
+    client = OBISClient(PEER_A, PEER_B, KEY_ID, PRINCIPAL_A, secret, {"inventory:read"})
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    with pytest.raises(OBISRequestError) as exc:
+        peer.handle(request, KEY_ID, sign_message(request, secret))
+    assert exc.value.code == "operation.failed"
+    assert "private" not in str(exc.value)
