@@ -453,8 +453,7 @@ def test_authorization_revocation_during_scan_discards_partial_measurements(tmp_
 
 
 def test_timeout_budget_is_enforced_before_page_work(monkeypatch, tmp_path):
-    from ecoscan.obis_bridge import OBISBridgeAdapter, REQUIRED_SCOPE
-from ecoscan.models import ScanBudget
+    from ecoscan.models import ScanBudget
 
     clock = iter([10.0, 12.0])
     monkeypatch.setattr("ecoscan.contracts.time.monotonic", lambda: next(clock))
