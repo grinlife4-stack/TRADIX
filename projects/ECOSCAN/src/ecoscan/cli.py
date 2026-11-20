@@ -93,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         authorizer = lambda actor, project, owner, operator, source: (actor, project, owner, operator, source) in actors
         gate = ExecutionGate(state, authorizer)
         base_dir = Path(args.registry).expanduser().resolve().parent
-        adapter = FilesystemAdapter(base_dir)
+        adapter = FilesystemAdapter(base_dir, allowed_root=base_dir.parent)
         outcomes = []
         exports = []
         for project in projects:
