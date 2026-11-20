@@ -106,7 +106,7 @@ The detailed security baseline is maintained in [OBIS Threat Model](OBIS_THREAT_
 - Capability negotiation is not permission.
 - Default deny for unconfigured peers, operations, fields, and data flows.
 - Enforce least privilege, credential rotation, expiry, and revocation.
-- Protect against replay, stale messages, oversized payloads, schema confusion, and confused-deputy behavior.
+- Protect against replay, stale messages, oversized payloads, schema confusion, and confused-deputy behavior. The Python reference provides an optional owner-local SQLite nonce replay guard that survives process restarts and fails closed on storage errors; it does not replace a production security profile or business-operation idempotency ledger.
 - No generic shell, script, command, arbitrary filesystem access, or unrestricted outbound network facility.
 - All consequential operations produce attributable audit evidence without leaking secrets or unnecessary payloads.
 
