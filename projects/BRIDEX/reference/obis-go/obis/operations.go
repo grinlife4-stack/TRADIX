@@ -140,8 +140,8 @@ func (l *FileOperationLedger) Reserve(record OperationRecord, now float64) (Oper
 		"capability_version":record.CapabilityVersion,
 	} { if err := validateOperationText(name, value); err != nil { return OperationRecord{}, false, err } }
 	if err := validateRequestHash(record.RequestHash); err != nil { return OperationRecord{}, false, err }
-	if record.IdempotencyKeyHash == "" { return OperationRecord{}, false, errors.New("idempotency key hash is required") }
-	if !math.IsNaN(now) && !math.IsInf(now, 0) && record.ExpiresAt > now {
+	if err := validateRequestHash(record.IdempotencyKeyHash); err != nil { return OperationRecord{}, false, errors.New("idempotency key hash must be lowercase SHA-256 hex") }
+	if !math.IsNaN(now) && !math.IsInf(now, 0) && now >= 0 && !math.IsNaN(record.ExpiresAt) && !math.IsInf(record.ExpiresAt, 0) && record.ExpiresAt > now {
 		// valid future expiry
 	} else { return OperationRecord{}, false, errors.New("operation expiry must be finite and in the future") }
 	var result OperationRecord
@@ -182,13 +182,14 @@ func (l *FileOperationLedger) Reserve(record OperationRecord, now float64) (Oper
 }
 
 func (l *FileOperationLedger) Transition(operationID, next string, now float64, result map[string]any, resultRef, failureCode string) (OperationRecord, error) {
+	if math.IsNaN(now) || math.IsInf(now, 0) || now < 0 { return OperationRecord{}, errors.New("transition timestamp must be finite and non-negative") }
 	var updated OperationRecord
 	err := l.withLock(func() error {
 		state, err := l.read(); if err != nil { return err }
 		record, ok := state.Records[operationID]; if !ok { return ErrOperationNotFound }
 		allowed := map[string]map[string]bool{
 			"ACCEPTED":{"RUNNING":true,"REJECTED":true,"EXPIRED":true},
-			"RUNNING":{"SUCCEEDED":true,"FAILED":true,"UNKNOWN":true,"CANCELLED":true,"EXPIRED":true},
+			"RUNNING":{"SUCCEEDED":true,"FAILED":true,"UNKNOWN":true,"CANCELLED":true},
 		}
 		if !allowed[record.State][next] { return fmt.Errorf("%w: %s -> %s", ErrInvalidOperationTransition, record.State, next) }
 		if next == "SUCCEEDED" {

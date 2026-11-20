@@ -229,7 +229,7 @@ class OperationLedger:
                 if row is None:
                     raise OperationNotFound(operation_id)
                 current = row["state"]
-                allowed = {"ACCEPTED": {"RUNNING", "REJECTED", "EXPIRED"}, "RUNNING": {"SUCCEEDED", "FAILED", "UNKNOWN", "CANCELLED", "EXPIRED"}}
+                allowed = {"ACCEPTED": {"RUNNING", "REJECTED", "EXPIRED"}, "RUNNING": {"SUCCEEDED", "FAILED", "UNKNOWN", "CANCELLED"}}
                 if state not in allowed.get(current, set()):
                     raise InvalidOperationTransition(f"cannot transition {current} to {state}")
                 db.execute(
