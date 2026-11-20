@@ -1,3 +1,2 @@
-"""Optional, read-only portfolio storage inventory tool."""
-
-__version__ = "0.1.0"
+"""Optional independent ECOSCAN local inventory tool."""
+__version__ = "0.2.0"
