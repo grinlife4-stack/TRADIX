@@ -219,3 +219,63 @@ These checks complement the existing Go client tests for downgraded successful r
 CI run #1199 passed on consolidated PR #42 head 02270e2bd44d704718e3ef033c6be9d6c125b741 (run ID 44765422084). The run completed Go tests and binary build, the configured Python/BRIDEX Core/OBIS/ECOSCAN test suites, and isolated wheel build/install/schema checks for all three Python packages.
 
 This closes the listed Go-client rejection tests for invalid signatures and mismatched error-response correlation/peer identities. It does not establish full bidirectional negative conformance, production TLS/mTLS, credential lifecycle, distributed replay protection, durable business-operation idempotency, persistent audit/evidence, or independent security approval. HMAC remains development/conformance-only. No normative OBIS/TIIS contract, schema, or version-negotiation semantics changed.
+
+
+## 13. OBIS 0.2 implementation gap review — 2026-11-20
+
+This review is based on the current PR #42 head `9fb0c071de4e9da08088c5bba7bd788fcef6a694` and current PR #67 head `fcbfac0a3a0c546d78622ec8e0aaca252593b2a1`. Both pull requests remain open, Draft, and unmerged.
+
+### 13.1 Version parity is not complete
+
+- Python has a separate executable OBIS 0.2 peer, loopback HTTP server/client, RFC 8785 request projection hashing, durable operation-ledger integration, duplicate-operation result recovery, and authenticated status lookup.
+- Go currently has the durable file-backed Operation Ledger as a storage primitive, but its `peer.go`, `client.go`, HTTP route, and CLI remain OBIS 0.1. The Go ledger is not wired into a Go 0.2 peer or client.
+- Go `CanonicalJSON` is a development serializer, not RFC 8785 JCS. It MUST NOT be used for OBIS 0.2 request hashes. Go JCS dependency selection and cross-language byte-for-byte validation remain open.
+- The existing Python↔Go tests exercise OBIS 0.1. They do not establish OBIS 0.2 cross-language conformance.
+- No shared OBIS 0.2 JCS conformance-vector suite is currently demonstrated by the reviewed files.
+
+### 13.2 ECOSCAN wire-test scope
+
+PR #67 contains an actual loopback HTTP test between the ECOSCAN adapter and an independent BRIDEX Python reference peer. It verifies the 0.1 signed request/response path, inventory capability mapping, project/source grant rejection, and peer identity checks. It is not a Go-peer test and does not exercise OBIS 0.2 operation identity, idempotency, status recovery, or Go/Python 0.2 interoperability.
+
+The next integration gate must therefore add a separate ECOSCAN-to-independent-Go-peer loopback test after Go 0.2 is implemented. It must prove that the test peer is a separately started process, that ECOSCAN sends the 0.2 operation request, that the peer enforces its own project/source grant before invoking the provider callback, and that status/result recovery does not execute the callback twice. The test must remain synthetic and loopback-only.
+
+### 13.3 Newly identified Python 0.2 error-response gap
+
+The reviewed Python 0.2 HTTP handler signs successful operation responses, but its exception path currently returns a minimal unsigned error object. This is weaker than the authenticated correlated error-response behavior tested for the 0.1 reference implementation. Before declaring 0.2 cross-language parity, define and implement a versioned 0.2 error envelope with:
+- authenticated response signature when the request identity has been authenticated;
+- request correlation ID and explicit sender/recipient peer IDs;
+- stable error code and safe message;
+- strict client-side validation of status, content type, envelope, signature, correlation, and peer identity;
+- no signed identity disclosure for unauthenticated or malformed requests.
+
+Add positive and negative tests for authentication failure, authorization denial, unknown capability, request-hash mismatch, idempotency conflict, ledger unavailable, replay, expired request, and malformed response. Ensure no provider callback runs for pre-execution rejection cases.
+
+### 13.4 Operation lifecycle and crash boundaries
+
+The Go ledger is a persistence primitive only. Go Peer integration must reserve before execution, persist RUNNING before invoking the handler, persist SUCCEEDED together with exactly one result representation, and recover stale RUNNING records to UNKNOWN before serving requests. Duplicate operation requests must return the existing record and must not invoke the handler again.
+
+The Go ledger uses a lock directory and deliberately fails closed on a stale lock. This avoids unsafe automatic lock removal but creates an operator-recovery requirement. File replacement and directory fsync semantics must be tested on each supported operating system; the existing Linux CI result does not establish Windows portability or power-loss durability.
+
+The Python 0.2 handler currently transitions an operation to RUNNING before invoking the capability. Its handler-exception path conservatively records UNKNOWN. Tests must additionally cover process termination at each persistence boundary, ledger write failures, concurrent duplicate requests, and response loss after a committed result.
+
+### 13.5 HTTP server resource controls
+
+The reviewed Go 0.1 HTTP handler enforces a body-size limit and rejects transfer encoding, but its reference server does not itself configure bounded header-read, body-read, idle, and write timeouts, connection/concurrency limits, or a request-rate policy. The Python 0.2 ThreadingHTTPServer similarly needs explicit bounded request/header/body timeouts and concurrency/resource controls. These are development-server gaps to close or explicitly constrain in the reference test harness; they are not production security controls.
+
+### 13.6 Required implementation order
+
+1. Select and pin a maintained, permissively licensed Go RFC 8785 implementation; record its exact module version, license, provenance, and API. Do not substitute Go's standard JSON encoder for JCS.
+2. Add shared JCS vectors consumed unchanged by Python and Go, including Unicode property ordering, escaping, number serialization, nested structures, invalid I-JSON values, and request-hash projection.
+3. Implement a separate Go OBIS 0.2 peer/HTTP route using the existing owner-local ledger; preserve OBIS 0.1 behavior and route unchanged.
+4. Implement the Go 0.2 client with stable operation ID/idempotency key, per-attempt message/nonce/attempt IDs, authenticated status query, response signature and identity validation, and conservative UNKNOWN transport classification.
+5. Define and test the signed 0.2 error response contract on both implementations.
+6. Run bidirectional Python↔Go 0.2 positive, negative, duplicate-delivery, restart-recovery, and status-query tests.
+7. Run ECOSCAN against a separately started independent Go 0.2 peer over loopback, with synthetic provider callback and project/source isolation assertions.
+8. Add separate capability fixtures for BRIDEX-owned and TRADIX-owned engineering peers. Keep the owners, credentials, ledgers, and capability grants distinct; do not route either through a central BRIDEX/TRADIX runtime.
+9. Re-run security review and record unresolved gaps before any non-loopback or production proposal.
+
+### 13.7 Current production decision
+
+OBIS 0.2 is not yet cross-language executable or production-approved. The current reference transports use loopback HTTP and shared-secret HMAC for development/conformance only. No TLS/mTLS production profile, certificate-to-peer identity binding, trust-anchor lifecycle, revocation mechanism, independent security review, or production credential lifecycle is complete. No live provider connection, deployment, or production pilot is authorized by this review.
+
+PR #42 and PR #67 remain Draft and unmerged. This review makes no change to MegaMarket or NEXORA and authorizes no merge, deployment, or live external connection.
