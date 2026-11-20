@@ -15,6 +15,7 @@ import secrets
 import socket
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Any, Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
