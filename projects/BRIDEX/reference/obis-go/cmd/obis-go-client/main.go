@@ -19,6 +19,14 @@ func required(name string) string {
 	return value
 }
 
+
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
+}
+
 func main() {
 	endpoint := required("OBIS_REMOTE_ENDPOINT")
 	parsed, err := url.Parse(endpoint)
@@ -46,10 +54,10 @@ func main() {
 		log.Fatal(err)
 	}
 	client, err := peer.NewClient(peer.ClientConfig{
-		LocalPeerID: "go-peer",
-		RemotePeerID: "python-peer",
-		KeyID: "go-key",
-		PrincipalRef: "principal:go",
+		LocalPeerID: envOr("OBIS_LOCAL_PEER_ID", "go-peer"),
+		RemotePeerID: envOr("OBIS_REMOTE_PEER_ID", "python-peer"),
+		KeyID: envOr("OBIS_KEY_ID", "go-key"),
+		PrincipalRef: envOr("OBIS_PRINCIPAL_REF", "principal:go"),
 		Secret: []byte(required("OBIS_TEST_SECRET")),
 		Scopes: map[string]bool{"catalog:read": true},
 		HTTPClient: httpClient,
