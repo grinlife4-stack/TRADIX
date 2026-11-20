@@ -245,24 +245,26 @@ class OBISV02Invoker:
         self.remote_peer_id = client.remote_peer_id
         self.scopes = frozenset(client.scopes)
 
-    def _client_for_deadline(self, deadline: float | None) -> Any:
-        if deadline is None:
-            return self.client
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            from .contracts import BudgetExceeded
-            raise BudgetExceeded("OBIS deadline elapsed before request dispatch")
-        timeout = min(float(self.client.timeout), remaining)
+    def _client_for_deadline(self, deadline: float | None, scopes: frozenset[str]) -> Any:
+        timeout = float(self.client.timeout)
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                from .contracts import BudgetExceeded
+                raise BudgetExceeded("OBIS deadline elapsed before request dispatch")
+            timeout = min(timeout, remaining)
         if timeout <= 0:
             from .contracts import BudgetExceeded
             raise BudgetExceeded("OBIS deadline elapsed before request dispatch")
+        # Always clone with the narrowed scope set. Reusing the injected client
+        # unchanged could accidentally send every credential scope on this call.
         return type(self.client)(
             local_peer_id=self.client.local_peer_id,
             remote_peer_id=self.client.remote_peer_id,
             key_id=self.client.key_id,
             principal_ref=self.client.principal_ref,
             secret=self.client.secret,
-            scopes=self.client.scopes,
+            scopes=set(scopes),
             timeout=timeout,
         )
 
@@ -278,7 +280,7 @@ class OBISV02Invoker:
         requested = frozenset(scopes if scopes is not None else self.scopes)
         if not requested or not requested.issubset(self.scopes):
             raise AdapterContractError("OBIS 0.2 client does not hold the requested scope")
-        client = self._client_for_deadline(deadline)
+        client = self._client_for_deadline(deadline, requested)
         response = client.invoke(
             endpoint,
             capability_id,
