@@ -185,7 +185,7 @@ def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> dict[
         alerts.append({"severity": "WARNING", "code": "SOURCE_INCOMPLETE", "project_id": result["project_id"], "source_id": result["source_id"], "message": f"Source scan status: {result['status']}", "evidence": result.get("error")})
     return {
         "schema_version": 1, "tool": "TRADIX ECOSCAN", "generated_at": utc_now(),
-        "mode": config.get("mode", "MANUAL"), "portfolio_coverage": "INCOMPLETE" if incomplete or any(p["coverage"] != "COMPLETE" for p in projects) else "COMPLETE",
+        "mode": config.get("mode", "MANUAL"), "ecosystem_coverage": "INCOMPLETE" if incomplete or any(p["coverage"] != "COMPLETE" for p in projects) else "COMPLETE",
         "project_count": len(projects), "source_count": len(results),
         "known_logical_bytes": known_total, "known_logical_mib": round(known_total / (1024 * 1024), 3),
         "total_is_complete": not incomplete and all(p["coverage"] == "COMPLETE" for p in projects),
@@ -199,7 +199,7 @@ def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> dict[
 
 
 def render_markdown(report: dict[str, Any]) -> str:
-    lines = ["# ECOSCAN Report", "", f"- Generated: {report['generated_at']}", f"- Coverage: **{report['portfolio_coverage']}**", f"- Known logical data: **{report['known_logical_mib']} MiB** (partial subtotal, not necessarily portfolio total)", f"- Sources: {report['source_count']}", "", "## Project inventory", "", "| Project | Coverage | Known logical size | Sources |", "|---|---|---:|---:|"]
+    lines = ["# ECOSCAN Report", "", f"- Generated: {report['generated_at']}", f"- Coverage: **{report['ecosystem_coverage']}**", f"- Known logical data: **{report['known_logical_mib']} MiB** (partial subtotal, not necessarily portfolio total)", f"- Sources: {report['source_count']}", "", "## Project inventory", "", "| Project | Coverage | Known logical size | Sources |", "|---|---|---:|---:|"]
     for project in report["projects"]:
         size = f"{project['known_logical_bytes'] / (1024 * 1024):.3f} MiB" if project["measured_source_count"] else "Not measured"
         lines.append(f"| {project['name']} | {project['coverage']} | {size} | {project['measured_source_count']}/{project['source_count']} |")
@@ -270,8 +270,8 @@ def publish_issue(report: dict[str, Any], token: str, repository: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Read-only, independent portfolio storage inventory")
-    parser.add_argument("--config", default="tools/ecoscan/config/portfolio.json")
+    parser = argparse.ArgumentParser(description="Read-only, independent ecosystem storage inventory")
+    parser.add_argument("--config", default="tools/ecoscan/config/ecoscan.json")
     parser.add_argument("--output", default="artifacts/ecoscan/latest.json")
     parser.add_argument("--publish-github-issue", action="store_true", help="Update a single report issue using a GitHub token with issues:write")
     args = parser.parse_args(argv)
@@ -289,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if event_name == "schedule":
         config["mode"] = "SCHEDULED"
-    token = os.environ.get("PORTFOLIO_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    token = os.environ.get("ECOSCAN_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")
     results = [scan_source(source, token) for source in config.get("sources", [])]
     report = build_report(config, results)
     output = write_report(report, Path(args.output))
