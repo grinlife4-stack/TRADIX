@@ -140,15 +140,15 @@ The long-term steward and approval process remain unresolved.
 6. Runtime schema validation and schema-version negotiation tests.
 7. Durable replay protection and idempotency/outcome reconciliation.
 8. Async lifecycle conformance tests, including cancellation races and expiry.
-9. A second implementation in a different language maintained independently of the Python reference.
+9. A second implementation in a different language with its own build and tests. The Go reference now exists as an independently buildable package; separate stewardship/maintainer assignment remains open.
 10. Cross-implementation positive, negative, malformed-input, downgrade, and portability tests.
 11. Clean-environment proof that two peers communicate with TRADIX and BRIDEX unavailable.
 12. Independent security review; local CI success is not a substitute.
 
 ## 10. Current implementation boundary
 
-The Python reference peer is a local development/conformance prototype. It implements direct loopback HTTP, a development-only shared-secret HMAC profile, strict envelope checks, bounded TTL and payload sizes, in-memory replay rejection, capability scope checks, and signed correlated errors after peer authentication.
+The Python and Go reference peers are local development/conformance prototypes. They implement direct loopback HTTP and the same shared-secret HMAC development profile. The Python client has completed a real request/response exchange with the Go peer; shared canonical JSON/HMAC test vectors and initial replay/scope negative tests pass.
 
-It does not implement the candidate production profile, durable replay/idempotency, certificate lifecycle, production audit, asynchronous operations, or cross-language interoperability. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
+They do not implement the candidate production profile, durable replay/idempotency, certificate lifecycle, production audit, asynchronous operations, or the complete cross-language negative/security suite. The Go peer does not yet implement TLS or certificate-to-peer identity mapping. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
 
 **No production or 1.0 claim is authorized by this register.**
