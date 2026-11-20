@@ -22,6 +22,9 @@ The manifest is metadata, not authority. Its contents do not authenticate a peer
 - SHA-256 verification of the Bridge artifact.
 - Validation of configuration and lifecycle file references.
 - Rejection of path traversal and symlink escapes outside the package root.
+- Deterministic ZIP export with normalized timestamps and file ordering.
+- Safe restore with ZIP-slip, symlink/special-file, duplicate-path, entry-count, and uncompressed-size checks.
+- Post-restore manifest and artifact verification.
 - Positive and negative tests for ownership, unknown fields, duplicate keys, tampering, path traversal, and package verification.
 
 ## Manifest boundary
@@ -85,13 +88,19 @@ Verify an exported package:
 
 ```bash
 bridex-manifest verify-package ./bridge-package
+
+# Create a deterministic, owner-portable ZIP export
+bridex-manifest export ./bridge-package ./bridge-package.zip
+
+# Restore into a new directory and verify it before publishing
+bridex-manifest restore ./bridge-package.zip ./restored-bridge
 ```
 
-Both commands exit with `0` on success and `2` for invalid input.
+All commands exit with `0` on success and `2` for invalid input. Restore refuses to overwrite an existing destination.
 
 ## Deliberate limits
 
-This package is not a Bridge runtime, code generator, transport adapter, OBIS implementation, trust store, credential manager, scheduler, retry engine, audit ledger, or production security profile. Package verification proves only the integrity and presence of the declared local package files. It does not prove that the artifact is safe, executable, interoperable, authorized, or production-ready.
+This package is not a Bridge runtime, code generator, transport adapter, OBIS implementation, trust store, credential manager, scheduler, retry engine, audit ledger, or production security profile. Package verification proves only the integrity and presence of the declared local package files. Export produces a deterministic ZIP of those files; restore validates archive paths and file types, restores into a new directory, and re-verifies the package. Neither operation proves that the artifact is safe, executable, interoperable, authorized, or production-ready.
 
 Next generic foundation gates:
 1. Add deterministic build/reproducibility metadata and export/restore tests.
