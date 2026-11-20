@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "mode": "MANUAL",
+  "scheduled_enabled": true,
+  "projects": [
+    {
+      "project_id": "TRADIX",
+      "name": "TRADIX",
+      "sources": [
+        "tradix-github"
+      ]
+    },
+    {
+      "project_id": "NEXORA",
+      "name": "NEXORA",
+      "sources": [
+        "nexora-github",
+        "nexora-tradix-dossier"
+      ]
+    },
+    {
+      "project_id": "MEGAMARKET",
+      "name": "MegaMarket",
+      "sources": [
+        "megamarket-tradix-dossier"
+      ]
+    },
+    {
+      "project_id": "EXVARLI",
+      "name": "EXVARLI",
+      "sources": [
+        "exvarli-tradix-dossier"
+      ]
+    },
+    {
+      "project_id": "AAECN",
+      "name": "AAECN",
+      "sources": []
+    },
+    {
+      "project_id": "TRADING_INTELLIGENCE",
+      "name": "Trading Intelligence Platform",
+      "sources": [
+        "info-engine-github"
+      ]
+    },
+    {
+      "project_id": "X",
+      "name": "X Financial System",
+      "sources": []
+    },
+    {
+      "project_id": "XENORA_AI",
+      "name": "XENORA AI",
+      "sources": []
+    },
+    {
+      "project_id": "UNCLASSIFIED_ARCHIVE",
+      "name": "Unclassified repository archive",
+      "sources": [
+        "fluffy-happiness-github",
+        "green888-github"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "tradix-github",
+      "project_id": "TRADIX",
+      "provider": "github",
+      "repository": "grinlife4-stack/TRADIX",
+      "ref": "main",
+      "exclude_paths": [
+        "products/megamarket/",
+        "projects/EXVARLI/",
+        "projects/NEXORA/",
+        "docs/projects/EXVARLI_FINANCIAL_ARCHITECTURE.md",
+        "docs/projects/NEXORA_WELLNESS_DOSSIER.md"
+      ]
+    },
+    {
+      "source_id": "nexora-github",
+      "project_id": "NEXORA",
+      "provider": "github",
+      "repository": "grinlife4-stack/NEXORA",
+      "ref": "main"
+    },
+    {
+      "source_id": "nexora-tradix-dossier",
+      "project_id": "NEXORA",
+      "provider": "github",
+      "repository": "grinlife4-stack/TRADIX",
+      "ref": "main",
+      "include_paths": [
+        "projects/NEXORA/",
+        "docs/projects/NEXORA_WELLNESS_DOSSIER.md"
+      ]
+    },
+    {
+      "source_id": "megamarket-tradix-dossier",
+      "project_id": "MEGAMARKET",
+      "provider": "github",
+      "repository": "grinlife4-stack/TRADIX",
+      "ref": "main",
+      "include_paths": [
+        "products/megamarket/"
+      ]
+    },
+    {
+      "source_id": "exvarli-tradix-dossier",
+      "project_id": "EXVARLI",
+      "provider": "github",
+      "repository": "grinlife4-stack/TRADIX",
+      "ref": "main",
+      "include_paths": [
+        "projects/EXVARLI/",
+        "docs/projects/EXVARLI_FINANCIAL_ARCHITECTURE.md"
+      ]
+    },
+    {
+      "source_id": "info-engine-github",
+      "project_id": "TRADING_INTELLIGENCE",
+      "provider": "github",
+      "repository": "grinlife4-stack/info_engine",
+      "ref": "main"
+    },
+    {
+      "source_id": "fluffy-happiness-github",
+      "project_id": "UNCLASSIFIED_ARCHIVE",
+      "provider": "github",
+      "repository": "grinlife4-stack/fluffy-happiness",
+      "ref": "main"
+    },
+    {
+      "source_id": "green888-github",
+      "project_id": "UNCLASSIFIED_ARCHIVE",
+      "provider": "github",
+      "repository": "grinlife4-stack/-Green888",
+      "ref": "main"
+    }
+  ],
+  "notes": [
+    "Registry is based on repositories visible through the connected GitHub account and known TRADIX project dossiers; it is not proof that all portfolio storage sources are registered.",
+    "TRADIX repository paths for NEXORA, MegaMarket, and EXVARLI are inventoried as separate project scopes and excluded from the TRADIX core scope to avoid double counting.",
+    "The standalone NEXORA repository and its dossier/assets stored inside TRADIX are separate storage locations attributed to the NEXORA project; logical usage counts both locations.",
+    "The -Green888 repository was observed to be empty. Empty is distinct from inaccessible or unmeasured.",
+    "fluffy-happiness is not yet mapped to a confirmed portfolio product and is intentionally isolated under UNCLASSIFIED_ARCHIVE.",
+    "Local disks, Railway volume contents, object-storage buckets, backups, and other providers are not yet registered as measurable sources."
+  ]
+}
