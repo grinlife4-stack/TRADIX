@@ -10,6 +10,7 @@ import hmac
 import http.client
 import json
 import math
+import re
 import secrets
 import socket
 import threading
@@ -193,7 +194,13 @@ class OBISPeerV02:
         if capability.resource_binding:
             payload = message.get("payload", message.get("resource", {}))
             project_id, source_id = payload.get("project_id"), payload.get("source_id")
-            if (project_id, source_id) not in credential.allowed_resources:
+            if (
+                not isinstance(project_id, str)
+                or not isinstance(source_id, str)
+                or not _RESOURCE_IDENTIFIER.fullmatch(project_id)
+                or not _RESOURCE_IDENTIFIER.fullmatch(source_id)
+                or (project_id, source_id) not in credential.allowed_resources
+            ):
                 raise OBISRequestError("authorization.denied", "resource is outside credential grant", 403)
         return capability
 
