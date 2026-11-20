@@ -7,12 +7,22 @@ import json
 import sys
 
 from .manifest import BridgeManifestError, load_manifest, resolve_package_files
-from .package import build_package, verify_package
+from .package import build_package, verify_package\nfrom .scaffold import create_bridge_project
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="bridex", description="Validate and package independent Bridge tools.")
     commands = parser.add_subparsers(dest="command", required=True)
+
+    init = commands.add_parser("init", help="generate an independent draft-only Bridge project")
+    init.add_argument("--path", required=True, help="new Bridge project directory")
+    init.add_argument("--name", required=True)
+    init.add_argument("--owner-id", required=True)
+    init.add_argument("--owner-assignment-ref", required=True)
+    init.add_argument("--operator-id", required=True)
+    init.add_argument("--operator-assignment-ref", required=True)
+    init.add_argument("--version", default="0.1.0")
+    init.add_argument("--bridge-id", help="optional urn:uuid identifier; generated when omitted")
 
     validate = commands.add_parser("validate", help="validate bridge.json and its explicit package file set")
     validate.add_argument("--root", required=True, help="Bridge source root containing bridge.json")
@@ -30,7 +40,19 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        if args.command == "validate":
+        if args.command == "init":
+            root = create_bridge_project(
+                args.path,
+                name=args.name,
+                owner_id=args.owner_id,
+                owner_assignment_ref=args.owner_assignment_ref,
+                operator_id=args.operator_id,
+                operator_assignment_ref=args.operator_assignment_ref,
+                version=args.version,
+                bridge_id=args.bridge_id,
+            )
+            result = {"created": True, "path": str(root)}
+        elif args.command == "validate":
             root, manifest = load_manifest(args.root)
             files = resolve_package_files(root, manifest)
             result = {
