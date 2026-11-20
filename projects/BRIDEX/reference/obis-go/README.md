@@ -17,6 +17,7 @@ It currently provides:
 - Per-capability scope checks with default-deny behavior.
 - In-memory nonce replay rejection.
 - Direct loopback HTTP request handling at `/obis/v0.1/messages`.
+- A direct Go client with response-signature, correlation, peer-identity, and result validation.
 - HMAC-authenticated success responses compatible with the Python development client.\n- A Go client that can invoke the Python reference peer over the same local development profile.
 - Tests consuming the shared published OBIS request vectors.
 
