@@ -11,7 +11,7 @@ class RegistryError(ValueError):
 
 ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 PROJECT_KEYS = {"project_id", "sources"}
-SOURCE_KEYS = {"source_id", "owner_id", "operator_id", "subsystem_id", "source_type", "locator", "adapter_id", "adapter_version", "credential_ref", "enabled", "scope_tags", "budget", "expected_measurements", "retention_policy", "created_at", "updated_at"}
+SOURCE_KEYS = {"source_id", "owner_id", "operator_id", "subsystem_id", "source_type", "locator", "adapter_id", "adapter_version", "enabled", "scope_tags", "budget", "expected_measurements", "retention_policy", "created_at", "updated_at"}
 BUDGET_KEYS = {"max_pages", "max_items", "timeout_seconds", "max_duration_seconds"}
 RETENTION_KEYS = {"history_days", "evidence_days"}
 KNOWN_MEASUREMENTS = {"logical_bytes", "allocated_bytes", "physical_bytes", "capacity_bytes", "object_count", "file_count", "provider_reported_usage"}
@@ -63,11 +63,13 @@ def _parse_project(raw: Any) -> ProjectRegistry:
         if item["source_type"] not in {"filesystem", "obis_bridge"}:
             raise RegistryError("unsupported source_type")
         if not isinstance(item["locator"], str) or not item["locator"].strip():
-            raise RegistryError("locator must be a non-empty local path")
+            raise RegistryError("locator must be a non-empty string")
+        if item["adapter_id"] != item["source_type"]:
+            raise RegistryError("adapter_id must match source_type")
+        if item["source_type"] == "obis_bridge":
+            _identifier(item["locator"], "OBIS peer ID")
         if not isinstance(item["enabled"], bool):
             raise RegistryError("enabled must be boolean")
-        if item["credential_ref"] is not None and (not isinstance(item["credential_ref"], str) or not item["credential_ref"]):
-            raise RegistryError("credential_ref must be null or a non-empty string")
         tags = item["scope_tags"]
         if not isinstance(tags, list) or any(not isinstance(x, str) or not x for x in tags):
             raise RegistryError("scope_tags must be an array of non-empty strings")
@@ -96,7 +98,7 @@ def _parse_project(raw: Any) -> ProjectRegistry:
             source_id=sid, owner_id=item["owner_id"], operator_id=item["operator_id"],
             subsystem_id=item["subsystem_id"], source_type=item["source_type"], locator=item["locator"],
             adapter_id=item["adapter_id"], adapter_version=item["adapter_version"],
-            credential_ref=item["credential_ref"], enabled=item["enabled"], scope_tags=tuple(tags),
+            enabled=item["enabled"], scope_tags=tuple(tags),
             budget=ScanBudget(**budget_raw), expected_measurements=tuple(expected),
             retention_policy=RetentionPolicy(**retention_raw), created_at=item["created_at"], updated_at=item["updated_at"],
         ))
