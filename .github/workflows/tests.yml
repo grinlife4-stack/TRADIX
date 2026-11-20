@@ -37,3 +37,7 @@ jobs:
       - run: python -m pip wheel --no-deps --wheel-dir /tmp/bridex-wheel projects/BRIDEX/core
       - run: python -m pip install --no-deps --target /tmp/bridex-install /tmp/bridex-wheel/*.whl
       - run: PYTHONPATH=/tmp/bridex-install python -c "from bridex_core import __version__; assert __version__ == '0.1.0'"
+      - run: PYTHONPATH=/tmp/bridex-install python -c "from importlib.resources import files; assert files('bridex_core.templates.obis_bridge').joinpath('schemas/message.schema.json').is_file()"
+      - run: bridex init --path /tmp/generated-bridge --bridge-id ci-example-bridge --name "CI Example Bridge" --owner-id ci-owner --owner-assignment-ref decision:ci-owner --operator-id ci-operator --operator-assignment-ref decision:ci-operator
+      - run: bridex validate /tmp/generated-bridge
+      - run: python -m pip wheel --no-deps --wheel-dir /tmp/generated-bridge-wheel /tmp/generated-bridge
