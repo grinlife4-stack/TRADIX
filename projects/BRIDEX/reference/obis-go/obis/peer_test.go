@@ -1,6 +1,7 @@
 package obis
 
 import (
+	"errors"
 	"encoding/json"
 	"bytes"
 	"os"
