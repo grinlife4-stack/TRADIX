@@ -3,7 +3,7 @@ name: ECOSCAN tests
 on:
   push:
     branches:
-      - feature/ecoscan-independent-tool-2026-11-20
+      - feature/ecoscan-clean-main-2026-11-20
     paths:
       - "tools/ecoscan/**"
       - "tests/test_ecoscan.py"
