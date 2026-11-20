@@ -66,3 +66,8 @@ Selectors are validated before scanning. Unknown IDs and invalid selector combin
 ### Railway volume metadata
 
 Set `provider` to `railway_volume`, supply a verified `volume_instance_id`, and provide `RAILWAY_API_TOKEN` at runtime. The adapter reports provisioned capacity and backup inventory metadata without reading volume contents. It does not report used filesystem bytes. Do not substitute a project-level volume ID for a volume-instance ID.
+
+
+### S3-compatible object storage (B2 / R2 / S3 / Railway buckets)
+
+Use `provider: "s3_compatible"` with an explicit `endpoint`, `bucket`, `region`, `url_style`, and names of environment variables holding read-only access and secret keys. The adapter paginates `ListObjectsV2` and sums current object sizes without downloading object bodies. Historical versions, incomplete multipart uploads, and provider billing bytes are outside this measurement.
