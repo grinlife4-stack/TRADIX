@@ -102,7 +102,7 @@ Building X as software does not by itself authorize regulated activities. Bankin
 | Cross-product interface and shared-component changes | Defined jointly through documented change control |
 | Exceptional transfer of ownership or operational authority | Project owner, explicitly documented |
 
-No technical convenience, shared repository, common infrastructure, or historical implementation detail silently changes this authority table.
+No technical convenience, shared repository, common infrastructure, or historical implementation detail silently changes this authority.
 
 ## 7. Independence without unnecessary duplication
 
@@ -182,7 +182,6 @@ This is a governing architecture document, not an informal note.
 
 **One factory. Independent products. Repeatable production.**
 
-
 ## 13. EXVARLI multi-project financial architecture
 
 EXVARLI must operate as a reusable, multi-project financial-management system. It must support projects with different business domains, economic models, revenue and expense structures, currencies, jurisdictions, risk profiles, and compliance requirements through separate, versioned project financial profiles.
@@ -200,3 +199,22 @@ A new project must be onboarded by creating, validating, and activating its own 
 EXVARLI is a replaceable manager, not the owner or custodian of project assets. Each project must retain exportability, revocable access, and the ability to replace EXVARLI or operate independently without losing funds, accounts, records, or continuity.
 
 The detailed governing specification is maintained in [EXVARLI — Multi-Project Financial Architecture](projects/EXVARLI_FINANCIAL_ARCHITECTURE.md). This section applies to every current and future portfolio project.
+
+## 14. Infrastructure, portability, and cost independence
+
+All portfolio projects must be designed from the beginning to move between existing owned hardware, VPS infrastructure, and owner-controlled physical servers without material application rewrites. Each project must remain independently deployable, exportable, recoverable, and replaceable.
+
+The approved growth sequence is:
+1. Use existing owned hardware first, measuring actual resource consumption.
+2. Move relevant workloads to VPS only when measured capacity, reliability, or connectivity needs justify it.
+3. Move to owner-controlled physical hardware when scale and economics justify that investment.
+
+Approximately 50% sustained utilization of a relevant usable resource is a capacity-review trigger, not an automatic migration threshold. CPU, RAM, storage capacity and I/O, network, power, thermal limits, and availability must be evaluated independently.
+
+**Current execution must prioritize genuinely free solutions that continue without compulsory payment or expiry of a trial or promotional credit.** A service cannot become a required operational dependency until its permanent-free or ongoing-cost status, time limits, card/payment requirements, geographic eligibility, quotas, hidden costs (including storage, API, bandwidth and egress), suspension rules, and complete data-exit path have been verified. Unknown answers mean the service is not approved as a required dependency.
+
+Every project must preserve its data, records, identifiers, files, receipts, configuration, and operational continuity through independent export, backup, restore, checksum/integrity verification, and practical migration tests. Provider snapshots alone do not establish portability.
+
+Portability must not justify premature complexity. Use the smallest architecture that meets current needs while preserving documented interfaces and a tested exit path. Do not introduce costly infrastructure, subscriptions, or elaborate orchestration before actual demand justifies them.
+
+The detailed governing requirements, provider review checklist, migration acceptance tests, and exception process are maintained in [Portfolio Infrastructure, Portability, and Cost Independence Policy](PORTFOLIO_INFRASTRUCTURE_AND_PORTABILITY_POLICY.md). This section applies portfolio-wide and must be considered in all future project and infrastructure decisions.
