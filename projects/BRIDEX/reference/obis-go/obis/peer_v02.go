@@ -31,7 +31,7 @@ func NewPeerV02(peer *Peer, ledger *FileOperationLedger) (*PeerV02, error) {
 }
 
 func (p *PeerV02) RegisterCapability(id, version string, scopes map[string]bool, handler CapabilityHandler, recoveryClass string) error {
-\treturn p.RegisterCapabilityWithResourceBinding(id,version,scopes,handler,recoveryClass,false)
+	return p.RegisterCapabilityWithResourceBinding(id,version,scopes,handler,recoveryClass,false)
 }
 
 func (p *PeerV02) RegisterCapabilityWithResourceBinding(id, version string, scopes map[string]bool, handler CapabilityHandler, recoveryClass string, resourceBinding bool) error {
