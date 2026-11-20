@@ -172,3 +172,28 @@ def test_cli_validate_package_and_verify(tmp_path: Path, capsys) -> None:
     assert json.loads(capsys.readouterr().out)["sha256"]
     assert main(["verify", str(package)]) == 0
     assert json.loads(capsys.readouterr().out)["valid"] is True
+
+
+
+def test_manifest_rejects_case_insensitive_package_path_collisions() -> None:
+    manifest = sample_manifest()
+    manifest["package_files"] = ["Readme.md", "README.md"]
+    with pytest.raises(BridgeManifestError, match="package_paths_must_be_unique_case_insensitively"):
+        validate_manifest_data(manifest)
+
+
+def test_verifier_requires_package_file_set_to_match_bridge_manifest(tmp_path: Path) -> None:
+    root = create_bridge(tmp_path / "bridge")
+    package = tmp_path / "bridge.zip"
+    build_package(root, package)
+    altered = tmp_path / "manifest-mismatch.zip"
+    with zipfile.ZipFile(package, "r") as source, zipfile.ZipFile(altered, "w", compression=zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            data = source.read(info.filename)
+            if info.filename == "bridge.json":
+                manifest = json.loads(data.decode("utf-8"))
+                manifest["package_files"] = ["README.md"]
+                data = json.dumps(manifest).encode("utf-8")
+            target.writestr(info, data)
+    with pytest.raises(BridgeManifestError, match="package_manifest_file_set_mismatch"):
+        verify_package(altered)
