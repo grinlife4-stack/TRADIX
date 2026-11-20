@@ -12,14 +12,14 @@
 This policy separates three matters that must never be conflated:
 
 1. **BRIDEX independence:** BRIDEX is an independent project and engineering tool for designing, generating, testing, packaging, and evolving Bridge tools.
-2. **Bridge-instance ownership:** Ownership of a generated Bridge is assigned to the designated project, tool, organization, or other legal/person entity. It is not automatically retained by BRIDEX.
+2. **Bridge-instance ownership:** Each project-specific Bridge is owned by the portfolio project whose resources, data, or capabilities it is authorized to expose. BRIDEX never owns a project Bridge.
 3. **Bridge portability and interoperability:** A Bridge must remain operable, modifiable, transferable, and adaptable to other systems after separation from BRIDEX and TRADIX.
 
 The purpose is to let every project retain control of its integration capability and leave or replace any ecosystem without losing the Bridge needed to connect to other systems.
 
 ## 2. Binding ownership rule
 
-BRIDEX is the generator and engineering-method provider. It is **not the default owner** of generated Bridge instances.
+BRIDEX is the generator and engineering-method provider. It is **never the owner** of a project Bridge instance.
 
 Ownership of each Bridge instance must be explicitly assigned and recorded before release. The owner must be the portfolio project whose resources, data, or capabilities the Bridge is authorized to expose. For a project-specific Bridge, ownership cannot be assigned to BRIDEX, the generator, the receiving project, a hosting provider, or an unrelated entity.
 
@@ -134,7 +134,7 @@ This policy supplements and clarifies:
 - [BRIDEX Project Dossier](../projects/BRIDEX/README.md)
 - [BRIDEX Architecture](BRIDEX_ARCHITECTURE.md)
 
-Where earlier wording could be read as assigning ownership to the generator or treating owner/operator as a single role, this policy controls: ownership is explicitly assigned per Bridge instance, BRIDEX is not the default owner, and the designated owner must receive the rights and portable deliverables defined here.
+Where earlier wording could be read as assigning ownership to the generator or treating owner/operator as a single role, this policy controls: the source/resource-owning project is the owner, BRIDEX is never the owner, and the owning project must receive the rights and portable deliverables defined here.
 
 ## 10. Version history
 
