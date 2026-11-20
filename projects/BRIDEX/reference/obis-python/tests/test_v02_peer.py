@@ -97,3 +97,38 @@ def test_v02_status_lookup_requires_authenticated_scope(tmp_path):
     }
     response, _ = signed(peer, status)
     assert response["operation"]["state"] == "SUCCEEDED"
+
+
+def test_v02_loopback_http_client_executes_once_and_recovers_status(tmp_path):
+    from obis_bridge.v02 import OBISV02Client, OBISV02Server
+
+    calls = []
+    credential = Credential(
+        key_id="caller-key", peer_id="peer:caller", principal_ref="principal:caller",
+        secret=SECRET, allowed_scopes=frozenset({"records:write"}),
+    )
+    base = OBISPeer("peer:owner", [credential], replay_guard=ReplayGuard())
+    peer = OBISPeerV02(base, OperationLedger(tmp_path / "http-operations.sqlite3"))
+    peer.register_capability(
+        "records.write", "1.0", {"records:write"},
+        lambda payload: calls.append(payload) or {"written": True},
+        recovery_class="IDEMPOTENT",
+    )
+    client = OBISV02Client(
+        "peer:caller", "peer:owner", "caller-key", "principal:caller",
+        SECRET, {"records:write"},
+    )
+    with OBISV02Server(peer) as server:
+        first = client.invoke(
+            server.address, "records.write", "1.0", {"record_id": "http-1"},
+            operation_id="http-op-1", idempotency_key="http-idem-1",
+        )
+        duplicate = client.invoke(
+            server.address, "records.write", "1.0", {"record_id": "http-1"},
+            operation_id="http-op-1", idempotency_key="http-idem-1",
+        )
+        status = client.status(server.address, "records.write", "1.0", "http-op-1")
+    assert first["operation"]["state"] == "SUCCEEDED"
+    assert duplicate["operation"]["result"] == {"written": True}
+    assert status["operation"]["state"] == "SUCCEEDED"
+    assert len(calls) == 1

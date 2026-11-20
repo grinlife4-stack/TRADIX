@@ -259,3 +259,217 @@ class OBISPeerV02:
                 failure_code="operation.outcome_unknown",
             )
         return self._response(message, record), credential.secret
+
+
+
+class OBISV02Server:
+    """Loopback-only HTTP binding for the OBIS 0.2 reference peer."""
+
+    def __init__(self, peer: OBISPeerV02, host: str = "127.0.0.1", port: int = 0):
+        if host not in ("127.0.0.1", "::1", "localhost"):
+            raise ValueError("reference server is loopback-only; production transport is not implemented")
+        self.peer = peer
+        self.httpd = ThreadingHTTPServer((host, port), self._handler_class())
+        self.thread: threading.Thread | None = None
+
+    def _handler_class(self):
+        peer = self.peer
+
+        class Handler(BaseHTTPRequestHandler):
+            server_version = "OBIS-Reference/0.2"
+
+            def do_POST(self):
+                if urlparse(self.path).path != MESSAGE_PATH_V02:
+                    self.send_error(404)
+                    return
+                try:
+                    if self.headers.get_content_type() != "application/obis+json":
+                        self.send_error(415, "unsupported content type")
+                        return
+                    if self.headers.get("Transfer-Encoding"):
+                        self.send_error(400, "transfer encoding is not supported")
+                        return
+                    raw_length = self.headers.get("Content-Length", "")
+                    if not raw_length.isdigit():
+                        self.send_error(400, "content length is required")
+                        return
+                    length = int(raw_length)
+                    if length <= 0 or length > MAX_MESSAGE_BYTES:
+                        self.send_error(413)
+                        return
+                    raw = self.rfile.read(length)
+                    message = strict_json_loads(raw.decode("utf-8"))
+                    if not isinstance(message, dict):
+                        raise OBISRequestError("protocol.invalid_message", "message must be an object")
+                    response, secret = peer.handle(
+                        message,
+                        self.headers.get("X-OBIS-Key-Id", ""),
+                        self.headers.get("X-OBIS-Signature", ""),
+                    )
+                    body = canonical_json(response)
+                    signature = hmac.new(secret, body, hashlib.sha256).hexdigest()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/obis+json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.send_header("X-OBIS-Signature", signature)
+                    self.end_headers()
+                    self.wfile.write(body)
+                except OBISRequestError as exc:
+                    body = canonical_json({"error": {"code": exc.code, "message": str(exc)}})
+                    self.send_response(exc.http_status)
+                    self.send_header("Content-Type", "application/obis+json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
+                    self.send_error(400, "invalid JSON message")
+
+            def log_message(self, fmt, *args):
+                return
+
+        return Handler
+
+    @property
+    def address(self) -> str:
+        host, port = self.httpd.server_address[:2]
+        return f"http://{host}:{port}"
+
+    def start(self) -> "OBISV02Server":
+        if self.thread and self.thread.is_alive():
+            return self
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+        return self
+
+    def close(self) -> None:
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        if self.thread:
+            self.thread.join(timeout=2)
+
+    def __enter__(self) -> "OBISV02Server":
+        return self.start()
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
+
+
+class OBISV02Client:
+    """Loopback-only OBIS 0.2 client with stable operation identity."""
+
+    def __init__(
+        self, local_peer_id: str, remote_peer_id: str, key_id: str,
+        principal_ref: str, secret: bytes, scopes: set[str] | frozenset[str],
+        timeout: float = 3.0,
+    ):
+        if not all((local_peer_id, remote_peer_id, key_id, principal_ref)):
+            raise ValueError("peer, key, and principal identifiers are required")
+        if not isinstance(secret, bytes) or len(secret) < 32:
+            raise ValueError("reference-profile secret must contain at least 32 bytes")
+        if not isinstance(scopes, (set, frozenset)) or not scopes or any(not isinstance(x, str) or not x for x in scopes):
+            raise ValueError("client scopes must be a non-empty set of strings")
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("timeout must be a finite positive number")
+        self.local_peer_id = local_peer_id
+        self.remote_peer_id = remote_peer_id
+        self.key_id = key_id
+        self.principal_ref = principal_ref
+        self.secret = secret
+        self.scopes = frozenset(scopes)
+        self.timeout = float(timeout)
+
+    def _base(self, message_type: str, capability_id: str, capability_version: str, now: float) -> dict[str, Any]:
+        return {
+            "protocol": "obis", "version": VERSION, "message_type": message_type,
+            "message_id": secrets.token_urlsafe(18), "nonce": secrets.token_urlsafe(24),
+            "attempt_id": secrets.token_urlsafe(18),
+            "sender": {"peer_id": self.local_peer_id},
+            "recipient": {"peer_id": self.remote_peer_id},
+            "issued_at": now, "expires_at": now + MAX_TTL_SECONDS,
+            "capability": {"id": capability_id, "version": capability_version},
+            "authorization": {"principal_ref": self.principal_ref, "scopes": sorted(self.scopes)},
+        }
+
+    def _exchange(self, endpoint: str, message: dict[str, Any]) -> dict[str, Any]:
+        parsed = urlparse(endpoint)
+        if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "::1", "localhost"):
+            raise ValueError("reference client is loopback-only; production transport is not implemented")
+        if parsed.username is not None or parsed.password is not None or parsed.path not in ("", "/") or parsed.params or parsed.query or parsed.fragment:
+            raise ValueError("endpoint must be a bare loopback base URL")
+        body = canonical_json(message)
+        headers = {
+            "Content-Type": "application/obis+json",
+            "X-OBIS-Key-Id": self.key_id,
+            "X-OBIS-Signature": sign_message(message, self.secret),
+        }
+        try:
+            status, response_headers, response_body = _deadline_http_exchange(
+                endpoint, body, headers, time.monotonic() + self.timeout,
+                message_path=MESSAGE_PATH_V02,
+            )
+        except (TimeoutError, socket.timeout) as exc:
+            raise OBISRequestError("peer.timeout", "OBIS 0.2 peer request timed out", 504) from exc
+        except (OSError, http.client.HTTPException) as exc:
+            raise OBISRequestError("peer.unavailable", "OBIS 0.2 peer is unavailable", 503) from exc
+        if status != 200:
+            raise OBISRequestError("peer.request_rejected", f"OBIS 0.2 peer returned HTTP {status}", status)
+        if len(response_body) > MAX_MESSAGE_BYTES:
+            raise OBISRequestError("payload.too_large", "response exceeds size limit", 502)
+        try:
+            response = strict_json_loads(response_body.decode("utf-8"))
+            signature = response_headers.get("X-OBIS-Signature", "")
+            if not isinstance(response, dict) or not verify_signature(response, self.secret, signature):
+                raise OBISRequestError("identity.authentication_failed", "response signature verification failed", 502)
+        except OBISRequestError:
+            raise
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError, TypeError) as exc:
+            raise OBISRequestError("protocol.invalid_message", "invalid signed response", 502) from exc
+        required = {
+            "protocol", "version", "message_type", "message_id", "correlation_id",
+            "sender", "recipient", "issued_at", "operation",
+        }
+        if set(response) != required or response.get("protocol") != "obis" or response.get("version") != VERSION or response.get("message_type") != "operation_response":
+            raise OBISRequestError("protocol.invalid_message", "unexpected OBIS 0.2 response envelope", 502)
+        if response.get("correlation_id") != message["message_id"]:
+            raise OBISRequestError("protocol.invalid_message", "response correlation mismatch", 502)
+        if response.get("sender") != {"peer_id": self.remote_peer_id} or response.get("recipient") != {"peer_id": self.local_peer_id}:
+            raise OBISRequestError("identity.authentication_failed", "response peer identity mismatch", 502)
+        op = response.get("operation")
+        op_fields = {"operation_id", "request_hash", "state", "result", "result_ref", "failure_code", "created_at", "updated_at", "expires_at"}
+        if not isinstance(op, dict) or set(op) != op_fields:
+            raise OBISRequestError("protocol.invalid_message", "invalid operation response record", 502)
+        if op["state"] not in {"ACCEPTED", "RUNNING", "SUCCEEDED", "FAILED", "REJECTED", "UNKNOWN", "CANCELLED", "EXPIRED"}:
+            raise OBISRequestError("protocol.invalid_message", "invalid operation state", 502)
+        if message["message_type"] == "request":
+            if op["operation_id"] != message["operation"]["operation_id"] or op["request_hash"] != message["operation"]["request_hash"]:
+                raise OBISRequestError("protocol.invalid_message", "operation identity/hash mismatch", 502)
+        return response
+
+    def invoke(
+        self, endpoint: str, capability_id: str, capability_version: str,
+        payload: dict[str, Any], *, operation_id: str, idempotency_key: str,
+        operation_ttl: int = 300,
+    ) -> dict[str, Any]:
+        if not isinstance(payload, dict):
+            raise ValueError("payload must be an object")
+        if not isinstance(operation_ttl, int) or isinstance(operation_ttl, bool) or operation_ttl <= MAX_TTL_SECONDS:
+            raise ValueError("operation_ttl must be an integer greater than the message TTL")
+        now = time.time()
+        message = self._base("request", capability_id, capability_version, now)
+        message["operation"] = {
+            "operation_id": operation_id,
+            "idempotency_key": idempotency_key,
+            "request_hash": "",
+            "expires_at": now + operation_ttl,
+        }
+        message["payload"] = payload
+        message["operation"]["request_hash"] = operation_request_hash(message)
+        return self._exchange(endpoint, message)
+
+    def status(
+        self, endpoint: str, capability_id: str, capability_version: str,
+        operation_id: str,
+    ) -> dict[str, Any]:
+        message = self._base("operation_status_request", capability_id, capability_version, time.time())
+        message["operation_id"] = operation_id
+        return self._exchange(endpoint, message)
