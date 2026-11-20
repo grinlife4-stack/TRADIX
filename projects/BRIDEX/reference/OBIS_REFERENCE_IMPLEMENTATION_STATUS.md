@@ -110,3 +110,17 @@ The Python integration harness now sends raw OBIS envelopes to both independentl
 The Go server rejection cases and Python server no-execution cases passed in CI run #1151 on commit `e65da4841226d25ac93feb98487d11323b11de63`. The same run completed Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated package wheel/install/schema checks.
 
 This adds server-side negative coverage across the two implementations. It does not yet prove every negative case in both client/server directions, nor does it cover production TLS/mTLS, downgrade negotiation, durable replay across Go restarts, business-operation idempotency/outcome reconciliation, persistent audit, or production readiness.
+
+
+## Go client signed-response rejection matrix — 2026-11-20
+
+The Go client now has tests using a loopback peer that returns correctly HMAC-signed but invalid responses. It must reject:
+- A downgraded protocol version.
+- A mismatched correlation ID.
+- A response claiming the wrong sender peer.
+- An unexpected response field.
+- A malformed signed error object containing an undeclared field.
+
+CI run #1154 completed successfully on commit `0a58ebe18cabb58feab1a9eb8c512186aeb2c1ee`. It passed Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated package wheel/install/schema checks.
+
+This is client-side validation coverage for selected signed response failures. It does not implement protocol version negotiation; unsupported versions are rejected. It does not establish complete downgrade protection across future negotiation profiles or production security.
