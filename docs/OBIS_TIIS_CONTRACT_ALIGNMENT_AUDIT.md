@@ -92,3 +92,20 @@ The candidate TLS/mTLS profile must not be marked production-approved until the 
 ## 8. Change-control note
 
 This audit records discrepancies; it does not amend either normative specification or schema. No PR was merged, no deployment was performed, and no credentials or external project connections were provisioned.
+
+
+## 10. Implementation follow-up — 2026-11-20
+
+The following limited corrections were implemented in the consolidated PR #42 review branch after this audit:
+
+- The OBIS 0.1 Section 9 request example now matches the canonical JSON Schema and the reference runtime: numeric Unix timestamps, peer_id references, and no undeclared bridge_id, correlation_id, or evidence_ref request fields.
+- A regression test validates the documented request example against the canonical schema.
+- The Python reference now offers an optional owner-local SQLite replay guard. It persists nonce acceptance across process restarts, uses an atomic uniqueness constraint, and fails closed with a normalized 503 before capability execution when replay storage is unavailable.
+- The default in-memory guard remains available for lightweight development. The SQLite option is not distributed replay protection, a business-operation idempotency ledger, or production security approval.
+
+Validation:
+- PR #42 head: 1d7d8a58b92469c34cee147a6ec330c8fa92c15b.
+- CI run #1047 completed successfully, including the complete Python test suite and independent wheel build/install/schema-package checks for OBIS and ECOSCAN.
+- PR #42 remains Draft and unmerged.
+
+The following gates remain open: normative OBIS identity and extension decisions; TIIS schema/profile freeze; production TLS/mTLS and certificate-to-peer mapping; credential lifecycle and revocation; business-operation idempotency and unknown-outcome reconciliation; durable audit/evidence records; independent second-language peer; cross-language conformance; and combined ECOSCAN-to-OBIS integration. No production readiness claim follows from this implementation follow-up.
