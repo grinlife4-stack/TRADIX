@@ -16,7 +16,9 @@ import (
 )
 
 func main() {
-	args:=os.Args[1:]\n\tif len(args)>0 && args[0]=="server-v02" { serveV02(args[1:]); return }\n\tif len(args)>0 && args[0]=="invoke-v02" { invokeV02(args[1:]); return }
+	args:=os.Args[1:]
+	if len(args)>0 && args[0]=="server-v02" { serveV02(args[1:]); return }
+	if len(args)>0 && args[0]=="invoke-v02" { invokeV02(args[1:]); return }
 	if len(args)>0 && args[0]=="invoke" {
 		invoke(args[1:])
 		return
