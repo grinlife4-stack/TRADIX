@@ -22,7 +22,7 @@
 - [x] Client-side scope narrowing prevents requests beyond the configured local grant.
 - [x] Capability result JSON serializability and response-size bounds in the Python reference.
 - [x] Loopback URL restrictions, finite positive client timeout, HTTP content-type enforcement, and rejection of unsupported transfer encoding.
-- [x] Nonce replay rejection within one running process in both peers.
+- [x] Nonce replay rejection within one running process in both peers, plus optional owner-local durable Go file-backed replay claims across guard/process restarts.
 - [x] Optional owner-local SQLite nonce persistence across restarts in Python, with atomic uniqueness and fail-closed storage errors.
 - [x] Correlation ID verification and signed, correlated error envelopes for authenticated request failures in Python.
 - [x] Draft JSON Schema 2020-12 artifact and schema-validation tests.
@@ -40,7 +40,7 @@ The canonical draft JSON Schema 2020-12 artifact is published at `standards/obis
 - Production TLS or mutual TLS.
 - Production identity issuance, asymmetric signing, trust-anchor management, key rotation, or revocation service.
 - A frozen, language-neutral production canonicalization/signature profile. The current HMAC implementation is a development/conformance binding, not a normative production profile.
-- Distributed replay protection and a durable business-operation idempotency/outcome ledger. The optional Python SQLite guard persists nonce replay state for one owner-operated Bridge instance; it does not reconcile unknown side-effect outcomes.
+- Distributed replay protection and a durable business-operation idempotency/outcome ledger. The Python SQLite and Go file-backed guards persist nonce replay state for one owner-operated Bridge instance; neither reconciles unknown side-effect outcomes.
 - Asynchronous operation lifecycle.
 - Production audit persistence and tamper-evident evidence.
 - Non-loopback transport binding.
@@ -51,7 +51,7 @@ The canonical draft JSON Schema 2020-12 artifact is published at `standards/obis
 1. Freeze normative JSON Schemas, compatibility rules, and canonicalization rules.
 2. Select and independently review production authentication and transport security profiles.
 3. Define credential issuance, rotation, revocation, and principal delegation.
-4. Complete durable replay protection, business-operation idempotency, and unknown-outcome reconciliation.
+4. Complete distributed replay policy where required, business-operation idempotency, and unknown-outcome reconciliation. Local durable nonce guards now exist independently in Python and Go but do not solve side-effect outcome ambiguity.
 5. Define signed evidence/audit formats and retention controls.
 6. Extend Go peer parity and negative coverage to all relevant request/response behaviors, including cross-language malformed-message, replay, downgrade, timeout, and transport-failure cases.
 7. Pass the full cross-implementation positive and negative conformance suite.
@@ -124,3 +124,18 @@ The Go client now has tests using a loopback peer that returns correctly HMAC-si
 CI run #1154 completed successfully on commit `0a58ebe18cabb58feab1a9eb8c512186aeb2c1ee`. It passed Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated package wheel/install/schema checks.
 
 This is client-side validation coverage for selected signed response failures. It does not implement protocol version negotiation; unsupported versions are rejected. It does not establish complete downgrade protection across future negotiation profiles or production security.
+
+
+## Go durable replay guard and Python response-validation follow-up — 2026-11-20
+
+The Go peer now supports an optional owner-local `FileReplayGuard` implemented with the Go standard library. Exclusive file creation provides an atomic nonce claim across guard instances/processes. The marker file and containing directory are synced before the capability handler can execute. Duplicate claims return the replay error; storage/write/sync failures return a normalized 503 and fail closed before capability execution. The default in-memory guard remains available for development.
+
+The durable marker files are intentionally retained permanently. Automatic expiry cleanup was not added because cleanup races or clock assumptions could reopen replay windows. This creates unbounded storage growth and requires owner monitoring and an explicit future retention design. The mechanism is local durable replay protection only; it is not distributed replay coordination, a business-operation idempotency ledger, or unknown-outcome reconciliation.
+
+Tests cover persistence after constructing a new guard, atomic duplicate exclusion across concurrent guard instances, and storage failure preventing capability execution. The same test suite continues to cover replay rejection without second execution.
+
+The Python reference client now has a separate signed-response negative test set for downgraded version, wrong correlation, wrong sender, unexpected fields, and malformed signed errors. CI run #1157 passed on commit `36bdf84ad248367dd17b455544af1217a9ffab2b`.
+
+The Go durable replay implementation and tests passed in CI run #1161 on commit `e75432a3dfac92bca93fd4a9bb1dd3d497b8fef4`. The run completed Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated wheel/install/schema checks.
+
+No normative OBIS schema, message envelope, TIIS contract, version negotiation semantics, or production security profile was changed. The Go peer remains loopback-only and HMAC remains development/conformance-only. Full cross-language negative conformance, distributed replay policy, business-operation idempotency/outcome reconciliation, production audit persistence, TLS/mTLS, credential lifecycle, and independent security review remain open.
