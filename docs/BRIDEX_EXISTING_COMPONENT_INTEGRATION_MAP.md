@@ -101,3 +101,27 @@ The following remain deliberately unimplemented:
 7. Production security review and owner approval.
 
 Until these gates pass, the adapters remain local prototypes. TIIS does not authorize a live endpoint, network listener, production write, or deployment.
+
+
+## 8. Ordered delivery and acceptance record
+
+| Stage | Draft PR | Scope | Latest recorded validation | Dependency/merge rule |
+|---|---:|---|---|---|
+| TIIS contract baseline | #68 | TIIS 0.1 specification, schema, validator, baseline tests | 102 tests passed; run `44729173799` | Standalone review evidence; same TIIS artifacts are carried byte-identically by #69 and #70. Do not merge separately on top of #70. |
+| TRADIX factory adapter | #69 | Factory conversation ↔ TIIS adapter and project-scope authorization | 116 tests passed; run `44730132944`; two factory-specific workflows also succeeded | Separate factory-runtime integration lane; retain its own base and dependency review. |
+| TRADIX tooling adapters | #70 | Artifact Gateway, Tool Catalog, Tool Adapter Contract TIIS adapters | 104 tests passed; run `44740384935` | Primary TIIS/TRADIX tooling lane and base for #77. |
+| BRIDEX engineering plane | #77 | Independent draft scaffold, manifest validation, deterministic package, verification | 27 tests passed; run `44742859047`; shared repository tests also passed | Stacked on #70. One canonical `bridex-engine` package; do not merge parallel #72/#74 packages. |
+| OBIS reference/conformance | #78 | Python/Go reference peers, TLS 1.3 mTLS candidate, bidirectional loopback tests | 57 Python tests + Go peer tests passed; run `44744149965`; 104 TRADIX tests passed in run `44744149964` | Stacked on #77. Older #75/#76 candidates are deferred; no production approval. |
+
+### Merge discipline
+
+No PR in this sequence has been merged or promoted. The intended review order is:
+
+1. Review and accept the primary TIIS/TRADIX tooling lane (#70), after its existing dependency base is reviewed.
+2. Review and accept BRIDEX Engine (#77) on top of #70.
+3. Review and accept OBIS reference/conformance (#78) on top of #77.
+4. Review the factory conversation adapter (#69) on its own factory-runtime dependency chain.
+
+PR #68 is a standalone TIIS contract baseline whose artifacts are identical to those in #69/#70. PRs #71/#73 overlap the consolidated tooling lane. PRs #72/#74 contain parallel BRIDEX package implementations. PRs #75/#76 contain earlier OBIS TLS candidates. These are review evidence, not additional merge steps.
+
+The successful tests establish local contract, package, and loopback conformance only. They do not authorize production transport, real peer credentials, external endpoints, deployment, or live data exchange.
