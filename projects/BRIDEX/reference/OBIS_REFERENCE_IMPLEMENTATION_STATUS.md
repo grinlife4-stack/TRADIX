@@ -85,3 +85,16 @@ The cross-language tests cover both directions:
 CI run #1119 completed successfully on commit `2e06ad11b54e71298d006edbd28168b5fadb4b82`, proving the initial bidirectional success path. CI run #1131 completed successfully on commit `121cdca51ea5812bbc06c709c1e31b06b793be61`, adding signed authenticated error responses. CI run #1144 completed successfully on commit `87cf0cf0bee44ef8de9eb6d9d3888e07c7e8c074`; it additionally exercised all shared OBIS request/response vectors in Go and bidirectional authorization-denial responses, then ran the full Python suite and isolated wheel/install checks.
 
 This proves bidirectional interoperability for the current loopback development HMAC success path and selected authenticated error cases only. HMAC remains development/conformance-only. Production TLS/mTLS, canonicalization freeze, credential lifecycle, broader malformed/transport cross-language conformance, durable replay and operation idempotency, audit persistence, and independent security review remain open.
+
+
+## Go negative and transport-failure matrix — 2026-11-20
+
+The Go peer test suite was extended on commit `f39c24553e53b6bbf475de195eb4e8c7be72cc3c` with malformed-envelope, identity/authentication rejection, scope-denial, and replay-no-second-execution cases. CI run #1147 completed successfully.
+
+The Go client tests were then extended on commit `7da228cfe799e6b1cef4b87dac83017effd52148` to verify:
+- A non-responsive loopback peer produces a network timeout under the client's configured three-second request timeout.
+- A closed/unavailable loopback endpoint produces a connection error.
+
+CI run #1148 completed successfully on that exact commit. The run completed Go tests, Go binary build, the full Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated wheel/install/schema checks.
+
+These are local development transport tests, not a production network resilience or security certification. The Go peer still lacks durable replay, business-operation idempotency/outcome reconciliation, production TLS/mTLS, credential lifecycle, persistent audit, full cross-language negative parity, and clean-environment independence evidence.
