@@ -13,7 +13,6 @@
           "locator": "../tests/fixtures/sample_project",
           "adapter_id": "filesystem",
           "adapter_version": "0.1.0",
-          "credential_ref": null,
           "enabled": true,
           "scope_tags": ["local", "demo"],
           "budget": {
