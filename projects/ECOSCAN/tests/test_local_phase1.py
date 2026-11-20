@@ -40,7 +40,7 @@ def test_filesystem_scan_is_metadata_only_and_per_project(tmp_path, monkeypatch)
     registry = parse_registry({"schema_version": "0.1", "project_id": "project-a", "sources": [source(root)]})
     store = ProjectStore(tmp_path / "db", "project-a")
     monkeypatch.setattr(Path, "open", lambda *a, **k: (_ for _ in ()).throw(AssertionError("source contents must not be opened")))
-    outcome = ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter()}, store).run("fs-local", "operator-a")
+    outcome = ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)}, store).run("fs-local", "operator-a")
     assert outcome.coverage_state == "COMPLETE"
     records = store.list_measurements("fs-local")
     assert {x["kind"]: x["value"] for x in records} == {"logical_bytes": 12, "file_count": 2}
@@ -59,7 +59,7 @@ def test_aggregate_measurements_work_for_empty_and_single_file_sources(tmp_path,
         "sources": [source(root)],
     })
     store = ProjectStore(tmp_path / "db", "project-a")
-    outcome = ScanRunner(parsed, gate(), {"filesystem": FilesystemAdapter()}, store).run(
+    outcome = ScanRunner(parsed, gate(), {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)}, store).run(
         "fs-local", "operator-a"
     )
     assert outcome.coverage_state == "COMPLETE"
@@ -81,7 +81,7 @@ def test_symlinks_are_skipped_and_mark_scan_partial(tmp_path):
         pytest.skip("symlinks unavailable")
     registry = parse_registry({"schema_version": "0.1", "project_id": "project-a", "sources": [source(root)]})
     store = ProjectStore(tmp_path / "db", "project-a")
-    outcome = ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter()}, store).run("fs-local", "operator-a")
+    outcome = ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)}, store).run("fs-local", "operator-a")
     assert outcome.coverage_state == "PARTIAL"
     assert "NON_REGULAR_FILE_SKIPPED" in store.list_coverage()[0]["limitations"]
 
@@ -93,7 +93,7 @@ def test_json_and_jsonl_transfer_round_trip_is_idempotent(tmp_path, fmt):
     (root / "x").write_bytes(b"abc")
     registry = parse_registry({"schema_version": "0.1", "project_id": "project-a", "sources": [source(root)]})
     first = ProjectStore(tmp_path / "db1", "project-a")
-    ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter()}, first).run("fs-local", "operator-a")
+    ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)}, first).run("fs-local", "operator-a")
     paths = export_store(first, tmp_path / "exports", fmt)
     second = ProjectStore(tmp_path / "db2", "project-a")
     assert import_store(paths[0], second) == 3
@@ -109,7 +109,7 @@ def test_transfer_rejects_measurement_crossing_source_boundary(tmp_path):
     (root / "x").write_bytes(b"abc")
     registry = parse_registry({"schema_version": "0.1", "project_id": "project-a", "sources": [source(root)]})
     store = ProjectStore(tmp_path / "db1", "project-a")
-    ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter()}, store).run("fs-local", "operator-a")
+    ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)}, store).run("fs-local", "operator-a")
     path = export_store(store, tmp_path / "exports", "json")[0]
     payload = json.loads(path.read_text(encoding="utf-8"))
     payload["measurements"][0]["source_id"] = "different-source"
@@ -126,7 +126,7 @@ def test_transfer_rejects_conflicting_duplicate_measurement_id(tmp_path):
     (root / "x").write_bytes(b"abc")
     registry = parse_registry({"schema_version": "0.1", "project_id": "project-a", "sources": [source(root)]})
     original = ProjectStore(tmp_path / "db1", "project-a")
-    ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter()}, original).run("fs-local", "operator-a")
+    ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)}, original).run("fs-local", "operator-a")
     path = export_store(original, tmp_path / "exports", "json")[0]
     destination = ProjectStore(tmp_path / "db2", "project-a")
     assert import_store(path, destination) == 3
@@ -145,7 +145,7 @@ def test_filesystem_adapter_rejects_unsupported_measurement_kind(tmp_path):
     raw["expected_measurements"] = ["allocated_bytes"]
     registry = parse_registry({"schema_version": "0.1", "project_id": "project-a", "sources": [raw]})
     store = ProjectStore(tmp_path / "db", "project-a")
-    outcome = ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter()}, store).run("fs-local", "operator-a")
+    outcome = ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)}, store).run("fs-local", "operator-a")
     assert outcome.coverage_state == "FAILED"
     assert outcome.reason_code == "adapter_contract_violation"
     assert store.list_measurements() == []
@@ -200,3 +200,77 @@ def test_package_has_no_network_or_tradix_runtime_imports():
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.add(node.module.split(".")[0])
         assert imported.isdisjoint(forbidden)
+
+
+def test_filesystem_adapter_rejects_absolute_path_outside_allowed_root(tmp_path):
+    allowed = tmp_path / "allowed"
+    outside = tmp_path / "outside"
+    allowed.mkdir()
+    outside.mkdir()
+    (outside / "secret.bin").write_bytes(b"not in scope")
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [source(outside)],
+    })
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(
+        registry,
+        gate(),
+        {"filesystem": FilesystemAdapter(allowed, allowed_root=allowed)},
+        store,
+    ).run("fs-local", "operator-a")
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "adapter_contract_violation"
+    assert store.list_measurements() == []
+
+
+def test_filesystem_adapter_rejects_parent_traversal_outside_allowed_root(tmp_path):
+    allowed = tmp_path / "allowed"
+    outside = tmp_path / "outside"
+    allowed.mkdir()
+    outside.mkdir()
+    (outside / "secret.bin").write_bytes(b"not in scope")
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [source("../outside")],
+    })
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(
+        registry,
+        gate(),
+        {"filesystem": FilesystemAdapter(allowed, allowed_root=allowed)},
+        store,
+    ).run("fs-local", "operator-a")
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "adapter_contract_violation"
+    assert store.list_measurements() == []
+
+
+def test_filesystem_adapter_rejects_symlink_in_parent_path(tmp_path):
+    allowed = tmp_path / "allowed"
+    outside = tmp_path / "outside"
+    allowed.mkdir()
+    outside.mkdir()
+    (outside / "secret.bin").write_bytes(b"not in scope")
+    link = allowed / "linked"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("directory symlinks unavailable")
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [source(link)],
+    })
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(
+        registry,
+        gate(),
+        {"filesystem": FilesystemAdapter(allowed, allowed_root=allowed)},
+        store,
+    ).run("fs-local", "operator-a")
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "adapter_contract_violation"
+    assert store.list_measurements() == []
