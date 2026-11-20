@@ -51,10 +51,11 @@ A production candidate must provide:
 
 ### 4.2 Independent second implementation
 
-- Use Go's standard `crypto/tls` and `crypto/x509` packages as the leading candidate for a second-language peer.
-- Keep the second implementation in a separate repository or independently buildable package with its own maintainer and CI.
-- Run shared positive and negative OBIS conformance vectors against both implementations.
-- A second implementation must not import or execute the Python reference.
+- A standalone Go OBIS 0.1 development peer now exists at `projects/BRIDEX/reference/obis-go`, using the Go standard library and its own Go module/tests.
+- The Python client has completed a real loopback HTTP request/response against the Go peer. Both implementations pass a shared canonical JSON/HMAC development-profile vector; initial Go replay and scope-denial tests also pass.
+- The Go peer does not import or execute the Python reference.
+- Separate maintainer assignment, independent CI ownership, TLS/mTLS, certificate-to-peer mapping, and the full shared negative/security suite remain open.
+- Use Go's standard `crypto/tls` and `crypto/x509` packages as the candidate production transport/security implementation; do not mistake the current HMAC loopback peer for that profile.
 
 ### 4.3 Certificate authority and trust distribution
 
