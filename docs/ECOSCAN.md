@@ -242,6 +242,9 @@ No volume content is read. The adapter does not create, resize, attach, detach, 
 The connected Railway inventory currently exposes one live staging volume named `artifact-data`, provisioned at 500 MB and mounted at `/data` on `artifact-gateway`. This is configured capacity, not actual filesystem usage. Its volume-instance ID has not been independently verified, so the resource is not inserted into the ECOSCAN registry using a guessed identifier.
 
 
+
+For environment-specific instances, configure `volume_id` and `environment_id`; ECOSCAN resolves the matching `volumeInstance.id` through the Railway environment's `volumeInstances` field. A direct `volume_instance_id` remains supported as an explicit override. The registered TRADIX staging source is `artifact-data` in `TRADIX Artifact Gateway Staging`. Set `RAILWAY_API_TOKEN` in the execution environment; do not commit the token. Resolution fails closed unless exactly one matching instance is returned.
+
 ## 16. S3-compatible object-storage adapter
 
 The `s3_compatible` provider uses the standard-library AWS Signature Version 4 implementation and S3 `ListObjectsV2`. It can be configured for S3-compatible endpoints such as Backblaze B2, Cloudflare R2, or an S3-compatible Railway bucket.
