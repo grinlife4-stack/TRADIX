@@ -538,7 +538,7 @@ def test_filesystem_traversal_stays_on_open_directory_after_path_replacement(mon
     ).run("fs-local", "operator-a")
     assert outcome.coverage_state == "COMPLETE"
     assert next(item for item in store.list_measurements("fs-local") if item["kind"] == "file_count")["value"] == 1
-    assert (root / "outside-secret.bin").exists() is False
+    assert next(item for item in store.list_measurements("fs-local") if item["kind"] == "logical_bytes")["value"] == 6
 
 
 def test_append_scan_rolls_back_coverage_when_measurement_insert_fails(tmp_path):
