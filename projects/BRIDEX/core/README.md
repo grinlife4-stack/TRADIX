@@ -18,14 +18,18 @@ The manifest is metadata, not authority. Its contents do not authenticate a peer
 - Strict UTF-8 JSON loading with duplicate-key rejection.
 - Schema validation with deterministic error ordering.
 - Packaged schema accessible from an installed wheel.
-- Positive and negative tests for required ownership, unknown fields, duplicate keys, and installed-package loading.
+- Portable package-directory verification.
+- SHA-256 verification of the Bridge artifact.
+- Validation of configuration and lifecycle file references.
+- Rejection of path traversal and symlink escapes outside the package root.
+- Positive and negative tests for ownership, unknown fields, duplicate keys, tampering, path traversal, and package verification.
 
 ## Manifest boundary
 
 The manifest captures:
 - Bridge identity and implementation version.
 - Explicit owner and operator, with optional maintainer and ownership-record reference.
-- Package location and SHA-256 integrity value.
+- Relative package artifact path and SHA-256 integrity value.
 - Supported OBIS versions and replaceable adapter identifiers/versions.
 - Configured peer identifiers and approved scope declarations.
 - Provided/consumed capability declarations and scopes.
@@ -35,6 +39,32 @@ The manifest captures:
 
 Secret values, credentials, tokens, private keys, customer payloads, and runtime state MUST NOT be embedded in this manifest.
 
+## Portable package layout 0.1
+
+An exported package has this minimum structure:
+
+```text
+bridge-package/
+├── bridge-manifest.json
+├── artifact/
+│   └── <bridge-artifact>
+├── schemas/
+│   └── config.schema.json
+└── docs/
+    └── lifecycle/
+        ├── build.md
+        ├── deploy.md
+        ├── backup.md
+        ├── restore.md
+        ├── upgrade.md
+        ├── rollback.md
+        ├── revocation.md
+        ├── export.md
+        └── decommission.md
+```
+
+All manifest file references are POSIX relative paths rooted inside the exported package. Absolute paths, parent traversal, and symlink escapes are rejected. The artifact's SHA-256 must match the manifest. The verifier does not extract or execute the artifact.
+
 ## Run independently
 
 ```bash
@@ -43,16 +73,30 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-The schema is packaged at `bridex_core/schemas/bridge-package-manifest.schema.json`. The installed `bridex-manifest` command exposes the same validator without requiring consumers to import package internals.\n\nValidate a manifest with:\n\n```bash\nbridex-manifest validate ./bridge-manifest.json\n```\n\nThe command exits with `0` for a valid manifest and `2` for invalid or unreadable input.
+The schema is packaged at `bridex_core/schemas/bridge-package-manifest.schema.json`. The installed `bridex-manifest` command exposes validation without requiring consumers to import package internals.
 
-## Deliberate limits / next generic-core work
+Validate a manifest:
 
-This first slice is not a Bridge runtime, code generator, transport adapter, OBIS implementation, trust store, credential manager, scheduler, retry engine, audit ledger, or production security profile. Those concerns remain separate and must be implemented against approved contracts rather than guessed.
+```bash
+bridex-manifest validate ./bridge-manifest.json
+```
+
+Verify an exported package:
+
+```bash
+bridex-manifest verify-package ./bridge-package
+```
+
+Both commands exit with `0` on success and `2` for invalid input.
+
+## Deliberate limits
+
+This package is not a Bridge runtime, code generator, transport adapter, OBIS implementation, trust store, credential manager, scheduler, retry engine, audit ledger, or production security profile. Package verification proves only the integrity and presence of the declared local package files. It does not prove that the artifact is safe, executable, interoperable, authorized, or production-ready.
 
 Next generic foundation gates:
-1. Define and test a portable Bridge project/package layout and deterministic build metadata.
-2. Add an isolated conformance harness that consumes versioned OBIS test vectors without depending on the Python peer internals.
+1. Add deterministic build/reproducibility metadata and export/restore tests.
+2. Add an isolated conformance harness that consumes versioned OBIS test vectors without depending on Python peer internals.
 3. Add lifecycle/health primitives only after their state transitions and failure semantics are specified.
-4. Add export/restore and clean-environment tests proving no BRIDEX/TRADIX runtime dependency.
+4. Demonstrate a clean-environment install and execution with TRADIX and BRIDEX unavailable.
 
-A valid manifest alone does not satisfy Bridge portability acceptance or OBIS conformance.
+A valid package does not by itself satisfy OBIS conformance or production deployment acceptance.
