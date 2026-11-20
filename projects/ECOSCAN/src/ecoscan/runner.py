@@ -12,7 +12,7 @@ from typing import Any, Mapping
 from .contracts import Adapter, AdapterContractError, AdapterResult, BudgetExceeded, BudgetGuard, ScanContext
 from .controls import ExecutionGate
 from .models import ProjectRegistry, SourceDescriptor
-from .store import ProjectStore, StoreError
+from .store import ProjectStore
 
 IDENTIFIER = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$")
 UNIT_BY_KIND = {
@@ -33,7 +33,7 @@ CONFIDENCE = {"HIGH", "MEDIUM", "LOW", "UNVERIFIED"}
 
 
 class ScanError(ValueError):
-    """Raised when a requested source cannot be selected or a result cannot be stored."""
+    """Raised when a requested source cannot be selected or the project boundary is invalid."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,13 +81,15 @@ def _validate_measurement(
     if not isinstance(measurement_id, str) or not IDENTIFIER.fullmatch(measurement_id):
         raise AdapterContractError("invalid measurement_id")
     kind = record["kind"]
-    if kind not in source.expected_measurements or kind not in UNIT_BY_KIND:
+    if not isinstance(kind, str) or kind not in source.expected_measurements or kind not in UNIT_BY_KIND:
         raise AdapterContractError("measurement kind was not declared by the source")
     if record["unit"] != UNIT_BY_KIND[kind]:
         raise AdapterContractError("measurement unit does not match measurement kind")
     value = record["value"]
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
-        raise AdapterContractError("measurement value must be finite and non-negative")
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        raise AdapterContractError("measurement value must be non-negative numeric data")
+    if isinstance(value, float) and not math.isfinite(value):
+        raise AdapterContractError("measurement value must be finite")
     if kind != "provider_reported_usage" and not isinstance(value, int):
         raise AdapterContractError("byte and count measurements must be integers")
     _timestamp(record["measured_at"], "measured_at")
@@ -112,6 +114,8 @@ def _validate_measurement(
 
 
 class ScanRunner:
+    """Runs exactly one registered source; it never discovers or widens scope."""
+
     def __init__(
         self,
         registry: ProjectRegistry,
@@ -126,17 +130,22 @@ class ScanRunner:
         self.adapters = dict(adapters)
         self.store = store
 
-    def _persist_gate_result(
+    def _coverage(
         self,
         source: SourceDescriptor,
         actor_id: str,
         scan_id: str,
         started_at: str,
         state: str,
-        reason: str,
-    ) -> ScanOutcome:
-        adapter = self.adapters.get(source.adapter_id)
-        record = {
+        reason: str | None,
+        adapter_id: str | None = None,
+        adapter_version: str | None = None,
+        items_seen: int = 0,
+        pages_seen: int = 0,
+        limitations: tuple[str, ...] | list[str] = (),
+        checkpoint_ref: str | None = None,
+    ) -> dict[str, Any]:
+        return {
             "schema_version": "0.1",
             "scan_id": scan_id,
             "project_id": self.registry.project_id,
@@ -146,14 +155,25 @@ class ScanRunner:
             "started_at": started_at,
             "finished_at": _now(),
             "actor_id": actor_id,
-            "adapter_id": source.adapter_id,
-            "adapter_version": source.adapter_version,
-            "items_seen": 0,
-            "pages_seen": 0,
+            "adapter_id": adapter_id or source.adapter_id,
+            "adapter_version": adapter_version or source.adapter_version,
+            "items_seen": items_seen,
+            "pages_seen": pages_seen,
             "reason_code": reason,
-            "limitations": [],
-            "checkpoint_ref": None,
+            "limitations": list(limitations),
+            "checkpoint_ref": checkpoint_ref,
         }
+
+    def _record_without_adapter(
+        self,
+        source: SourceDescriptor,
+        actor_id: str,
+        scan_id: str,
+        started_at: str,
+        state: str,
+        reason: str,
+    ) -> ScanOutcome:
+        record = self._coverage(source, actor_id, scan_id, started_at, state, reason)
         self.store.append_scan(record, [])
         return ScanOutcome(scan_id, self.registry.project_id, source.source_id, state, reason, 0)
 
@@ -174,7 +194,7 @@ class ScanRunner:
 
         decision = self.gate.evaluate(self.registry, source, actor_id)
         if not decision.allowed:
-            return self._persist_gate_result(
+            return self._record_without_adapter(
                 source, actor_id, scan_id, started_at,
                 decision.coverage_state or "NOT_AUTHORIZED",
                 decision.reason_code or "authorization_denied",
@@ -182,11 +202,11 @@ class ScanRunner:
 
         adapter = self.adapters.get(source.adapter_id)
         if adapter is None:
-            return self._persist_gate_result(
+            return self._record_without_adapter(
                 source, actor_id, scan_id, started_at, "NOT_CONFIGURED", "adapter_not_registered"
             )
         if adapter.adapter_id != source.adapter_id or adapter.version != source.adapter_version:
-            return self._persist_gate_result(
+            return self._record_without_adapter(
                 source, actor_id, scan_id, started_at, "FAILED", "adapter_version_mismatch"
             )
 
@@ -199,14 +219,24 @@ class ScanRunner:
                 raise AdapterContractError("adapter must return AdapterResult")
             if result.coverage_state not in {"COMPLETE", "PARTIAL", "FAILED"}:
                 raise AdapterContractError("invalid adapter coverage state")
+            for name, value, maximum in (
+                ("items_seen", result.items_seen, source.budget.max_items),
+                ("pages_seen", result.pages_seen, source.budget.max_pages),
+            ):
+                if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > maximum:
+                    raise AdapterContractError(f"{name} is outside the configured budget")
             if result.items_seen != guard.items_seen or result.pages_seen != guard.pages_seen:
-                raise AdapterContractError("adapter result counters do not match budget guard")
-            if result.items_seen > source.budget.max_items or result.pages_seen > source.budget.max_pages:
-                raise AdapterContractError("adapter exceeded declared scan budget")
+                raise AdapterContractError("adapter counters do not match budget guard")
+            if not isinstance(result.measurements, (list, tuple)):
+                raise AdapterContractError("measurements must be a list or tuple")
             if len(result.measurements) > result.items_seen:
                 raise AdapterContractError("measurement count exceeds observed item count")
             if result.coverage_state == "FAILED" and result.measurements:
                 raise AdapterContractError("failed scan cannot publish measurements")
+            if result.reason_code is not None and (not isinstance(result.reason_code, str) or not result.reason_code):
+                raise AdapterContractError("reason_code must be null or a non-empty string")
+            if any(not isinstance(item, str) or not item for item in result.limitations):
+                raise AdapterContractError("limitations must be non-empty strings")
             measurements = [
                 _validate_measurement(item, self.registry, source, adapter, result.coverage_state)
                 for item in result.measurements
@@ -215,58 +245,43 @@ class ScanRunner:
                 raise AdapterContractError("measurement IDs must be unique within a scan")
             if result.checkpoint is not None and not isinstance(result.checkpoint, Mapping):
                 raise AdapterContractError("checkpoint must be an object")
-            coverage_record = {
-                "schema_version": "0.1",
-                "scan_id": scan_id,
-                "project_id": self.registry.project_id,
-                "source_id": source.source_id,
-                "requested_scope": f"source:{source.source_id}",
-                "coverage_state": result.coverage_state,
-                "started_at": started_at,
-                "finished_at": _now(),
-                "actor_id": actor_id,
-                "adapter_id": adapter.adapter_id,
-                "adapter_version": adapter.version,
-                "items_seen": result.items_seen,
-                "pages_seen": result.pages_seen,
-                "reason_code": result.reason_code,
-                "limitations": list(result.limitations),
-                "checkpoint_ref": scan_id if result.checkpoint is not None else None,
-            }
-            if result.checkpoint is not None:
-                self.store.save_checkpoint(source.source_id, scan_id, result.checkpoint, coverage_record["finished_at"])
-            self.store.append_scan(coverage_record, measurements)
-            return ScanOutcome(
-                scan_id, self.registry.project_id, source.source_id,
-                result.coverage_state, result.reason_code, len(measurements)
-            )
         except BudgetExceeded:
-            state = "PARTIAL" if guard.items_seen else "FAILED"
+            state = "PARTIAL" if guard.items_seen or guard.pages_seen else "FAILED"
             reason = "budget_exhausted"
+            failed_record = self._coverage(
+                source, actor_id, scan_id, started_at, state, reason,
+                adapter.adapter_id, adapter.version, guard.items_seen, guard.pages_seen,
+                ["Adapter exhausted its declared budget before returning a complete result."],
+            )
+            self.store.append_scan(failed_record, [])
+            return ScanOutcome(scan_id, self.registry.project_id, source.source_id, state, reason, 0)
         except AdapterContractError:
-            state = "FAILED"
-            reason = "adapter_contract_violation"
+            state, reason = "FAILED", "adapter_contract_violation"
         except Exception:
-            state = "FAILED"
-            reason = "adapter_execution_failed"
+            state, reason = "FAILED", "adapter_execution_failed"
 
-        failed_record = {
-            "schema_version": "0.1",
-            "scan_id": scan_id,
-            "project_id": self.registry.project_id,
-            "source_id": source.source_id,
-            "requested_scope": f"source:{source.source_id}",
-            "coverage_state": state,
-            "started_at": started_at,
-            "finished_at": _now(),
-            "actor_id": actor_id,
-            "adapter_id": adapter.adapter_id,
-            "adapter_version": adapter.version,
-            "items_seen": guard.items_seen,
-            "pages_seen": guard.pages_seen,
-            "reason_code": reason,
-            "limitations": ["No complete measurement set was committed for this scan attempt."],
-            "checkpoint_ref": None,
-        }
-        self.store.append_scan(failed_record, [])
-        return ScanOutcome(scan_id, self.registry.project_id, source.source_id, state, reason, 0)
+        if "measurements" not in locals():
+            failed_record = self._coverage(
+                source, actor_id, scan_id, started_at, state, reason,
+                adapter.adapter_id, adapter.version, guard.items_seen, guard.pages_seen,
+                ["No complete measurement set was committed for this scan attempt."],
+            )
+            self.store.append_scan(failed_record, [])
+            return ScanOutcome(scan_id, self.registry.project_id, source.source_id, state, reason, 0)
+
+        checkpoint_ref = scan_id if result.checkpoint is not None else None
+        coverage_record = self._coverage(
+            source, actor_id, scan_id, started_at, result.coverage_state, result.reason_code,
+            adapter.adapter_id, adapter.version, result.items_seen, result.pages_seen,
+            result.limitations, checkpoint_ref,
+        )
+        self.store.append_scan(
+            coverage_record,
+            measurements,
+            checkpoint=result.checkpoint,
+            checkpoint_updated_at=coverage_record["finished_at"] if result.checkpoint is not None else None,
+        )
+        return ScanOutcome(
+            scan_id, self.registry.project_id, source.source_id,
+            result.coverage_state, result.reason_code, len(measurements)
+        )
