@@ -13,7 +13,9 @@ import hashlib
 import hmac
 import json
 import math
+import re
 import secrets
+import ssl
 import threading
 import time
 import urllib.error
@@ -30,6 +32,44 @@ MESSAGE_PATH = "/obis/v0.1/messages"
 MAX_MESSAGE_BYTES = 64 * 1024
 MAX_TTL_SECONDS = 60
 CLOCK_SKEW_SECONDS = 30
+TLS_ALPN = "obis/1"
+
+
+def create_tls13_client_context(cafile: str, certfile: str, keyfile: str) -> ssl.SSLContext:
+    """Build an owner-configured TLS 1.3 mTLS client context."""
+    context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=cafile)
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+    context.maximum_version = ssl.TLSVersion.TLSv1_3
+    context.verify_mode = ssl.CERT_REQUIRED
+    context.check_hostname = True
+    context.load_cert_chain(certfile=certfile, keyfile=keyfile)
+    context.set_alpn_protocols([TLS_ALPN])
+    return context
+
+
+def create_tls13_server_context(certfile: str, keyfile: str, cafile: str) -> ssl.SSLContext:
+    """Build an owner-configured TLS 1.3 server context requiring client certificates."""
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+    context.maximum_version = ssl.TLSVersion.TLSv1_3
+    context.verify_mode = ssl.CERT_REQUIRED
+    context.load_cert_chain(certfile=certfile, keyfile=keyfile)
+    context.load_verify_locations(cafile=cafile)
+    context.set_alpn_protocols([TLS_ALPN])
+    return context
+
+
+def _tls_peer_id(certificate: dict[str, Any]) -> str:
+    names = [
+        value for kind, value in certificate.get("subjectAltName", ())
+        if kind == "URI" and isinstance(value, str) and value.startswith("urn:obis:peer:")
+    ]
+    if len(names) != 1:
+        raise OBISRequestError("identity.tls_peer_identity_invalid", "certificate must contain exactly one OBIS peer URI SAN", 401)
+    peer_id = names[0][len("urn:obis:peer:"):]
+    if not peer_id or not re.fullmatch(r"[a-z][a-z0-9-]{2,62}", peer_id):
+        raise OBISRequestError("identity.tls_peer_identity_invalid", "certificate OBIS peer URI SAN is invalid", 401)
+    return peer_id
 
 
 class OBISRequestError(Exception):
@@ -298,7 +338,10 @@ class OBISPeer:
                 capability_id, version, frozenset(required_scopes), handler, resource_binding
             )
 
-    def handle(self, message: dict[str, Any], key_id: str, signature: str) -> tuple[dict[str, Any], bytes]:
+    def handle(
+        self, message: dict[str, Any], key_id: str, signature: str,
+        authenticated_tls_peer_id: str | None = None,
+    ) -> tuple[dict[str, Any], bytes]:
         validate_request(message)
         credential = self.credentials.get(key_id)
         if credential is None:
@@ -310,6 +353,8 @@ class OBISPeer:
         recipient = message["recipient"]["peer_id"]
         if sender != credential.peer_id or recipient != self.peer_id:
             raise OBISRequestError("identity.authentication_failed", "peer identity mismatch", 401)
+        if authenticated_tls_peer_id is not None and authenticated_tls_peer_id != sender:
+            raise OBISRequestError("identity.authentication_failed", "TLS certificate peer identity mismatch", 401)
         if message["authorization"]["principal_ref"] != credential.principal_ref:
             raise OBISRequestError("identity.authentication_failed", "principal mismatch", 401)
         error_context = {
@@ -379,11 +424,21 @@ class OBISPeer:
 class OBISServer:
     """Small HTTP binding for local conformance and development tests."""
 
-    def __init__(self, peer: OBISPeer, host: str = "127.0.0.1", port: int = 0):
+    def __init__(self, peer: OBISPeer, host: str = "127.0.0.1", port: int = 0, ssl_context: ssl.SSLContext | None = None):
         if host not in ("127.0.0.1", "::1", "localhost"):
             raise ValueError("reference server is loopback-only; production transport is not implemented")
         self.peer = peer
+        if ssl_context is not None:
+            if (
+                ssl_context.verify_mode != ssl.CERT_REQUIRED
+                or ssl_context.minimum_version != ssl.TLSVersion.TLSv1_3
+                or ssl_context.maximum_version != ssl.TLSVersion.TLSv1_3
+            ):
+                raise ValueError("OBIS TLS profile requires TLS 1.3 only and mandatory client certificates")
         self.httpd = ThreadingHTTPServer((host, port), self._handler_class())
+        self.httpd.tls_enabled = ssl_context is not None
+        if ssl_context is not None:
+            self.httpd.socket = ssl_context.wrap_socket(self.httpd.socket, server_side=True)
         self.thread: threading.Thread | None = None
 
     def _handler_class(self):
@@ -411,10 +466,16 @@ class OBISServer:
                     message = strict_json_loads(raw.decode("utf-8"))
                     if not isinstance(message, dict):
                         raise OBISRequestError("protocol.invalid_message", "message must be an object")
+                    tls_peer_id = None
+                    if self.server.tls_enabled:
+                        if not isinstance(self.connection, ssl.SSLSocket) or self.connection.selected_alpn_protocol() != TLS_ALPN:
+                            raise OBISRequestError("transport.alpn_mismatch", "OBIS TLS ALPN negotiation failed", 400)
+                        tls_peer_id = _tls_peer_id(self.connection.getpeercert())
                     response, secret = peer.handle(
                         message,
                         self.headers.get("X-OBIS-Key-Id", ""),
                         self.headers.get("X-OBIS-Signature", ""),
+                        authenticated_tls_peer_id=tls_peer_id,
                     )
                     body = canonical_json(response)
                     signature = hmac.new(secret, body, hashlib.sha256).hexdigest()
@@ -566,10 +627,23 @@ class OBISClient:
         capability_version: str,
         payload: dict[str, Any],
         scopes: set[str] | frozenset[str] | None = None,
+        ssl_context: ssl.SSLContext | None = None,
     ) -> dict[str, Any]:
         parsed = urlparse(endpoint)
-        if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "::1", "localhost"):
-            raise ValueError("reference client is loopback-only; production transport is not implemented")
+        if parsed.hostname not in ("127.0.0.1", "::1", "localhost"):
+            raise ValueError("reference client is loopback-only")
+        if parsed.scheme == "http" and ssl_context is None:
+            pass
+        elif parsed.scheme == "https" and ssl_context is not None:
+            if (
+                ssl_context.verify_mode != ssl.CERT_REQUIRED
+                or not ssl_context.check_hostname
+                or ssl_context.minimum_version != ssl.TLSVersion.TLSv1_3
+                or ssl_context.maximum_version != ssl.TLSVersion.TLSv1_3
+            ):
+                raise ValueError("OBIS TLS client requires verified TLS 1.3 and a client certificate")
+        else:
+            raise ValueError("HTTPS requires the verified OBIS TLS 1.3 client context")
         if parsed.username is not None or parsed.password is not None:
             raise ValueError("endpoint must not contain user information")
         if parsed.path not in ("", "/") or parsed.params or parsed.query or parsed.fragment:
@@ -588,7 +662,7 @@ class OBISClient:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with urllib.request.urlopen(request, timeout=self.timeout, context=ssl_context) as response:
                 response_body = response.read(MAX_MESSAGE_BYTES + 1)
                 if len(response_body) > MAX_MESSAGE_BYTES:
                     raise OBISRequestError("payload.too_large", "response exceeds size limit", 502)
