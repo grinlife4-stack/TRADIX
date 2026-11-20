@@ -9,7 +9,7 @@
 
 ## 1. Governing rule
 
-Every portfolio product and tool must retain an independent identity and operating boundary. When it communicates with TRADIX or another portfolio component, that communication must use its own dedicated Bridge implementation based on the shared, versioned Bridge standard.
+Every portfolio product and tool must retain an independent identity and operating boundary. TRADIX-internal components communicate under the TRADIX Internal Integration Standard (TIIS). When a product or tool communicates across its boundary, its dedicated Bridge uses TIIS only for its explicitly authorized TRADIX-facing interface and the independent Open Bridge Interoperability Standard (OBIS) for connections to non-TRADIX tools, services, and other Bridges.
 
 **TRADIX defines and validates the standard; each product or tool owns, runs, secures, and maintains its own Bridge.**
 
@@ -21,10 +21,12 @@ This is a default architectural requirement. It must be applied automatically du
 
 ### TRADIX owns
 
-- The vendor-neutral Bridge protocol and its versioning policy.
-- The canonical schemas for identity, capability discovery, handshake, requests, responses, errors, authorization metadata, and compatibility.
-- Reference implementations, Bridge generation templates, SDKs, conformance tests, and documentation.
-- The process for reviewing and publishing compatible protocol versions.
+- TIIS: the internal integration standard used by TRADIX's own tools, services, agents, records, and technical subsystems.
+- The TIIS schemas, versioning policy, internal compatibility rules, and conformance tests.
+- The TRADIX-facing Bridge adapter/profile that allows an independently owned Bridge to communicate with authorized TRADIX components.
+- Reference implementations, generation templates, SDKs, and documentation for TIIS and its Bridge-facing adapter.
+
+TRADIX does not own or control OBIS as a runtime dependency. OBIS is the independent interoperability standard carried and implemented by each Bridge so that the Bridge remains usable outside TRADIX. TRADIX may publish compatible documentation or optional reference tooling, but OBIS must remain implementable and operable without TRADIX.
 
 ### Each product or tool owns
 
@@ -74,19 +76,20 @@ Interoperability requirements:
 6. Allow integrations to be added, revoked, or replaced without changing the product's internal domain logic or making it dependent on TRADIX.
 7. Never interpret interoperability as permission for unrestricted discovery, inbound access, data sharing, or outbound network activity. Connections must be explicitly configured, scoped, authenticated, authorized, and auditable.
 
-TRADIX may publish discovery metadata or operate optional coordination services, but these must remain replaceable conveniences. The protocol must not require a central TRADIX registry or relay to function.
+TRADIX may publish discovery metadata or operate optional coordination services for TIIS-connected peers, but these must remain replaceable conveniences. OBIS must not require a central TRADIX registry or relay to function.
 
 ## 3B. Interoperability conformance
 
 The conformance suite must test at least:
 
-- Bridge-to-Bridge communication between two independently implemented peers.
-- Communication with a non-TRADIX endpoint using the published protocol or a declared adapter.
-- Operation when TRADIX discovery, registry, or relay services are unavailable.
+- Bridge-to-Bridge communication between two independently implemented OBIS peers without TRADIX participation.
+- Communication with a non-TRADIX endpoint using OBIS or a declared, replaceable protocol adapter.
+- Continued OBIS operation when TRADIX discovery, registry, identity, or relay services are unavailable.
+- Separate TIIS conformance for the optional TRADIX-facing adapter, without treating TIIS conformance as proof of OBIS interoperability.
 - Peer-specific authorization, revocation, and isolation of data scopes.
 - Compatibility negotiation and safe rejection of unsupported protocol versions or capabilities.
 
-A Bridge must not be declared fully interoperable solely because it can connect to TRADIX.
+A Bridge must not be declared externally interoperable solely because it can connect to TRADIX or pass TIIS tests. OBIS interoperability must be tested independently.
 
 ## 4. Data and security boundaries
 
@@ -98,9 +101,13 @@ A Bridge must not be declared fully interoperable solely because it can connect 
 - Treat Bridge input as untrusted. Validate schemas, sizes, identity, freshness, replay protection, and authorization.
 - Never allow a generic Bridge operation to become unrestricted shell, script, command, filesystem, or network execution.
 
-## 5. Shared protocol: minimum core
+## 5. OBIS: independent interoperability contract
 
-The common protocol must remain small and stable. At minimum it defines:
+OBIS is the protocol contract implemented by each Bridge for communication with non-TRADIX tools, services, platforms, and other independently operated Bridges. Its specification, schemas, compatibility rules, and required runtime behavior must be available with the Bridge and must not require TRADIX repositories, services, credentials, registries, identity systems, or infrastructure to operate.
+
+OBIS must remain vendor-neutral, versioned, transport-adaptable, and independently implementable. Each Bridge must be able to retain and use its OBIS implementation after separation from TRADIX. External requests must never be forced through TIIS, translated into TIIS as a prerequisite, or routed through TRADIX merely to reach an external peer.
+
+The OBIS core must remain small and stable. At minimum it defines:
 
 1. **Identity:** stable product, tool, and Bridge identifiers.
 2. **Handshake:** protocol version, supported capabilities, and compatibility declaration.
@@ -113,7 +120,23 @@ The common protocol must remain small and stable. At minimum it defines:
 9. **Audit/evidence:** attributable records for security-sensitive and consequential operations.
 10. **Health and lifecycle:** readiness, availability, disablement, and graceful shutdown semantics.
 
-Domain-specific behavior belongs in optional, versioned extensions, not in the shared core.
+Domain-specific behavior belongs in optional, versioned extensions, not in the OBIS core.
+
+## 5A. TIIS: TRADIX-internal integration contract
+
+TIIS is a separate standard for communication among TRADIX-owned internal tools, services, agents, records, workflows, and technical subsystems. TRADIX defines, versions, documents, and tests TIIS. Its schemas and internal compatibility rules are authoritative only within the TRADIX internal boundary and for explicitly authorized TRADIX-facing Bridge adapters.
+
+TIIS is not the external interoperability protocol. A third-party tool or independent Bridge must not be required to implement TIIS merely to communicate with a product's Bridge. A Bridge may include a TIIS adapter when it is authorized to connect to TRADIX, but that adapter is optional to the Bridge's independent operation and must be removable or disableable without breaking OBIS connections.
+
+## 5B. Separation and protocol-selection rules
+
+1. TRADIX internal component to TRADIX internal component: TIIS.
+2. Product Bridge to an authorized TRADIX internal component: the Bridge's TIIS-facing adapter/profile, subject to the product's explicit authorization.
+3. Product Bridge to a non-TRADIX tool, service, platform, or independent Bridge: OBIS (or a separately declared, replaceable protocol adapter); never a mandatory TIIS path.
+4. Bridge-to-Bridge communication outside TRADIX: OBIS directly where supported, without a TRADIX hub, relay, registry, or identity provider.
+5. When TRADIX is unavailable or removed, OBIS operation must continue; only the optional TRADIX-facing integration may become unavailable.
+
+TIIS and OBIS must have separate names, specifications, versioning, conformance suites, and failure boundaries. They may share neutral implementation libraries only where this creates no runtime or governance dependency.
 
 ## 6. TRADIX catalog boundary
 
@@ -160,4 +183,4 @@ Amendments to this standard require explicit project-owner approval, a versioned
 
 ## 10. Foundational statement
 
-**Every project owns its own Bridge. TRADIX owns the shared standard, not the Bridges or the products. Every product remains independently operable, including when TRADIX is unavailable.**
+**Every project owns its own Bridge. TRADIX owns TIIS for its internal systems. Each Bridge carries OBIS for independent external interoperability. Neither standard transfers ownership of the Bridge or product to TRADIX. Every product remains independently operable when TRADIX is unavailable.**
