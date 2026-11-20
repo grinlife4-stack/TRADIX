@@ -6,6 +6,7 @@ This package intentionally has no dependency on TRADIX or BRIDEX runtime code.
 __version__ = "0.1.0"
 
 from .peer import Credential, OBISClient, OBISPeer, OBISRequestError, OBISServer
+from .ecoscan_inventory import register_ecoscan_inventory_capability
 
 __all__ = [
     "Credential",
@@ -13,4 +14,5 @@ __all__ = [
     "OBISPeer",
     "OBISRequestError",
     "OBISServer",
+    "register_ecoscan_inventory_capability",
 ]
