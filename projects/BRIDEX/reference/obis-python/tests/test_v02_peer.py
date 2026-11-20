@@ -1,5 +1,7 @@
 import hashlib
+import json
 import time
+from pathlib import Path
 
 import pytest
 
@@ -169,3 +171,18 @@ def test_v02_resource_bound_status_cannot_read_another_allowed_resource(tmp_path
     }
     with pytest.raises(OBISRequestError, match="operation not found"):
         signed(peer, status)
+
+
+
+def test_operation_request_hash_uses_shared_contract_vectors():
+    vector_path = (
+        Path(__file__).resolve().parents[2]
+        / "obis-contract"
+        / "testdata"
+        / "operation-request-hash-vectors.json"
+    )
+    fixture = json.loads(vector_path.read_text(encoding="utf-8"))
+    assert fixture["schema_version"] == "0.2"
+    assert fixture["vectors"]
+    for vector in fixture["vectors"]:
+        assert operation_request_hash(vector["message"]) == vector["sha256"], vector["name"]
