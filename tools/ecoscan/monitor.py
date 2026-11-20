@@ -214,8 +214,8 @@ def scan_railway_volume(source: dict[str, Any], token: str | None) -> dict[str, 
         backup_referenced = sum(int(item.get("referencedMB") or 0) for item in backups)
         return {
             "source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume",
-            "reference": volume.get("volume", {}).get("name") or volume_instance_id,
-            "volume_instance_id": volume_instance_id, "volume_id": volume.get("volume", {}).get("id"),
+            "reference": (volume.get("volume") or {}).get("name") or volume_instance_id,
+            "volume_instance_id": volume_instance_id, "volume_id": (volume.get("volume") or {}).get("id"),
             "service_name": (volume.get("serviceInstance") or {}).get("serviceName"),
             "mount_path": volume.get("mountPath"), "volume_state": volume.get("state"),
             "measured_at": measured_at, "status": "COMPLETE", "file_count": None,
