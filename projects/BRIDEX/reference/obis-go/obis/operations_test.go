@@ -23,7 +23,7 @@ func reserveTestOperation(t *testing.T, ledger *FileOperationLedger, operationID
 	return ledger.Reserve(OperationRecord{
 		OperationID: operationID, PeerID:"peer:caller", PrincipalRef:"principal:caller",
 		CapabilityID:"records.write", CapabilityVersion:"1.0",
-		IdempotencyKeyHash:keyHash, RequestHash:hash, ExpiresAt:time.Now().Add(time.Minute).Unix(),
+		IdempotencyKeyHash:keyHash, RequestHash:hash, ExpiresAt:float64(time.Now().Add(time.Minute).Unix()),
 	}, float64(time.Now().Unix()))
 }
 
