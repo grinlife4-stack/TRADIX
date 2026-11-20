@@ -1,6 +1,6 @@
 # OBIS Reference Implementation — Execution Status
 
-**Status:** Executable development/conformance prototypes; bidirectional success and initial authenticated-error paths verified  
+**Status:** Executable development/conformance prototypes; bidirectional success, capability-error, and scope-denial paths verified  
 **OBIS target:** Draft 0.1.0  
 **Implementations:** Standalone Python reference peer + independent Go peer  
 **Production approval:** Not approved
@@ -29,6 +29,8 @@
 - [x] Language-neutral OBIS 0.1 message-schema accept/reject vectors and standalone BRIDEX runner.
 - [x] Go unit tests consuming the shared OBIS request vectors.
 - [x] Bidirectional development-profile success-path tests: Python client → Go server and Go client → Python server.
+- [x] Bidirectional authenticated error tests for unknown capabilities and denied scopes; Go signs correlated error responses and the Go client verifies signed Python errors.
+- [x] Go envelope validators exercised against all published OBIS 0.1 request and response vectors.
 - [x] Initial authenticated error-response tests in both directions using the `capability.unknown` case; Go signs correlated errors and the Go client verifies signed Python error responses.
 - [x] CI Go unit tests and binary build, followed by the full Python/BRIDEX Core/OBIS/ECOSCAN test suite with both cross-language tests enabled.
 
@@ -53,7 +55,7 @@ The canonical draft JSON Schema 2020-12 artifact is published at `standards/obis
 3. Define credential issuance, rotation, revocation, and principal delegation.
 4. Complete durable replay protection, business-operation idempotency, and unknown-outcome reconciliation.
 5. Define signed evidence/audit formats and retention controls.
-6. Extend Go peer parity and negative coverage to all relevant request/response behaviors, malformed messages, replay cases, and authorization failures.
+6. Extend Go peer parity and negative coverage to all relevant request/response behaviors, including cross-language malformed-message, replay, downgrade, timeout, and transport-failure cases.
 7. Pass the full cross-implementation positive and negative conformance suite.
 8. Verify portable operation from a clean environment with TRADIX and BRIDEX unavailable.
 9. Complete threat-model review and security testing.
