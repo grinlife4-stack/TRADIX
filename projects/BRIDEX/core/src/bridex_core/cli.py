@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 from .archive import export_package, restore_package
 from .conformance import ConformanceSuiteError, run_schema_suite
+from .generator import create_bridge_scaffold
 from .layout import verify_package
 from .manifest import ManifestValidationError, load_manifest
 
@@ -29,6 +30,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     conformance = commands.add_parser("conformance", help="run a published OBIS conformance suite")
     conformance.add_argument("layer", choices=["schema"], help="conformance layer")
     conformance.add_argument("suite", help="path to versioned conformance suite JSON")
+    scaffold = commands.add_parser("scaffold", help="generate an incomplete, owner-specific Bridge project scaffold")
+    scaffold.add_argument("directory", help="new output directory")
+    scaffold.add_argument("--bridge-id", required=True)
+    scaffold.add_argument("--name", required=True)
+    scaffold.add_argument("--version", required=True)
+    scaffold.add_argument("--owner-id", required=True)
+    scaffold.add_argument("--owner-name", required=True)
+    scaffold.add_argument("--operator-id", required=True)
+    scaffold.add_argument("--operator-name", required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "validate":
@@ -46,9 +56,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             report = restore_package(args.archive, args.directory)
             print("restored: BRIDEX portable Bridge package 0.1")
             print(json.dumps(report, sort_keys=True))
-        else:
+        elif args.command == "conformance":
             report = run_schema_suite(args.suite)
             print("passed: OBIS schema conformance suite")
+            print(json.dumps(report, sort_keys=True))
+        else:
+            report = create_bridge_scaffold(
+                args.directory, bridge_id=args.bridge_id, name=args.name,
+                implementation_version=args.version, owner_id=args.owner_id,
+                owner_name=args.owner_name, operator_id=args.operator_id,
+                operator_name=args.operator_name,
+            )
+            print("created: BRIDEX scaffold only; implementation and owner attestation remain pending")
             print(json.dumps(report, sort_keys=True))
     except (ManifestValidationError, ConformanceSuiteError) as exc:
         print(f"invalid: {exc}", file=sys.stderr)
