@@ -12,7 +12,7 @@ This audit evaluates whether OBIS should implement transport security and certif
 
 **Decision:** Do not implement cryptographic primitives, TLS, certificate-path validation, or a custom PKI. Reuse the platform's maintained TLS stack. Keep peer authorization, capability scopes, and OBIS identity-to-certificate binding in the OBIS application layer.
 
-This audit does not approve a production security profile, select a final certificate lifecycle, or authorize internet-facing deployment. The current Python HMAC/loopback prototype remains development-only.
+This audit does not approve a production security profile, select a final certificate lifecycle, or authorize internet-facing deployment. The HMAC/loopback mode remains development-only. A separate Python/Go TLS 1.3 mTLS candidate now exists, but it is not production-approved.
 
 ## 2. Required capabilities
 
@@ -34,7 +34,7 @@ A production candidate must provide:
 |---|---|---|---|
 | Python `ssl` + platform OpenSSL | TLS client/server and X.509 verification through Python's standard library; Python is PSF-licensed and OpenSSL is separately licensed | **Preferred for the Python reference implementation.** No additional runtime dependency is required for TLS itself. | Behavior and supported algorithms depend on Python/OpenSSL build and OS. It does not define OBIS peer mapping, authorization, CA operations, revocation policy, or key custody. Pin and test supported runtime versions. |
 | OpenSSL library / CLI | Widely deployed TLS and X.509 implementation; OpenSSL 3.x uses Apache-2.0 licensing | Reuse through maintained language bindings/platform integration; CLI may support local test-certificate generation and diagnostics only. | Do not shell out to OpenSSL for every request or invent a wrapper protocol. The CLI is not a certificate-management policy or a trust model. |
-| Go `crypto/tls` and `crypto/x509` | Standard Go TLS and X.509 implementation; Go standard library uses a BSD-style license | **Preferred candidate for the independent second-language peer.** | Must implement the same OBIS-specific certificate-to-peer mapping and negative tests. Independent code is needed; translating Python internals line-for-line is not an independent implementation. |
+| Go `crypto/tls` and `crypto/x509` | Standard Go TLS and X.509 implementation; Go standard library uses a BSD-style license | **Implemented as the independent Go reference peer/client.** | Broader negative tests, durable lifecycle behavior, and separate long-term maintainer/CI ownership remain open. |
 | Rustls | Maintained Rust TLS implementation with Apache-2.0/MIT licensing | Suitable alternative if a Rust Bridge runtime is selected; not needed for the first Python reference. | Adds a Rust build/runtime choice. Do not add it merely to increase the dependency count. |
 | Smallstep `step-ca` | Self-hostable certificate authority and certificate lifecycle tooling; Apache-2.0 | Optional owner-operated PKI candidate for deployments that need automated issuance and renewal. | It introduces a CA service and operational responsibility. It must not become a mandatory OBIS service or a shared TRADIX identity authority. |
 | cert-manager / Kubernetes PKI tooling | Certificate issuance/renewal integration for Kubernetes environments | Optional only where the Bridge owner already operates Kubernetes and accepts the dependency. | Kubernetes-specific and unsuitable as a universal Bridge requirement. It does not define OBIS identity or capability authorization. |
@@ -45,16 +45,18 @@ A production candidate must provide:
 
 - Use Python's standard `ssl` module backed by a maintained OpenSSL build.
 - Do not add a third-party TLS implementation to the Python runtime.
-- Keep the current loopback HTTP + HMAC mode isolated as a development-only profile.
-- Add a separate TLS integration mode only after the certificate profile and test fixtures are reviewed.
-- Keep certificate loading, trust configuration, and private-key paths owner-supplied. Never commit test or production private keys.
+- The Python reference now supports a separate TLS 1.3 mTLS candidate: mandatory client certificates, verified server chain/hostname, HTTP/1.1 ALPN, canonical URI SAN peer identity, certificate SHA-256 fingerprint binding to one credential/principal, no HMAC secret in mTLS mode, and process-local credential revocation.
+- Keep the loopback HTTP + HMAC mode isolated as a development-only profile.
+- Certificate loading, trust configuration, and private-key paths remain owner-supplied. Never commit test or production private keys.
 
-### 4.2 Independent second implementation
+### 4.2 Independent Go implementation
 
-- Use Go's standard `crypto/tls` and `crypto/x509` packages as the leading candidate for a second-language peer.
-- Keep the second implementation in a separate repository or independently buildable package with its own maintainer and CI.
-- Run shared positive and negative OBIS conformance vectors against both implementations.
-- A second implementation must not import or execute the Python reference.
+- An independently buildable Go reference now uses the standard `crypto/tls` and `crypto/x509` packages.
+- The Go mTLS path binds the client certificate URI SAN and SHA-256 fingerprint to the configured peer credential, verifies the server certificate's URI SAN against the remote peer, and does not use an HMAC secret in mTLS mode.
+- The Go client verifies its local certificate URI before sending and validates TLS 1.3 / HTTP/1.1 ALPN and the remote peer URI.
+- The Go reference also supports process-local credential revocation for subsequent requests.
+- CI now exercises Python client → Go server and Go client → Python server mTLS exchanges, plus a same-URI/different-fingerprint rejection case.
+- Both implementations remain separate packages and do not import or execute each other's runtime code.
 
 ### 4.3 Certificate authority and trust distribution
 
@@ -80,13 +82,10 @@ A deployment must declare which model it uses. Trust anchors and peer allowlists
 
 RFC 9525 explicitly places client/end-user identity outside its scope. Therefore, it must **not** be cited as if it standardizes OBIS client-certificate identity.
 
-The OBIS security profile must separately define:
-- Which certificate SAN form carries the OBIS peer identifier.
-- The exact accepted URI scheme and canonicalization rules if URI SAN is selected.
-- Whether one certificate maps to exactly one peer identifier.
-- How certificate identity maps to an OBIS peer record and allowed principals.
+The current `OBIS-TLS-MTLS-1` candidate uses exactly one canonical URI SAN of the form `urn:obis:peer:<lowercase-UUID>` and binds both that URI and the certificate SHA-256 fingerprint to one local credential/principal/scope record. This is implementation evidence, not yet normative approval. The final OBIS security profile must still decide:
+- Whether this URI SAN form and canonicalization become normative.
 - How key rotation, multiple active certificates, and identity migration are handled.
-- How a valid certificate is still denied when the peer, principal, capability, or scope is not locally authorized.
+- How a valid certificate is denied when the peer, principal, capability, or scope is not locally authorized.
 
 The X.509 URI SAN field is standardized by RFC 5280, but the OBIS application-specific mapping and authorization semantics must be specified by OBIS itself.
 
@@ -123,7 +122,7 @@ The production profile should specify, at minimum:
 - TLS 1.3 only for the first production binding; no silent downgrade.
 - A maintained TLS implementation and supported version matrix.
 - Mutual certificate authentication when the profile requires both peers to authenticate.
-- Explicit ALPN/application protocol identifier for the OBIS HTTPS binding.
+- HTTP/1.1 ALPN (`http/1.1`) for the current OBIS-over-HTTP binding; OBIS versioning remains in the message envelope and media type.
 - Certificate verification enabled on both sides; no insecure mode or verify-disabled fallback.
 - Explicit handshake and request timeouts, bounded message size, concurrency, and rate limits.
 - No secrets in URLs, error bodies, or ordinary logs.
@@ -151,7 +150,7 @@ TLS channel authentication is not a portable detached signature and does not pro
 - Invalid certificate chains fail closed.
 - No plaintext HTTP fallback.
 - No invalid ALPN or protocol downgrade.
-- Bounded handshake timeout and connection/resource exhaustion tests.
+- Bounded handshake/request timeout and connection/resource exhaustion tests. The Python reference bounds its TLS handshake; the Go reference uses bounded HTTP server read/request timeouts, but dedicated handshake-exhaustion tests remain open.
 
 ### OBIS authorization
 - Authenticated but unregistered peer is denied.
@@ -162,8 +161,8 @@ TLS channel authentication is not a portable detached signature and does not pro
 - Authorization is re-evaluated for each request.
 
 ### Cross-implementation
-- Python and Go implementations pass the same test vectors.
-- Both reject the same malformed certificates, identity mismatches, downgrade attempts, duplicate/ambiguous fields, and unauthorized capabilities.
+- Current positive evidence: Python client → Go server and Go client → Python server mTLS request/response; same-URI/different-fingerprint rejection.
+- Remaining: a broader shared matrix for malformed certificates, expiry, wrong EKU/Key Usage, revocation, downgrade, duplicate/ambiguous fields, and unauthorized capabilities.
 - Two peers communicate directly with TRADIX and BRIDEX unavailable.
 - Trust and configuration can be exported and restored without a central service.
 
@@ -174,7 +173,7 @@ Do not mark `OBIS-TLS-MTLS-1` production-approved until:
 1. The owner approves the trust model and certificate identity mapping.
 2. The profile's normative certificate and TLS requirements are written into the specification.
 3. The threat model is updated for the selected profile and revocation strategy.
-4. Python and Go implementations pass the shared test suite.
+4. Python and Go implementations pass the expanded shared test suite, not only the current bidirectional loopback scenarios.
 5. Certificate issuance, rotation, revocation, backup, and emergency response are documented.
 6. An independent security review finds no unresolved critical/high issue.
 7. The owner approves production deployment separately.

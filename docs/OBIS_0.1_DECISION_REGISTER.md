@@ -70,7 +70,7 @@ The implementation choices, certificate-profile requirements, revocation candida
 
 **Recommendation**
 
-Define HTTPS/TLS 1.3 as the first production transport binding, separately from the OBIS core envelope. Keep transports replaceable and do not require a relay, broker, or shared gateway.
+Define HTTPS/TLS 1.3 as the first production transport-binding candidate, separately from the OBIS core envelope. For the current HTTP binding, negotiate HTTP/1.1 ALPN; OBIS versioning remains in the message envelope and media type. Keep transports replaceable and do not require a relay, broker, or shared gateway.
 
 The current loopback HTTP binding exists only to make the reference tests deterministic and safe to run locally. It is not the production transport binding.
 
@@ -134,8 +134,8 @@ The long-term steward and approval process remain unresolved.
 
 1. Owner review of the identifier and compatibility recommendations.
 2. Security review and threat-model update for the first production profile.
-3. HTTPS/TLS 1.3 mutual-authentication binding implemented without custom cryptography.
-4. Certificate-to-peer identity mapping, rotation, revocation, and trust-bundle tests.
+3. TLS 1.3 mutual-authentication candidate implemented in Python and Go without custom cryptography.
+4. Certificate-to-peer identity and fingerprint mapping tests are present; certificate issuance, rotation, durable revocation, trust-bundle freshness, and emergency denylisting remain open.
 5. Normative request, success-response, error-response, and capability payload schemas.
 6. Runtime schema validation and schema-version negotiation tests.
 7. Durable replay protection and idempotency/outcome reconciliation.
@@ -147,9 +147,9 @@ The long-term steward and approval process remain unresolved.
 
 ## 10. Current implementation boundary
 
-The Python reference peer is a local development/conformance prototype. It implements direct loopback HTTP, a development-only shared-secret HMAC profile, strict envelope checks, bounded TTL and payload sizes, in-memory replay rejection, capability scope checks, and signed correlated errors after peer authentication.
+The Python and Go reference peers are independently buildable development/conformance prototypes. Both implement the draft envelope and a loopback-only HMAC development profile. Their TLS 1.3 mTLS candidate uses no HMAC secret, binds a canonical URI SAN and certificate SHA-256 fingerprint to a local credential/principal, and validates the remote peer identity before accepting a connection. Bidirectional Python/Go loopback mTLS tests and a wrong-fingerprint rejection test are included in the current implementation branch.
 
-It does not implement the candidate production profile, durable replay/idempotency, certificate lifecycle, production audit, asynchronous operations, or cross-language interoperability. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
+The candidate is not production-approved. Durable replay/idempotency, durable revocation, trust-bundle freshness, certificate lifecycle, production audit, asynchronous operations, expanded cross-language conformance, and independent security review remain open. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
 
 **No production or 1.0 claim is authorized by this register.**
 
@@ -158,6 +158,6 @@ It does not implement the candidate production profile, durable replay/idempoten
 
 - OBIS 0.1 specification and schema remain draft baselines.
 - The Python reference and independent Go reference are development/conformance prototypes; their HTTP/HMAC mode is loopback-only and is not a production security profile.
-- Draft PR #76 contains a TLS 1.3 mTLS candidate with bidirectional Go/Python tests. Its latest recorded head `64329f67ecf3430ee504b43b932a22f44b699f1c` failed GitHub Actions run `44737370885` at Go compilation because of an unused import. No success is claimed for that head.
+- The earlier Draft PR #76 failed Go compilation due to an unused import and is not the accepted implementation line. The corrected ordered implementation is Draft PR #78, stacked on PR #77. Its latest code-tested head `0cf2a45bc1b1e4593bdbfebcd2aa2431d9bebbfd` passed OBIS conformance run `44744149965` (57 Python tests, Go tests, wheel build/install, schema parity, and independence checks). Repository run `44744149964` passed 104 TRADIX tests, and the BRIDEX Engine dependency passed 27 tests in run `44742859047`. These runs validate the loopback candidate only, not production security.
 - Certificate issuance, rotation, revocation, trust-bundle freshness, emergency denylisting, durable replay/idempotency, production audit, and independent security review remain open.
 - No production endpoint, credential, live peer, deployment, or external connection is authorized by this status record.

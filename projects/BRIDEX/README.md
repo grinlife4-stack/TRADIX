@@ -2,7 +2,7 @@
 
 **Project ID:** BRIDEX-PROJECT-001  
 **Project type:** Independent specialist software/tooling project  
-**Status:** BRIDEX Engine 0.1 scaffold, manifest validation, deterministic packaging, and package verification implemented; OBIS runtime and production security are separate later gates  
+**Status:** BRIDEX Engine 0.1 scaffold, manifest validation, deterministic packaging, and package verification implemented; standalone Python/Go OBIS 0.1 reference peers and a TLS 1.3 mTLS candidate implemented and CI-verified for loopback conformance; production security and runtime acceptance remain open  
 **Parent portfolio:** TRADIX portfolio  
 **Operating rule:** Independent identity, source, configuration, data, lifecycle, and runtime boundary
 
@@ -62,9 +62,11 @@ See the integration map for exact boundaries and remaining gates.
 
 ## 6. What is not complete
 
-BRIDEX Engine 0.1 is an engineering-plane generator and package verifier, not a Bridge runtime. It does not implement OBIS transport, peer authentication, credential lifecycle, durable replay protection, revocation, production audit, or cross-language protocol conformance.
+BRIDEX Engine 0.1 is an engineering-plane generator and package verifier, not a Bridge runtime. It does not embed or operate an OBIS peer inside every generated Bridge.
 
-No real Bridge is being deployed or connected to an external peer in this stage. OBIS implementation and security acceptance follow after the BRIDEX engineering plane is stable.
+The standalone OBIS Python and Go reference packages implement the draft 0.1 envelope, a loopback-only HMAC development profile, and a TLS 1.3 mTLS candidate with certificate URI/fingerprint binding and bidirectional cross-language loopback tests. They are reference/conformance implementations, not production-ready Bridge runtimes.
+
+Still open: owner-operated CA/trust-anchor lifecycle, issuance and renewal, durable revocation, trust-bundle freshness, durable replay/idempotency, asynchronous operations, production audit, rate/concurrency limits, full independent conformance, and security review. No production endpoint, credential, deployment, or external peer connection is included or authorized.
 
 ## 7. Governing documents
 
