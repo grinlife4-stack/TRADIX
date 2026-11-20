@@ -280,3 +280,22 @@ def test_draft_manifest_can_start_with_zero_capabilities_and_peers() -> None:
     manifest["capabilities"] = []
     manifest["peers"] = []
     assert validate_manifest_data(manifest)["capabilities"] == []
+
+
+def test_cli_init_reports_generated_bridge_identity(tmp_path: Path, capsys) -> None:
+    destination = tmp_path / "cli-generated"
+    result = main([
+        "init",
+        "--path", str(destination),
+        "--name", "CLI Generated Bridge",
+        "--owner-id", "project:owner",
+        "--owner-assignment-ref", "approval:owner-001",
+        "--operator-id", "operator:one",
+        "--operator-assignment-ref", "approval:operator-001",
+    ])
+    output = json.loads(capsys.readouterr().out)
+    assert result == 0
+    assert output["created"] is True
+    assert output["lifecycle"] == "draft"
+    assert output["bridge_id"].startswith("urn:uuid:")
+    assert (destination / "bridge.json").is_file()
