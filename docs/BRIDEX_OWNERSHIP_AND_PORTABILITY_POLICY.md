@@ -21,12 +21,11 @@ The purpose is to let every project retain control of its integration capability
 
 BRIDEX is the generator and engineering-method provider. It is **not the default owner** of generated Bridge instances.
 
-Ownership of each Bridge instance must be explicitly assigned and recorded before release. The owner may be:
-- The project or product that commissioned or uses the Bridge.
-- Another project or tool explicitly designated to own it.
-- A separately identified organization or legal/person entity.
+Ownership of each Bridge instance must be explicitly assigned and recorded before release. The owner must be the portfolio project whose resources, data, or capabilities the Bridge is authorized to expose. For a project-specific Bridge, ownership cannot be assigned to BRIDEX, the generator, the receiving project, a hosting provider, or an unrelated entity.
 
-The fact that BRIDEX generated, packaged, tested, or maintained a Bridge does not by itself confer ownership on BRIDEX. Likewise, the connected destination does not automatically own the Bridge merely because it is one of its peers.
+A project may appoint another party as operator or maintainer under its control, but that appointment does not transfer ownership. Where an integration requires Bridges on both sides, each project owns its own boundary Bridge. A shared multi-project Bridge is prohibited unless every affected project owner explicitly approves a written joint-ownership agreement defining governance, project isolation, credentials, data scopes, exit, and replacement rights. BRIDEX is never the default joint owner.
+
+The fact that BRIDEX generated, packaged, tested, hosted during development, or maintained a Bridge does not confer ownership on BRIDEX. The source/resource-owning project retains ownership. A receiving project owns its own ingress adapter and acceptance boundary, not the other project's source-side Bridge.
 
 Where ownership and operation are split, the record must separately identify the owner, operator, maintainer, and parties authorized to approve changes.
 
@@ -83,7 +82,7 @@ The owner must be able to:
 
 ## 6. BRIDEX responsibilities and limits
 
-BRIDEX is responsible for maintaining the common engineering method, reusable generic foundations, generation templates, packaging conventions, security checks, and conformance tooling.
+BRIDEX is responsible for maintaining the common engineering method, reusable generic foundations, generation templates, packaging conventions, security checks, and conformance tooling. It is not an owner, portfolio-wide operator, or mandatory control plane for project Bridge instances.
 
 BRIDEX may provide optional maintenance or support for a Bridge only under an explicit agreement with its owner. Such support does not transfer ownership or create an unavoidable runtime dependency.
 
@@ -139,4 +138,4 @@ Where earlier wording could be read as assigning ownership to the generator or t
 
 ## 10. Governing statement
 
-**BRIDEX owns and evolves its independent generation project. The designated owner owns and controls each assigned Bridge instance. Every Bridge must be transferable, forkable, independently operable, and adaptable to other systems without mandatory dependence on BRIDEX or TRADIX.**
+**BRIDEX owns and evolves only its independent engineering/generation project. The project whose resources or capabilities a Bridge exposes owns and controls that Bridge instance. Each project retains its own Bridges; BRIDEX never owns them. Every Bridge must be transferable, forkable, independently operable, and adaptable without mandatory dependence on BRIDEX or TRADIX.**
