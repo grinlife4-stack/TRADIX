@@ -40,6 +40,7 @@ type Credential struct {
 	PrincipalRef string
 	Secret []byte
 	AllowedScopes map[string]bool
+	AllowedResources map[string]bool
 }
 
 type CapabilityHandler func(map[string]any) (map[string]any, error)
