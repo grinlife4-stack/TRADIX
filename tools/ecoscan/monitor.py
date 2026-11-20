@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
+import hmac
+import xml.etree.ElementTree as ET
 import os
 import sys
 import tempfile
