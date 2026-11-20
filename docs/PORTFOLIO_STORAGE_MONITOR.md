@@ -75,8 +75,8 @@ The aggregation engine consumes only validated project/source records. It must:
 Scheduling is optional and must be configurable independently of the core tool.
 
 The optional GitHub Actions workflow defines:
-- Weekly: independent source inventory and project-level report (Monday, 07:00 UTC).
-- Monthly: portfolio inventory review (day 1, 07:00 UTC).
+- Weekly: independent source inventory and project-level report (Monday, 05:00 UTC).
+- Monthly: portfolio inventory review (day 1, 05:00 UTC).
 - Manual dispatch: on-demand inventory.
 
 Scheduled runs are enabled in the registry but do not execute until the workflow is merged into the repository default branch. A scheduled run publishes/updates one GitHub issue containing the latest report. ChatGPT's separate weekly review task is intended to inspect that issue and deliver the summary to the user.
