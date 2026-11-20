@@ -21,7 +21,6 @@ def source(source_id="fs-main", subsystem_id="storage"):
         "locator": "/not-scanned-by-these-tests",
         "adapter_id": "filesystem",
         "adapter_version": "0.1.0",
-        "credential_ref": None,
         "enabled": True,
         "scope_tags": ["local"],
         "budget": {
