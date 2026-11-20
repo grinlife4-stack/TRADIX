@@ -145,13 +145,97 @@ def scan_local(source: dict[str, Any]) -> dict[str, Any]:
     return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "local", "reference": str(root), "measured_at": measured_at, "status": "PARTIAL" if errors else "COMPLETE", "file_count": count, "logical_bytes": total, "repository_size_bytes": None, "capacity_bytes": None, "method": "read-only filesystem metadata; symlinks are not followed", "error": "; ".join(errors[:10]) if errors else None, "limitations": ["Filesystem scan counts allocated-independent logical file lengths, not physical block usage."]}
 
 
+
+def _railway_graphql(query: str, variables: dict[str, Any], token: str) -> dict[str, Any]:
+    payload = json.dumps({"query": query, "variables": variables}).encode("utf-8")
+    request = urllib.request.Request(
+        "https://backboard.railway.com/graphql/v2",
+        data=payload,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": USER_AGENT},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=25) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise ScanError("NOT_AUTHORIZED_OR_NOT_FOUND" if exc.code in (401, 403, 404) else "FAILED", f"Railway API returned HTTP {exc.code}") from exc
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise ScanError("FAILED", f"Railway API request failed: {exc.__class__.__name__}") from exc
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ScanError("FAILED", "Railway API returned invalid JSON") from exc
+    if body.get("errors"):
+        messages = "; ".join(str(item.get("message", "GraphQL error")) for item in body["errors"][:3])
+        raise ScanError("NOT_AUTHORIZED_OR_NOT_FOUND" if "not authorized" in messages.lower() else "FAILED", f"Railway GraphQL error: {messages}")
+    data = body.get("data")
+    if not isinstance(data, dict):
+        raise ScanError("FAILED", "Railway GraphQL response has no data object")
+    return data
+
+
+def scan_railway_volume(source: dict[str, Any], token: str | None) -> dict[str, Any]:
+    measured_at = utc_now()
+    volume_instance_id = source.get("volume_instance_id")
+    if not volume_instance_id:
+        return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume", "reference": source.get("reference"), "measured_at": measured_at, "status": "NOT_CONFIGURED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "Railway volume-instance metadata and backup inventory", "error": "volume_instance_id is required; a project-level volume ID is not assumed to be a volume-instance ID", "limitations": []}
+    if not token:
+        return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume", "reference": volume_instance_id, "measured_at": measured_at, "status": "NOT_CONFIGURED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "Railway volume-instance metadata and backup inventory", "error": "RAILWAY_API_TOKEN is required", "limitations": []}
+    query = """
+    query EcoscanRailwayVolume($id: String!, $volumeInstanceId: String!) {
+      volumeInstance(id: $id) {
+        id
+        mountPath
+        currentSizeMB
+        state
+        volume { id name }
+        serviceInstance { serviceName }
+      }
+      volumeInstanceBackupList(volumeInstanceId: $volumeInstanceId) {
+        id
+        name
+        createdAt
+        expiresAt
+        usedMB
+        referencedMB
+      }
+    }
+    """
+    try:
+        data = _railway_graphql(query, {"id": volume_instance_id, "volumeInstanceId": volume_instance_id}, token)
+        volume = data.get("volumeInstance")
+        if not isinstance(volume, dict):
+            raise ScanError("NOT_AUTHORIZED_OR_NOT_FOUND", "Railway did not return the configured volume instance")
+        backups = data.get("volumeInstanceBackupList") or []
+        size_mb = volume.get("currentSizeMB")
+        capacity_bytes = int(size_mb * 1024 * 1024) if isinstance(size_mb, (int, float)) else None
+        backup_used = sum(int(item.get("usedMB") or 0) for item in backups)
+        backup_referenced = sum(int(item.get("referencedMB") or 0) for item in backups)
+        return {
+            "source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume",
+            "reference": volume.get("volume", {}).get("name") or volume_instance_id,
+            "volume_instance_id": volume_instance_id, "volume_id": volume.get("volume", {}).get("id"),
+            "service_name": (volume.get("serviceInstance") or {}).get("serviceName"),
+            "mount_path": volume.get("mountPath"), "volume_state": volume.get("state"),
+            "measured_at": measured_at, "status": "COMPLETE", "file_count": None,
+            "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": capacity_bytes,
+            "backup_count": len(backups), "backup_used_bytes": backup_used * 1024 * 1024,
+            "backup_referenced_bytes": backup_referenced * 1024 * 1024,
+            "backups": [{"id": item.get("id"), "name": item.get("name"), "created_at": item.get("createdAt"), "expires_at": item.get("expiresAt"), "used_mb": item.get("usedMB"), "referenced_mb": item.get("referencedMB")} for item in backups],
+            "method": "Railway GraphQL volumeInstance.currentSizeMB and volumeInstanceBackupList metadata; no volume contents read",
+            "error": None,
+            "limitations": ["currentSizeMB is provisioned volume capacity, not used filesystem bytes.", "Backup usedMB and referencedMB are separate backup metrics and are not added to volume capacity.", "Volume contents and per-file usage are not exposed by this metadata scan."]
+        }
+    except ScanError as exc:
+        return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume", "reference": volume_instance_id, "measured_at": measured_at, "status": exc.status, "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "Railway GraphQL volume-instance metadata and backup inventory", "error": str(exc), "limitations": []}
+
 def scan_source(source: dict[str, Any], token: str | None) -> dict[str, Any]:
     provider = source.get("provider")
     if provider == "github":
         return scan_github(source, token)
     if provider == "local":
         return scan_local(source)
-    return {"source_id": source.get("source_id", "unknown"), "project_id": source.get("project_id", "unknown"), "provider": str(provider), "reference": source.get("reference"), "measured_at": utc_now(), "status": "UNSUPPORTED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": source.get("capacity_bytes"), "method": "not implemented", "error": f"Provider adapter not implemented: {provider}", "limitations": []}
+    if provider == "railway_volume":
+        return scan_railway_volume(source, os.environ.get("RAILWAY_API_TOKEN"))
+    return {"source_id": source.get("source_id", "unknown"), "project_id": source.get("project_id", "unknown"), "provider": str(provider), "reference": source.get("reference"), "measured_at": utc_now(), "status": "UNSUPPORTED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": source.get("capacity_bytes"), "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "not implemented", "error": f"Provider adapter not implemented: {provider}", "limitations": []}
 
 
 
