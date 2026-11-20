@@ -35,6 +35,14 @@ BRIDEX provides one consistent and reusable engineering method for all Bridge in
 9. No unrestricted discovery, inbound access, outbound network activity, shell execution, or generic command execution is permitted.
 10. Source, configuration, protocol specifications, evidence, and operational state must be exportable and replaceable without lock-in.
 
+## 3A. Bridge ownership and portability
+
+BRIDEX is not the default owner of generated Bridge instances. Ownership is explicitly assigned per instance and may belong to the commissioning/using project or tool, or to another designated entity. Generation, operation, maintenance, and ownership are separate roles and must be recorded separately when they differ.
+
+The designated owner must receive the complete source or independently buildable package, build/deployment instructions, schemas, OBIS specifications, tests, dependency/license inventory, and exportable owner-controlled configuration and records. Subject to third-party licenses, the owner must be able to run, modify, fork, transfer, appoint or replace maintainers/operators, and continue development without BRIDEX or TRADIX.
+
+A Bridge must be adaptable to other ecosystems through documented contracts and replaceable adapters. This is not a promise of automatic compatibility with every target; it is a guarantee that a new integration can be implemented without surrendering ownership or rebuilding the Bridge from zero. See [BRIDEX Ownership, Control, and Portability Policy](../../docs/BRIDEX_OWNERSHIP_AND_PORTABILITY_POLICY.md).
+
 ## 4. Responsibility boundaries
 
 ### BRIDEX
