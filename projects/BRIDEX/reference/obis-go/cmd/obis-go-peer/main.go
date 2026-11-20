@@ -82,7 +82,7 @@ func main() {
 		ClientAuth: tls.RequireAndVerifyClientCert,
 		ClientCAs: clientRoots,
 		Certificates: []tls.Certificate{certificate},
-		NextProtos: []string{"obis/1"},
+		NextProtos: []string{"http/1.1"},
 	}
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
