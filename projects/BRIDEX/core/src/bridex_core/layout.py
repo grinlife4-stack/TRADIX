@@ -42,6 +42,7 @@ def verify_package(root: str | Path) -> dict[str, Any]:
     if digest.lower() != manifest["source"]["sha256"].lower():
         raise ManifestValidationError("source.sha256: artifact digest mismatch")
 
+    ownership_record = _package_file(package_root, manifest["ownership"]["assignment_record"], "ownership.assignment_record")
     configuration = _package_file(package_root, manifest["configuration_schema"], "configuration_schema")
     for name, reference in manifest["lifecycle"].items():
         _package_file(package_root, reference, f"lifecycle.{name}")
@@ -51,5 +52,6 @@ def verify_package(root: str | Path) -> dict[str, Any]:
         "artifact": artifact.relative_to(package_root.resolve()).as_posix(),
         "sha256": digest,
         "configuration_schema": configuration.relative_to(package_root.resolve()).as_posix(),
+        "ownership_assignment_record": ownership_record.relative_to(package_root.resolve()).as_posix(),
         "lifecycle_documents": len(manifest["lifecycle"]),
     }
