@@ -167,3 +167,6 @@ No normative OBIS schema, wire envelope, TIIS contract, version negotiation sema
 
 
 The optional Go replay store is also exposed by the standalone server CLI as `--replay-dir`. A cross-language integration test sends a signed request from the Python harness to the Go CLI, restarts the Go process with the same directory, and confirms the identical request is rejected with HTTP 409. CI run #1166 passed on commit `a81f2960056b397c561efb139b1c9ba396afe317`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks. This verifies the configured CLI path across an actual process restart, not just reconstruction of the guard object within one test process.
+
+
+An additional HTTP-level cross-language test removes the Go replay directory after server startup. The Python reference client receives and validates the Go peer's signed `replay.storage_unavailable` response (HTTP 503); a separate Go unit test confirms the capability handler is not executed. CI run #1170 passed on commit `afbc6e9f1b877b24ebebcabc06820cee7ccd18a3`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks. This verifies the fail-closed storage path through the HTTP response layer as well as at the peer handler boundary.
