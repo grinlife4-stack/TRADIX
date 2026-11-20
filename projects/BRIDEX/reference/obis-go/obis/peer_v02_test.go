@@ -2,8 +2,10 @@ package obis
 
 import (
 	"encoding/json"
-	"strconv"
 	"path/filepath"
+	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -97,6 +99,89 @@ func TestPeerV02RecoversRunningOperationAsUnknown(t *testing.T) {
 	if recovered.State!="UNKNOWN" || recovered.FailureCode!="operation.outcome_unknown" { t.Fatalf("unexpected recovered state: %+v",recovered) }
 }
 
+
+func TestPeerV02ConcurrentDuplicateRequestsExecuteHandlerOnce(t *testing.T) {
+	const contenders = 32
+	const rounds = 8
+	secret := []byte("0123456789abcdef0123456789abcdef")
+
+	for round := 0; round < rounds; round++ {
+		dir := t.TempDir()
+		ledger, err := NewFileOperationLedger(filepath.Join(dir, "operations.json"))
+		if err != nil { t.Fatal(err) }
+		peer, err := NewPeer("provider")
+		if err != nil { t.Fatal(err) }
+		if err := peer.AddCredential(Credential{
+			KeyID: "caller-key", PeerID: "caller", PrincipalRef: "principal-a",
+			Secret: secret, AllowedScopes: map[string]bool{"sample.read": true},
+		}); err != nil { t.Fatal(err) }
+
+		var executions atomic.Int32
+		p02, err := NewPeerV02(peer, ledger)
+		if err != nil { t.Fatal(err) }
+		if err := p02.RegisterCapability("sample.read", "1.0", map[string]bool{"sample.read": true},
+			func(payload map[string]any) (map[string]any, error) {
+				executions.Add(1)
+				return map[string]any{"value": "ok"}, nil
+			}, "IDEMPOTENT"); err != nil { t.Fatal(err) }
+
+		start := make(chan struct{})
+		states := make(chan string, contenders)
+		errorsSeen := make(chan *Error, contenders)
+		var wg sync.WaitGroup
+		operationID := "op-concurrent-" + fmtInt(int64(round))
+		idempotencyKey := "idem-concurrent-" + fmtInt(int64(round))
+		for i := 0; i < contenders; i++ {
+			message, signature := testV02Message(
+				t, secret, "nonce-"+fmtInt(int64(round))+"-"+fmtInt(int64(i)),
+				"attempt-"+fmtInt(int64(round))+"-"+fmtInt(int64(i)),
+				operationID, idempotencyKey, "",
+			)
+			wg.Add(1)
+			go func(message map[string]any, signature string) {
+				defer wg.Done()
+				<-start
+				response, _, protocolErr := p02.Handle(message, "caller-key", signature)
+				if protocolErr != nil {
+					errorsSeen <- protocolErr
+					return
+				}
+				operation, ok := response["operation"].(map[string]any)
+				if !ok {
+					errorsSeen <- &Error{"test.invalid_response", "missing operation response", 500}
+					return
+				}
+				state, ok := operation["state"].(string)
+				if !ok {
+					errorsSeen <- &Error{"test.invalid_state", "missing operation state", 500}
+					return
+				}
+				states <- state
+			}(message, signature)
+		}
+		close(start)
+		wg.Wait()
+		close(states)
+		close(errorsSeen)
+
+		for protocolErr := range errorsSeen {
+			t.Fatalf("round %d: concurrent duplicate delivery returned protocol error: %+v", round, protocolErr)
+		}
+		responses := 0
+		for state := range states {
+			responses++
+			if state != "RUNNING" && state != "SUCCEEDED" {
+				t.Fatalf("round %d: unexpected duplicate response state %q", round, state)
+			}
+		}
+		if responses != contenders {
+			t.Fatalf("round %d: received %d responses, want %d", round, responses, contenders)
+		}
+		if got := executions.Load(); got != 1 {
+			t.Fatalf("round %d: capability executed %d times, want exactly once", round, got)
+		}
+	}
+}
 
 func TestPeerV02ResourceBindingFailsClosed(t *testing.T) {
 	dir:=t.TempDir()
