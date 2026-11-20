@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 7 * * 1" # Weekly report
-    - cron: "0 7 1 * *" # Monthly capacity review
+    - cron: "0 7 1 * *" # Monthly portfolio inventory review
 
 permissions:
   contents: read
