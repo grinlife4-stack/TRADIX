@@ -388,3 +388,52 @@ func TestFileReplayGuardStorageFailureFailsClosedBeforeExecution(t *testing.T) {
 	}
 	if calls != 0 { t.Fatalf("capability executed despite replay storage failure: %d", calls) }
 }
+
+
+func invokeForTransportClassification(endpoint string) error {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	_, err := Invoke(
+		endpoint, "peer:go", "peer:python", "go-key", "principal:go",
+		secret, []string{"records:read"}, "records.read", "1.0",
+		map[string]any{"record_id": "transport-classification"},
+	)
+	return err
+}
+
+func TestInvokeClassifiesConnectionFailureAsUnavailable(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil { t.Fatal(err) }
+	endpoint := "http://" + listener.Addr().String()
+	if err := listener.Close(); err != nil { t.Fatal(err) }
+
+	err = invokeForTransportClassification(endpoint)
+	var protocolError *Error
+	if !errors.As(err, &protocolError) {
+		t.Fatalf("expected typed transport error, got %T: %v", err, err)
+	}
+	if protocolError.Code != "peer.unavailable" || protocolError.Status != http.StatusServiceUnavailable {
+		t.Fatalf("unexpected connection failure classification: %#v", protocolError)
+	}
+}
+
+func TestInvokeClassifiesResponseReadTimeout(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+		w.Header().Set("Content-Type", "application/obis+json")
+		_, _ = w.Write([]byte("{}"))
+	}))
+	defer func() {
+		close(release)
+		server.Close()
+	}()
+
+	err := invokeForTransportClassification(server.URL)
+	var protocolError *Error
+	if !errors.As(err, &protocolError) {
+		t.Fatalf("expected typed transport error, got %T: %v", err, err)
+	}
+	if protocolError.Code != "peer.timeout" || protocolError.Status != http.StatusGatewayTimeout {
+		t.Fatalf("unexpected timeout classification: %#v", protocolError)
+	}
+}
