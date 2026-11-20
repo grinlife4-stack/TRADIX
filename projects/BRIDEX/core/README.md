@@ -49,6 +49,8 @@ An exported package has this minimum structure:
 ```text
 bridge-package/
 ├── bridge-manifest.json
+├── records/
+│   └── ownership.json
 ├── artifact/
 │   └── <bridge-artifact>
 ├── schemas/
@@ -66,7 +68,7 @@ bridge-package/
         └── decommission.md
 ```
 
-All manifest file references are POSIX relative paths rooted inside the exported package. Absolute paths, parent traversal, and symlink escapes are rejected. The artifact's SHA-256 must match the manifest. The verifier does not extract or execute the artifact.
+The ownership assignment record, artifact, configuration schema, and lifecycle documents are required files. All manifest file references are POSIX relative paths rooted inside the exported package. Absolute paths, parent traversal, and symlink escapes are rejected. The artifact's SHA-256 must match the manifest. The verifier does not extract or execute the artifact.
 
 ## Run independently
 
