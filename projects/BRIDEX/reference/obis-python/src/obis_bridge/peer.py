@@ -35,6 +35,7 @@ MAX_MESSAGE_BYTES = 64 * 1024
 MAX_TTL_SECONDS = 60
 CLOCK_SKEW_SECONDS = 30
 TLS_PROFILE_ID = "OBIS-TLS-MTLS-1"
+ALPN_PROTOCOL = "obis/0.1"
 _OBIS_PEER_URI_PREFIX = "urn:obis:peer:"
 
 def _validate_obis_peer_uri(value: str) -> str:
@@ -483,6 +484,40 @@ class OBISPeer:
         return response, credential.secret
 
 
+
+
+class _TLSThreadingHTTPServer(ThreadingHTTPServer):
+    """Threaded HTTPS server with bounded TLS handshake and request timeouts."""
+
+    def __init__(
+        self,
+        server_address,
+        request_handler,
+        *,
+        tls_context: ssl.SSLContext,
+        handshake_timeout: float,
+        request_timeout: float,
+    ):
+        self.handshake_timeout = handshake_timeout
+        self.request_timeout = request_timeout
+        super().__init__(server_address, request_handler)
+        self.socket = tls_context.wrap_socket(
+            self.socket,
+            server_side=True,
+            do_handshake_on_connect=False,
+        )
+
+    def get_request(self):
+        connection, address = super().get_request()
+        connection.settimeout(self.handshake_timeout)
+        try:
+            connection.do_handshake()
+            connection.settimeout(self.request_timeout)
+        except (OSError, ssl.SSLError):
+            connection.close()
+            raise
+        return connection, address
+
 class OBISServer:
     """Small HTTP binding for local conformance and development tests."""
 
@@ -492,7 +527,12 @@ class OBISServer:
         host: str = "127.0.0.1",
         port: int = 0,
         tls_context: ssl.SSLContext | None = None,
+        handshake_timeout: float = 5.0,
+        request_timeout: float = 10.0,
     ):
+        for name, value in (("handshake_timeout", handshake_timeout), ("request_timeout", request_timeout)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be a finite positive number")
         if tls_context is None:
             if host not in ("127.0.0.1", "::1", "localhost"):
                 raise ValueError("plaintext reference server is loopback-only")
@@ -500,9 +540,16 @@ class OBISServer:
             _validate_tls_server_context(tls_context)
         self.peer = peer
         self.tls_context = tls_context
-        self.httpd = ThreadingHTTPServer((host, port), self._handler_class())
-        if tls_context is not None:
-            self.httpd.socket = tls_context.wrap_socket(self.httpd.socket, server_side=True)
+        if tls_context is None:
+            self.httpd = ThreadingHTTPServer((host, port), self._handler_class())
+        else:
+            self.httpd = _TLSThreadingHTTPServer(
+                (host, port),
+                self._handler_class(),
+                tls_context=tls_context,
+                handshake_timeout=float(handshake_timeout),
+                request_timeout=float(request_timeout),
+            )
         self.thread: threading.Thread | None = None
 
     def _handler_class(self):
@@ -517,6 +564,9 @@ class OBISServer:
                     self.send_error(404)
                     return
                 try:
+                    if tls_enabled and self.connection.selected_alpn_protocol() != ALPN_PROTOCOL:
+                        self.send_error(400, "OBIS ALPN protocol is required")
+                        return
                     if self.headers.get_content_type() != "application/obis+json":
                         self.send_error(415, "unsupported content type")
                         return
@@ -732,6 +782,8 @@ class OBISClient:
             connection.connect()
             if connection.sock is None:
                 raise OBISRequestError("peer.tls_failed", "TLS connection was not established", 502)
+            if connection.sock.selected_alpn_protocol() != ALPN_PROTOCOL:
+                raise OBISRequestError("protocol.alpn_mismatch", "OBIS ALPN protocol was not negotiated", 502)
             remote_certificate = connection.sock.getpeercert()
             remote_peer_uri = _certificate_peer_uri(remote_certificate)
             if remote_peer_uri != self.remote_peer_id:
