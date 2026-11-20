@@ -21,6 +21,7 @@ ECHO_VERSION = "1.0"
 
 
 def create_ca(tmp_path: Path):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
     key = ec.generate_private_key(ec.SECP256R1())
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "OBIS Test CA")])
@@ -63,6 +64,7 @@ def create_leaf(
     server: bool,
     filename: str,
 ):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
     key = ec.generate_private_key(ec.SECP256R1())
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, filename)])
@@ -174,11 +176,11 @@ def make_pair(tmp_path: Path, *, server_peer_uri: str = SERVER_URI, client_peer_
         scopes={"echo:read"},
         tls_context=client_tls,
     )
-    return peer, server_tls, client
+    return peer, server_tls, client, ca_key, ca_cert, ca_path, client_cert, client_key
 
 
 def test_mtls_profile_direct_peer_request_succeeds_without_shared_hmac_secret(tmp_path: Path) -> None:
-    peer, server_tls, client = make_pair(tmp_path)
+    peer, server_tls, client, *_ = make_pair(tmp_path)
     assert TLS_PROFILE_ID == "OBIS-TLS-MTLS-1"
     with OBISServer(peer, tls_context=server_tls) as server:
         response = client.invoke(server.address, ECHO_CAPABILITY, ECHO_VERSION, {"value": "hello"})
@@ -220,7 +222,7 @@ def test_mtls_rejects_client_certificate_not_bound_to_configured_peer(tmp_path: 
         OTHER_CLIENT_URI, SERVER_URI, "client-certificate-1", "principal:client", None,
         {"echo:read"}, tls_context=client_context(ca_path, other_client_cert, other_client_key)
     )
-    with OBISServer(peer, tls_context=server_context(ca_path, server_cert, server_key)) as server:
+    with OBISServer(peer, tls_context=server_tls) as server:
         with pytest.raises(OBISRequestError):
             client.invoke(server.address, ECHO_CAPABILITY, ECHO_VERSION, {"value": "blocked"})
 
@@ -238,7 +240,7 @@ def test_mtls_rejects_server_certificate_uri_mismatch(tmp_path: Path) -> None:
 
 
 def test_mtls_requires_client_certificate(tmp_path: Path) -> None:
-    peer, server_tls, _ = make_pair(tmp_path)
+    peer, server_tls, _, _, _, ca_path, _, _ = make_pair(tmp_path)
     ca_key, ca_cert, ca_path = create_ca(tmp_path / "no-client")
     _, server_cert, server_key, _ = create_leaf(
         tmp_path / "no-client", ca_key, ca_cert, SERVER_URI, server=True, filename="server-no-client"
