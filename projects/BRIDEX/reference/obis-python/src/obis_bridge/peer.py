@@ -516,17 +516,21 @@ class OBISClient:
                         error.get("message", f"peer returned HTTP {exc.code}"),
                         exc.code,
                     ) from exc
-                except (UnicodeDecodeError, json.JSONDecodeError):
-                    pass
+                except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError) as parse_exc:
+                    raise OBISRequestError("protocol.invalid_message", "malformed authenticated error response", 502) from parse_exc
             raise OBISRequestError("peer.request_rejected", f"peer returned HTTP {exc.code}", exc.code) from exc
         except urllib.error.URLError as exc:
             raise OBISRequestError("peer.unavailable", "peer is unavailable", 503) from exc
 
         try:
             response_message = strict_json_loads(response_body.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError) as exc:
             raise OBISRequestError("protocol.invalid_message", "invalid response JSON", 502) from exc
-        if not verify_signature(response_message, self.secret, response_signature):
+        try:
+            response_is_authentic = verify_signature(response_message, self.secret, response_signature)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise OBISRequestError("protocol.invalid_message", "response cannot be canonically encoded", 502) from exc
+        if not response_is_authentic:
             raise OBISRequestError("identity.authentication_failed", "response signature verification failed", 502)
         if response_message.get("protocol") != PROTOCOL or response_message.get("version") != VERSION:
             raise OBISRequestError("protocol.unsupported_version", "unsupported response protocol/version", 502)
