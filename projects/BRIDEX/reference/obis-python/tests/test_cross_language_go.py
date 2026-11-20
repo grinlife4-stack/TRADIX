@@ -655,8 +655,30 @@ def test_go_v02_client_invokes_python_v02_peer(tmp_path):
             ],
             capture_output=True, text=True, timeout=15,
         )
+        status = subprocess.run(
+            [
+                GO_PEER_BINARY, "status-v02",
+                "--endpoint", server.address,
+                "--local-peer", "peer:go",
+                "--remote-peer", "peer:python-v02",
+                "--key-id", "go-v02-key",
+                "--principal", "principal:go",
+                "--secret-hex", SECRET.hex(),
+                "--scopes", "inventory.read",
+                "--capability", "ecoscan.inventory.read",
+                "--capability-version", "1.0",
+                "--operation-id", "go-cross-op-1",
+                "--project-id", "project-b",
+                "--source-id", "source-b",
+            ],
+            capture_output=True, text=True, timeout=15,
+        )
     assert result.returncode == 0, result.stdout + result.stderr
     response = json.loads(result.stdout)
     assert response["state"] == "SUCCEEDED"
     assert response["result"]["served_by"] == "python-peer-v02"
     assert len(calls) == 1
+    assert status.returncode == 0, status.stdout + status.stderr
+    status_response = json.loads(status.stdout)
+    assert status_response["state"] == "SUCCEEDED"
+    assert status_response["result"]["served_by"] == "python-peer-v02"
