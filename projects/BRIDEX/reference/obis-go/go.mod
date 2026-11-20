@@ -1,3 +1,3 @@
-module github.com/grinlife4-stack/TRADIX/projects/BRIDEX/reference/obis-go
+module example.com/bridex/obis-go
 
 go 1.23
