@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import socket
@@ -10,22 +11,26 @@ from pathlib import Path
 
 import pytest
 
-from obis_bridge import (Credential, OBISClient, OBISPeer, OBISServer, create_tls13_client_context, create_tls13_server_context)
+from obis_bridge import Credential, OBISClient, OBISPeer, OBISRequestError, OBISServer
+from test_tls_transport import client_context, create_ca, create_leaf, server_context
 
 
-@pytest.mark.skipif(shutil.which("go") is None, reason="Go toolchain is required for cross-language conformance")
-def test_python_client_interoperates_with_independent_go_obis_peer() -> None:
-    repository = Path(__file__).parents[2]
-    go_project = repository / "obis-go"
-    secret = b"0123456789abcdef0123456789abcdef"
+PYTHON_URI = "urn:obis:peer:11111111-1111-4111-8111-111111111111"
+GO_URI = "urn:obis:peer:22222222-2222-4222-8222-222222222222"
+OTHER_GO_URI = "urn:obis:peer:33333333-3333-4333-8333-333333333333"
+CAPABILITY = "catalog.lookup"
+CAPABILITY_VERSION = "1.0"
+
+
+def _free_loopback_address() -> str:
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
-        port = listener.getsockname()[1]
-    address = f"127.0.0.1:{port}"
-    environment = os.environ.copy()
-    environment["OBIS_TEST_SECRET"] = secret.decode("ascii")
-    environment["OBIS_LISTEN_ADDR"] = address
-    process = subprocess.Popen(
+        return f"127.0.0.1:{listener.getsockname()[1]}"
+
+
+def _start_go_peer(environment: dict[str, str]) -> subprocess.Popen:
+    go_project = Path(__file__).parents[2] / "obis-go"
+    return subprocess.Popen(
         ["go", "run", "./cmd/obis-go-peer"],
         cwd=go_project,
         env=environment,
@@ -33,22 +38,33 @@ def test_python_client_interoperates_with_independent_go_obis_peer() -> None:
         stderr=subprocess.PIPE,
         text=True,
     )
-    try:
-        health_url = f"http://{address}/healthz"
-        ready = False
-        for _ in range(150):
-            if process.poll() is not None:
-                stderr = process.stderr.read() if process.stderr else ""
-                raise AssertionError(f"Go OBIS peer exited before startup: {stderr}")
-            try:
-                with urllib.request.urlopen(health_url, timeout=0.25) as response:
-                    ready = response.status == 204
-                    if ready:
-                        break
-            except Exception:
-                time.sleep(0.1)
-        assert ready, "Go OBIS peer did not become ready"
 
+
+def _wait_for_go_peer(process: subprocess.Popen, url: str, *, context=None) -> None:
+    last_error = None
+    for _ in range(300):
+        if process.poll() is not None:
+            stderr = process.stderr.read() if process.stderr else ""
+            raise AssertionError(f"Go OBIS peer exited before startup: {stderr}")
+        try:
+            with urllib.request.urlopen(url, context=context, timeout=0.5) as response:
+                if response.status == 204:
+                    return
+        except Exception as exc:
+            last_error = repr(exc)
+            time.sleep(0.1)
+    raise AssertionError(f"Go OBIS peer did not become ready: {last_error}")
+
+
+@pytest.mark.skipif(shutil.which("go") is None, reason="Go toolchain is required for cross-language conformance")
+def test_python_hmac_development_client_interoperates_with_go_peer() -> None:
+    secret = b"0123456789abcdef0123456789abcdef"
+    address = _free_loopback_address()
+    environment = os.environ.copy()
+    environment.update({"OBIS_TEST_SECRET": secret.decode("ascii"), "OBIS_LISTEN_ADDR": address})
+    process = _start_go_peer(environment)
+    try:
+        _wait_for_go_peer(process, f"http://{address}/healthz")
         client = OBISClient(
             local_peer_id="python-peer",
             remote_peer_id="go-peer",
@@ -59,10 +75,7 @@ def test_python_client_interoperates_with_independent_go_obis_peer() -> None:
             timeout=3.0,
         )
         response = client.invoke(
-            f"http://{address}",
-            "catalog.lookup",
-            "1.0",
-            {"item_id": "sample-bridge"},
+            f"http://{address}", CAPABILITY, CAPABILITY_VERSION, {"item_id": "sample-bridge"}
         )
         assert response["outcome"] == "succeeded"
         assert response["result"] == {
@@ -79,127 +92,50 @@ def test_python_client_interoperates_with_independent_go_obis_peer() -> None:
             process.wait(timeout=5)
 
 
-@pytest.mark.skipif(
-    shutil.which("go") is None or shutil.which("openssl") is None,
-    reason="Go and OpenSSL are required for TLS 1.3 mTLS conformance",
-)
-def test_python_client_interoperates_with_go_peer_over_tls13_mtls(tmp_path: Path) -> None:
-    secret = b"0123456789abcdef0123456789abcdef"
-    ca_key, ca_cert = tmp_path / "ca.key", tmp_path / "ca.crt"
-    server_key, server_csr, server_cert = tmp_path / "server.key", tmp_path / "server.csr", tmp_path / "server.crt"
-    client_key, client_csr, client_cert = tmp_path / "client.key", tmp_path / "client.csr", tmp_path / "client.crt"
-    server_ext, client_ext = tmp_path / "server.ext", tmp_path / "client.ext"
-
-    commands = [
-        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-sha256", "-days", "1", "-nodes",
-         "-keyout", str(ca_key), "-out", str(ca_cert), "-subj", "/CN=OBIS-Test-CA"],
-        ["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-keyout", str(server_key),
-         "-out", str(server_csr), "-subj", "/CN=OBIS-Go-Peer"],
-        ["openssl", "x509", "-req", "-in", str(server_csr), "-CA", str(ca_cert), "-CAkey", str(ca_key),
-         "-CAcreateserial", "-out", str(server_cert), "-days", "1", "-sha256", "-extfile", str(server_ext)],
-        ["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-keyout", str(client_key),
-         "-out", str(client_csr), "-subj", "/CN=OBIS-Python-Peer"],
-        ["openssl", "x509", "-req", "-in", str(client_csr), "-CA", str(ca_cert), "-CAkey", str(ca_key),
-         "-CAserial", str(tmp_path / "ca.srl"), "-out", str(client_cert), "-days", "1", "-sha256", "-extfile", str(client_ext)],
-    ]
-    server_ext.write_text(
-        "basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth\n"
-        "subjectAltName=IP:127.0.0.1,URI:urn:obis:peer:go-peer\n",
-        encoding="utf-8",
+@pytest.mark.skipif(shutil.which("go") is None, reason="Go toolchain is required for cross-language mTLS conformance")
+def test_python_mtls_client_interoperates_with_go_mtls_server_without_hmac(tmp_path: Path) -> None:
+    ca_key, ca_cert, ca_path = create_ca(tmp_path)
+    _, server_cert, server_key, _ = create_leaf(
+        tmp_path, ca_key, ca_cert, GO_URI, server=True, filename="go-server"
     )
-    client_ext.write_text(
-        "basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=clientAuth\n"
-        "subjectAltName=URI:urn:obis:peer:python-peer\n",
-        encoding="utf-8",
+    _, client_cert, client_key, client_fingerprint = create_leaf(
+        tmp_path, ca_key, ca_cert, PYTHON_URI, server=False, filename="python-client"
     )
-    for command in commands:
-        completed = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True, timeout=20, check=False)
-        assert completed.returncode == 0, completed.stderr
-
-    with socket.socket() as listener:
-        listener.bind(("127.0.0.1", 0))
-        port = listener.getsockname()[1]
-    address = f"127.0.0.1:{port}"
+    address = _free_loopback_address()
     environment = os.environ.copy()
     environment.update({
-        "OBIS_TEST_SECRET": secret.decode("ascii"),
         "OBIS_LISTEN_ADDR": address,
+        "OBIS_SERVER_PEER_ID": GO_URI,
+        "OBIS_CLIENT_PEER_ID": PYTHON_URI,
+        "OBIS_CLIENT_CERT_URI": PYTHON_URI,
+        "OBIS_CLIENT_CERT_SHA256": client_fingerprint,
+        "OBIS_CLIENT_KEY_ID": "python-certificate",
+        "OBIS_CLIENT_PRINCIPAL": "principal:python",
+        "OBIS_CLIENT_SCOPES": "catalog:read",
         "OBIS_TLS_CERT": str(server_cert),
         "OBIS_TLS_KEY": str(server_key),
-        "OBIS_TLS_CA": str(ca_cert),
+        "OBIS_TLS_CA": str(ca_path),
     })
-    process = subprocess.Popen(
-        ["go", "run", "./cmd/obis-go-peer"],
-        cwd=Path(__file__).parents[2] / "obis-go",
-        env=environment,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    process = _start_go_peer(environment)
+    tls_context = client_context(ca_path, client_cert, client_key)
     try:
-        health_url = f"https://127.0.0.1:{port}/healthz"
-        client_context = create_tls13_client_context(str(ca_cert), str(client_cert), str(client_key))
-        ready = False
-        last_error = None
-        for _ in range(150):
-            if process.poll() is not None:
-                stderr = process.stderr.read() if process.stderr else ""
-                raise AssertionError(f"TLS Go OBIS peer exited before startup: {stderr}")
-            try:
-                with urllib.request.urlopen(health_url, context=client_context, timeout=0.5) as response:
-                    ready = response.status == 204
-                    if ready:
-                        break
-            except Exception as exc:
-                last_error = repr(exc)
-                time.sleep(0.1)
-        assert ready, f"TLS Go OBIS peer did not become ready: {last_error}"
-
+        _wait_for_go_peer(process, f"https://{address}/healthz", context=tls_context)
         client = OBISClient(
-            local_peer_id="python-peer",
-            remote_peer_id="go-peer",
-            key_id="python-key",
-            principal_ref="principal:python",
-            secret=secret,
-            scopes={"catalog:read"},
+            PYTHON_URI,
+            GO_URI,
+            "python-certificate",
+            "principal:python",
+            None,
+            {"catalog:read"},
             timeout=3.0,
+            tls_context=tls_context,
         )
         response = client.invoke(
-            f"https://127.0.0.1:{port}",
-            "catalog.lookup",
-            "1.0",
-            {"item_id": "tls-mtls-sample"},
-            ssl_context=client_context,
+            f"https://{address}", CAPABILITY, CAPABILITY_VERSION, {"item_id": "python-to-go-mtls"}
         )
         assert response["outcome"] == "succeeded"
         assert response["result"]["served_by"] == "go-peer"
-        assert response["result"]["item_id"] == "tls-mtls-sample"
-
-        python_peer = OBISPeer(
-            "go-peer",
-            [Credential(
-                key_id="python-key",
-                peer_id="python-peer",
-                principal_ref="principal:python",
-                secret=secret,
-                allowed_scopes=frozenset({"catalog:read"}),
-            )],
-        )
-        python_peer.register_capability(
-            "catalog.lookup", "1.0", {"catalog:read"},
-            lambda payload: {"accepted": True, "item_id": payload["item_id"], "served_by": "python-peer"},
-        )
-        server_context = create_tls13_server_context(str(server_cert), str(server_key), str(ca_cert))
-        with OBISServer(python_peer, ssl_context=server_context) as python_server:
-            python_response = client.invoke(
-                python_server.address,
-                "catalog.lookup",
-                "1.0",
-                {"item_id": "tls-python-server"},
-                ssl_context=client_context,
-            )
-        assert python_response["result"]["served_by"] == "python-peer"
-        assert python_response["result"]["item_id"] == "tls-python-server"
+        assert response["result"]["item_id"] == "python-to-go-mtls"
     finally:
         process.terminate()
         try:
@@ -209,80 +145,120 @@ def test_python_client_interoperates_with_go_peer_over_tls13_mtls(tmp_path: Path
             process.wait(timeout=5)
 
 
-@pytest.mark.skipif(
-    shutil.which("go") is None or shutil.which("openssl") is None,
-    reason="Go and OpenSSL are required for TLS 1.3 mTLS conformance",
-)
-def test_go_client_interoperates_with_python_server_over_tls13_mtls(tmp_path: Path) -> None:
-    secret = b"0123456789abcdef0123456789abcdef"
-    ca_key, ca_cert = tmp_path / "ca.key", tmp_path / "ca.crt"
-    server_key, server_csr, server_cert = tmp_path / "python-server.key", tmp_path / "python-server.csr", tmp_path / "python-server.crt"
-    client_key, client_csr, client_cert = tmp_path / "go-client.key", tmp_path / "go-client.csr", tmp_path / "go-client.crt"
-    server_ext, client_ext = tmp_path / "python-server.ext", tmp_path / "go-client.ext"
-    server_ext.write_text(
-        "basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth\n"
-        "subjectAltName=IP:127.0.0.1,URI:urn:obis:peer:python-peer\n",
-        encoding="utf-8",
+@pytest.mark.skipif(shutil.which("go") is None, reason="Go toolchain is required for cross-language mTLS conformance")
+def test_go_mtls_client_interoperates_with_python_mtls_server_without_hmac(tmp_path: Path) -> None:
+    ca_key, ca_cert, ca_path = create_ca(tmp_path)
+    _, server_cert, server_key, _ = create_leaf(
+        tmp_path, ca_key, ca_cert, PYTHON_URI, server=True, filename="python-server"
     )
-    client_ext.write_text(
-        "basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=clientAuth\n"
-        "subjectAltName=URI:urn:obis:peer:go-peer\n",
-        encoding="utf-8",
+    _, client_cert, client_key, client_fingerprint = create_leaf(
+        tmp_path, ca_key, ca_cert, GO_URI, server=False, filename="go-client"
     )
-    commands = [
-        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-sha256", "-days", "1", "-nodes",
-         "-keyout", str(ca_key), "-out", str(ca_cert), "-subj", "/CN=OBIS-Test-CA"],
-        ["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-keyout", str(server_key),
-         "-out", str(server_csr), "-subj", "/CN=OBIS-Python-Peer"],
-        ["openssl", "x509", "-req", "-in", str(server_csr), "-CA", str(ca_cert), "-CAkey", str(ca_key),
-         "-CAcreateserial", "-out", str(server_cert), "-days", "1", "-sha256", "-extfile", str(server_ext)],
-        ["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-keyout", str(client_key),
-         "-out", str(client_csr), "-subj", "/CN=OBIS-Go-Peer"],
-        ["openssl", "x509", "-req", "-in", str(client_csr), "-CA", str(ca_cert), "-CAkey", str(ca_key),
-         "-CAserial", str(tmp_path / "ca.srl"), "-out", str(client_cert), "-days", "1", "-sha256", "-extfile", str(client_ext)],
-    ]
-    for command in commands:
-        completed = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True, timeout=20, check=False)
-        assert completed.returncode == 0, completed.stderr
-
-    secret_credential = Credential(
-        key_id="go-key",
-        peer_id="go-peer",
-        principal_ref="principal:go",
-        secret=secret,
-        allowed_scopes=frozenset({"catalog:read"}),
+    python_peer = OBISPeer(
+        PYTHON_URI,
+        [Credential(
+            key_id="go-certificate",
+            peer_id=GO_URI,
+            principal_ref="principal:go",
+            secret=None,
+            allowed_scopes=frozenset({"catalog:read"}),
+            certificate_uri=GO_URI,
+            certificate_sha256=client_fingerprint,
+        )],
     )
-    python_peer = OBISPeer("python-peer", [secret_credential])
     python_peer.register_capability(
-        "catalog.lookup", "1.0", {"catalog:read"},
-        lambda payload: {"accepted": True, "item_id": payload["item_id"], "served_by": "python-peer"},
+        CAPABILITY,
+        CAPABILITY_VERSION,
+        {"catalog:read"},
+        lambda payload: {
+            "accepted": True,
+            "item_id": payload["item_id"],
+            "served_by": "python-peer",
+        },
     )
-    server_context = create_tls13_server_context(str(server_cert), str(server_key), str(ca_cert))
+    tls_server = server_context(ca_path, server_cert, server_key)
     environment = os.environ.copy()
     environment.update({
         "OBIS_REMOTE_ENDPOINT": "",
-        "OBIS_TEST_SECRET": secret.decode("ascii"),
-        "OBIS_TLS_CA": str(ca_cert),
+        "OBIS_LOCAL_PEER_ID": GO_URI,
+        "OBIS_REMOTE_PEER_ID": PYTHON_URI,
+        "OBIS_KEY_ID": "go-certificate",
+        "OBIS_PRINCIPAL_REF": "principal:go",
+        "OBIS_TLS_CA": str(ca_path),
         "OBIS_TLS_CERT": str(client_cert),
         "OBIS_TLS_KEY": str(client_key),
         "OBIS_TLS_SERVER_NAME": "127.0.0.1",
-        "OBIS_TEST_ITEM_ID": "go-client-to-python-server",
+        "OBIS_TEST_ITEM_ID": "go-to-python-mtls",
     })
     go_project = Path(__file__).parents[2] / "obis-go"
-    with OBISServer(python_peer, ssl_context=server_context) as python_server:
-        environment["OBIS_REMOTE_ENDPOINT"] = python_server.address
+    with OBISServer(python_peer, tls_context=tls_server) as server:
+        environment["OBIS_REMOTE_ENDPOINT"] = server.address
         completed = subprocess.run(
             ["go", "run", "./cmd/obis-go-client"],
             cwd=go_project,
             env=environment,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=60,
             check=False,
         )
     assert completed.returncode == 0, completed.stderr
-    response = __import__("json").loads(completed.stdout)
+    response = json.loads(completed.stdout)
     assert response["outcome"] == "succeeded"
-    assert response["sender"]["peer_id"] == "python-peer"
+    assert response["sender"]["peer_id"] == PYTHON_URI
     assert response["result"]["served_by"] == "python-peer"
-    assert response["result"]["item_id"] == "go-client-to-python-server"
+    assert response["result"]["item_id"] == "go-to-python-mtls"
+
+
+@pytest.mark.skipif(shutil.which("go") is None, reason="Go toolchain is required for cross-language mTLS conformance")
+def test_go_mtls_server_rejects_wrong_certificate_fingerprint(tmp_path: Path) -> None:
+    ca_key, ca_cert, ca_path = create_ca(tmp_path)
+    _, server_cert, server_key, _ = create_leaf(
+        tmp_path, ca_key, ca_cert, GO_URI, server=True, filename="go-server"
+    )
+    _, expected_cert, _, expected_fingerprint = create_leaf(
+        tmp_path, ca_key, ca_cert, PYTHON_URI, server=False, filename="expected-client"
+    )
+    _, wrong_cert, wrong_key, _ = create_leaf(
+        tmp_path, ca_key, ca_cert, PYTHON_URI, server=False, filename="wrong-client"
+    )
+    address = _free_loopback_address()
+    environment = os.environ.copy()
+    environment.update({
+        "OBIS_LISTEN_ADDR": address,
+        "OBIS_SERVER_PEER_ID": GO_URI,
+        "OBIS_CLIENT_PEER_ID": PYTHON_URI,
+        "OBIS_CLIENT_CERT_URI": PYTHON_URI,
+        "OBIS_CLIENT_CERT_SHA256": expected_fingerprint,
+        "OBIS_CLIENT_KEY_ID": "python-certificate",
+        "OBIS_CLIENT_PRINCIPAL": "principal:python",
+        "OBIS_CLIENT_SCOPES": "catalog:read",
+        "OBIS_TLS_CERT": str(server_cert),
+        "OBIS_TLS_KEY": str(server_key),
+        "OBIS_TLS_CA": str(ca_path),
+    })
+    process = _start_go_peer(environment)
+    tls_context = client_context(ca_path, wrong_cert, wrong_key)
+    try:
+        _wait_for_go_peer(process, f"https://{address}/healthz", context=tls_context)
+        client = OBISClient(
+            PYTHON_URI,
+            GO_URI,
+            "python-certificate",
+            "principal:python",
+            None,
+            {"catalog:read"},
+            timeout=3.0,
+            tls_context=tls_context,
+        )
+        with pytest.raises(OBISRequestError):
+            client.invoke(
+                f"https://{address}", CAPABILITY, CAPABILITY_VERSION, {"item_id": "must-be-rejected"}
+            )
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
