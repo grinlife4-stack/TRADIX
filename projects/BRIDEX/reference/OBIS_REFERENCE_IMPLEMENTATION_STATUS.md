@@ -13,7 +13,13 @@
 - [x] Protocol/version, strict request and response envelope-field, payload-size, and TTL validation.
 - [x] Authenticated response object/type, peer-reference, correlation, timestamp, and structured-error validation.
 - [x] Explicit credential-to-peer and credential-to-principal binding.
-- [x] HMAC-SHA256 request and response integrity for local tests.
+- [x] HMAC-SHA256 request and response integrity for local loopback tests.
+- [x] Candidate `OBIS-TLS-MTLS-1` reference binding using Python `ssl` / OpenSSL, TLS 1.3 only, mutual certificate authentication, and no shared HMAC secret.
+- [x] TLS endpoint hostname verification plus exactly-one URI SAN peer identity `urn:obis:peer:<lowercase-UUID>`.
+- [x] Certificate SHA-256 fingerprint binding to a single configured credential/principal record.
+- [x] Mandatory `obis/0.1` ALPN, bounded handshake/request timeouts, and no plaintext fallback for mTLS clients.
+- [x] Local credential revocation for subsequent requests in the running process.
+- [x] Positive and negative mTLS tests using ephemeral test certificates; no private keys are committed.
 - [x] Capability registration and receiver-side scope authorization.
 - [x] Optional resource-bound capabilities with per-credential project/source allowlists, checked before the capability handler runs.
 - [x] ECOSCAN read-only inventory capability `ecoscan.inventory.read@1.0` with strict payload/result validation.
@@ -32,20 +38,21 @@
 The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/message.schema.json` and packaged with the reference peer. CI validates the schema and checks the packaged copy against the canonical artifact. Runtime schema negotiation and automatic schema-driven validation are not implemented.
 
 
-- Production TLS or mutual TLS.
-- Production identity issuance, asymmetric signing, trust-anchor management, key rotation, or revocation service.
+- Production approval of the `OBIS-TLS-MTLS-1` candidate profile.
+- Owner-operated CA/trust-anchor lifecycle, certificate issuance/renewal, trust-bundle distribution, durable revocation state, CRL/OCSP, and emergency trust-anchor replacement.
+- Durable revocation across process restarts and in-flight operation cancellation.
 - Durable/distributed replay protection and idempotency ledger.
 - Runtime schema negotiation and automatic schema-driven payload validation.
 - Asynchronous operation lifecycle.
 - Production audit persistence and tamper-evident evidence.
-- Non-loopback transport binding.
+- Production-hardened non-loopback operations, rate limiting, deployment hardening, and independent security review. The candidate mTLS binding can bind beyond loopback, but is not production-approved.
 - Cross-language interoperability suite.
 
 ## Release gates before OBIS 1.0.0
 
 1. Freeze normative JSON Schemas and canonicalization rules.
-2. Select and review production authentication and transport security profiles.
-3. Define credential issuance, rotation, revocation, and principal delegation.
+2. Owner/security reviewers approve or revise the `OBIS-TLS-MTLS-1` candidate and its URI SAN mapping.
+3. Define owner-operated credential issuance, rotation, revocation, trust-bundle distribution, and principal delegation.
 4. Define durable replay/idempotency and outcome reconciliation.
 5. Define signed evidence/audit formats and retention controls.
 6. Implement at least one independent second-language peer.
@@ -59,4 +66,4 @@ A passing local test suite proves only the implemented reference behavior. It do
 
 ## Latest ECOSCAN capability branch verification note
 
-The ECOSCAN inventory capability, credential-bound project/source grant, and three loopback HTTP tests were added on the open Draft PR #66 branch. Current branch head: `7c40d7e81d76a3bb322df809809a1ca41e3f51ab`. The last recorded successful CI remains the earlier head `ae52784ce20f006bade68a35f24d0489bb29be78` with 45 tests. No check run or commit status is recorded for the latest head, so the new capability/resource-grant changes are **not yet CI-verified**. Do not treat the newly added tests as passed until a fresh run completes successfully.
+PR #66's latest OBIS capability/resource-grant changes are included as the base of PR #74. GitHub Actions run `44733556568` completed successfully on the PR #74 merge commit, ran 68 tests, and built/installed the OBIS reference wheel. PR #66's branch head is still not independently merged or promoted. The additional TLS/mTLS implementation in PR #75 requires its own CI run on the latest PR #75 head before it can be considered verified.

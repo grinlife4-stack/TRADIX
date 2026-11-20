@@ -12,7 +12,7 @@ This audit evaluates whether OBIS should implement transport security and certif
 
 **Decision:** Do not implement cryptographic primitives, TLS, certificate-path validation, or a custom PKI. Reuse the platform's maintained TLS stack. Keep peer authorization, capability scopes, and OBIS identity-to-certificate binding in the OBIS application layer.
 
-This audit does not approve a production security profile, select a final certificate lifecycle, or authorize internet-facing deployment. The current Python HMAC/loopback prototype remains development-only.
+This audit does not approve a production security profile, select a final certificate lifecycle, or authorize internet-facing deployment. A separate Python TLS/mTLS candidate reference mode has since been implemented; the HMAC/loopback mode remains development-only.
 
 ## 2. Required capabilities
 
@@ -46,17 +46,32 @@ A production candidate must provide:
 - Use Python's standard `ssl` module backed by a maintained OpenSSL build.
 - Do not add a third-party TLS implementation to the Python runtime.
 - Keep the current loopback HTTP + HMAC mode isolated as a development-only profile.
-- Add a separate TLS integration mode only after the certificate profile and test fixtures are reviewed.
+- A separate TLS integration mode is now present as an implementation candidate; it remains disabled unless an owner supplies an explicitly configured TLS context.
 - Keep certificate loading, trust configuration, and private-key paths owner-supplied. Never commit test or production private keys.
 
-### 4.2 Independent second implementation
+### 4.2 Candidate reference profile now implemented
+
+The standalone Python reference contains an implementation candidate named `OBIS-TLS-MTLS-1` (PR #75):
+
+- Python's standard `ssl` module and the platform OpenSSL stack; no custom cryptographic implementation.
+- TLS 1.3 only, with server-side client-certificate requirement.
+- Mandatory ALPN `obis/0.1`.
+- Standard certificate-chain validation and DNS/IP endpoint hostname verification.
+- Exactly one canonical URI SAN `urn:obis:peer:<lowercase-UUID>` for the OBIS peer identifier.
+- Server-side mapping of the authenticated client certificate URI and SHA-256 certificate fingerprint to one configured credential/principal record.
+- Bounded TLS handshake and HTTP request timeouts.
+- No HMAC shared secret in the mTLS mode; the existing HMAC mode remains loopback-only.
+
+This implementation does **not** complete the profile lifecycle. It has no CA service, certificate issuance/renewal, trust-bundle distribution, CRL/OCSP, durable revocation state, durable replay ledger, Go implementation, cross-language conformance evidence, or independent security review. The URI scheme and certificate constraints are implementation candidates that still require owner/security approval before they become normative.
+
+### 4.3 Independent second implementation
 
 - Use Go's standard `crypto/tls` and `crypto/x509` packages as the leading candidate for a second-language peer.
 - Keep the second implementation in a separate repository or independently buildable package with its own maintainer and CI.
 - Run shared positive and negative OBIS conformance vectors against both implementations.
 - A second implementation must not import or execute the Python reference.
 
-### 4.3 Certificate authority and trust distribution
+### 4.4 Certificate authority and trust distribution
 
 Do not mandate a public CA, central CA, hosted identity provider, or automatic certificate service.
 

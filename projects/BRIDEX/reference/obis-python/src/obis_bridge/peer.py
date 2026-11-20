@@ -11,11 +11,15 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import http.client
 import json
 import math
 import secrets
+import socket
+import ssl
 import threading
 import time
+import uuid
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -30,6 +34,53 @@ MESSAGE_PATH = "/obis/v0.1/messages"
 MAX_MESSAGE_BYTES = 64 * 1024
 MAX_TTL_SECONDS = 60
 CLOCK_SKEW_SECONDS = 30
+TLS_PROFILE_ID = "OBIS-TLS-MTLS-1"
+ALPN_PROTOCOL = "obis/0.1"
+_OBIS_PEER_URI_PREFIX = "urn:obis:peer:"
+
+def _validate_obis_peer_uri(value: str) -> str:
+    if not isinstance(value, str) or not value.startswith(_OBIS_PEER_URI_PREFIX):
+        raise ValueError("OBIS TLS peer identity must use urn:obis:peer:<UUID>")
+    suffix = value[len(_OBIS_PEER_URI_PREFIX):]
+    try:
+        parsed = uuid.UUID(suffix)
+    except (ValueError, AttributeError) as exc:
+        raise ValueError("OBIS TLS peer identity must contain a UUID") from exc
+    if str(parsed) != suffix.lower():
+        raise ValueError("OBIS TLS peer UUID must use canonical lowercase form")
+    return value
+
+
+def _certificate_peer_uri(certificate: dict[str, Any]) -> str:
+    if not isinstance(certificate, dict):
+        raise OBISRequestError("identity.certificate_invalid", "peer certificate is unavailable", 401)
+    subject_alt_name = certificate.get("subjectAltName", ())
+    uris = [value for kind, value in subject_alt_name if kind == "URI"]
+    if len(uris) != 1:
+        raise OBISRequestError("identity.certificate_invalid", "certificate must contain exactly one OBIS peer URI SAN", 401)
+    try:
+        return _validate_obis_peer_uri(uris[0])
+    except ValueError as exc:
+        raise OBISRequestError("identity.certificate_invalid", "certificate OBIS peer URI SAN is invalid", 401) from exc
+
+
+def _validate_tls_client_context(context: ssl.SSLContext) -> None:
+    if not isinstance(context, ssl.SSLContext):
+        raise ValueError("TLS client requires an ssl.SSLContext")
+    if context.verify_mode != ssl.CERT_REQUIRED or context.check_hostname is not True:
+        raise ValueError("OBIS TLS client must verify certificate chains and endpoint hostnames")
+    if context.minimum_version != ssl.TLSVersion.TLSv1_3 or context.maximum_version != ssl.TLSVersion.TLSv1_3:
+        raise ValueError("OBIS TLS profile requires TLS 1.3 only")
+
+
+def _validate_tls_server_context(context: ssl.SSLContext) -> None:
+    if not isinstance(context, ssl.SSLContext):
+        raise ValueError("TLS server requires an ssl.SSLContext")
+    if context.verify_mode != ssl.CERT_REQUIRED:
+        raise ValueError("OBIS mTLS server must require client certificates")
+    if context.minimum_version != ssl.TLSVersion.TLSv1_3 or context.maximum_version != ssl.TLSVersion.TLSv1_3:
+        raise ValueError("OBIS TLS profile requires TLS 1.3 only")
+
 
 
 class OBISRequestError(Exception):
@@ -53,15 +104,32 @@ class Credential:
     key_id: str
     peer_id: str
     principal_ref: str
-    secret: bytes = field(repr=False)
+    secret: bytes | None = field(repr=False)
     allowed_scopes: frozenset[str]
     allowed_resources: frozenset[tuple[str, str]] = field(default_factory=frozenset)
+    certificate_uri: str | None = None
+    certificate_sha256: str | None = None
 
     def __post_init__(self) -> None:
         if not self.key_id or not self.peer_id or not self.principal_ref:
             raise ValueError("credential identifiers must be non-empty")
-        if not isinstance(self.secret, bytes) or len(self.secret) < 32:
-            raise ValueError("reference-profile secret must be bytes of at least 32 bytes")
+        if self.certificate_uri is None:
+            if self.certificate_sha256 is not None:
+                raise ValueError("certificate fingerprint requires a certificate URI")
+            if not isinstance(self.secret, bytes) or len(self.secret) < 32:
+                raise ValueError("HMAC development credential secret must be bytes of at least 32 bytes")
+        else:
+            _validate_obis_peer_uri(self.certificate_uri)
+            if self.certificate_uri != self.peer_id:
+                raise ValueError("mTLS certificate URI must exactly match the credential peer_id")
+            if self.secret is not None:
+                raise ValueError("mTLS credentials must not carry an HMAC shared secret")
+            if (
+                not isinstance(self.certificate_sha256, str)
+                or len(self.certificate_sha256) != 64
+                or any(ch not in "0123456789abcdef" for ch in self.certificate_sha256)
+            ):
+                raise ValueError("mTLS credential requires a lowercase SHA-256 certificate fingerprint")
         if not self.allowed_scopes or not all(isinstance(s, str) and s for s in self.allowed_scopes):
             raise ValueError("credential must have explicit non-empty string scopes")
         object.__setattr__(self, "allowed_scopes", frozenset(self.allowed_scopes))
@@ -262,6 +330,9 @@ class OBISPeer:
         supplied_credentials = credentials or []
         if len({c.key_id for c in supplied_credentials}) != len(supplied_credentials):
             raise ValueError("duplicate credential key_id")
+        certificate_fingerprints = [c.certificate_sha256 for c in supplied_credentials if c.certificate_sha256 is not None]
+        if len(set(certificate_fingerprints)) != len(certificate_fingerprints):
+            raise ValueError("duplicate mTLS certificate fingerprint")
         self.credentials = {c.key_id: c for c in supplied_credentials}
         self.capabilities: dict[tuple[str, str], Capability] = {}
         self.replay_guard = ReplayGuard()
@@ -271,7 +342,17 @@ class OBISPeer:
         with self._lock:
             if credential.key_id in self.credentials:
                 raise ValueError("duplicate credential key_id")
+            if credential.certificate_sha256 is not None and any(
+                item.certificate_sha256 == credential.certificate_sha256
+                for item in self.credentials.values()
+            ):
+                raise ValueError("duplicate mTLS certificate fingerprint")
             self.credentials[credential.key_id] = credential
+
+    def revoke_credential(self, key_id: str) -> bool:
+        """Revoke one configured credential for subsequent requests."""
+        with self._lock:
+            return self.credentials.pop(key_id, None) is not None
 
     def register_capability(
         self,
@@ -298,13 +379,39 @@ class OBISPeer:
                 capability_id, version, frozenset(required_scopes), handler, resource_binding
             )
 
-    def handle(self, message: dict[str, Any], key_id: str, signature: str) -> tuple[dict[str, Any], bytes]:
+    def handle(
+        self,
+        message: dict[str, Any],
+        key_id: str,
+        signature: str,
+        *,
+        authenticated_certificate_uri: str | None = None,
+        authenticated_certificate_sha256: str | None = None,
+    ) -> tuple[dict[str, Any], bytes | None]:
         validate_request(message)
-        credential = self.credentials.get(key_id)
+        with self._lock:
+            credential = self.credentials.get(key_id)
         if credential is None:
             raise OBISRequestError("identity.unknown_peer", "unknown credential", 401)
-        if not verify_signature(message, credential.secret, signature):
-            raise OBISRequestError("identity.authentication_failed", "signature verification failed", 401)
+
+        if authenticated_certificate_uri is None:
+            if credential.certificate_uri is not None or credential.secret is None:
+                raise OBISRequestError("identity.authentication_failed", "credential requires mutual TLS", 401)
+            if not verify_signature(message, credential.secret, signature):
+                raise OBISRequestError("identity.authentication_failed", "signature verification failed", 401)
+        else:
+            try:
+                _validate_obis_peer_uri(authenticated_certificate_uri)
+            except ValueError as exc:
+                raise OBISRequestError("identity.authentication_failed", "certificate peer identity is invalid", 401) from exc
+            if (
+                credential.certificate_uri != authenticated_certificate_uri
+                or credential.certificate_sha256 is None
+                or authenticated_certificate_sha256 is None
+                or not hmac.compare_digest(credential.certificate_sha256, authenticated_certificate_sha256)
+                or credential.secret is not None
+            ):
+                raise OBISRequestError("identity.authentication_failed", "certificate is not bound to this credential", 401)
 
         sender = message["sender"]["peer_id"]
         recipient = message["recipient"]["peer_id"]
@@ -316,6 +423,9 @@ class OBISPeer:
             "authenticated_credential": credential,
             "request_message": message,
         }
+        with self._lock:
+            if self.credentials.get(key_id) is not credential:
+                raise OBISRequestError("identity.credential_revoked", "credential is no longer active", 401)
         if not self.replay_guard.accept(f"{key_id}:{message['nonce']}"):
             raise OBISRequestError("request.replay_detected", "duplicate nonce", 409, **error_context)
 
@@ -376,18 +486,78 @@ class OBISPeer:
         return response, credential.secret
 
 
+
+
+class _TLSThreadingHTTPServer(ThreadingHTTPServer):
+    """Threaded HTTPS server with bounded TLS handshake and request timeouts."""
+
+    def __init__(
+        self,
+        server_address,
+        request_handler,
+        *,
+        tls_context: ssl.SSLContext,
+        handshake_timeout: float,
+        request_timeout: float,
+    ):
+        self.handshake_timeout = handshake_timeout
+        self.request_timeout = request_timeout
+        super().__init__(server_address, request_handler)
+        self.socket = tls_context.wrap_socket(
+            self.socket,
+            server_side=True,
+            do_handshake_on_connect=False,
+        )
+
+    def get_request(self):
+        connection, address = super().get_request()
+        connection.settimeout(self.handshake_timeout)
+        try:
+            connection.do_handshake()
+            connection.settimeout(self.request_timeout)
+        except (OSError, ssl.SSLError):
+            connection.close()
+            raise
+        return connection, address
+
 class OBISServer:
     """Small HTTP binding for local conformance and development tests."""
 
-    def __init__(self, peer: OBISPeer, host: str = "127.0.0.1", port: int = 0):
-        if host not in ("127.0.0.1", "::1", "localhost"):
-            raise ValueError("reference server is loopback-only; production transport is not implemented")
+    def __init__(
+        self,
+        peer: OBISPeer,
+        host: str = "127.0.0.1",
+        port: int = 0,
+        tls_context: ssl.SSLContext | None = None,
+        handshake_timeout: float = 5.0,
+        request_timeout: float = 10.0,
+    ):
+        for name, value in (("handshake_timeout", handshake_timeout), ("request_timeout", request_timeout)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be a finite positive number")
+        if tls_context is None:
+            if host not in ("127.0.0.1", "::1", "localhost"):
+                raise ValueError("plaintext reference server is loopback-only")
+        else:
+            _validate_tls_server_context(tls_context)
+            _validate_obis_peer_uri(peer.peer_id)
         self.peer = peer
-        self.httpd = ThreadingHTTPServer((host, port), self._handler_class())
+        self.tls_context = tls_context
+        if tls_context is None:
+            self.httpd = ThreadingHTTPServer((host, port), self._handler_class())
+        else:
+            self.httpd = _TLSThreadingHTTPServer(
+                (host, port),
+                self._handler_class(),
+                tls_context=tls_context,
+                handshake_timeout=float(handshake_timeout),
+                request_timeout=float(request_timeout),
+            )
         self.thread: threading.Thread | None = None
 
     def _handler_class(self):
         peer = self.peer
+        tls_enabled = self.tls_context is not None
 
         class Handler(BaseHTTPRequestHandler):
             server_version = "OBIS-Reference/0.1"
@@ -397,6 +567,9 @@ class OBISServer:
                     self.send_error(404)
                     return
                 try:
+                    if tls_enabled and self.connection.selected_alpn_protocol() != ALPN_PROTOCOL:
+                        self.send_error(400, "OBIS ALPN protocol is required")
+                        return
                     if self.headers.get_content_type() != "application/obis+json":
                         self.send_error(415, "unsupported content type")
                         return
@@ -411,17 +584,29 @@ class OBISServer:
                     message = strict_json_loads(raw.decode("utf-8"))
                     if not isinstance(message, dict):
                         raise OBISRequestError("protocol.invalid_message", "message must be an object")
+                    certificate_uri = None
+                    certificate_fingerprint = None
+                    if tls_enabled:
+                        certificate = self.connection.getpeercert()
+                        certificate_der = self.connection.getpeercert(binary_form=True)
+                        certificate_uri = _certificate_peer_uri(certificate)
+                        if not certificate_der:
+                            raise OBISRequestError("identity.certificate_invalid", "client certificate is unavailable", 401)
+                        certificate_fingerprint = hashlib.sha256(certificate_der).hexdigest()
                     response, secret = peer.handle(
                         message,
                         self.headers.get("X-OBIS-Key-Id", ""),
                         self.headers.get("X-OBIS-Signature", ""),
+                        authenticated_certificate_uri=certificate_uri,
+                        authenticated_certificate_sha256=certificate_fingerprint,
                     )
                     body = canonical_json(response)
-                    signature = hmac.new(secret, body, hashlib.sha256).hexdigest()
+                    signature = hmac.new(secret, body, hashlib.sha256).hexdigest() if secret is not None else None
                     self.send_response(200)
                     self.send_header("Content-Type", "application/obis+json")
                     self.send_header("Content-Length", str(len(body)))
-                    self.send_header("X-OBIS-Signature", signature)
+                    if signature is not None:
+                        self.send_header("X-OBIS-Signature", signature)
                     self.end_headers()
                     self.wfile.write(body)
                 except OBISRequestError as exc:
@@ -440,13 +625,16 @@ class OBISServer:
                             "error": {"code": exc.code, "message": str(exc)},
                         }
                         body = canonical_json(error_response)
-                        response_signature = hmac.new(
-                            exc.authenticated_credential.secret, body, hashlib.sha256
-                        ).hexdigest()
+                        response_secret = exc.authenticated_credential.secret
+                        response_signature = (
+                            hmac.new(response_secret, body, hashlib.sha256).hexdigest()
+                            if response_secret is not None else None
+                        )
                         self.send_response(exc.http_status)
                         self.send_header("Content-Type", "application/obis+json")
                         self.send_header("Content-Length", str(len(body)))
-                        self.send_header("X-OBIS-Signature", response_signature)
+                        if response_signature is not None:
+                            self.send_header("X-OBIS-Signature", response_signature)
                         self.end_headers()
                         self.wfile.write(body)
                     else:
@@ -468,7 +656,8 @@ class OBISServer:
     @property
     def address(self) -> str:
         host, port = self.httpd.server_address[:2]
-        return f"http://{host}:{port}"
+        scheme = "https" if self.tls_context is not None else "http"
+        return f"{scheme}://{host}:{port}"
 
     def start(self) -> "OBISServer":
         if self.thread and self.thread.is_alive():
@@ -499,14 +688,22 @@ class OBISClient:
         remote_peer_id: str,
         key_id: str,
         principal_ref: str,
-        secret: bytes,
+        secret: bytes | None,
         scopes: set[str] | frozenset[str],
         timeout: float = 3.0,
+        tls_context: ssl.SSLContext | None = None,
     ):
         if not local_peer_id or not remote_peer_id or not key_id or not principal_ref:
             raise ValueError("peer, key, and principal identifiers must be non-empty")
-        if not isinstance(secret, bytes) or len(secret) < 32:
-            raise ValueError("reference-profile secret must be bytes of at least 32 bytes")
+        if tls_context is None:
+            if not isinstance(secret, bytes) or len(secret) < 32:
+                raise ValueError("HMAC development profile requires a secret of at least 32 bytes")
+        else:
+            _validate_tls_client_context(tls_context)
+            if secret is not None:
+                raise ValueError("OBIS mTLS client must not carry an HMAC shared secret")
+            _validate_obis_peer_uri(local_peer_id)
+            _validate_obis_peer_uri(remote_peer_id)
         if (
             not isinstance(scopes, (set, frozenset))
             or not scopes
@@ -522,6 +719,7 @@ class OBISClient:
         self.secret = secret
         self.scopes = frozenset(scopes)
         self.timeout = timeout
+        self.tls_context = tls_context
 
     def build_request(
         self,
@@ -559,6 +757,88 @@ class OBISClient:
             "payload": payload,
         }
 
+    def _invoke_tls(
+        self,
+        endpoint: str,
+        capability_id: str,
+        capability_version: str,
+        payload: dict[str, Any],
+        scopes: set[str] | frozenset[str] | None,
+    ) -> dict[str, Any]:
+        parsed = urlparse(endpoint)
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ValueError("OBIS mTLS profile requires an HTTPS endpoint")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("endpoint must not contain user information")
+        if parsed.path not in ("", "/") or parsed.params or parsed.query or parsed.fragment:
+            raise ValueError("endpoint must be a bare peer base URL without path, query, or fragment")
+
+        connection = http.client.HTTPSConnection(
+            parsed.hostname,
+            parsed.port or 443,
+            context=self.tls_context,
+            timeout=self.timeout,
+        )
+        request_message = self.build_request(capability_id, capability_version, payload, scopes)
+        body = canonical_json(request_message)
+        try:
+            connection.connect()
+            if connection.sock is None:
+                raise OBISRequestError("peer.tls_failed", "TLS connection was not established", 502)
+            if connection.sock.selected_alpn_protocol() != ALPN_PROTOCOL:
+                raise OBISRequestError("protocol.alpn_mismatch", "OBIS ALPN protocol was not negotiated", 502)
+            remote_certificate = connection.sock.getpeercert()
+            remote_peer_uri = _certificate_peer_uri(remote_certificate)
+            if remote_peer_uri != self.remote_peer_id:
+                raise OBISRequestError(
+                    "identity.peer_certificate_mismatch",
+                    "server certificate peer identity does not match configured remote peer",
+                    502,
+                )
+            connection.request(
+                "POST",
+                MESSAGE_PATH,
+                body=body,
+                headers={
+                    "Content-Type": "application/obis+json",
+                    "X-OBIS-Key-Id": self.key_id,
+                },
+            )
+            response = connection.getresponse()
+            response_body = response.read(MAX_MESSAGE_BYTES + 1)
+            if len(response_body) > MAX_MESSAGE_BYTES:
+                raise OBISRequestError("payload.too_large", "response exceeds size limit", 502)
+            if response.getheader("X-OBIS-Signature") is not None:
+                raise OBISRequestError("protocol.unexpected_signature", "mTLS profile does not use HMAC response signatures", 502)
+            try:
+                response_message = strict_json_loads(response_body.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError) as exc:
+                raise OBISRequestError("protocol.invalid_message", "invalid response JSON", 502) from exc
+
+            if response.status >= 400:
+                if isinstance(response_message, dict) and response_message.get("message_type") == "response":
+                    validate_response(
+                        response_message, request_message, self.local_peer_id, self.remote_peer_id, "failed"
+                    )
+                    error = response_message["error"]
+                    raise OBISRequestError(
+                        error.get("code", "peer.request_rejected"),
+                        error.get("message", f"peer returned HTTP {response.status}"),
+                        response.status,
+                    )
+                raise OBISRequestError("peer.request_rejected", f"peer returned HTTP {response.status}", response.status)
+
+            validate_response(
+                response_message, request_message, self.local_peer_id, self.remote_peer_id, "succeeded"
+            )
+            return response_message
+        except OBISRequestError:
+            raise
+        except (ssl.SSLError, socket.timeout, OSError, http.client.HTTPException) as exc:
+            raise OBISRequestError("peer.tls_failed", "TLS peer connection or authentication failed", 502) from exc
+        finally:
+            connection.close()
+
     def invoke(
         self,
         endpoint: str,
@@ -567,6 +847,8 @@ class OBISClient:
         payload: dict[str, Any],
         scopes: set[str] | frozenset[str] | None = None,
     ) -> dict[str, Any]:
+        if self.tls_context is not None:
+            return self._invoke_tls(endpoint, capability_id, capability_version, payload, scopes)
         parsed = urlparse(endpoint)
         if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "::1", "localhost"):
             raise ValueError("reference client is loopback-only; production transport is not implemented")
