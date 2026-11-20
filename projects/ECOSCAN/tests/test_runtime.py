@@ -361,7 +361,7 @@ def test_runner_rejects_late_empty_result_after_absolute_deadline(tmp_path):
         "budget": {
             "max_pages": 1,
             "max_items": 1,
-            "timeout_seconds": 0.01,
+            "timeout_seconds": 1,
             "max_duration_seconds": 1,
         },
     }))
@@ -371,7 +371,7 @@ def test_runner_rejects_late_empty_result_after_absolute_deadline(tmp_path):
         def scan(self, context):
             self.calls += 1
             context.guard.consume_page()
-            time.sleep(0.04)
+            time.sleep(1.05)
             return AdapterResult("COMPLETE", (), 0, 1)
 
     adapter = SlowEmptyAdapter()
