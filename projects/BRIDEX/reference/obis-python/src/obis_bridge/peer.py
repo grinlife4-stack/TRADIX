@@ -120,6 +120,8 @@ class Credential:
                 raise ValueError("HMAC development credential secret must be bytes of at least 32 bytes")
         else:
             _validate_obis_peer_uri(self.certificate_uri)
+            if self.certificate_uri != self.peer_id:
+                raise ValueError("mTLS certificate URI must exactly match the credential peer_id")
             if self.secret is not None:
                 raise ValueError("mTLS credentials must not carry an HMAC shared secret")
             if (
@@ -538,6 +540,7 @@ class OBISServer:
                 raise ValueError("plaintext reference server is loopback-only")
         else:
             _validate_tls_server_context(tls_context)
+            _validate_obis_peer_uri(peer.peer_id)
         self.peer = peer
         self.tls_context = tls_context
         if tls_context is None:
