@@ -375,7 +375,7 @@ def test_response_validator_rejects_extra_peer_reference_fields():
         validate_response(response, request, PEER_A, PEER_B, "succeeded")
 
 
-@pytest.mark.parametrize("timestamp", [-1, float("nan"), float("inf"), 10**10000, True])
+@pytest.mark.parametrize("timestamp", [-1, float("nan"), float("inf"), 10**400, True])
 def test_response_validator_rejects_invalid_timestamps(timestamp):
     peer_b, client = make_pair()
     request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
