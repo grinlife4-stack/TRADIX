@@ -163,6 +163,31 @@ Every work session must update this file or a linked task record and report:
 
 Do not mark a task DONE or VERIFIED based on intention, generated code, or an unverified claim.
 
+## 10. Hardware acquisition and iPad-first execution gate
+
+Hardware is not a prerequisite for the prototype stage.
+
+1. Operate and administer the initial factory from an iPad-compatible workflow.
+2. Prefer hosted CI runners and existing connected cloud services for reversible prototype workloads. Hosted runners do not prove gVisor isolation and must not execute hostile workloads.
+3. Do not purchase or provision dedicated servers, GPUs, VPS instances, or other hardware before a representative prototype workload has passed its acceptance tests.
+4. Before any hardware purchase, record measured workload volume, CPU/RAM/storage/network requirements, concurrency, security boundary, availability target, and expected utilization.
+5. Compare existing owned equipment, suitable free/open-source hosted options, and paid cloud alternatives using total operating cost and vendor-exit cost.
+6. Hardware procurement requires a separate human approval after the measurement report. No agent may purchase, rent, or provision paid capacity autonomously.
+7. Once hardware is justified, prefer repurposing existing equipment where technically and economically sound. Keep the control plane operable remotely from the iPad.
+
+This gate does not waive security requirements. GitHub-hosted runners are suitable for CI and trusted test workloads, not a substitute for a dedicated gVisor worker or a hostile-code isolation boundary.
+
+## 11. Evidence gate for task completion
+
+A task must not transition from `review` to `candidate` or `verified` merely because a CI workflow passed. The durable task record must link:
+- immutable commit SHA and exact changed-file/diff reference;
+- CI run and job identifiers, conclusion, and retrievable logs/artifacts;
+- independent review identity, result, findings, and disposition;
+- required approval records for the requested action;
+- runtime verification evidence when a runtime behavior is claimed.
+
+Missing or inaccessible evidence keeps the task blocked or in review. A status event without its supporting evidence is not proof of completion.
+
 ## 9. Change-control rule for this document
 
 This file is the durable master checklist, not a chat summary. Update task status only when supported by evidence. Add dated execution notes or link to immutable commits, PRs, CI runs, and deployment IDs. Preserve unresolved items; do not silently remove them. Keep project-specific technical specifications in their own project repositories and link them here rather than copying them into a shared document.
