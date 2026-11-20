@@ -70,6 +70,21 @@ with OBISServer(peer_b) as server:
 
 The reference server and client deliberately bind to loopback addresses only. This prevents this draft prototype from being mistaken for a production internet-facing service.
 
+## Request deadlines
+
+The Python reference client accepts an optional absolute monotonic `deadline`
+on `OBISClient.invoke(..., deadline=...)`. Its transport bounds the complete
+loopback HTTP exchange, including response-body reads, rather than restarting
+the timeout for each received chunk. On expiry, the client shuts down the
+active socket and returns `peer.timeout`. The client's configured `timeout`
+remains an upper bound when it is shorter than the caller's deadline.
+
+This is a development/reference transport behavior. It does not make the
+loopback HMAC profile suitable for production and does not provide remote
+operation cancellation or exactly-once execution after a request has reached
+the peer. Callers must treat a timed-out remote operation as potentially having
+executed and must not retry it blindly without an idempotency contract.
+
 ## Security limitations — do not deploy for real workloads
 
 The shared-secret HMAC profile is only a local conformance/development mechanism. It does not provide a complete production identity lifecycle, certificate validation, asymmetric signatures, TLS, distributed revocation, or a formal cryptographic profile. The default in-memory replay guard resets on process restart; the optional SQLite guard provides owner-local persistence only. Deployments that need restart-persistent replay rejection can inject `SQLiteReplayGuard('/owner-controlled/path/obis-replay.sqlite3')` into `OBISPeer`. The database is local to the Bridge owner; it is not a shared service, distributed revocation mechanism, or production security approval. Backups, filesystem permissions, disk protection, and retention operations remain the Bridge owner's responsibility. Error responses for authentication failures are intentionally not signed.
