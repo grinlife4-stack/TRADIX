@@ -35,6 +35,34 @@ def _timestamp(now: datetime | None) -> str:
     return current.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def _validate_receipt(receipt: Mapping[str, Any], artifact_id: str, project_id: str) -> bool:
+    if receipt.get("artifact_id") != artifact_id or receipt.get("project_id") != project_id:
+        return False
+    filename = receipt.get("filename")
+    size_bytes = receipt.get("size_bytes")
+    digest = receipt.get("sha256")
+    backend = receipt.get("storage_backend")
+    storage_ref = receipt.get("storage_ref")
+    uploaded_at = receipt.get("uploaded_at")
+    if not isinstance(filename, str) or not filename or len(filename) > 120:
+        return False
+    if type(size_bytes) is not int or size_bytes < 0:
+        return False
+    if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        return False
+    if backend not in {"local", "s3", "github"}:
+        return False
+    if not isinstance(storage_ref, str) or not storage_ref or len(storage_ref) > 2048:
+        return False
+    if not isinstance(uploaded_at, str) or len(uploaded_at) > 64:
+        return False
+    try:
+        parsed = datetime.fromisoformat(uploaded_at.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() is not None
+
+
 def _safe_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
     extraction = receipt.get("extraction")
     summary: dict[str, Any] = {}
@@ -146,9 +174,7 @@ class ArtifactReceiptTIISAdapter:
             if not receipt_path.is_file() or receipt_path.stat().st_size > _MAX_RECEIPT_BYTES:
                 raise FileNotFoundError
             receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-            if not isinstance(receipt, Mapping) or receipt.get("project_id") != self._project_id:
-                raise FileNotFoundError
-            if receipt.get("artifact_id") != artifact_id:
+            if not isinstance(receipt, Mapping) or not _validate_receipt(receipt, artifact_id, self._project_id):
                 raise FileNotFoundError
         except (OSError, ValueError, json.JSONDecodeError):
             return self._response(
