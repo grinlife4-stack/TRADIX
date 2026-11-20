@@ -105,8 +105,6 @@ def test_ecoscan_adapter_exchanges_real_obis_http_messages_with_independent_peer
         }
 
     peer = _peer(frozenset({(PROJECT_ID, SOURCE_ID)}), provider)
-    adapter = OBISBridgeAdapter(_client(), "http://127.0.0.1:1")
-
     with OBISServer(peer) as server:
         adapter = OBISBridgeAdapter(_client(), server.address)
         source = _source()
