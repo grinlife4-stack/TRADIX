@@ -188,3 +188,29 @@ def test_restore_refuses_to_overwrite_existing_directory(tmp_path):
     destination.mkdir()
     with pytest.raises(ManifestValidationError, match="already exists"):
         restore_package(archive, destination)
+
+
+def test_export_rejects_symlinked_directory(tmp_path):
+    from bridex_core import export_package
+    package = _write_portable_package(tmp_path / "package")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("not part of package", encoding="utf-8")
+    (package / "external").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ManifestValidationError, match="symlinks"):
+        export_package(package, tmp_path / "package.zip")
+
+
+def test_restore_rejects_symlink_entries(tmp_path):
+    import stat
+    import zipfile
+    from bridex_core import restore_package
+    archive = tmp_path / "symlink.zip"
+    info = zipfile.ZipInfo("bridge-manifest.json")
+    info.create_system = 3
+    info.external_attr = (stat.S_IFLNK | 0o777) << 16
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr(info, "outside-target")
+    with pytest.raises(ManifestValidationError, match="symlink or special file"):
+        restore_package(archive, tmp_path / "restored")
+    assert not (tmp_path / "restored").exists()
