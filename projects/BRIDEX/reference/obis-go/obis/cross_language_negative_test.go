@@ -3,6 +3,7 @@ package obis
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
