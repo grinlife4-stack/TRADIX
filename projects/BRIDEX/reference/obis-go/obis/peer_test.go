@@ -2,6 +2,9 @@ package obis
 
 import (
 	"errors"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"encoding/json"
 	"bytes"
 	"os"
@@ -204,4 +207,47 @@ func TestReplayDoesNotExecuteCapabilityTwice(t *testing.T) {
 		t.Fatalf("expected replay rejection, got %#v", protocolErr)
 	}
 	if calls != 1 { t.Fatalf("replayed request executed capability again; calls=%d", calls) }
+}
+
+
+func TestInvokeReturnsTimeoutWhenPeerDoesNotRespond(t *testing.T) {
+	releaseHandler := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-releaseHandler
+		w.Header().Set("Content-Type", "application/obis+json")
+		_, _ = w.Write([]byte("{}"))
+	}))
+	defer server.Close()
+
+	_, err := Invoke(
+		server.URL, "peer:go", "peer:python", "go-key",
+		"principal:go", []byte("0123456789abcdef0123456789abcdef"),
+		[]string{"records:read"}, "records.read", "1.0",
+		map[string]any{"record_id": "timeout-test"},
+	)
+	close(releaseHandler)
+	if err == nil {
+		t.Fatal("expected timeout when peer does not respond")
+	}
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
+		t.Fatalf("expected network timeout, got %T: %v", err, err)
+	}
+}
+
+func TestInvokeReturnsConnectionErrorWhenPeerIsUnavailable(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil { t.Fatal(err) }
+	endpoint := "http://" + listener.Addr().String()
+	if err := listener.Close(); err != nil { t.Fatal(err) }
+
+	_, err = Invoke(
+		endpoint, "peer:go", "peer:python", "go-key",
+		"principal:go", []byte("0123456789abcdef0123456789abcdef"),
+		[]string{"records:read"}, "records.read", "1.0",
+		map[string]any{"record_id": "unavailable-test"},
+	)
+	if err == nil {
+		t.Fatal("expected connection error for unavailable peer")
+	}
 }
