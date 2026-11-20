@@ -75,4 +75,11 @@ class Adapter(Protocol):
         """Validate only local adapter configuration; must not perform a scan."""
 
     def scan(self, context: ScanContext) -> AdapterResult:
-        """Perform one bounded read-only scan and report exact observed coverage."""
+        """Perform one bounded read-only scan and report exact observed coverage.
+
+        Before each page/item, consume the corresponding BudgetGuard counter.
+        Enforce context.budget.timeout_seconds for each blocking operation and
+        stop when guard.remaining_seconds reaches zero. Never widen the source
+        scope, follow symlinks by default, read file contents for inventory, or
+        perform writes. Return only committed observations and a safe checkpoint.
+        """
