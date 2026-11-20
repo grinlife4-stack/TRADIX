@@ -215,7 +215,7 @@ func (p *Peer) Handle(m map[string]any,keyID,sig string)(map[string]any,string,*
 		}
 	}
 	p.mu.Lock()
-	capMap,_:=obj(m,"capability");capID,_:=str(capMap,"id");capVersion,_:=str(capMap,"version");cap,exists:=p.capabilities[capID+"\\x00"+capVersion]
+	capMap,_:=obj(m,"capability");capID,_:=str(capMap,"id");capVersion,_:=str(capMap,"version");cap,exists:=p.capabilities[capID+string(rune(0))+capVersion]
 	p.mu.Unlock()
 	if !exists{return nil,"",&Error{"capability.unknown","capability is not registered",404}}
 	requested:=map[string]bool{};rawScopes,_:=auth["scopes"].([]any);for _,s:=range rawScopes{requested[s.(string)]=true}
