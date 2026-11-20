@@ -94,6 +94,8 @@ def test_measurement_schema_preserves_semantics_and_rejects_negative_values() ->
     }
     assert_valid("measurement.schema.json", measurement)
     assert_invalid("measurement.schema.json", {**measurement, "value": -1})
+    assert_invalid("measurement.schema.json", {**measurement, "unit": "object"})
+    assert_invalid("measurement.schema.json", {**measurement, "value": 1024.5})
 
 
 def test_coverage_schema_accepts_failed_and_disabled_states() -> None:
@@ -117,6 +119,7 @@ def test_coverage_schema_accepts_failed_and_disabled_states() -> None:
     }
     assert_valid("coverage.schema.json", coverage)
     assert_invalid("coverage.schema.json", {**coverage, "unexpected": True})
+    assert_invalid("coverage.schema.json", {**coverage, "finished_at": None})
 
 
 def test_export_manifest_requires_hashes_and_excludes_secret_values() -> None:
@@ -140,3 +143,5 @@ def test_export_manifest_requires_hashes_and_excludes_secret_values() -> None:
     }
     assert_valid("export-manifest.schema.json", manifest)
     assert_invalid("export-manifest.schema.json", {**manifest, "api_key": "secret"})
+    unsafe = {**manifest, "files": [{**manifest["files"][0], "path": "../private/secret.txt"}]}
+    assert_invalid("export-manifest.schema.json", unsafe)
