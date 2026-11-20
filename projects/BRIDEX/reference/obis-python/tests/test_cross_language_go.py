@@ -376,3 +376,27 @@ def test_go_cli_durable_replay_survives_peer_process_restart(tmp_path):
     finally:
         restarted_process.terminate()
         restarted_process.wait(timeout=5)
+
+
+
+def test_go_cli_replay_storage_failure_returns_signed_503_before_execution(tmp_path):
+    replay_dir = tmp_path / "go-replay-state-unavailable"
+    replay_dir.mkdir()
+    process, endpoint = _start_go_server(replay_dir)
+    try:
+        replay_dir.rmdir()
+        client = OBISClient(
+            local_peer_id="peer:python",
+            remote_peer_id="peer:go",
+            key_id="python-dev-key",
+            principal_ref="principal:python",
+            secret=SECRET,
+            scopes={"records:read"},
+        )
+        with pytest.raises(OBISRequestError) as raised:
+            client.invoke(endpoint, "records.read", "1.0", {"record_id": "storage-failure"})
+        assert raised.value.code == "replay.storage_unavailable"
+        assert raised.value.http_status == 503
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
