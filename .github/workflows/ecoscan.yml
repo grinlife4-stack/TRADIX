@@ -28,7 +28,7 @@ jobs:
       - name: Run read-only portfolio inventory
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PORTFOLIO_GITHUB_TOKEN: ${{ secrets.PORTFOLIO_GITHUB_TOKEN }}
+          ECOSCAN_GITHUB_TOKEN: ${{ secrets.ECOSCAN_GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: >-
           python -m tools.ecoscan
