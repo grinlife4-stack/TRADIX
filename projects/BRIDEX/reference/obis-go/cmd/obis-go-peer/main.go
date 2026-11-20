@@ -6,7 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
+	"net/http"\n\t"net"\n\t"time"
 	"os"
 	"strings"
 
@@ -74,4 +74,42 @@ func invoke(args []string) {
 	if err!=nil{log.Fatal(err)}
 	encoder:=json.NewEncoder(os.Stdout);encoder.SetEscapeHTML(false)
 	if err=encoder.Encode(response);err!=nil{log.Fatal(err)}
+}
+
+func serveV02(args []string) {
+	flags:=flag.NewFlagSet("obis-go-peer server-v02",flag.ExitOnError)
+	peerID:=flags.String("peer-id","peer:go-v02","local peer identifier")
+	addr:=flags.String("listen","127.0.0.1:0","loopback listen address")
+	keyID:=flags.String("key-id","python-dev-key","development credential key id")
+	remoteID:=flags.String("remote-peer","peer:python","authenticated remote peer id")
+	principal:=flags.String("principal","principal:python","authenticated principal")
+	secretHex:=flags.String("secret-hex","","32-byte development secret in hex")
+	scopesRaw:=flags.String("scopes","inventory.read","comma-separated granted scopes")
+	ledgerPath:=flags.String("ledger-path","","persistent operation ledger path")
+	replayDir:=flags.String("replay-dir","","owner-controlled durable replay directory")
+	capabilityID:=flags.String("capability","ecoscan.inventory.read","registered capability ID")
+	capabilityVersion:=flags.String("capability-version","1.0","registered capability version")
+	_ = flags.Parse(args)
+	secret,err:=hex.DecodeString(*secretHex);if err!=nil||len(secret)<32{log.Fatal("secret-hex must encode at least 32 bytes")}
+	if *ledgerPath==""{log.Fatal("ledger-path is required")}
+	scopes:=map[string]bool{};for _,scope:=range strings.Split(*scopesRaw,","){if scope!=""{scopes[scope]=true}}
+	peer,err:=obis.NewPeer(*peerID);if err!=nil{log.Fatal(err)}
+	if err=peer.AddCredential(obis.Credential{KeyID:*keyID,PeerID:*remoteID,PrincipalRef:*principal,Secret:secret,AllowedScopes:scopes});err!=nil{log.Fatal(err)}
+	if *replayDir!=""{
+		guard,guardErr:=obis.NewFileReplayGuard(*replayDir);if guardErr!=nil{log.Fatalf("configure durable replay guard: %v",guardErr)}
+		if guardErr=peer.SetReplayGuard(guard);guardErr!=nil{log.Fatal(guardErr)}
+	}
+	ledger,err:=obis.NewFileOperationLedger(*ledgerPath);if err!=nil{log.Fatal(err)}
+	p02,err:=obis.NewPeerV02(peer,ledger);if err!=nil{log.Fatal(err)}
+	err=p02.RegisterCapability(*capabilityID,*capabilityVersion,map[string]bool{"inventory.read":true},func(payload map[string]any)(map[string]any,error){
+		return map[string]any{"items_seen":1,"project_id":payload["project_id"],"source_id":payload["source_id"],"served_by":"go-peer-v02"},nil
+	},"IDEMPOTENT")
+	if err!=nil{log.Fatal(err)}
+	host,_,err:=net.SplitHostPort(*addr);if err!=nil{log.Fatal(err)}
+	ip:=net.ParseIP(host);if host!="localhost"&&(ip==nil||!ip.IsLoopback()){log.Fatal("OBIS 0.2 development server is loopback-only")}
+	listener,err:=net.Listen("tcp",*addr);if err!=nil{log.Fatal(err)}
+	fmt.Println(listener.Addr().String())
+	server:=&http.Server{Handler:p02.HandlerV02(),ReadHeaderTimeout:2*time.Second,ReadTimeout:5*time.Second,WriteTimeout:5*time.Second,IdleTimeout:15*time.Second,MaxHeaderBytes:16*1024}
+	if err=server.Serve(listener);err!=nil{log.Fatal(err)}
+	_ = filepath.Separator
 }
