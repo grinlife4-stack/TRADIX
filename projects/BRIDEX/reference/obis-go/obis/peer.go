@@ -165,6 +165,16 @@ func (p *Peer) Handle(m map[string]any,keyID,sig string)(map[string]any,string,*
 	response:=map[string]any{"protocol":Protocol,"version":Version,"message_type":"response","message_id":fmt.Sprintf("go-%d",time.Now().UnixNano()),"correlation_id":m["message_id"],"sender":map[string]any{"peer_id":p.ID},"recipient":map[string]any{"peer_id":senderID},"issued_at":float64(time.Now().Unix()),"outcome":"succeeded","result":result}
 	return response,hex.EncodeToString(cred.Secret),nil
 }
+func (p *Peer) authenticatedCredential(m map[string]any,keyID,signature string)(Credential,bool){
+	if ValidateRequest(m,time.Now())!=nil{return Credential{},false}
+	p.mu.Lock();credential,ok:=p.credentials[keyID];p.mu.Unlock()
+	if !ok||!Verify(m,credential.Secret,signature){return Credential{},false}
+	sender,_:=obj(m,"sender");recipient,_:=obj(m,"recipient");authorization,_:=obj(m,"authorization")
+	senderID,_:=str(sender,"peer_id");recipientID,_:=str(recipient,"peer_id");principal,_:=str(authorization,"principal_ref")
+	if senderID!=credential.PeerID||recipientID!=p.ID||principal!=credential.PrincipalRef{return Credential{},false}
+	return credential,true
+}
+
 func (p *Peer) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
 		if r.Method!="POST"||r.URL.Path!=MessagePath{http.NotFound(w,r);return}
@@ -173,8 +183,25 @@ func (p *Peer) Handler() http.Handler {
 		r.Body=http.MaxBytesReader(w,r.Body,MaxMessageBytes)
 		raw,err:=io.ReadAll(r.Body);if err!=nil||len(raw)==0{http.Error(w,"invalid body",413);return}
 		m,err:=DecodeStrict(raw);if err!=nil{http.Error(w,"invalid JSON",400);return}
-		response,secretHex,protocolErr:=p.Handle(m,r.Header.Get("X-OBIS-Key-Id"),r.Header.Get("X-OBIS-Signature"))
-		if protocolErr!=nil{http.Error(w,protocolErr.Error(),protocolErr.Status);return}
+		keyID:=r.Header.Get("X-OBIS-Key-Id")
+		signature:=r.Header.Get("X-OBIS-Signature")
+		response,secretHex,protocolErr:=p.Handle(m,keyID,signature)
+		if protocolErr!=nil {
+			credential,authenticated:=p.authenticatedCredential(m,keyID,signature)
+			if !authenticated { http.Error(w,protocolErr.Error(),protocolErr.Status);return }
+			sender,_:=obj(m,"sender");senderID,_:=str(sender,"peer_id")
+			errorResponse:=map[string]any{
+				"protocol":Protocol,"version":Version,"message_type":"response",
+				"message_id":fmt.Sprintf("go-%d",time.Now().UnixNano()),
+				"correlation_id":m["message_id"],
+				"sender":map[string]any{"peer_id":p.ID},"recipient":map[string]any{"peer_id":senderID},
+				"issued_at":time.Now().Unix(),"outcome":"failed",
+				"error":map[string]any{"code":protocolErr.Code,"message":protocolErr.Message},
+			}
+			body,err:=CanonicalJSON(errorResponse);if err!=nil{http.Error(w,"internal error",500);return}
+			sig,err:=Sign(errorResponse,credential.Secret);if err!=nil{http.Error(w,"internal error",500);return}
+			w.Header().Set("Content-Type","application/obis+json");w.Header().Set("X-OBIS-Signature",sig);w.WriteHeader(protocolErr.Status);_,_=w.Write(body);return
+		}
 		secret,_:=hex.DecodeString(secretHex);body,err:=CanonicalJSON(response);if err!=nil{http.Error(w,"internal error",500);return}
 		sig,_:=Sign(response,secret);w.Header().Set("Content-Type","application/obis+json");w.Header().Set("X-OBIS-Signature",sig);w.WriteHeader(200);_,_=w.Write(body)
 	})
