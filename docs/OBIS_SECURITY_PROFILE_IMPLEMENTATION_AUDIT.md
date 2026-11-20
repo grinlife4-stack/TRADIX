@@ -313,8 +313,8 @@ This section supersedes the earlier “not yet cross-language executable” stat
 
 ### Validation evidence
 
-- PR #42 Go/Python test workflow passed on commit `edd3d3f96fb6c6db46c1915dc783939b4574b762`, workflow run `44806996730`. A newer PR #42 head was still under CI review when this audit update was prepared.
-- PR #67 standalone ECOSCAN workflow and repository test workflow passed on commit `17d3416d2e2ede583817c84fb7617eb009d85312`, runs `44806912276` and `44806912157`. The workflow checks out a pinned OBIS reference commit, builds the Go peer for tests, and does not add it as an ECOSCAN runtime dependency.
+- PR #42 Go/Python test workflow passed on commit `ab6cf9ba108d5368844428eabbd5c492ad2e6069`, workflow run `44808374243`; Go tests/build passed and 168 Python tests passed.
+- PR #67 standalone ECOSCAN workflow passed on commit `2252b83c1e19e879e63a4e315aa57189fe0096fd`, run `44808610978`, with 74 tests passed plus registry validation and a local-only synthetic scan. Its companion cross-project test workflow passed in run `44808609957` with 181 tests. Both workflows pin the OBIS reference to the CI-validated PR #42 commit `ab6cf9ba108d5368844428eabbd5c492ad2e6069` and build the Go peer only for tests.
 - Both PRs remain Draft and unmerged. Passing CI is not a merge, deployment, provider connection, or production approval.
 
 ### Remaining blockers and limits
