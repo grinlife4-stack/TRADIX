@@ -342,6 +342,8 @@ The standard's governance process and long-term stewardship arrangement remain t
 
 ## 20. Open decisions before 1.0.0
 
+The security design baseline is documented separately in [OBIS Threat Model](OBIS_THREAT_MODEL.md). It identifies assets, trust boundaries, adversaries, abuse cases, required mitigations, and the security profiles that must be finalized before OBIS 1.0.0. The threat model is a draft and does not itself select or certify a production cryptographic profile.
+
 The following are intentionally not frozen in version 0.1.0:
 - Exact identifier URI/namespace scheme.
 - Final JSON Schema dialect and canonical schema repository layout.
