@@ -264,6 +264,31 @@ Import must reject unknown schema versions by default, preserve IDs and timestam
 - Test backup/restore, migration, and package installation without network services.
 - Exit: independence acceptance suite passes; user approves any operational deployment separately.
 
+## 12. Phase 1 foundation — implemented
+
+The independent package foundation now exists under `projects/ECOSCAN/`:
+
+- Standalone Python package `ecoscan==0.1.0`, with no runtime third-party dependencies and no `tradix.*` imports.
+- Strict project-registry parser for one project envelope containing multiple source descriptors; rejects duplicate source IDs, unknown fields, invalid identifiers, malformed budgets, and naive/inverted timestamps.
+- Default-deny global, project, subsystem, and source controls.
+- Explicit owner/operator authorization callback; absent authorization denies.
+- Separate SQLite database per project, append-only measurement/coverage APIs, and separately replaceable scan checkpoints.
+- Minimal offline CLI for registry validation and project-store initialization. It does not scan paths.
+- Vendored schemas byte-compared with canonical files.
+- CI installs and tests the package, builds a standalone wheel, installs it into an isolated target, and verifies packaged schema presence.
+
+**Latest completed CI:** 64 tests passed. Both the OBIS and ECOSCAN wheels built; ECOSCAN installed in isolation and its schema resource was present.
+
+Not implemented yet: adapter protocol, scan runner, local filesystem adapter, safe traversal, resumable scanning, measurement/coverage generation, export/import, and provider integrations. The current package must not be described as a working scanner.
+
+### Next engineering sequence
+
+1. Define a typed adapter protocol and fail-closed runner with fake-adapter tests.
+2. Implement a local filesystem adapter with explicit allowed roots, no-follow symlink handling, mount-boundary checks, bounded traversal, and resumable checkpoints.
+3. Add end-to-end tests using synthetic temporary directories only.
+4. Add export/manifest generation and a round-trip test before any provider adapter.
+5. Only then consider separately authorized GitHub and Backblaze B2 adapters.
+
 ## 11. Phase 0 evidence and next action
 
 Phase 0 artifacts now exist:
