@@ -72,7 +72,7 @@
       "ref": "main",
       "exclude_paths": [
         "products/megamarket/",
-        "projects/EXVARLİ/",
+        "projects/EXVARLI/",
         "projects/NEXORA/",
         "docs/projects/EXVARLI_FINANCIAL_ARCHITECTURE.md",
         "docs/projects/NEXORA_WELLNESS_DOSSIER.md"
@@ -113,7 +113,7 @@
       "repository": "grinlife4-stack/TRADIX",
       "ref": "main",
       "include_paths": [
-        "projects/EXVARLİ/",
+        "projects/EXVARLI/",
         "docs/projects/EXVARLI_FINANCIAL_ARCHITECTURE.md"
       ]
     },
