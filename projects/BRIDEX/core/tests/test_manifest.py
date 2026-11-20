@@ -59,3 +59,19 @@ def test_valid_manifest_can_be_loaded_from_file(tmp_path):
     path = tmp_path / "manifest.json"
     path.write_text(json.dumps(VALID), encoding="utf-8")
     assert load_manifest(path)["bridge"]["name"] == "Example Bridge"
+
+
+def test_cli_accepts_valid_manifest(tmp_path, capsys):
+    from bridex_core.cli import main
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(VALID), encoding="utf-8")
+    assert main(["validate", str(path)]) == 0
+    assert "valid:" in capsys.readouterr().out
+
+
+def test_cli_rejects_invalid_manifest(tmp_path, capsys):
+    from bridex_core.cli import main
+    path = tmp_path / "manifest.json"
+    path.write_text('{"manifest_version":"invalid"}', encoding="utf-8")
+    assert main(["validate", str(path)]) == 2
+    assert "invalid:" in capsys.readouterr().err
