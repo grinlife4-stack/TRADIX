@@ -1,3 +1,4 @@
+import hashlib
 import json
 import uuid
 import zipfile
@@ -187,13 +188,20 @@ def test_verifier_requires_package_file_set_to_match_bridge_manifest(tmp_path: P
     package = tmp_path / "bridge.zip"
     build_package(root, package)
     altered = tmp_path / "manifest-mismatch.zip"
-    with zipfile.ZipFile(package, "r") as source, zipfile.ZipFile(altered, "w", compression=zipfile.ZIP_DEFLATED) as target:
-        for info in source.infolist():
-            data = source.read(info.filename)
-            if info.filename == "bridge.json":
-                manifest = json.loads(data.decode("utf-8"))
-                manifest["package_files"] = ["README.md"]
-                data = json.dumps(manifest).encode("utf-8")
-            target.writestr(info, data)
+    with zipfile.ZipFile(package, "r") as source:
+        entries = {info.filename: source.read(info.filename) for info in source.infolist()}
+    manifest = json.loads(entries["bridge.json"].decode("utf-8"))
+    manifest["package_files"] = ["README.md"]
+    changed_bridge = json.dumps(manifest).encode("utf-8")
+    entries["bridge.json"] = changed_bridge
+    package_manifest = json.loads(entries[PACKAGE_MANIFEST].decode("utf-8"))
+    bridge_record = next(item for item in package_manifest["files"] if item["path"] == "bridge.json")
+    bridge_record["size_bytes"] = len(changed_bridge)
+    bridge_record["sha256"] = hashlib.sha256(changed_bridge).hexdigest()
+    package_manifest["total_bytes"] = sum(item["size_bytes"] for item in package_manifest["files"])
+    entries[PACKAGE_MANIFEST] = json.dumps(package_manifest, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\\n"
+    with zipfile.ZipFile(altered, "w", compression=zipfile.ZIP_DEFLATED) as target:
+        for name, data in entries.items():
+            target.writestr(name, data)
     with pytest.raises(BridgeManifestError, match="package_manifest_file_set_mismatch"):
         verify_package(altered)
