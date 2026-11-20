@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import http.client
 import json
 import math
 import secrets
@@ -18,8 +19,6 @@ import socket
 import sqlite3
 import threading
 import time
-import urllib.error
-import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -572,6 +571,85 @@ class OBISServer:
         self.close()
 
 
+def _deadline_http_exchange(
+    endpoint: str,
+    body: bytes,
+    headers: dict[str, str],
+    deadline: float,
+) -> tuple[int, Any, bytes]:
+    """Perform one loopback HTTP exchange under an absolute monotonic deadline.
+
+    A worker owns the blocking http.client operations. The caller waits only
+    until the absolute deadline and then shuts down the active socket, so a
+    peer that slowly drips response bytes cannot extend the total request time.
+    """
+    parsed = urlparse(endpoint)
+    connection = http.client.HTTPConnection(
+        parsed.hostname, parsed.port or 80,
+        timeout=max(0.001, deadline - time.monotonic()),
+    )
+    completed = threading.Event()
+    result: dict[str, Any] = {}
+    failure: dict[str, BaseException] = {}
+
+    def exchange() -> None:
+        try:
+            connection.connect()
+            sock = connection.sock
+            if sock is None:
+                raise OSError("HTTP connection did not create a socket")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise socket.timeout("OBIS request deadline exceeded")
+            sock.settimeout(remaining)
+            connection.putrequest("POST", MESSAGE_PATH)
+            for name, value in headers.items():
+                connection.putheader(name, value)
+            connection.putheader("Content-Length", str(len(body)))
+            connection.endheaders(body)
+            response = connection.getresponse()
+            chunks: list[bytes] = []
+            total = 0
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise socket.timeout("OBIS request deadline exceeded")
+                active_socket = connection.sock
+                if active_socket is not None:
+                    active_socket.settimeout(remaining)
+                chunk = response.read1(min(8192, MAX_MESSAGE_BYTES + 1 - total))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total += len(chunk)
+                if total > MAX_MESSAGE_BYTES:
+                    break
+            result["status"] = response.status
+            result["headers"] = response.headers
+            result["body"] = b"".join(chunks)
+        except BaseException as exc:
+            failure["error"] = exc
+        finally:
+            completed.set()
+
+    worker = threading.Thread(target=exchange, name="obis-http-deadline", daemon=True)
+    worker.start()
+    remaining = deadline - time.monotonic()
+    if remaining <= 0 or not completed.wait(remaining):
+        active_socket = connection.sock
+        if active_socket is not None:
+            try:
+                active_socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        connection.close()
+        raise socket.timeout("OBIS request deadline exceeded")
+    connection.close()
+    if "error" in failure:
+        raise failure["error"]
+    return result["status"], result["headers"], result["body"]
+
+
 class OBISClient:
     """Direct client for one explicitly configured peer relationship."""
 
@@ -648,6 +726,7 @@ class OBISClient:
         capability_version: str,
         payload: dict[str, Any],
         scopes: set[str] | frozenset[str] | None = None,
+        deadline: float | None = None,
     ) -> dict[str, Any]:
         parsed = urlparse(endpoint)
         if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "::1", "localhost"):
@@ -659,30 +738,35 @@ class OBISClient:
         message = self.build_request(capability_id, capability_version, payload, scopes)
         body = canonical_json(message)
         signature = sign_message(message, self.secret)
-        request = urllib.request.Request(
-            endpoint.rstrip("/") + MESSAGE_PATH,
-            data=body,
-            method="POST",
-            headers={
-                "Content-Type": "application/obis+json",
-                "X-OBIS-Key-Id": self.key_id,
-                "X-OBIS-Signature": signature,
-            },
-        )
+        request_headers = {
+            "Content-Type": "application/obis+json",
+            "X-OBIS-Key-Id": self.key_id,
+            "X-OBIS-Signature": signature,
+        }
+        now = time.monotonic()
+        if deadline is not None and (
+            isinstance(deadline, bool)
+            or not isinstance(deadline, (int, float))
+            or not math.isfinite(deadline)
+        ):
+            raise ValueError("deadline must be an absolute finite monotonic timestamp")
+        request_deadline = min(float(deadline), now + self.timeout) if deadline is not None else now + self.timeout
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                response_body = response.read(MAX_MESSAGE_BYTES + 1)
-                if len(response_body) > MAX_MESSAGE_BYTES:
-                    raise OBISRequestError("payload.too_large", "response exceeds size limit", 502)
-                response_signature = response.headers.get("X-OBIS-Signature", "")
-        except urllib.error.HTTPError as exc:
-            error_body = exc.read(MAX_MESSAGE_BYTES + 1)
-            response_signature = exc.headers.get("X-OBIS-Signature", "")
-            if error_body and response_signature:
+            status, response_headers, response_body = _deadline_http_exchange(
+                endpoint, body, request_headers, request_deadline
+            )
+        except (TimeoutError, socket.timeout) as exc:
+            raise OBISRequestError("peer.timeout", "peer request timed out", 504) from exc
+        except (OSError, http.client.HTTPException) as exc:
+            raise OBISRequestError("peer.unavailable", "peer is unavailable", 503) from exc
+
+        response_signature = response_headers.get("X-OBIS-Signature", "")
+        if status >= 400:
+            if response_body and response_signature:
                 try:
-                    if len(error_body) > MAX_MESSAGE_BYTES:
+                    if len(response_body) > MAX_MESSAGE_BYTES:
                         raise OBISRequestError("payload.too_large", "error response exceeds size limit", 502)
-                    error_message = strict_json_loads(error_body.decode("utf-8"))
+                    error_message = strict_json_loads(response_body.decode("utf-8"))
                     if not isinstance(error_message, dict):
                         raise OBISRequestError("protocol.invalid_message", "error response must be an object", 502)
                     if not verify_signature(error_message, self.secret, response_signature):
@@ -693,18 +777,14 @@ class OBISClient:
                     error = error_message["error"]
                     raise OBISRequestError(
                         error.get("code", "peer.request_rejected"),
-                        error.get("message", f"peer returned HTTP {exc.code}"),
-                        exc.code,
-                    ) from exc
+                        error.get("message", f"peer returned HTTP {status}"),
+                        status,
+                    )
+                except OBISRequestError:
+                    raise
                 except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError) as parse_exc:
                     raise OBISRequestError("protocol.invalid_message", "malformed authenticated error response", 502) from parse_exc
-            raise OBISRequestError("peer.request_rejected", f"peer returned HTTP {exc.code}", exc.code) from exc
-        except (TimeoutError, socket.timeout) as exc:
-            raise OBISRequestError("peer.timeout", "peer request timed out", 504) from exc
-        except urllib.error.URLError as exc:
-            if isinstance(exc.reason, (TimeoutError, socket.timeout)):
-                raise OBISRequestError("peer.timeout", "peer request timed out", 504) from exc
-            raise OBISRequestError("peer.unavailable", "peer is unavailable", 503) from exc
+            raise OBISRequestError("peer.request_rejected", f"peer returned HTTP {status}", status)
 
         try:
             response_message = strict_json_loads(response_body.decode("utf-8"))
