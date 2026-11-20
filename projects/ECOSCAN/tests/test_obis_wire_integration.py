@@ -19,7 +19,7 @@ from obis_bridge import (
     register_ecoscan_inventory_capability,
 )
 
-from ecoscan.contracts import BudgetExceeded, BudgetGuard, ScanContext
+from ecoscan.contracts import BudgetExceeded, BudgetGuard, ScanContext, TransportOutcomeUnknown
 from ecoscan.models import RetentionPolicy, ScanBudget, SourceDescriptor
 from ecoscan.obis_bridge import OBISBridgeAdapter, REQUIRED_SCOPE
 
@@ -211,3 +211,18 @@ def test_adapter_rejects_peer_identity_mismatch_before_wire_call():
     adapter = OBISBridgeAdapter(wrong_client, "http://127.0.0.1:8080")
     with pytest.raises(ValueError):
         adapter.validate_config(source)
+
+
+def test_adapter_classifies_peer_timeout_as_indeterminate_not_budget_failure():
+    class TimedOutClient:
+        local_peer_id = ECOSCAN_PEER_ID
+        remote_peer_id = OWNER_PEER_ID
+        scopes = frozenset({REQUIRED_SCOPE})
+        def invoke(self, *args, **kwargs):
+            error = RuntimeError("peer request timed out")
+            error.code = "peer.timeout"
+            raise error
+    source = _source(timeout_seconds=5)
+    adapter = OBISBridgeAdapter(TimedOutClient(), "http://127.0.0.1:8080")
+    with pytest.raises(TransportOutcomeUnknown):
+        adapter.scan(_context(source))

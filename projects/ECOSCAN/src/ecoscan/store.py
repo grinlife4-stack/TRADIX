@@ -34,7 +34,7 @@ class ProjectStore:
             with db:
                 db.executescript("""
                 CREATE TABLE IF NOT EXISTS coverage (
-                  scan_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, source_id TEXT NOT NULL,
+                  scan_id TEXT PRIMARY KEY, schema_version TEXT NOT NULL DEFAULT '0.1', project_id TEXT NOT NULL, source_id TEXT NOT NULL,
                   requested_scope TEXT NOT NULL, coverage_state TEXT NOT NULL,
                   started_at TEXT NOT NULL, finished_at TEXT NOT NULL, actor_id TEXT NOT NULL,
                   adapter_id TEXT NOT NULL, adapter_version TEXT NOT NULL,
@@ -58,7 +58,7 @@ class ProjectStore:
 
     @staticmethod
     def _coverage_values(record: Mapping[str, Any]):
-        return (record["scan_id"], record["project_id"], record["source_id"], record["requested_scope"], record["coverage_state"], record["started_at"], record["finished_at"], record["actor_id"], record["adapter_id"], record["adapter_version"], record["items_seen"], record["pages_seen"], record["reason_code"], json.dumps(record["limitations"], ensure_ascii=False), record["checkpoint_ref"])
+        return (record["scan_id"], record.get("schema_version", "0.1"), record["project_id"], record["source_id"], record["requested_scope"], record["coverage_state"], record["started_at"], record["finished_at"], record["actor_id"], record["adapter_id"], record["adapter_version"], record["items_seen"], record["pages_seen"], record["reason_code"], json.dumps(record["limitations"], ensure_ascii=False), record["checkpoint_ref"])
 
     @staticmethod
     def _measurement_values(record: Mapping[str, Any]):
@@ -75,7 +75,7 @@ class ProjectStore:
             raise StoreError("checkpoint and checkpoint_updated_at must be provided together")
         with closing(self._connect()) as db:
             with db:
-                db.execute("INSERT INTO coverage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", self._coverage_values(coverage))
+                db.execute("INSERT INTO coverage (scan_id,schema_version,project_id,source_id,requested_scope,coverage_state,started_at,finished_at,actor_id,adapter_id,adapter_version,items_seen,pages_seen,reason_code,limitations_json,checkpoint_ref) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", self._coverage_values(coverage))
                 for item in items:
                     db.execute("INSERT INTO measurements VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", self._measurement_values({**item, "scan_id": coverage["scan_id"]}))
                 if checkpoint is not None:
@@ -158,13 +158,14 @@ class ProjectStore:
             with db:
                 for record in coverage:
                     existing = db.execute("SELECT * FROM coverage WHERE scan_id=?", (record["scan_id"],)).fetchone()
+                    normalized_record = {**record, "schema_version": record.get("schema_version", "0.1"), "limitations": record.get("limitations", [])}
                     if existing:
                         current = dict(existing)
                         current["limitations"] = json.loads(current.pop("limitations_json"))
-                        if current != record:
+                        if current != normalized_record:
                             raise StoreError("conflicting duplicate scan_id in destination store")
                         continue
-                    db.execute("INSERT INTO coverage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", self._coverage_values({**record, "limitations": record.get("limitations", [])}))
+                    db.execute("INSERT INTO coverage (scan_id,schema_version,project_id,source_id,requested_scope,coverage_state,started_at,finished_at,actor_id,adapter_id,adapter_version,items_seen,pages_seen,reason_code,limitations_json,checkpoint_ref) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", self._coverage_values(normalized_record))
                     inserted += 1
                 for record in measurements:
                     existing = db.execute("SELECT * FROM measurements WHERE measurement_id=?", (record["measurement_id"],)).fetchone()

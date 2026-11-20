@@ -10,6 +10,10 @@ class AdapterContractError(ValueError):
 class BudgetExceeded(RuntimeError):
     pass
 
+class TransportOutcomeUnknown(RuntimeError):
+    """A remote request may have executed, but no trustworthy outcome was received."""
+    pass
+
 class AuthorizationRevoked(RuntimeError):
     pass
 

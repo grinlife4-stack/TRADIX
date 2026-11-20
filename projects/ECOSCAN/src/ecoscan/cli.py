@@ -118,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.scope == "project" and not any(p.project_id == args.project for p in projects):
             raise ValueError("unknown project")
         print(json.dumps({"outcomes": outcomes, "exports": exports}, ensure_ascii=False, indent=2))
-        return 2 if any(x["coverage_state"] in {"FAILED", "NOT_AUTHORIZED", "NOT_CONFIGURED"} for x in outcomes) else 0
+        return 2 if any(x["coverage_state"] in {"FAILED", "INDETERMINATE", "NOT_AUTHORIZED", "NOT_CONFIGURED"} for x in outcomes) else 0
     except (RegistryError, TransferError, ValueError) as exc:
         print(f"ECOSCAN: {exc}", file=sys.stderr)
         return 2

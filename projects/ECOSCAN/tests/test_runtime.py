@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from ecoscan.contracts import AdapterResult
+from ecoscan.contracts import AdapterResult, TransportOutcomeUnknown
 from ecoscan.controls import ControlState, ExecutionGate
 from ecoscan.registry import RegistryError, parse_registry
 from ecoscan.runner import ScanRunner
@@ -525,3 +525,44 @@ def test_runner_rechecks_owner_operator_authorization_before_each_page(tmp_path)
     assert adapter.calls == 1
     assert store.list_measurements() == []
     assert store.list_coverage()[0]["pages_seen"] == 0
+
+
+def test_runner_records_indeterminate_transport_without_measurements_or_checkpoint(tmp_path):
+    parsed = parse_registry(registry(source()))
+    store = ProjectStore(tmp_path, "project-a")
+    adapter = FakeAdapter(error=TransportOutcomeUnknown("remote outcome unavailable"))
+    runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
+    outcome = runner.run("fs-main", "operator-a")
+    assert outcome.coverage_state == "INDETERMINATE"
+    assert outcome.reason_code == "transport_outcome_unknown"
+    assert outcome.measurements_written == 0
+    assert store.list_measurements() == []
+    assert store.load_checkpoint("fs-main", outcome.scan_id) is None
+    record = store.list_coverage()[0]
+    assert record["coverage_state"] == "INDETERMINATE"
+    assert record["schema_version"] == "0.2"
+
+
+def test_store_migrates_legacy_coverage_table_without_rewriting_records(tmp_path):
+    path = tmp_path / "project-a.sqlite3"
+    with sqlite3.connect(path) as db:
+        db.executescript("""
+            CREATE TABLE coverage (
+              scan_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, source_id TEXT NOT NULL,
+              requested_scope TEXT NOT NULL, coverage_state TEXT NOT NULL,
+              started_at TEXT NOT NULL, finished_at TEXT NOT NULL, actor_id TEXT NOT NULL,
+              adapter_id TEXT NOT NULL, adapter_version TEXT NOT NULL,
+              items_seen INTEGER NOT NULL, pages_seen INTEGER NOT NULL,
+              reason_code TEXT, limitations_json TEXT NOT NULL, checkpoint_ref TEXT
+            );
+            INSERT INTO coverage VALUES (
+              'legacy-scan','project-a','fs-main','source:fs-main','COMPLETE',
+              '2026-11-20T09:00:00Z','2026-11-20T09:00:01Z','operator-a',
+              'filesystem','0.1.0',1,1,NULL,'[]',NULL
+            );
+        """)
+    store = ProjectStore(tmp_path, "project-a")
+    record = store.list_coverage()[0]
+    assert record["scan_id"] == "legacy-scan"
+    assert record["schema_version"] == "0.1"
+    assert record["coverage_state"] == "COMPLETE"

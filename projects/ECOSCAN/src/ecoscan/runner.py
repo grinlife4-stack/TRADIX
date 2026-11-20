@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from .contracts import Adapter, AdapterContractError, AdapterResult, AuthorizationRevoked, BudgetExceeded, BudgetGuard, ScanContext
+from .contracts import Adapter, AdapterContractError, AdapterResult, AuthorizationRevoked, BudgetExceeded, BudgetGuard, ScanContext, TransportOutcomeUnknown
 from .controls import ExecutionGate
 from .models import ProjectRegistry, SourceDescriptor
 from .store import ProjectStore
@@ -146,7 +146,7 @@ class ScanRunner:
         checkpoint_ref: str | None = None,
     ) -> dict[str, Any]:
         return {
-            "schema_version": "0.1",
+            "schema_version": "0.2" if state == "INDETERMINATE" else "0.1",
             "scan_id": scan_id,
             "project_id": self.registry.project_id,
             "source_id": source.source_id,
@@ -266,6 +266,8 @@ class ScanRunner:
                 raise AdapterContractError("checkpoint must be an object")
         except AuthorizationRevoked:
             failure_state, failure_reason = "NOT_AUTHORIZED", "authorization_revoked"
+        except TransportOutcomeUnknown:
+            failure_state, failure_reason = "INDETERMINATE", "transport_outcome_unknown"
         except BudgetExceeded:
             failure_state, failure_reason = "FAILED", "budget_exhausted"
         except AdapterContractError:

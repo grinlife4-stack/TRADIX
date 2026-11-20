@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Protocol
 from urllib.parse import urlparse
 
-from .contracts import AdapterContractError, AdapterResult, ScanContext
+from .contracts import AdapterContractError, AdapterResult, ScanContext, TransportOutcomeUnknown
 from .models import SourceDescriptor
 
 
@@ -108,12 +108,17 @@ class OBISBridgeAdapter:
                 deadline=context.guard.deadline,
             )
         except Exception as exc:
-            # A transport timeout is a scan-budget failure only when the
-            # absolute scan deadline has actually expired. A shorter client
-            # transport timeout remains a distinct adapter execution failure.
-            if getattr(exc, "code", None) == "peer.timeout":
-                context.guard.check_deadline()
-            raise
+            # Once invoke() has begun, an exception without a verified,
+            # pre-execution rejection cannot prove that the remote capability
+            # did not run. Never turn that uncertainty into a retryable FAILED.
+            code = getattr(exc, "code", None)
+            definitely_not_executed = {
+                "authorization.denied", "capability.unknown", "identity.unknown_peer",
+                "request.expired", "request.replay_detected",
+            }
+            if code in definitely_not_executed:
+                raise
+            raise TransportOutcomeUnknown("OBIS request outcome is unknown") from exc
         context.guard.check_deadline()
         if not isinstance(response, Mapping):
             raise AdapterContractError("OBIS response must be an object")
