@@ -47,7 +47,7 @@ A Bridge must be adaptable to other ecosystems through documented contracts and 
 
 ## 3B. Executable OBIS reference prototype
 
-A standalone Python reference peer is now maintained at [OBIS Python Reference](reference/obis-python/README.md), with a versioned [OBIS 0.1 JSON Schema](reference/obis-python/schemas/obis-0.1-message.schema.json), direct two-peer loopback transport, request/response authentication for the local development profile, scoped capability authorization, expiry/replay/payload checks, and automated positive/negative tests.
+A standalone Python reference peer is now maintained at [OBIS Python Reference](reference/obis-python/README.md), with the canonical [OBIS 0.1 JSON Schema](../../standards/obis/0.1/message.schema.json) and an identical packaged copy at `reference/obis-python/src/obis_bridge/schemas/message.schema.json`, direct two-peer loopback transport, request/response authentication for the local development profile, scoped capability authorization, expiry/replay/payload checks, and automated positive/negative tests.
 
 Run it independently from the TRADIX package:
 
