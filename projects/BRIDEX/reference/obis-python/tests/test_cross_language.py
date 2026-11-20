@@ -207,3 +207,82 @@ def test_python_client_interoperates_with_go_peer_over_tls13_mtls(tmp_path: Path
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+
+
+@pytest.mark.skipif(
+    shutil.which("go") is None or shutil.which("openssl") is None,
+    reason="Go and OpenSSL are required for TLS 1.3 mTLS conformance",
+)
+def test_go_client_interoperates_with_python_server_over_tls13_mtls(tmp_path: Path) -> None:
+    secret = b"0123456789abcdef0123456789abcdef"
+    ca_key, ca_cert = tmp_path / "ca.key", tmp_path / "ca.crt"
+    server_key, server_csr, server_cert = tmp_path / "python-server.key", tmp_path / "python-server.csr", tmp_path / "python-server.crt"
+    client_key, client_csr, client_cert = tmp_path / "go-client.key", tmp_path / "go-client.csr", tmp_path / "go-client.crt"
+    server_ext, client_ext = tmp_path / "python-server.ext", tmp_path / "go-client.ext"
+    server_ext.write_text(
+        "basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth\n"
+        "subjectAltName=IP:127.0.0.1,URI:urn:obis:peer:python-peer\n",
+        encoding="utf-8",
+    )
+    client_ext.write_text(
+        "basicConstraints=CA:FALSE\nkeyUsage=digitalSignature\nextendedKeyUsage=clientAuth\n"
+        "subjectAltName=URI:urn:obis:peer:go-peer\n",
+        encoding="utf-8",
+    )
+    commands = [
+        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-sha256", "-days", "1", "-nodes",
+         "-keyout", str(ca_key), "-out", str(ca_cert), "-subj", "/CN=OBIS-Test-CA"],
+        ["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-keyout", str(server_key),
+         "-out", str(server_csr), "-subj", "/CN=OBIS-Python-Peer"],
+        ["openssl", "x509", "-req", "-in", str(server_csr), "-CA", str(ca_cert), "-CAkey", str(ca_key),
+         "-CAcreateserial", "-out", str(server_cert), "-days", "1", "-sha256", "-extfile", str(server_ext)],
+        ["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-keyout", str(client_key),
+         "-out", str(client_csr), "-subj", "/CN=OBIS-Go-Peer"],
+        ["openssl", "x509", "-req", "-in", str(client_csr), "-CA", str(ca_cert), "-CAkey", str(ca_key),
+         "-CAserial", str(tmp_path / "ca.srl"), "-out", str(client_cert), "-days", "1", "-sha256", "-extfile", str(client_ext)],
+    ]
+    for command in commands:
+        completed = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True, timeout=20, check=False)
+        assert completed.returncode == 0, completed.stderr
+
+    secret_credential = Credential(
+        key_id="go-key",
+        peer_id="go-peer",
+        principal_ref="principal:go",
+        secret=secret,
+        allowed_scopes=frozenset({"catalog:read"}),
+    )
+    python_peer = OBISPeer("python-peer", [secret_credential])
+    python_peer.register_capability(
+        "catalog.lookup", "1.0", {"catalog:read"},
+        lambda payload: {"accepted": True, "item_id": payload["item_id"], "served_by": "python-peer"},
+    )
+    server_context = create_tls13_server_context(str(server_cert), str(server_key), str(ca_cert))
+    environment = os.environ.copy()
+    environment.update({
+        "OBIS_REMOTE_ENDPOINT": "",
+        "OBIS_TEST_SECRET": secret.decode("ascii"),
+        "OBIS_TLS_CA": str(ca_cert),
+        "OBIS_TLS_CERT": str(client_cert),
+        "OBIS_TLS_KEY": str(client_key),
+        "OBIS_TLS_SERVER_NAME": "127.0.0.1",
+        "OBIS_TEST_ITEM_ID": "go-client-to-python-server",
+    })
+    go_project = Path(__file__).parents[2] / "obis-go"
+    with OBISServer(python_peer, ssl_context=server_context) as python_server:
+        environment["OBIS_REMOTE_ENDPOINT"] = python_server.address
+        completed = subprocess.run(
+            ["go", "run", "./cmd/obis-go-client"],
+            cwd=go_project,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    assert completed.returncode == 0, completed.stderr
+    response = __import__("json").loads(completed.stdout)
+    assert response["outcome"] == "succeeded"
+    assert response["sender"]["peer_id"] == "python-peer"
+    assert response["result"]["served_by"] == "python-peer"
+    assert response["result"]["item_id"] == "go-client-to-python-server"
