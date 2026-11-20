@@ -20,9 +20,13 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
+      - run: python -m pip install -e "projects/BRIDEX/core[dev]"
       - run: python -m pip install -e "projects/BRIDEX/reference/obis-python[dev]"
       - run: python -m pip install -e "projects/ECOSCAN[dev]"
-      - run: python -m pytest -q tests projects/BRIDEX/reference/obis-python/tests projects/ECOSCAN/tests
+      - run: python -m pytest -q tests projects/BRIDEX/core/tests projects/BRIDEX/reference/obis-python/tests projects/ECOSCAN/tests
+      - run: python -m pip wheel --no-deps --wheel-dir /tmp/bridex-core-wheel projects/BRIDEX/core
+      - run: python -m pip install --no-deps --target /tmp/bridex-core-install /tmp/bridex-core-wheel/*.whl
+      - run: PYTHONPATH=/tmp/bridex-core-install python -c "from importlib.resources import files; assert files('bridex_core').joinpath('schemas/bridge-package-manifest.schema.json').is_file()"
       - run: python -m pip wheel --no-deps --wheel-dir /tmp/obis-wheel projects/BRIDEX/reference/obis-python
       - run: python -m pip install --no-deps --target /tmp/obis-install /tmp/obis-wheel/*.whl
       - run: PYTHONPATH=/tmp/obis-install python -c "from importlib.resources import files; assert files('obis_bridge').joinpath('schemas/message.schema.json').is_file()"
