@@ -28,7 +28,7 @@
 - [x] Correlation ID verification.
 - [x] Signed, correlated error envelopes for authenticated request failures.
 - [x] Draft JSON Schema 2020-12 artifact and schema-validation tests.
-- [x] Positive integration test and negative security/validation tests.
+- [x] Positive integration test and negative security/validation tests.\n- [x] Independent Go peer package using only the Go standard library; no Python, BRIDEX Core, or TRADIX runtime dependency.\n- [x] Bidirectional development-profile success-path tests: Python client → Go peer and Go client → Python peer.\n- [x] Go peer strict duplicate-key parsing, bounded TTL/message size, explicit peer/principal binding, receiver-side scope checks, loopback-only transport, and in-memory nonce replay rejection.
 - [x] Independent Go 1.23 peer using only the Go standard library; it has its own strict parser, request validator, peer/principal binding, scope checks, nonce replay guard, and loopback HTTP server.
 - [x] Shared OBIS request-vector tests in Go.
 - [x] Cross-language Python-client → Go-server request/response test; CI run #1100 completed successfully on commit `1848b42dc9dd209ebe71bea8562185d5507f6533`.
@@ -86,3 +86,16 @@ A second-language peer has been added at `projects/BRIDEX/reference/obis-go`. It
 - A reverse-direction Go client → Python peer integration test is now included; CI run #1108 is pending at the time of this note.
 
 This is early cross-implementation evidence, not full OBIS Interoperability Conformance. The Go implementation does not yet provide production TLS/mTLS, authenticated error-response parity, durable replay, business-operation idempotency/outcome reconciliation, audit persistence, or complete security-profile conformance. HMAC remains development-only.
+
+
+## Independent Go peer follow-up — 2026-11-20
+
+An independently buildable Go 1.23 peer is now present at `projects/BRIDEX/reference/obis-go`. It uses only the Go standard library and does not import or invoke the Python reference implementation, BRIDEX Core, or TRADIX services.
+
+The current cross-language tests cover both directions:
+- Python reference client → Go peer server, including verification of the Go-signed correlated success response.
+- Go peer client → Python reference peer server, including verification of the Python-signed correlated success response.
+
+CI run #1119 completed successfully on commit `2e06ad11b54e71298d006edbd28168b5fadb4b82`. It ran Go unit tests, built the Go peer, ran the complete Python/BRIDEX Core/OBIS/ECOSCAN test suite with both cross-language tests enabled, and built/isolated-installed the Python packages.
+
+This is evidence of bidirectional interoperability for the current loopback development HMAC success path only. HMAC remains development/conformance-only. Production TLS/mTLS, canonicalization freeze, credential lifecycle, signed error parity, durable replay and operation idempotency, audit persistence, full cross-language negative conformance, and independent security review remain open.
