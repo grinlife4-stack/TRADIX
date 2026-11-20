@@ -40,7 +40,7 @@ def test_all_ecoscan_01_schemas_are_valid_json_schema_documents() -> None:
         load_schema(name)
 
 
-def test_source_registry_accepts_credential_reference_but_rejects_secret_value() -> None:
+def test_source_registry_accepts_opaque_credential_reference_and_rejects_unknown_secret_fields() -> None:
     source = {
         "schema_version": "0.1",
         "project_id": "project-a",
@@ -70,6 +70,7 @@ def test_source_registry_accepts_credential_reference_but_rejects_secret_value()
         "source-registry.schema.json",
         {**source, "application_key": "must-never-be-stored"},
     )
+    assert_invalid("source-registry.schema.json", {**source, "credential_ref": ""})
 
 
 def test_measurement_schema_preserves_semantics_and_rejects_negative_values() -> None:
