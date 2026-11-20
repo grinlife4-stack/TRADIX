@@ -12,7 +12,7 @@ Work must proceed in dependency order, not by whichever project appears most rea
 The governing architecture remains:
 - TRADIX is the portfolio factory/toolbox and builds portfolio tools, while completed tools operate independently.
 - BRIDEX is the specialist engineering/generation system for independent Bridge tools.
-- Each generated Bridge has its own identity, owner/operator, source/package, configuration, permissions, runtime, and lifecycle.
+- Each generated Bridge is owned by the project whose resources/data/capabilities it exposes; BRIDEX is only its generator. The owning project controls source/package, configuration, credentials, permissions, release, operation, and lifecycle.
 - OBIS is the external, vendor-neutral interoperability contract.
 - TIIS is restricted to authorized TRADIX-internal integration. A Bridge's TIIS-facing adapter is optional and must not be required for external OBIS operation.
 - Connected applications and projects remain independent peers and retain control of their own APIs, data, credentials, permissions, and business logic.
@@ -58,7 +58,7 @@ The governing architecture remains:
 
 ### Phase 4 — Build the Bridge generation and release pipeline
 1. Generate a standalone Bridge from generic BRIDEX foundations plus isolated destination-specific configuration/adapters.
-2. Assign and record the Bridge ID, owner, operator, maintainer, supported contracts, peer identities, scopes, and lifecycle.
+2. Assign and record the Bridge ID and the source/resource-owning project as owner; separately record operator, maintainer, supported contracts, peer identities, scopes, and lifecycle. BRIDEX must never be recorded as owner.
 3. Package source or independently buildable artifacts, schemas, dependency/license inventory, reproducible build/deploy instructions, configuration templates, tests, evidence, migration, rollback, and export procedures.
 4. Prove destination-specific changes do not alter the generic core or unrelated Bridge instances.
 5. Prove the generated Bridge can be built, deployed, operated, maintained, and exported without BRIDEX/TRADIX services, repositories, registries, credentials, or online license checks.
@@ -68,7 +68,7 @@ The governing architecture remains:
 ### Phase 5 — First controlled application pilot
 1. Select one low-risk integration only after the generic Bridge and protocol gates pass.
 2. The target project first publishes its own approved interface contract, capability list, data classification, permission model, and test fixtures.
-3. The target project explicitly approves the Bridge identity, owner/operator, data scope, and capabilities.
+3. The source/resource-owning project approves its Bridge identity, operator, exposed capabilities, and source-side data scope. The receiving project separately approves its peer identity, ingress boundary, and accepted data scope.
 4. Implement only the destination-specific adapter and mappings in that Bridge instance.
 5. Test both directions where required, schema/version compatibility, least privilege, denial paths, revocation, idempotency, failure isolation, and audit evidence.
 6. Run the pilot with TRADIX and BRIDEX unavailable to prove the runtime path is independent.
@@ -107,7 +107,8 @@ At the time this document is drafted:
 - PR #42 is a consolidated Draft review branch and has not been merged.
 - PR #66 content was synchronized into PR #42 at content level; the two branch histories were not merged.
 - CI run #1014 passed its recorded Python tests, wheel builds, isolated installs, and packaged-schema smoke checks.
-- Those CI results do not prove production TLS/mTLS, durable replay/idempotency, production audit persistence, second-language interoperability, or the combined ECOSCAN-adapter-to-OBIS-peer path.
+- Those CI results do not prove production TLS/mTLS, durable replay/idempotency, production audit persistence, second-language interoperability, or a live project-owned ECOSCAN Bridge integration.
+- No ECOSCAN-to-BRIDEX connection is an acceptance requirement. Any future ECOSCAN Bridge test must use an independently owned source-project Bridge and a generic OBIS-compatible peer. BRIDEX reference code may be used only as an optional development fixture, never as a required endpoint or runtime dependency.
 - The OBIS 0.1 and TIIS 0.1 documents remain draft baselines, not production 1.0 contracts.
 - Existing TRADIX component PR dependencies must be rechecked before reuse; their presence in documentation does not prove they are merged or production-ready.
 
