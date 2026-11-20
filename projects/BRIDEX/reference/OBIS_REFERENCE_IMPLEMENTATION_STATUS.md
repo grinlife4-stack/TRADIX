@@ -78,7 +78,7 @@ Both reference paths now support an opt-in TLS 1.3 mutual-authentication candida
 - Python reference client and server build owner-supplied SSL contexts with certificate verification required, TLS 1.3 only, and ALPN http/1.1.
 - Python server maps the client certificate's single URI SAN urn:obis:peer:<peer-id> to the OBIS sender field and configured credential peer.
 - Go reference server requires a client certificate, TLS 1.3, ALPN http/1.1, validates the certificate chain against an owner-supplied CA bundle, and applies the same URI-SAN-to-peer binding.
-- The cross-language test creates ephemeral CA/server/client certificates and exercises Python-to-Go mTLS request/response. It also exercises the Python server with the same client certificate.
+- The cross-language test creates ephemeral CA/server/client certificates and exercises bidirectional Python/Go mTLS request/response. It also exercises the Python server with the same client certificate.
 - The Go reference listener is explicitly loopback-only in both HTTP and HTTPS modes.
 
 Still open before production: owner-approved trust model, CA/issuance ownership, certificate rotation and revocation, trust-bundle expiry/freshness, emergency denylisting, key custody, complete negative certificate tests, independent security review, and removal or replacement of the HMAC development authentication layer. The TLS implementation is a candidate profile, not production approval.
