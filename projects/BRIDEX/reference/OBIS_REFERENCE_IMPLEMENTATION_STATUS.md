@@ -23,6 +23,7 @@
 - [x] Loopback URL restrictions and finite positive client timeout.
 - [x] HTTP content-type enforcement and rejection of unsupported transfer encoding.
 - [x] Nonce replay rejection within one running process.
+- [x] Optional owner-local SQLite nonce persistence across restarts with atomic uniqueness and fail-closed storage errors.
 - [x] Optional owner-local SQLite replay persistence across process restarts, with atomic uniqueness and fail-closed storage errors.
 - [x] Correlation ID verification.
 - [x] Signed, correlated error envelopes for authenticated request failures.
@@ -47,7 +48,7 @@ The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/messa
 1. Freeze normative JSON Schemas and canonicalization rules.
 2. Select and review production authentication and transport security profiles.
 3. Define credential issuance, rotation, revocation, and principal delegation.
-4. Define durable replay/idempotency and outcome reconciliation.
+4. Complete durable replay protection, business-operation idempotency, and unknown-outcome reconciliation. The optional SQLite nonce guard is implemented but does not yet provide an operation-result ledger.
 5. Define signed evidence/audit formats and retention controls.
 6. Implement at least one independent second-language peer.
 7. Pass cross-implementation positive and negative conformance suites.
@@ -70,4 +71,4 @@ The ECOSCAN inventory capability, credential-bound project/source grant, and thr
 
 The two PR branches have not had their commit histories merged; the implementation files were synchronized. PR #42 remains Draft and unmerged. PR #66 remains open/Draft for traceability and must not be merged independently.
 
-These CI results verify the tests and packaging checks that actually ran. They do **not** close the production security, durable replay/idempotency, audit persistence, second-language interoperability, or combined ECOSCAN-to-OBIS integration gates listed above.
+These CI results verify only the tests and packaging checks that actually ran. The optional SQLite nonce guard now persists replay state locally, but this does **not** close production security, business-operation idempotency/outcome reconciliation, audit persistence, second-language interoperability, or combined ECOSCAN-to-OBIS integration gates.
