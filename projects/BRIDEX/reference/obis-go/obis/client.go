@@ -62,7 +62,13 @@ func Invoke(endpoint, localPeerID, remotePeerID, keyID, principal string, secret
 	request.Header.Set("X-OBIS-Key-Id", keyID)
 	request.Header.Set("X-OBIS-Signature", signature)
 
-	client := &http.Client{Timeout: 3 * time.Second}
+	client := &http.Client{
+		Timeout: 3 * time.Second,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			// Never forward OBIS credentials or signed request metadata to a redirect target.
+			return http.ErrUseLastResponse
+		},
+	}
 	response, err := client.Do(request)
 	if err != nil { return nil, classifyTransportError(err) }
 	defer response.Body.Close()
