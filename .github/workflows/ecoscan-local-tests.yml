@@ -34,17 +34,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: grinlife4-stack/TRADIX
-          ref: 320bb7b8f0c01384aa787e9398218198e032c3b9
+          ref: d22f4ff30b2d7a7e38925affb52d79021332cf3a
           path: bridex-obis-reference
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Build independent Go OBIS reference peer for integration tests
+        run: cd bridex-obis-reference/projects/BRIDEX/reference/obis-go && go build -o /tmp/obis-go-peer ./cmd/obis-go-peer
       - name: Install independent OBIS reference peer for integration tests
         run: python -m pip install --disable-pip-version-check -e "bridex-obis-reference/projects/BRIDEX/reference/obis-python"
       - name: Install standalone ECOSCAN and test runner
         run: python -m pip install --disable-pip-version-check -e "projects/ECOSCAN[test]"
       - name: Run standalone ECOSCAN test suite, including OBIS wire integration
         run: python -m pytest -q projects/ECOSCAN/tests
+        env:
+          OBIS_GO_PEER_BINARY: /tmp/obis-go-peer
       - name: Validate synthetic ecosystem registry
         run: python -m ecoscan validate-registry projects/ECOSCAN/config/ecosystem-registry.json
       - name: Run local-only synthetic scan
