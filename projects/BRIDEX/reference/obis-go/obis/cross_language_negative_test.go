@@ -37,18 +37,23 @@ func TestGoRawNegativeRequestsToPythonPeer(t *testing.T) {
 		"payload": map[string]any{"record_id": "negative-cross-peer"},
 	}
 
-	post := func(message map[string]any, signature string) int {
-		body, err := CanonicalJSON(message)
-		if err != nil { t.Fatalf("canonicalize raw request: %v", err) }
+	postRaw := func(body []byte, signature string) int {
 		req, err := http.NewRequest(http.MethodPost, endpoint+MessagePath, bytes.NewReader(body))
 		if err != nil { t.Fatalf("build raw request: %v", err) }
 		req.Header.Set("Content-Type", "application/obis+json")
 		req.Header.Set("X-OBIS-Key-Id", "go-dev-key")
-		req.Header.Set("X-OBIS-Signature", signature)
+		if signature != "" {
+			req.Header.Set("X-OBIS-Signature", signature)
+		}
 		response, err := (&http.Client{Timeout: 3 * time.Second}).Do(req)
 		if err != nil { t.Fatalf("send raw request: %v", err) }
 		defer response.Body.Close()
 		return response.StatusCode
+	}
+	post := func(message map[string]any, signature string) int {
+		body, err := CanonicalJSON(message)
+		if err != nil { t.Fatalf("canonicalize raw request: %v", err) }
+		return postRaw(body, signature)
 	}
 
 	unsupported := make(map[string]any, len(request))
@@ -64,6 +69,42 @@ func TestGoRawNegativeRequestsToPythonPeer(t *testing.T) {
 	for key, value := range request { invalidAuth[key] = value }
 	if status := post(invalidAuth, "00"); status != http.StatusUnauthorized {
 		t.Fatalf("Python peer status for invalid signature = %d, want 401", status)
+	}
+
+	expired := make(map[string]any, len(request))
+	for key, value := range request { expired[key] = value }
+	expired["issued_at"] = json.Number(strconv.FormatInt(now-60, 10))
+	expired["expires_at"] = json.Number(strconv.FormatInt(now-30, 10))
+	expiredSignature, err := Sign(expired, secret)
+	if err != nil { t.Fatalf("sign expired request: %v", err) }
+	if status := post(expired, expiredSignature); status != http.StatusRequestTimeout {
+		t.Fatalf("Python peer status for expired request = %d, want 408", status)
+	}
+
+	unknownField := make(map[string]any, len(request)+1)
+	for key, value := range request { unknownField[key] = value }
+	unknownField["unexpected"] = "not-in-contract"
+	unknownSignature, err := Sign(unknownField, secret)
+	if err != nil { t.Fatalf("sign unknown-field request: %v", err) }
+	if status := post(unknownField, unknownSignature); status != http.StatusBadRequest {
+		t.Fatalf("Python peer status for unknown top-level field = %d, want 400", status)
+	}
+
+	nestedField := make(map[string]any, len(request))
+	for key, value := range request { nestedField[key] = value }
+	nestedSender := map[string]any{"peer_id": "peer:go", "bridge_id": "not-in-contract"}
+	nestedField["sender"] = nestedSender
+	nestedSignature, err := Sign(nestedField, secret)
+	if err != nil { t.Fatalf("sign nested-field request: %v", err) }
+	if status := post(nestedField, nestedSignature); status != http.StatusBadRequest {
+		t.Fatalf("Python peer status for unexpected sender field = %d, want 400", status)
+	}
+
+	if status := postRaw([]byte("{"), ""); status != http.StatusBadRequest {
+		t.Fatalf("Python peer status for malformed JSON = %d, want 400", status)
+	}
+	if status := postRaw([]byte("{\"protocol\":\"obis\",\"protocol\":\"obis\"}"), ""); status != http.StatusBadRequest {
+		t.Fatalf("Python peer status for duplicate JSON key = %d, want 400", status)
 	}
 }
 
