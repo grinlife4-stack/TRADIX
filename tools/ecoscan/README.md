@@ -24,7 +24,7 @@ Reports are written locally as JSON and Markdown. The tool does not upload, dele
 
 - Public repositories can be inventoried through the GitHub REST API.
 - Private repositories require a token with read-only metadata and contents access to each registered private repository.
-- For scheduled GitHub Actions, configure a repository secret named `PORTFOLIO_GITHUB_TOKEN` (legacy secret name retained for compatibility) containing a fine-grained token limited to the required repositories and read-only contents/metadata permissions.
+- For scheduled GitHub Actions, configure a repository secret named `ECOSCAN_GITHUB_TOKEN` containing a fine-grained token limited to the required repositories and read-only contents/metadata permissions.
 - The workflow's built-in `GITHUB_TOKEN` is restricted to TRADIX; it cannot be assumed to read other private repositories.
 - Issue publication uses the workflow's built-in token with `issues: write`; no personal token is needed for publishing the report to TRADIX.
 
