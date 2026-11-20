@@ -29,6 +29,7 @@ type OperationRecord struct {
 	CapabilityVersion string `json:"capability_version"`
 	IdempotencyKeyHash string `json:"idempotency_key_hash"`
 	RequestHash string `json:"request_hash"`
+	ResourceRef string `json:"resource_ref,omitempty"`
 	State string `json:"state"`
 	Result map[string]any `json:"result,omitempty"`
 	ResultRef string `json:"result_ref,omitempty"`
@@ -154,7 +155,7 @@ func (l *FileOperationLedger) Reserve(record OperationRecord, now float64) (Oper
 				existing.CapabilityID == record.CapabilityID &&
 				existing.CapabilityVersion == record.CapabilityVersion
 			if sameScope && existing.IdempotencyKeyHash == record.IdempotencyKeyHash {
-				if existing.OperationID != record.OperationID || existing.RequestHash != record.RequestHash {
+				if existing.OperationID != record.OperationID || existing.RequestHash != record.RequestHash || existing.ResourceRef != record.ResourceRef {
 					return ErrIdempotencyConflict
 				}
 				result = existing
@@ -162,7 +163,7 @@ func (l *FileOperationLedger) Reserve(record OperationRecord, now float64) (Oper
 			}
 		}
 		if existing, ok := state.Records[record.OperationID]; ok {
-			if existing.RequestHash != record.RequestHash || existing.IdempotencyKeyHash != record.IdempotencyKeyHash ||
+			if existing.RequestHash != record.RequestHash || existing.ResourceRef != record.ResourceRef || existing.IdempotencyKeyHash != record.IdempotencyKeyHash ||
 				existing.PeerID != record.PeerID || existing.PrincipalRef != record.PrincipalRef ||
 				existing.CapabilityID != record.CapabilityID || existing.CapabilityVersion != record.CapabilityVersion {
 				return ErrIdempotencyConflict
@@ -222,6 +223,14 @@ func (l *FileOperationLedger) Get(operationID, peerID, principalRef, capabilityI
 		return nil
 	})
 	return result, err
+}
+
+
+func (l *FileOperationLedger) GetForResource(operationID, peerID, principalRef, capabilityID, capabilityVersion, resourceRef string) (OperationRecord, error) {
+	record, err := l.Get(operationID, peerID, principalRef, capabilityID, capabilityVersion)
+	if err != nil { return OperationRecord{}, err }
+	if record.ResourceRef != resourceRef { return OperationRecord{}, ErrOperationNotFound }
+	return record, nil
 }
 
 func (l *FileOperationLedger) RecoverRunningAsUnknown(now float64) (int, error) {
