@@ -46,7 +46,7 @@ A Bridge may expose approved capabilities and consume approved capabilities from
 
 ### B1. Implemented BRIDEX Core generator 0.1
 
-The first engineering-plane package is implemented as an independent, dependency-free Python distribution under `projects/BRIDEX/core`. It generates a draft Bridge project with explicit owner/operator assignment references, strict OBIS/version metadata, disabled-by-default peers and capabilities, manifest validation, and deterministic allowlisted ZIP packaging. It does not execute generated code, provision credentials, establish peer trust, or provide a runtime transport.
+The first engineering-plane package is implemented as an independent, dependency-free Python distribution under `projects/BRIDEX/core`. It generates a draft Bridge project with explicit owner/operator assignment references, strict OBIS/version metadata, disabled-by-default peers and capabilities, manifest validation, a vendored standalone OBIS 0.1 development peer, and deterministic allowlisted ZIP packaging. The generated source includes its own build metadata and schema. The vendored peer remains loopback/HMAC development-only; the generator does not execute generated code, provision credentials, or establish peer trust.
 
 ### C. Connected peer
 
