@@ -113,6 +113,9 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
     except (OSError, zipfile.BadZipFile) as exc:
         raise BridgeManifestError("package_archive_invalid") from exc
 
+    if not isinstance(max_package_bytes, int) or max_package_bytes < 1:
+        raise ValueError("max_package_bytes_must_be_positive")
+
     with archive:
         infos = archive.infolist()
         names = [info.filename for info in infos]
@@ -120,8 +123,15 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
             raise BridgeManifestError("package_duplicate_entries_rejected")
         if len(infos) > MAX_PACKAGE_ENTRIES:
             raise BridgeManifestError("package_entry_count_limit_exceeded")
+        declared_uncompressed = sum(info.file_size for info in infos)
+        if declared_uncompressed > max_package_bytes:
+            raise BridgeManifestError("package_total_size_limit_exceeded")
         for info in infos:
             _safe_relative_path(info.filename, allow_reserved=True)
+            if info.flag_bits & 0x1:
+                raise BridgeManifestError("package_encrypted_entry_rejected")
+            if info.compress_type not in {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}:
+                raise BridgeManifestError("package_compression_method_unsupported")
             mode = (info.external_attr >> 16) & 0xFFFF
             if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
                 raise BridgeManifestError("package_non_regular_entry_rejected")
@@ -139,7 +149,9 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
         except (UnicodeError, json.JSONDecodeError, KeyError) as exc:
             raise BridgeManifestError("package_manifest_invalid") from exc
 
-        if not isinstance(package_manifest, dict) or package_manifest.get("format") != PACKAGE_FORMAT:
+        if not isinstance(package_manifest, dict) or set(package_manifest) != {
+            "format", "bridge_id", "version", "file_count", "total_bytes", "files"
+        } or package_manifest.get("format") != PACKAGE_FORMAT:
             raise BridgeManifestError("package_format_unsupported")
         if package_manifest.get("bridge_id") != bridge_manifest["bridge_id"] or package_manifest.get("version") != bridge_manifest["version"]:
             raise BridgeManifestError("package_identity_mismatch")
@@ -157,7 +169,7 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
             if name in seen:
                 raise BridgeManifestError("package_duplicate_file_record")
             seen.add(name)
-            if not isinstance(record["size_bytes"], int) or record["size_bytes"] < 0:
+            if type(record["size_bytes"]) is not int or record["size_bytes"] < 0:
                 raise BridgeManifestError("package_file_size_invalid")
             if not isinstance(record["sha256"], str) or len(record["sha256"]) != 64 or any(ch not in "0123456789abcdef" for ch in record["sha256"]):
                 raise BridgeManifestError("package_file_hash_invalid")
@@ -177,8 +189,10 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
             total_bytes += len(bridge_bytes)
         if total_bytes != package_manifest.get("total_bytes"):
             raise BridgeManifestError("package_total_size_mismatch")
-        if package_manifest.get("file_count") != len(records):
+        if type(package_manifest.get("file_count")) is not int or package_manifest.get("file_count") != len(records):
             raise BridgeManifestError("package_file_count_mismatch")
+        if type(package_manifest.get("total_bytes")) is not int:
+            raise BridgeManifestError("package_total_size_mismatch")
         if total_bytes > max_package_bytes:
             raise BridgeManifestError("package_total_size_limit_exceeded")
 
