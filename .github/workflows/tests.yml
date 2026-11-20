@@ -26,3 +26,6 @@ jobs:
       - run: python -m pip wheel --no-deps --wheel-dir /tmp/obis-wheel projects/BRIDEX/reference/obis-python
       - run: python -m pip install --no-deps --target /tmp/obis-install /tmp/obis-wheel/*.whl
       - run: PYTHONPATH=/tmp/obis-install python -c "from importlib.resources import files; assert files('obis_bridge').joinpath('schemas/message.schema.json').is_file()"
+      - run: python -m pip wheel --no-deps --wheel-dir /tmp/ecoscan-wheel projects/ECOSCAN
+      - run: python -m pip install --no-deps --target /tmp/ecoscan-install /tmp/ecoscan-wheel/*.whl
+      - run: PYTHONPATH=/tmp/ecoscan-install python -c "from importlib.resources import files; assert files('ecoscan').joinpath('schemas/source-registry.schema.json').is_file()"
