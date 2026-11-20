@@ -8,7 +8,8 @@
       "name": "TRADIX",
       "sources": [
         "tradix-github"
-      ]
+      ],
+      "enabled": true
     },
     {
       "project_id": "NEXORA",
@@ -16,43 +17,50 @@
       "sources": [
         "nexora-github",
         "nexora-tradix-dossier"
-      ]
+      ],
+      "enabled": true
     },
     {
       "project_id": "MEGAMARKET",
       "name": "MegaMarket",
       "sources": [
         "megamarket-tradix-dossier"
-      ]
+      ],
+      "enabled": true
     },
     {
       "project_id": "EXVARLI",
       "name": "EXVARLI",
       "sources": [
         "exvarli-tradix-dossier"
-      ]
+      ],
+      "enabled": true
     },
     {
       "project_id": "AAECN",
       "name": "AAECN",
-      "sources": []
+      "sources": [],
+      "enabled": true
     },
     {
       "project_id": "TRADING_INTELLIGENCE",
       "name": "Trading Intelligence Platform",
       "sources": [
         "info-engine-github"
-      ]
+      ],
+      "enabled": true
     },
     {
       "project_id": "X",
       "name": "X Financial System",
-      "sources": []
+      "sources": [],
+      "enabled": true
     },
     {
       "project_id": "XENORA_AI",
       "name": "XENORA AI",
-      "sources": []
+      "sources": [],
+      "enabled": true
     },
     {
       "project_id": "UNCLASSIFIED_ARCHIVE",
@@ -60,7 +68,8 @@
       "sources": [
         "fluffy-happiness-github",
         "green888-github"
-      ]
+      ],
+      "enabled": true
     }
   ],
   "sources": [
@@ -76,14 +85,16 @@
         "projects/NEXORA/",
         "docs/projects/EXVARLI_FINANCIAL_ARCHITECTURE.md",
         "docs/projects/NEXORA_WELLNESS_DOSSIER.md"
-      ]
+      ],
+      "enabled": true
     },
     {
       "source_id": "nexora-github",
       "project_id": "NEXORA",
       "provider": "github",
       "repository": "grinlife4-stack/NEXORA",
-      "ref": "main"
+      "ref": "main",
+      "enabled": true
     },
     {
       "source_id": "nexora-tradix-dossier",
@@ -94,7 +105,8 @@
       "include_paths": [
         "projects/NEXORA/",
         "docs/projects/NEXORA_WELLNESS_DOSSIER.md"
-      ]
+      ],
+      "enabled": true
     },
     {
       "source_id": "megamarket-tradix-dossier",
@@ -104,7 +116,8 @@
       "ref": "main",
       "include_paths": [
         "products/megamarket/"
-      ]
+      ],
+      "enabled": true
     },
     {
       "source_id": "exvarli-tradix-dossier",
@@ -115,28 +128,32 @@
       "include_paths": [
         "projects/EXVARLI/",
         "docs/projects/EXVARLI_FINANCIAL_ARCHITECTURE.md"
-      ]
+      ],
+      "enabled": true
     },
     {
       "source_id": "info-engine-github",
       "project_id": "TRADING_INTELLIGENCE",
       "provider": "github",
       "repository": "grinlife4-stack/info_engine",
-      "ref": "main"
+      "ref": "main",
+      "enabled": true
     },
     {
       "source_id": "fluffy-happiness-github",
       "project_id": "UNCLASSIFIED_ARCHIVE",
       "provider": "github",
       "repository": "grinlife4-stack/fluffy-happiness",
-      "ref": "main"
+      "ref": "main",
+      "enabled": true
     },
     {
       "source_id": "green888-github",
       "project_id": "UNCLASSIFIED_ARCHIVE",
       "provider": "github",
       "repository": "grinlife4-stack/-Green888",
-      "ref": "main"
+      "ref": "main",
+      "enabled": true
     }
   ],
   "notes": [
