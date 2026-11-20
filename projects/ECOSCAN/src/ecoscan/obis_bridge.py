@@ -115,6 +115,9 @@ class OBISBridgeAdapter:
             if isinstance(exc, (TransportOutcomeUnknown, BudgetExceeded)):
                 raise
             code = getattr(exc, "code", None)
+            http_status = getattr(exc, "http_status", None)
+            if http_status in {400, 401, 403, 404, 408, 409, 413, 415, 426}:
+                raise
             known_terminal_or_pre_execution = {
                 "authorization.denied", "capability.unknown", "identity.unknown_peer",
                 "request.expired", "request.replay_detected", "operation.failed",
