@@ -10,7 +10,7 @@
 
 BRIDEX is an independent specialist engineering project. Its product is not one central network gateway. Its product is a repeatable method and reusable engineering foundation for generating independent Bridge tools.
 
-A generated Bridge is a standalone tool. It is not a runtime child process that must call home to BRIDEX, and it is not automatically embedded in or owned by the software to which it connects.
+A generated Bridge is a standalone tool owned by the portfolio project whose resources, data, or capabilities it is authorized to expose. It is not a runtime child process that must call home to BRIDEX, and it is not owned by BRIDEX. BRIDEX generates and validates the tool; it does not own, centrally operate, or control project Bridge instances.
 
 ## 2. Logical architecture
 
@@ -125,7 +125,7 @@ The detailed security baseline is maintained in [OBIS Threat Model](OBIS_THREAT_
 
 ## 7. Ownership, lifecycle, and portability
 
-Ownership, generation, operation, and maintenance are distinct roles. BRIDEX is the generator and engineering-method provider, not the default owner of a generated Bridge. Each instance must explicitly designate its owner; the commissioning/using project or tool may own it, or another entity may be named. If operator or maintainer differs, record that role separately.
+Ownership, generation, operation, and maintenance are distinct roles. BRIDEX is exclusively the generator and engineering-method provider. The portfolio project whose resources, data, or capabilities a Bridge exposes is its owner. A receiving project owns its own receiving adapter and acceptance boundary, not the source project's Bridge. Cross-project integrations use separately owned Bridge instances at each project boundary by default. A shared Bridge requires explicit written joint ownership approval by every affected project and strict per-project isolation. If operator or maintainer differs from owner, record that role separately; appointment does not transfer ownership.
 
 The designated owner must have access to the complete source or independently buildable package and, subject to third-party licenses, the rights to run, configure, modify, fork, transfer, independently maintain, appoint/replace operators, and export owner-controlled configuration and operational records. An opaque binary, hosted endpoint, or generator-dependent package alone is insufficient unless a documented exception is explicitly approved.
 
@@ -144,7 +144,7 @@ Every Bridge instance must record:
 - Conformance and security test evidence.
 - Deployment, backup, restore, upgrade, rollback, revocation, replacement, and decommissioning procedures.
 
-Ownership is assigned explicitly for each Bridge instance. The project that commissioned or uses the Bridge may own it, or another explicitly designated entity may own and operate it. BRIDEX's role as generator does not automatically make BRIDEX the owner. The connected destination does not automatically become the owner merely because it is a peer.
+Ownership is assigned to the project whose resources or capabilities the Bridge exposes. BRIDEX must never be recorded as owner. The receiving project owns only its own local ingress/validation component unless it is independently the source-owning project. Repository location, hosting account, or generator identity does not change ownership.
 
 ## 8. Reuse of existing TRADIX components
 
