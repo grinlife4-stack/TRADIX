@@ -224,9 +224,12 @@ then shuts down the active socket; a slow-drip response cannot extend the
 caller-visible request duration by repeatedly delivering small chunks. The
 client's configured transport timeout remains an upper bound.
 
-A loopback regression test covers a peer that sends response bytes slowly over
-a period longer than the supplied deadline. The client must return the
-normalized `peer.timeout` / HTTP 504 result within the bounded test interval.
+Loopback regression tests cover a peer that sends response bytes slowly
+over a period longer than the supplied deadline and an already-expired
+deadline. The slow-drip client must return the normalized `peer.timeout` /
+HTTP 504 result within the bounded interval; an already-expired deadline must
+not open a socket or send a request. CI run #1248 passed on exact PR #42 head
+`320bb7b8f0c01384aa787e9398218198e032c3b9`.
 
 This is a local reference-client deadline guarantee, not a remote cancellation
 or exactly-once guarantee. A peer may already have executed the capability
