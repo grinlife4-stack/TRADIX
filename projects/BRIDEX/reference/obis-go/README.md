@@ -19,7 +19,7 @@ Set all three variables to enable HTTPS with mandatory client certificate verifi
 - OBIS_TLS_KEY: server private key path, supplied by the Bridge owner at runtime.
 - OBIS_TLS_CA: CA bundle used to validate client certificates.
 
-Partial TLS configuration fails closed. The listener remains loopback-only. The server requires TLS 1.3, ALPN obis/1, a valid client certificate, and exactly one URI SAN of the form urn:obis:peer:<peer-id>. That peer ID must match the OBIS sender field and the configured credential peer.
+Partial TLS configuration fails closed. The listener remains loopback-only. The server requires TLS 1.3, ALPN http/1.1, a valid client certificate, and exactly one URI SAN of the form urn:obis:peer:<peer-id>. That peer ID must match the OBIS sender field and the configured credential peer.
 
 The TLS candidate does not implement certificate issuance, rotation, revocation, trust-bundle refresh, or emergency denylisting. The HMAC application authentication remains a development-profile requirement in this reference. Do not use it for production workloads.
 
