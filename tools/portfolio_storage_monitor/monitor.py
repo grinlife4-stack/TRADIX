@@ -210,7 +210,9 @@ def render_markdown(report: dict[str, Any]) -> str:
             size = source.get("logical_bytes")
             repo_size = source.get("repository_size_bytes")
             scope = source.get("path_scope") or {}
-            if scope.get("include_paths"):
+            if source.get("provider") == "local":
+                scope_label = "configured directory"
+            elif scope.get("include_paths"):
                 scope_label = "include: " + ", ".join(scope["include_paths"])
             elif scope.get("exclude_paths"):
                 scope_label = "repository minus: " + ", ".join(scope["exclude_paths"])
