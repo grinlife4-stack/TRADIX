@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import os
 import subprocess
+import os
+import subprocess
 import time
 
 import pytest
@@ -283,3 +285,67 @@ def test_ecoscan_adapter_scans_through_independent_go_obis_v02_peer(tmp_path):
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+
+
+GO_PEER_BINARY = os.environ.get("OBIS_GO_PEER_BINARY")
+
+
+def _start_independent_go_ecoscan_peer():
+    if not GO_PEER_BINARY or not os.path.isfile(GO_PEER_BINARY):
+        pytest.skip("independent Go OBIS peer binary is built by repository CI")
+    command = [
+        GO_PEER_BINARY,
+        "--peer-id", OWNER_PEER_ID,
+        "--listen", "127.0.0.1:0",
+        "--key-id", "ecoscan-dev-key",
+        "--remote-peer", ECOSCAN_PEER_ID,
+        "--principal", "principal:ecoscan",
+        "--secret-hex", SECRET.hex(),
+        "--scopes", REQUIRED_SCOPE,
+        "--allowed-resource", f"{PROJECT_ID}/{SOURCE_ID}",
+    ]
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert process.stdout is not None
+    address = process.stdout.readline().strip()
+    if not address:
+        stderr = process.stderr.read() if process.stderr else ""
+        process.kill()
+        raise AssertionError(f"independent Go OBIS peer failed to publish loopback address: {stderr}")
+    return process, f"http://{address}"
+
+
+def test_ecoscan_adapter_scans_independent_go_peer_over_loopback():
+    process, endpoint = _start_independent_go_ecoscan_peer()
+    try:
+        adapter = OBISBridgeAdapter(_client(), endpoint)
+        source = _source()
+        adapter.validate_config(source)
+        result = adapter.scan(_context(source))
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+
+    assert result.coverage_state == "COMPLETE"
+    assert result.items_seen == 2
+    assert result.pages_seen == 1
+    assert {item["kind"]: item["value"] for item in result.measurements} == {
+        "logical_bytes": 4096,
+        "file_count": 2,
+    }
+    assert all(item["project_id"] == PROJECT_ID for item in result.measurements)
+    assert all(item["source_id"] == SOURCE_ID for item in result.measurements)
+
+
+def test_ecoscan_adapter_go_peer_rejects_ungranted_resource_before_execution():
+    process, endpoint = _start_independent_go_ecoscan_peer()
+    try:
+        adapter = OBISBridgeAdapter(_client(), endpoint)
+        source = _source(source_id="different-source")
+        adapter.validate_config(source)
+        with pytest.raises(OBISRequestError) as raised:
+            adapter.scan(_context(source))
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+
+    assert raised.value.code == "authorization.denied"
