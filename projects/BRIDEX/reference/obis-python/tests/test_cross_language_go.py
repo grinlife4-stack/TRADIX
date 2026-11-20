@@ -173,7 +173,7 @@ def test_python_client_validates_authenticated_error_from_go_peer():
         with pytest.raises(OBISRequestError) as raised:
             client.invoke(endpoint, "missing.capability", "1.0", {"record_id": "unknown"})
         assert raised.value.code == "capability.unknown"
-        assert raised.value.status_code == 404
+        assert raised.value.http_status == 404
     finally:
         process.terminate()
         process.wait(timeout=5)
