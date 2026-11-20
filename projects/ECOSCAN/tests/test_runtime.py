@@ -443,3 +443,17 @@ def test_runner_marks_missing_adapter_not_configured(tmp_path):
     assert outcome.coverage_state == "NOT_CONFIGURED"
     assert outcome.reason_code == "adapter_not_registered"
     assert store.list_measurements() == []
+
+
+def test_runner_rejects_non_string_measurement_confidence(tmp_path):
+    parsed = parse_registry(registry(source()))
+    store = ProjectStore(tmp_path, "project-a")
+    invalid = {**measurement(), "confidence": ["HIGH"]}
+    adapter = FakeAdapter(result=AdapterResult("COMPLETE", (invalid,), 1, 1))
+    runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
+
+    outcome = runner.run("fs-main", "operator-a")
+
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "adapter_contract_violation"
+    assert store.list_measurements() == []
