@@ -142,3 +142,6 @@ No normative OBIS schema, message envelope, TIIS contract, version negotiation s
 
 
 The standalone Go server CLI now exposes the durable store through optional `--replay-dir`. A cross-language process-restart integration test sends a signed request from the Python test harness to the Go CLI, restarts the Go process with the same replay directory, and verifies the identical request is rejected with HTTP 409. CI run #1166 passed on commit `a81f2960056b397c561efb139b1c9ba396afe317`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
+
+
+A further HTTP-level cross-language test removes the configured Go replay directory after server startup. The Python client receives and validates the Go peer's signed `replay.storage_unavailable` error with HTTP 503; the Go unit test separately verifies that the capability handler is not executed. CI run #1170 passed on commit `afbc6e9f1b877b24ebebcabc06820cee7ccd18a3`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
