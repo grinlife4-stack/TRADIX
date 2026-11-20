@@ -1,4 +1,4 @@
-"""Command-line interface for standalone Bridge package validation."""
+"""Command-line interface for standalone Bridge package validation/export."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import json
 import sys
 from collections.abc import Sequence
 
+from .archive import export_package, restore_package
 from .layout import verify_package
 from .manifest import ManifestValidationError, load_manifest
 
@@ -18,14 +19,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     validate.add_argument("path", help="path to bridge manifest JSON")
     package = commands.add_parser("verify-package", help="verify an exported Bridge package directory")
     package.add_argument("directory", help="path to exported package directory")
+    export = commands.add_parser("export", help="create a deterministic ZIP export")
+    export.add_argument("directory", help="verified Bridge package directory")
+    export.add_argument("archive", help="new ZIP output path")
+    restore = commands.add_parser("restore", help="safely restore and verify a ZIP package")
+    restore.add_argument("archive", help="Bridge package ZIP archive")
+    restore.add_argument("directory", help="new restore destination directory")
     args = parser.parse_args(argv)
     try:
         if args.command == "validate":
             load_manifest(args.path)
             print("valid: BRIDEX Bridge Package Manifest 0.1")
-        else:
+        elif args.command == "verify-package":
             report = verify_package(args.directory)
             print("valid: BRIDEX portable Bridge package 0.1")
+            print(json.dumps(report, sort_keys=True))
+        elif args.command == "export":
+            report = export_package(args.directory, args.archive)
+            print("exported: BRIDEX portable Bridge package 0.1")
+            print(json.dumps(report, sort_keys=True))
+        else:
+            report = restore_package(args.archive, args.directory)
+            print("restored: BRIDEX portable Bridge package 0.1")
             print(json.dumps(report, sort_keys=True))
     except ManifestValidationError as exc:
         print(f"invalid: {exc}", file=sys.stderr)
