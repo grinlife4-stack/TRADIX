@@ -47,7 +47,7 @@ class Credential:
     key_id: str
     peer_id: str
     principal_ref: str
-    secret: bytes
+    secret: bytes = field(repr=False)
     allowed_scopes: frozenset[str]
 
     def __post_init__(self) -> None:
