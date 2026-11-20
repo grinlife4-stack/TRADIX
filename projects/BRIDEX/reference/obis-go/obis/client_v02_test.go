@@ -1,6 +1,7 @@
 package obis
 
 import (
+	"errors"
 	"net/http/httptest"
 	"encoding/json"
 	"path/filepath"
