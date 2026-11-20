@@ -139,3 +139,6 @@ The Python reference client now has a separate signed-response negative test set
 The Go durable replay implementation and tests passed in CI run #1161 on commit `e75432a3dfac92bca93fd4a9bb1dd3d497b8fef4`. The run completed Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated wheel/install/schema checks.
 
 No normative OBIS schema, message envelope, TIIS contract, version negotiation semantics, or production security profile was changed. The Go peer remains loopback-only and HMAC remains development/conformance-only. Full cross-language negative conformance, distributed replay policy, business-operation idempotency/outcome reconciliation, production audit persistence, TLS/mTLS, credential lifecycle, and independent security review remain open.
+
+
+The standalone Go server CLI now exposes the durable store through optional `--replay-dir`. A cross-language process-restart integration test sends a signed request from the Python test harness to the Go CLI, restarts the Go process with the same replay directory, and verifies the identical request is rejected with HTTP 409. CI run #1166 passed on commit `a81f2960056b397c561efb139b1c9ba396afe317`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
