@@ -10,7 +10,7 @@
 
 BRIDEX is an independent specialist project for designing, generating, testing, packaging, documenting, and evolving independent Bridge tools.
 
-A Bridge is itself a tool. It is not merely a connector module, plugin, library, or embedded feature of the software to which it connects. Every generated Bridge must have its own identity, version, source, configuration, permissions, runtime, lifecycle, and explicitly assigned owner/operator.
+A Bridge is itself a tool. It is not merely a connector module, plugin, library, or embedded feature of the software to which it connects. Every generated Bridge must have its own identity, version, source, configuration, permissions, runtime, and lifecycle, and must be owned by the project whose resources, data, or capabilities it is authorized to expose. Operator and maintainer are separately recorded roles.
 
 BRIDEX provides one consistent and reusable engineering method for all Bridge instances. It does not centralize destination-specific business logic or become a mandatory runtime service.
 
@@ -27,7 +27,7 @@ BRIDEX provides one consistent and reusable engineering method for all Bridge in
 The detailed protocol contracts are maintained separately: [OBIS Specification](../../docs/OBIS_SPECIFICATION.md) governs external interoperability, while [TIIS Specification](../../docs/TIIS_SPECIFICATION.md) governs TRADIX-internal integration only. Both are draft baselines at version 0.1.0, not production-ready protocol releases.
 
 1. BRIDEX has an independent project identity, source, roadmap, configuration, data, operations, and lifecycle.
-2. Every Bridge is an independent tool and has an explicitly recorded owner/operator. Ownership is not inferred solely from the destination or the generator.
+2. Every project-specific Bridge is owned by the source/resource-owning project whose capabilities it exposes. BRIDEX never owns a generated project Bridge. The receiving project owns its own ingress adapter and data-acceptance boundary.
 3. BRIDEX uses one common generation, security, packaging, documentation, and conformance method across projects.
 4. Destination-specific connection details, mappings, protocol adapters, permissions, and transformation rules reside in the relevant Bridge instance and the connected project's own approved interface boundary.
 5. A destination-specific change must not contaminate the generic BRIDEX core or require changes to unrelated Bridges.
@@ -39,7 +39,7 @@ The detailed protocol contracts are maintained separately: [OBIS Specification](
 
 ## 3A. Bridge ownership and portability
 
-BRIDEX is not the default owner of generated Bridge instances. Ownership is explicitly assigned per instance and may belong to the commissioning/using project or tool, or to another designated entity. Generation, operation, maintenance, and ownership are separate roles and must be recorded separately when they differ.
+BRIDEX never owns project Bridge instances. The project whose resources, data, or capabilities a Bridge exposes owns that instance and controls its source, configuration, credentials, permissions, deployment, release, operation, and retirement. BRIDEX may generate, package, test, and optionally maintain it under the owner's direction, but these services do not transfer ownership. The receiving project owns only its own ingress/validation boundary. Cross-project integrations use separately owned Bridges at each project boundary by default; a shared Bridge requires written joint-ownership approval by every affected project owner and strict per-project isolation.
 
 The designated owner must receive the complete source or independently buildable package, build/deployment instructions, schemas, OBIS specifications, tests, dependency/license inventory, and exportable owner-controlled configuration and records. Subject to third-party licenses, the owner must be able to run, modify, fork, transfer, appoint or replace maintainers/operators, and continue development without BRIDEX or TRADIX.
 
@@ -71,7 +71,7 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-The manifest is descriptive package metadata. It does not grant trust or permissions, prove ownership by itself, provide a runtime, generate Bridges, or establish OBIS conformance. The package is included in root CI with wheel-build and isolated-install schema checks. The generated scaffold is intentionally not an executable Bridge; runtime templates remain gated on approved generic adapter and transport contracts. The next generic-core gates are clean-environment portability proof and transport-independent peer behavior tests. Lifecycle/health primitives remain gated on explicit state-transition and failure contracts.
+The manifest is descriptive package metadata. It does not grant trust or permissions, prove ownership by itself, provide a runtime, generate Bridges, or establish OBIS conformance. An ownership field must identify the source/resource-owning project; BRIDEX is prohibited as the owner value for a project Bridge. The package is included in root CI with wheel-build and isolated-install schema checks. The generated scaffold is intentionally not an executable Bridge; runtime templates remain gated on approved generic adapter and transport contracts. The next generic-core gates are clean-environment portability proof and transport-independent peer behavior tests. Lifecycle/health primitives remain gated on explicit state-transition and failure contracts.
 
 
 
