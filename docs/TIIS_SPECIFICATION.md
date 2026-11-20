@@ -1,11 +1,12 @@
 # TIIS — TRADIX Internal Integration Standard
 
 **Document ID:** TIIS-SPEC-001  
-**Status:** Draft specification / architecture baseline  
+**Status:** Versioned 0.1 contract baseline; transport/security profiles and runtime conformance remain incomplete  
 **Version:** 0.1.0  
 **Effective date:** 2026-11-20  
 **Authority:** TRADIX  
 **Scope:** Communication among TRADIX internal tools, services, agents, records, workflows, and technical subsystems  
+**Canonical envelope schema:** `standards/tiis/0.1/message.schema.json` (JSON Schema Draft 2020-12)  
 **Normative language:** The terms MUST, MUST NOT, REQUIRED, SHOULD, SHOULD NOT, and MAY are to be interpreted as normative requirements.
 
 ## 1. Purpose
@@ -55,6 +56,10 @@ Each participating component MUST declare:
 
 A component identity, service identity, agent identity, and human identity MUST remain distinguishable. Identity registration is not authorization.
 
+For TIIS 0.1, project_id and component_id are separate, stable lower-case identifiers matching the canonical schema's slug rule. A runtime instance_id MAY be added when multiple instances of one component must be distinguished. Renaming an identifier is a governed compatibility change; identifiers MUST NOT be recycled for a different component.
+
+The sender and recipient fields in a message are routing/claim fields, not proof of identity. The receiving component MUST bind the claimed sender to an authenticated transport principal or an explicitly trusted local adapter before authorization.
+
 ## 5. Interface contract
 
 Every TIIS interface MUST publish a contract containing:
@@ -72,23 +77,19 @@ Operations SHOULD be narrow and domain-oriented. Generic command execution, unre
 
 ## 6. Message and event model
 
-TIIS supports request/response and event-driven interaction. Implementations MUST use typed, versioned messages.
+TIIS 0.1 defines a transport-neutral JSON envelope. HTTP, local IPC, queues, or another transport MAY carry the envelope, but transport selection MUST be declared by the interface owner and MUST NOT change the envelope's identity or authorization rules.
 
-Each request or event MUST carry, as applicable:
-- TIIS protocol identifier and version.
-- Message type.
-- Unique message identifier.
-- Correlation/causation identifier.
-- Sender and recipient component identities.
-- Interface and operation/event identifier.
-- Issued-at time and expiry/deadline where relevant.
-- Schema version.
-- Trace/evidence reference where applicable.
-- Typed payload.
+The canonical envelope schema is standards/tiis/0.1/message.schema.json. It defines three message types:
 
-Responses MUST identify the originating request and return a typed result or structured error. Events MUST define delivery semantics, ordering assumptions, duplicate handling, and consumer acknowledgment behavior.
+- **request:** requires a unique message_id, interaction correlation_id, sender, recipient, interface identity/version, operation, issued_at, expires_at, and object payload. A state-changing operation whose retry could duplicate an effect MUST require an idempotency_key in its interface contract.
+- **response:** requires correlation_id, in_reply_to, sender/recipient, interface identity/version, issued_at, outcome, and object payload. Failed or rejected responses MUST include a normalized error object.
+- **event:** requires a unique message_id, sender/recipient, interface identity/version, issued_at, event type, and object payload. message_id is the event identity for deduplication.
 
-A component MUST validate message structure, schema, size, sender, authorization, freshness, and operation scope before processing.
+The envelope MUST use protocol: "TIIS" and protocol_version: "0.1". message_id, correlation_id, and in_reply_to use UUID values. Interface and component identifiers use the canonical lower-case identifier form. Timestamps MUST be RFC 3339 date-time values with an explicit UTC offset. The receiver MUST reject unknown top-level fields in version 0.1; payload schemas are declared and versioned by each interface.
+
+The envelope MUST NOT carry passwords, API keys, bearer tokens, private keys, raw credentials, or secret values. Authentication material belongs to the transport or an owner-controlled credential mechanism and MUST never be copied into message payloads.
+
+Responses MUST identify the originating request and return a typed result or normalized error. A receiver MUST validate the envelope, payload schema, size, authenticated sender binding, recipient, freshness, authorization, and operation scope before processing. Schema validation alone does not authenticate a sender or authorize an operation.
 
 ## 7. Security and authorization
 
@@ -104,6 +105,8 @@ TIIS components MUST authenticate each other using an approved internal mechanis
 - Administrative actions require explicit privileged scopes and attributable evidence.
 
 A successful internal handshake or service discovery result MUST NOT grant authorization.
+
+The authenticated identity MUST come from the configured transport/security layer or a specifically trusted local adapter, never from an unverified sender field. The receiver MUST compare that authenticated identity with the declared sender and its local peer policy. If no approved authentication profile is configured for an interface, the interface MUST remain disabled; there is no anonymous or permissive fallback in TIIS 0.1.
 
 ## 8. Data ownership and boundaries
 
@@ -135,6 +138,8 @@ A timeout does not prove that a side effect did not occur. State-changing operat
 
 For asynchronous operations, the contract MUST define accepted, running, completed, failed, cancelled, and expired states as applicable.
 
+TIIS 0.1 does not promise exactly-once event delivery. Event consumers MUST be idempotent and deduplicate by message_id. Unless an interface explicitly defines a sequence number and ordering scope, consumers MUST assume events may be duplicated, delayed, or reordered. Where loss is unacceptable, the producer MUST use a durable producer-owned outbox and the consumer MUST use a durable consumer-owned inbox/checkpoint; shared database tables are not implied. Acknowledgment means the receiver has durably accepted the event, not that every downstream business effect has completed.
+
 ## 10. Errors and observability
 
 Errors MUST use stable machine-readable categories, safe messages, and correlation references. Raw stack traces, secrets, private file paths, and unnecessary sensitive data MUST NOT cross component boundaries.
@@ -161,6 +166,8 @@ Interfaces and schemas MUST be versioned independently of the component release 
 - Consumers MUST NOT silently assume that producer and consumer versions are compatible.
 
 A component owner is responsible for publishing compatibility information and migration guidance for its interfaces.
+
+TIIS 0.1 uses Semantic Versioning for interface contracts. The protocol envelope version and each interface version are independent. A producer MUST publish the versions it supports; a consumer MUST explicitly select a compatible version and MUST fail closed on an unsupported major version. Each interface owner MUST declare a deprecation date and migration/support window before announcing a breaking replacement; TIIS 0.1 does not impose one portfolio-wide duration until the TRADIX runtime inventory establishes a support policy.
 
 ## 12. Discovery and catalog integration
 
@@ -195,7 +202,9 @@ A component may claim TIIS conformance only after tests demonstrate:
 - Error normalization and audit evidence.
 - Independent failure boundaries and documented recovery.
 
-Conformance is assessed per interface and version. Passing TIIS tests does not prove OBIS interoperability, product readiness, or production security.
+Conformance is assessed per interface and version. The repository-level baseline validates the canonical JSON Schema and positive/negative envelope fixtures in tests/test_tiis_schemas.py; this is schema conformance only. A runtime or interface may claim TIIS conformance only after its own authentication, authorization, data-scope, replay/freshness, reliability, audit, and failure-isolation tests pass.
+
+Passing schema tests does not prove runtime conformance, OBIS interoperability, product readiness, or production security.
 
 ## 15. Governance
 
@@ -208,19 +217,32 @@ TRADIX owns the internal TIIS specification and is responsible for:
 
 TIIS may evolve with TRADIX internal needs. Changes MUST NOT silently impose new requirements on external peers or independent products. Any external-facing adoption requires a separately declared interface agreement and MUST NOT be represented as OBIS conformance.
 
-## 16. Open decisions before TIIS 1.0.0
+## 16. TIIS 0.1 baseline decisions
 
-The following remain to be decided through implementation evidence:
-- Canonical schema dialect and repository layout.
-- Internal component identifier format.
-- Approved authentication profiles for local, hosted, and cross-environment deployments.
-- Event delivery and persistence profiles.
-- Trace and audit record schema.
-- Compatibility and deprecation windows.
-- Exact conformance harness and CI integration.
+The following decisions are normative for the 0.1 envelope and schema:
 
-These details must be settled before a production TIIS 1.0.0 claim. Implementations must not invent undocumented portfolio-wide defaults.
+1. **Schema:** JSON Schema Draft 2020-12. The canonical schema lives under standards/tiis/0.1/; tests live in the root tests/ suite.
+2. **Identifiers:** project and component identifiers are separate lower-case slugs; runtime instance identity is optional. Message and correlation identifiers are UUIDs.
+3. **Envelope:** one transport-neutral JSON envelope with request, response, and event variants. Interface payload schemas remain interface-owned.
+4. **Authentication boundary:** authentication is external to the envelope. The authenticated transport principal must be bound to the claimed sender. No default authentication profile is approved yet; an interface without an explicitly configured profile remains disabled.
+5. **Events:** at-least-once delivery is the only assumed delivery model. Consumers deduplicate by message_id; ordering is not assumed unless an interface declares it. Durable outbox/inbox storage is required when the interface's loss policy requires it.
+6. **Tracing:** optional trace context uses 32-character lowercase hexadecimal trace IDs and 16-character lowercase hexadecimal span IDs. Trace identifiers are observability metadata, not identity or authorization.
+7. **Compatibility:** Semantic Versioning applies independently to interfaces. Each interface owner publishes its own deprecation and migration window.
+8. **Conformance:** schema validation is automated in repository CI. Runtime conformance is assessed separately for each interface and deployment profile.
 
-## 17. Normative scope statement
+## 17. Open decisions before TIIS 1.0.0
+
+The following require inventory and implementation evidence before a production 1.0.0 claim:
+- Approved authentication profiles for local process, same-host service, hosted service, and cross-environment communication.
+- Credential issuance, rotation, revocation, principal-to-component binding, and emergency deny behavior for each approved profile.
+- Durable event transport and storage implementations, including recovery and retention guarantees.
+- Canonical audit event schema, tamper-evidence requirements, retention, export, and access controls.
+- Portfolio-wide minimum deprecation/support window, after inventorying all TRADIX internal consumers.
+- End-to-end conformance harness covering real internal components, not only schema fixtures.
+- Security review and failure-injection evidence for each production transport.
+
+Until these gates pass, TIIS 0.1 is a contract/schema baseline, not a production-ready internal communication runtime. Implementations MUST NOT invent undocumented portfolio-wide defaults or claim production conformance.
+
+## 18. Normative scope statement
 
 **TIIS is TRADIX's internal integration standard only. It does not govern external interoperability, does not own product interfaces, and does not replace OBIS.**
