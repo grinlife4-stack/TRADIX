@@ -83,7 +83,8 @@
         "package_uri": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 2048
+          "maxLength": 2048,
+          "description": "POSIX relative path to the Bridge artifact inside the exported package directory; absolute paths and traversal are forbidden."
         },
         "sha256": {
           "type": "string",
