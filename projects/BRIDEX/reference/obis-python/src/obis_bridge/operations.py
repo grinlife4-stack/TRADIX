@@ -60,6 +60,7 @@ class OperationLedger:
                     capability_version TEXT NOT NULL,
                     idempotency_key_hash TEXT NOT NULL,
                     request_hash TEXT NOT NULL,
+                    resource_ref TEXT NOT NULL DEFAULT '',
                     state TEXT NOT NULL CHECK (state IN (
                         'ACCEPTED','RUNNING','SUCCEEDED','FAILED','REJECTED',
                         'UNKNOWN','CANCELLED','EXPIRED'
@@ -123,6 +124,7 @@ class OperationLedger:
             "capability_id": row["capability_id"],
             "capability_version": row["capability_version"],
             "request_hash": row["request_hash"],
+            "resource_ref": row["resource_ref"],
             "state": row["state"],
             "result": result,
             "result_ref": row["result_ref"],
@@ -135,7 +137,8 @@ class OperationLedger:
     def reserve(
         self, *, operation_id: str, idempotency_key: str, request_hash: str,
         peer_id: str, principal_ref: str, capability_id: str,
-        capability_version: str, expires_at: float, now: float | None = None,
+        capability_version: str, expires_at: float, resource_ref: str = "",
+        now: float | None = None,
     ) -> tuple[dict[str, Any], bool]:
         """Atomically reserve an operation. Returns (record, newly_created)."""
         for name, value in (
@@ -145,6 +148,8 @@ class OperationLedger:
         ):
             self._validate_text(name, value)
         self._validate_hash(request_hash)
+        if not isinstance(resource_ref, str) or len(resource_ref) > 300:
+            raise ValueError("resource_ref must be a string of at most 300 characters")
         key_hash = self._key_hash(idempotency_key)
         now = time.time() if now is None else now
         if isinstance(now, bool) or not isinstance(now, (int, float)) or not math.isfinite(now):
@@ -171,6 +176,7 @@ class OperationLedger:
                     if (
                         existing["operation_id"] != operation_id
                         or existing["request_hash"] != request_hash
+                        or existing["resource_ref"] != resource_ref
                     ):
                         raise IdempotencyConflict("idempotency key is already bound to another operation or request")
                     if by_id is not None and by_id["operation_id"] != existing["operation_id"]:
@@ -182,10 +188,10 @@ class OperationLedger:
                 db.execute(
                     """INSERT INTO obis_operations (
                         operation_id, peer_id, principal_ref, capability_id,
-                        capability_version, idempotency_key_hash, request_hash,
+                        capability_version, idempotency_key_hash, request_hash, resource_ref,
                         state, created_at, updated_at, expires_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACCEPTED', ?, ?, ?)""",
-                    (operation_id, *scope, key_hash, request_hash, float(now), float(now), float(expires_at)),
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACCEPTED', ?, ?, ?)""",
+                    (operation_id, *scope, key_hash, request_hash, resource_ref, float(now), float(now), float(expires_at)),
                 )
                 row = db.execute(
                     "SELECT * FROM obis_operations WHERE operation_id=?", (operation_id,)
@@ -250,6 +256,7 @@ class OperationLedger:
     def get(
         self, operation_id: str, *, peer_id: str, principal_ref: str,
         capability_id: str, capability_version: str,
+        resource_ref: str | None = None,
     ) -> dict[str, Any]:
         row_scope = (peer_id, principal_ref, capability_id, capability_version, operation_id)
         db = self._connect()
@@ -259,7 +266,7 @@ class OperationLedger:
                 AND capability_id=? AND capability_version=? AND operation_id=?""",
                 row_scope,
             ).fetchone()
-            if row is None:
+            if row is None or (resource_ref is not None and row["resource_ref"] != resource_ref):
                 raise OperationNotFound(operation_id)
             return self._record(row)
         finally:
