@@ -19,7 +19,7 @@ def descriptor(tool_id: str = "sample.reader") -> ToolDescriptor:
     return ToolDescriptor(
         tool_id=tool_id,
         version="1.2.0",
-        category="document",
+        category="image" if tool_id == "sample.image" else "document",
         source_uri="https://github.com/example/sample-reader",
         license_id="MIT",
         platforms=("linux", "windows"),
@@ -106,7 +106,7 @@ def test_missing_tool_returns_normalized_rejection(adapter) -> None:
 
     assert_valid_response(response)
     assert response["outcome"] == "rejected"
-    assert response["error"]["code"] == "tool.not_found"
+    assert response["error"]["code"] == "tool.not-found"
     assert response["error"]["retryable"] is False
 
 
