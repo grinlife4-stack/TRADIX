@@ -627,6 +627,7 @@ def test_replay_storage_failure_fails_closed_before_capability_execution():
 
 
 def test_obis_02_operation_schema_is_valid_and_packaged_copies_match():
+    from pathlib import Path
     from importlib.resources import files
     from jsonschema import Draft202012Validator
 
