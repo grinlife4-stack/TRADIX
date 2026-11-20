@@ -15,6 +15,7 @@ from typing import Any
 API_ROOT = "https://api.github.com"
 USER_AGENT = "TRADIX-Portfolio-Storage-Monitor/0.1"
 SUCCESS_STATUSES = {"COMPLETE", "EMPTY"}
+_REQUEST_CACHE: dict[str, tuple[dict[str, Any], dict[str, str]]] = {}
 
 
 class ScanError(Exception):
@@ -28,6 +29,8 @@ def utc_now() -> str:
 
 
 def _json_request(url: str, token: str | None = None) -> tuple[dict[str, Any], dict[str, str]]:
+    if url in _REQUEST_CACHE:
+        return _REQUEST_CACHE[url]
     headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
@@ -39,7 +42,9 @@ def _json_request(url: str, token: str | None = None) -> tuple[dict[str, Any], d
     try:
         with urllib.request.urlopen(request, timeout=25) as response:
             payload = json.loads(response.read().decode("utf-8"))
-            return payload, {k.lower(): v for k, v in response.headers.items()}
+            result = (payload, {k.lower(): v for k, v in response.headers.items()})
+            _REQUEST_CACHE[url] = result
+            return result
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         if exc.code == 409 and "empty" in body.lower():
@@ -198,13 +203,20 @@ def render_markdown(report: dict[str, Any]) -> str:
     for project in report["projects"]:
         size = f"{project['known_logical_bytes'] / (1024 * 1024):.3f} MiB" if project["measured_source_count"] else "Not measured"
         lines.append(f"| {project['name']} | {project['coverage']} | {size} | {project['measured_source_count']}/{project['source_count']} |")
-    lines += ["", "## Sources", "", "| Project | Source | Status | Files | Logical bytes | Provider repo size |", "|---|---|---|---:|---:|---:|"]
+    lines += ["", "## Sources", "", "| Project | Source | Scope | Status | Files | Logical bytes | Provider repo size |", "|---|---|---|---|---:|---:|---:|"]
     for project in report["projects"]:
         for source in project["sources"]:
             count = source.get("file_count") if source.get("file_count") is not None else "—"
             size = source.get("logical_bytes")
             repo_size = source.get("repository_size_bytes")
-            lines.append(f"| {project['name']} | {source['source_id']} | {source['status']} | {count} | {size if size is not None else '—'} | {repo_size if repo_size is not None else '—'} |")
+            scope = source.get("path_scope") or {}
+            if scope.get("include_paths"):
+                scope_label = "include: " + ", ".join(scope["include_paths"])
+            elif scope.get("exclude_paths"):
+                scope_label = "repository minus: " + ", ".join(scope["exclude_paths"])
+            else:
+                scope_label = "whole repository"
+            lines.append(f"| {project['name']} | {source['source_id']} | {scope_label} | {source['status']} | {count} | {size if size is not None else '—'} | {repo_size if repo_size is not None else '—'} |")
     lines += ["", "## Alerts", ""]
     if report["alerts"]:
         for alert in report["alerts"]:
