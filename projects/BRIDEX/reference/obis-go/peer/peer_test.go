@@ -25,7 +25,7 @@ func TestCanonicalJSONAndHMACMatchPythonDevelopmentVector(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := \`{"authorization":{"principal_ref":"principal:python","scopes":["catalog:read"]},"capability":{"id":"catalog.lookup","version":"1.0"},"expires_at":1763640060.0,"issued_at":1763640000.0,"message_id":"m-1","message_type":"request","nonce":"n-1","payload":{"item_id":"sample-1","text":"hello"},"protocol":"obis","recipient":{"peer_id":"go-peer"},"sender":{"peer_id":"python-peer"},"version":"0.1"}\`
+	want := `{"authorization":{"principal_ref":"principal:python","scopes":["catalog:read"]},"capability":{"id":"catalog.lookup","version":"1.0"},"expires_at":1763640060.0,"issued_at":1763640000.0,"message_id":"m-1","message_type":"request","nonce":"n-1","payload":{"item_id":"sample-1","text":"hello"},"protocol":"obis","recipient":{"peer_id":"go-peer"},"sender":{"peer_id":"python-peer"},"version":"0.1"}`
 	if string(canonical) != want {
 		t.Fatalf("canonical mismatch:\n%s", canonical)
 	}
