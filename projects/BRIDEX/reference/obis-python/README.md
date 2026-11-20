@@ -3,7 +3,7 @@
 This is a small, independently installable reference implementation for the OBIS 0.1 draft. It is intentionally located outside the TRADIX runtime package and has **no runtime dependency on TRADIX or BRIDEX**.
 
 ## What is executable
-The canonical draft schema is published independently at [standards/obis/0.1/message.schema.json](../../../../standards/obis/0.1/message.schema.json). The Python package includes a byte-identical copy for offline installation; CI checks that they do not drift.
+The canonical draft schema is published independently at [standards/http/1.1/message.schema.json](../../../../standards/http/1.1/message.schema.json). The Python package includes a byte-identical copy for offline installation; CI checks that they do not drift.
 
 
 - Direct HTTP request/response between two separately instantiated peers.
@@ -24,7 +24,7 @@ A separate `OBIS-TLS-MTLS-1` candidate transport is now available in the Python 
 
 - TLS 1.3 only; the client requires certificate-chain and endpoint hostname verification.
 - The server requires a client certificate.
-- Both sides negotiate ALPN `obis/0.1`.
+- Both sides negotiate ALPN `http/1.1`.
 - The server certificate must contain exactly one canonical URI SAN of the form `urn:obis:peer:<lowercase-UUID>`; the client checks it against the configured remote peer ID.
 - The client certificate must contain the same URI SAN form; the server binds its URI and SHA-256 certificate fingerprint to one explicit local credential/principal record.
 - mTLS credentials carry no HMAC shared secret. The TLS channel protects the response; this does not create a portable detached signature.
