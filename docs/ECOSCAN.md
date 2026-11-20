@@ -219,20 +219,13 @@ These controls and scope-selection behavior have unit-test coverage. They do not
 
 ## 15. Railway volume and backup metadata adapter
 
-The `railway_volume` provider is a read-only Railway GraphQL adapter. It requires:
-- Preferably, a Railway Project Token scoped to the exact Staging environment, supplied to the ECOSCAN runner as `RAILWAY_PROJECT_TOKEN`. The adapter sends this using the `Project-Access-Token` header.
-- Alternatively, an account/workspace token supplied as `RAILWAY_API_TOKEN`, sent as an `Authorization: Bearer` token. This has a broader access boundary and is not the preferred option.
-- Either an explicit `volume_instance_id`, or both `volume_id` and `environment_id` so the adapter can attempt environment-scoped instance discovery.
+The `railway_volume` provider uses a Railway OAuth access token authorized with the explicit `project:viewer` scope for the target project. This is the documented Viewer role and is the required least-privilege route for ECOSCAN. Do not use account tokens, workspace tokens, or a Project Token as a substitute for this read-only authorization boundary.
 
-Provide the token to the environment that runs ECOSCAN (for example, a GitHub Actions repository secret or the local shell). For the scheduled workflow, create a repository secret named `RAILWAY_PROJECT_TOKEN`; the workflow now passes it to the runner. Do not put it in the monitored `artifact-gateway` service variables and never commit it.
+Provide the short-lived token to the ECOSCAN runner as `RAILWAY_OAUTH_ACCESS_TOKEN`. The workflow passes this secret only for manually dispatched runs; scheduled runs do not receive it because Railway OAuth access tokens expire after one hour. The OAuth app must request `openid project:viewer offline_access` and use `prompt=consent` if refresh-token automation is later enabled.
 
-Railway documents Project Tokens as environment-scoped, but does not describe them as a read-only permission type. The ECOSCAN adapter itself issues GraphQL queries only and contains no Railway mutations; nevertheless, protect the token as a credential that may have broader capabilities within its environment.
+The OAuth access token is sent with `Authorization: Bearer`. The token must be authorized for the TRADIX project selected in Railway's consent screen. The current implementation does not yet refresh OAuth tokens or persist rotated refresh tokens. Therefore, scheduled Railway scans remain `NOT_CONFIGURED` until a secure refresh-token rotation and persistence mechanism is implemented. Do not place a long-lived refresh token in source control or workflow logs.
 
-The documented direct lookup is `volumeInstance(id)`; Railway's public API documentation also documents `currentSizeMB` and `volumeInstanceBackupList`. The environment-level discovery query uses `environment.volumeInstances`. That field selection is implemented and unit-tested with mocked responses, but it has **not** been validated against the live account/schema yet. Treat discovery as provisional until a read-only live query succeeds. If the field is unavailable, authorization is denied, or the result is not exactly one matching instance, the scan fails closed. A direct instance ID can be configured after it has been independently obtained and verified.
-
-The adapter reports `currentSizeMB` as provisioned capacity and backup metadata separately. It deliberately leaves `logical_bytes` unknown: provisioned capacity is not filesystem usage. Backup `usedMB` and `referencedMB` are not added to volume capacity.
-
-The TRADIX staging source is registered using its known project volume ID and environment ID, not an invented volume-instance ID:
+The adapter requires either an explicit `volume_instance_id`, or both `volume_id` and `environment_id` for environment-scoped instance discovery. The TRADIX staging source is registered using its known project volume ID and environment ID, not an invented volume-instance ID:
 
 ```json
 {
@@ -248,7 +241,11 @@ The TRADIX staging source is registered using its known project volume ID and en
 
 The connected Railway inventory confirms one live staging volume named `artifact-data`, configured at 500 MB and mounted at `/data` on `artifact-gateway`. This is configured capacity, not actual filesystem usage. The connected inventory does not expose the environment-specific volume-instance ID.
 
-No volume content is read. The adapter does not create, resize, attach, detach, restore, or delete volumes/backups. Missing credentials or identifiers produce `NOT_CONFIGURED`; failed or ambiguous discovery produces a non-success status, never a zero-size measurement. Do not commit the Railway token. The live validation gate remains open until the exact discovery query and subsequent instance/backup queries succeed against this staging resource.
+The documented direct lookup is `volumeInstance(id)`; the environment-level discovery query uses `environment.volumeInstances`. That discovery field selection is implemented and unit-tested with mocked responses, but has not been validated against the live account/schema. If the field is unavailable, authorization is denied, or the result is not exactly one matching instance, the scan fails closed.
+
+The adapter reports `currentSizeMB` as provisioned capacity and backup metadata separately. It deliberately leaves `logical_bytes` unknown: provisioned capacity is not filesystem usage. Backup `usedMB` and `referencedMB` are not added to volume capacity.
+
+No volume content is read. The adapter does not create, resize, attach, detach, restore, or delete volumes/backups. Missing credentials or identifiers produce `NOT_CONFIGURED`; failed or ambiguous discovery produces a non-success status, never a zero-size measurement. The live validation gate remains open until the exact discovery query and subsequent instance/backup queries succeed against this staging resource.
 
 ## 16. S3-compatible object-storage adapter
 
