@@ -71,12 +71,18 @@ func Invoke(endpoint, localPeerID, remotePeerID, keyID, principal string, secret
 	if err != nil { return nil, err }
 	if len(responseBody) == 0 || len(responseBody) > MaxMessageBytes { return nil, errors.New("response size is invalid") }
 	if response.Header.Get("Content-Type") != "application/obis+json" { return nil, errors.New("unexpected response content type") }
-	if response.StatusCode != http.StatusOK { return nil, fmt.Errorf("peer returned HTTP %d", response.StatusCode) }
 	messageResponse, err := DecodeStrict(responseBody)
 	if err != nil { return nil, err }
 	if !Verify(messageResponse, secret, response.Header.Get("X-OBIS-Signature")) { return nil, errors.New("response signature verification failed") }
-	if err := validateSuccessResponse(messageResponse, message["message_id"].(string), localPeerID, remotePeerID); err != nil { return nil, err }
-	return messageResponse, nil
+	if response.StatusCode == http.StatusOK {
+		if err := validateSuccessResponse(messageResponse, message["message_id"].(string), localPeerID, remotePeerID); err != nil { return nil, err }
+		return messageResponse, nil
+	}
+	if err := validateFailureResponse(messageResponse, message["message_id"].(string), localPeerID, remotePeerID); err != nil { return nil, err }
+	errorObject, _ := obj(messageResponse, "error")
+	code, _ := str(errorObject, "code")
+	messageText, _ := str(errorObject, "message")
+	return nil, &Error{Code: code, Message: messageText, Status: response.StatusCode}
 }
 
 func validateSuccessResponse(message map[string]any, requestID, localPeerID, remotePeerID string) error {
@@ -96,5 +102,22 @@ func validateSuccessResponse(message map[string]any, requestID, localPeerID, rem
 	if senderID != remotePeerID || recipientID != localPeerID { return errors.New("response peer identity mismatch") }
 	if _, ok := number(message, "issued_at"); !ok { return errors.New("invalid response timestamp") }
 	if _, ok := obj(message, "result"); !ok { return errors.New("response result must be an object") }
+	return nil
+}
+
+func validateFailureResponse(message map[string]any, requestID, localPeerID, remotePeerID string) error {
+	keys:=[]string{"protocol","version","message_type","message_id","correlation_id","sender","recipient","issued_at","outcome","error"}
+	if !exactKeys(message,keys...){return errors.New("error response has unknown or missing fields")}
+	if message["protocol"]!=Protocol||message["version"]!=Version||message["message_type"]!="response"||message["outcome"]!="failed"{return errors.New("invalid error response envelope")}
+	messageID,ok1:=str(message,"message_id");correlation,ok2:=str(message,"correlation_id")
+	if !ok1||messageID==""||!ok2||correlation!=requestID{return errors.New("error response correlation mismatch")}
+	sender,ok1:=obj(message,"sender");recipient,ok2:=obj(message,"recipient")
+	if !ok1||!ok2||!exactKeys(sender,"peer_id")||!exactKeys(recipient,"peer_id"){return errors.New("invalid error response peer references")}
+	senderID,_:=str(sender,"peer_id");recipientID,_:=str(recipient,"peer_id")
+	if senderID!=remotePeerID||recipientID!=localPeerID{return errors.New("error response peer identity mismatch")}
+	if _,ok:=number(message,"issued_at");!ok{return errors.New("invalid error response timestamp")}
+	errorObject,ok:=obj(message,"error");if !ok||!exactKeys(errorObject,"code","message"){return errors.New("invalid structured error")}
+	code,ok1:=str(errorObject,"code");messageText,ok2:=str(errorObject,"message")
+	if !ok1||!ok2||code==""||messageText==""{return errors.New("invalid structured error fields")}
 	return nil
 }
