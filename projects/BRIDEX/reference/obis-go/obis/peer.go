@@ -226,9 +226,29 @@ func (p *Peer) Handle(m map[string]any,keyID,sig string)(map[string]any,string,*
 	return response,hex.EncodeToString(cred.Secret),nil
 }
 func (p *Peer) authenticatedCredential(m map[string]any,keyID,signature string)(Credential,bool){
-	if ValidateRequest(m,time.Now())!=nil{return Credential{},false}
 	p.mu.Lock();credential,ok:=p.credentials[keyID];p.mu.Unlock()
 	if !ok||!Verify(m,credential.Secret,signature){return Credential{},false}
+
+	// Authenticate the original bytes before considering a signed protocol error.
+	// Version and time-window failures are precisely the errors that may need a
+	// correlated response, so validate a copy with only those two dimensions
+	// normalized. All other envelope constraints remain enforced.
+	protocol,protocolOK:=str(m,"protocol")
+	messageType,typeOK:=str(m,"message_type")
+	version,versionOK:=str(m,"version")
+	issued,issuedOK:=number(m,"issued_at")
+	expires,expiresOK:=number(m,"expires_at")
+	if !protocolOK||protocol!=Protocol||!typeOK||messageType!="request"||!versionOK||version==""||!issuedOK||!expiresOK||issued<0||expires<0 {
+		return Credential{},false
+	}
+	normalized:=make(map[string]any,len(m))
+	for key,value:=range m { normalized[key]=value }
+	now:=time.Now().Unix()
+	normalized["version"]=Version
+	normalized["issued_at"]=now
+	normalized["expires_at"]=now+30
+	if ValidateRequest(normalized,time.Now())!=nil{return Credential{},false}
+
 	sender,_:=obj(m,"sender");recipient,_:=obj(m,"recipient");authorization,_:=obj(m,"authorization")
 	senderID,_:=str(sender,"peer_id");recipientID,_:=str(recipient,"peer_id");principal,_:=str(authorization,"principal_ref")
 	if senderID!=credential.PeerID||recipientID!=p.ID||principal!=credential.PrincipalRef{return Credential{},false}
