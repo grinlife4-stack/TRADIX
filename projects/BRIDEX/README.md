@@ -79,7 +79,7 @@ The manifest is descriptive package metadata. It does not grant trust or permiss
 
 A second-language implementation is maintained at [OBIS Go Peer](reference/obis-go/README.md). It is an independently buildable Go package with no Python, BRIDEX Core, or TRADIX runtime dependency. It currently implements the OBIS 0.1 request path over loopback HTTP, strict JSON parsing, peer/principal credential binding, scoped capability authorization, nonce replay rejection, and the development-only HMAC profile.
 
-The root CI now builds and tests the Go peer and runs cross-language integration in both directions: Python client to Go server, and Go client to Python server. The first direction passed in CI run #1100; the reverse-direction test is included in the latest CI run and remains pending until that run completes. This is initial interoperability evidence only. The Go peer is not production-ready and does not implement the unresolved TLS/mTLS profile, authenticated error-response parity, durable replay, business-operation idempotency, or audit persistence.
+The root CI now builds and tests the Go peer and runs cross-language integration in both directions: Python client to Go server, and Go client to Python server. Both directions passed in CI run #1119 on commit `2e06ad11b54e71298d006edbd28168b5fadb4b82`, together with Go tests/build, the full Python test suite, and wheel/install checks. This is initial interoperability evidence only. The Go peer is not production-ready and does not implement the unresolved TLS/mTLS profile, authenticated error-response parity, durable replay, business-operation idempotency, or audit persistence.
 
 ## 3D. Relationship to existing TRADIX infrastructure
 
