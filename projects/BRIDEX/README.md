@@ -2,7 +2,7 @@
 
 **Project ID:** BRIDEX-PROJECT-001  
 **Project type:** Independent specialist software/tooling project  
-**Status:** Architecture established; implementation not yet started  
+**Status:** Architecture established; OBIS 0.1 standalone Python reference prototype implemented; production security and full conformance remain pending  
 **Parent portfolio:** TRADIX portfolio  
 **Operating rule:** Independent identity, source, configuration, data, lifecycle, and runtime boundary
 
@@ -44,6 +44,20 @@ BRIDEX is not the default owner of generated Bridge instances. Ownership is expl
 The designated owner must receive the complete source or independently buildable package, build/deployment instructions, schemas, OBIS specifications, tests, dependency/license inventory, and exportable owner-controlled configuration and records. Subject to third-party licenses, the owner must be able to run, modify, fork, transfer, appoint or replace maintainers/operators, and continue development without BRIDEX or TRADIX.
 
 A Bridge must be adaptable to other ecosystems through documented contracts and replaceable adapters. This is not a promise of automatic compatibility with every target; it is a guarantee that a new integration can be implemented without surrendering ownership or rebuilding the Bridge from zero. See [BRIDEX Ownership, Control, and Portability Policy](../../docs/BRIDEX_OWNERSHIP_AND_PORTABILITY_POLICY.md).
+
+## 3B. Executable OBIS reference prototype
+
+A standalone Python reference peer is now maintained at [OBIS Python Reference](reference/obis-python/README.md), with a versioned [OBIS 0.1 JSON Schema](reference/obis-python/schemas/obis-0.1-message.schema.json), direct two-peer loopback transport, request/response authentication for the local development profile, scoped capability authorization, expiry/replay/payload checks, and automated positive/negative tests.
+
+Run it independently from the TRADIX package:
+
+```bash
+cd projects/BRIDEX/reference/obis-python
+python -m pip install -e ".[dev]"
+python -m pytest -q
+```
+
+The root CI also runs these reference tests. This is a development/conformance prototype only: loopback transport and the shared-secret HMAC profile are not approved for production or sensitive workloads. See [implementation status and release gates](reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
 
 ## 4. Responsibility boundaries
 
