@@ -169,3 +169,51 @@ def test_vendored_obis_template_matches_standalone_reference() -> None:
     assert (template / "schemas" / "message.schema.json").read_bytes() == (
         reference / "schemas" / "message.schema.json"
     ).read_bytes()
+
+
+def test_generated_bridge_obis_peer_runs_without_tradix_or_bridex_runtime(tmp_path: Path) -> None:
+    import os
+    import subprocess
+    import sys
+
+    root = create(tmp_path)
+    script = r'''
+from obis_bridge import Credential, OBISClient, OBISPeer, OBISServer
+
+secret = b"0123456789abcdef0123456789abcdef"
+credential = Credential(
+    key_id="generated-test-key",
+    peer_id="independent-caller",
+    principal_ref="principal:test",
+    secret=secret,
+    allowed_scopes=frozenset({"demo:read"}),
+)
+peer = OBISPeer("generated-bridge", [credential])
+peer.register_capability(
+    "demo.echo", "1.0", {"demo:read"},
+    lambda payload: {"echo": payload["value"]},
+)
+client = OBISClient(
+    local_peer_id="independent-caller",
+    remote_peer_id="generated-bridge",
+    key_id="generated-test-key",
+    principal_ref="principal:test",
+    secret=secret,
+    scopes={"demo:read"},
+)
+with OBISServer(peer) as server:
+    response = client.invoke(server.address, "demo.echo", "1.0", {"value": "independent"})
+assert response["result"]["echo"] == "independent"
+'''
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(root / "src")
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
