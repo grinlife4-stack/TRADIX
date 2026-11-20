@@ -422,7 +422,8 @@ class OBISV02Client:
         except (OSError, http.client.HTTPException) as exc:
             raise OBISRequestError("peer.unavailable", "OBIS 0.2 peer is unavailable", 503) from exc
         if status != 200:
-            raise OBISRequestError("peer.request_rejected", f"OBIS 0.2 peer returned HTTP {status}", status)
+            detail = response_body.decode("utf-8", errors="replace")[:512]
+            raise OBISRequestError("peer.request_rejected", f"OBIS 0.2 peer returned HTTP {status}: {detail}", status)
         if len(response_body) > MAX_MESSAGE_BYTES:
             raise OBISRequestError("payload.too_large", "response exceeds size limit", 502)
         try:
