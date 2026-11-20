@@ -292,7 +292,7 @@ The independent package foundation now exists under `projects/ECOSCAN/`:
 - Vendored schemas byte-compared with canonical files.
 - CI installs and tests the package, builds a standalone wheel, installs it into an isolated target, and verifies packaged schema presence.
 
-**Latest completed CI:** 64 tests passed. Both the OBIS and ECOSCAN wheels built; ECOSCAN installed in isolation and its schema resource was present.
+**Latest completed CI:** 76 tests passed. Both the OBIS and ECOSCAN wheels built; ECOSCAN installed in isolation and its schema resource was present.
 
 Not implemented yet: concrete local filesystem adapter, safe traversal, resumable scanning, export/import, and provider integrations. The current package must not be described as a working scanner.
 
@@ -310,7 +310,7 @@ This plan does not establish that:
 - any B2 credentials are configured or working;
 - any GitHub, B2, or host inventory has been scanned;
 - exact physical or billed storage is measurable through current adapters;
-- ECOSCAN is implemented, deployed, or operational;
+- ECOSCAN is fully implemented as an end-to-end scanner, deployed, or operational;
 - a monitoring service or cloud resource has been created.
 
 Only completed tests and owner-authorized integration evidence may support those claims.
