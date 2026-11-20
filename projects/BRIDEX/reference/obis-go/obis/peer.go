@@ -9,6 +9,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"fmt"
 	"io"
 	"math"
@@ -48,18 +50,65 @@ type Capability struct {
 	Handler CapabilityHandler
 }
 
+// ReplayGuard atomically records an authenticated nonce before capability execution.
+// Implementations must return ErrReplayDetected for duplicates and any other error
+// when durable acceptance cannot be guaranteed.
+type ReplayGuard interface { Accept(key string, expiresAt time.Time) error }
+var ErrReplayDetected = errors.New("replay detected")
+
+// FileReplayGuard uses exclusive file creation as a cross-process atomic claim.
+// Markers are retained permanently to avoid reopening replay windows after clock changes.
+// Storage growth must be monitored; any write/sync failure rejects the request.
+type FileReplayGuard struct { directory string }
+
+func NewFileReplayGuard(directory string) (*FileReplayGuard, error) {
+	if strings.TrimSpace(directory) == "" { return nil, errors.New("replay directory is required") }
+	absolute, err := filepath.Abs(directory); if err != nil { return nil, err }
+	info, err := os.Lstat(absolute); if err != nil { return nil, err }
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 { return nil, errors.New("replay path must be an existing non-symlink directory") }
+	return &FileReplayGuard{directory:absolute}, nil
+}
+
+func (g *FileReplayGuard) Accept(key string, expiresAt time.Time) error {
+	if g == nil || key == "" { return errors.New("invalid replay guard input") }
+	digest := sha256.Sum256([]byte(key))
+	path := filepath.Join(g.directory, hex.EncodeToString(digest[:])+".nonce")
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if errors.Is(err, os.ErrExist) { return ErrReplayDetected }
+	if err != nil { return fmt.Errorf("replay storage unavailable: %w", err) }
+	// Keep a partial marker if durability fails: false rejection is safer than replay.
+	payload := []byte(fmt.Sprintf("obis-replay-v1\\n%s\\n%d\\n", hex.EncodeToString(digest[:]), expiresAt.Unix()))
+	if _, err = file.Write(payload); err == nil { err = file.Sync() }
+	closeErr := file.Close()
+	if err != nil { return fmt.Errorf("replay marker durability failure: %w", err) }
+	if closeErr != nil { return fmt.Errorf("replay marker close failure: %w", closeErr) }
+	dir, err := os.Open(g.directory); if err != nil { return fmt.Errorf("replay directory sync unavailable: %w", err) }
+	err = dir.Sync(); closeErr = dir.Close()
+	if err != nil { return fmt.Errorf("replay directory sync failure: %w", err) }
+	if closeErr != nil { return fmt.Errorf("replay directory close failure: %w", closeErr) }
+	return nil
+}
+
 type Peer struct {
 	ID string
 	mu sync.Mutex
 	credentials map[string]Credential
 	capabilities map[string]Capability
 	seen map[string]time.Time
+	replayGuard ReplayGuard
 }
 
 func NewPeer(id string) (*Peer, error) {
 	if strings.TrimSpace(id) == "" { return nil, errors.New("peer id is required") }
 	return &Peer{ID:id, credentials:map[string]Credential{}, capabilities:map[string]Capability{}, seen:map[string]time.Time{}}, nil
 }
+// SetReplayGuard installs an owner-local replay store. Configure before serving.
+// The default remains process-local in-memory protection for development.
+func (p *Peer) SetReplayGuard(guard ReplayGuard) error {
+	if guard == nil { return errors.New("replay guard cannot be nil") }
+	p.mu.Lock(); defer p.mu.Unlock(); p.replayGuard = guard; return nil
+}
+
 func (p *Peer) AddCredential(c Credential) error {
 	if c.KeyID == "" || c.PeerID == "" || c.PrincipalRef == "" || len(c.Secret) < 32 || len(c.AllowedScopes)==0 { return errors.New("credential requires identifiers, 32-byte secret, and explicit scopes") }
 	p.mu.Lock(); defer p.mu.Unlock()
@@ -151,11 +200,22 @@ func (p *Peer) Handle(m map[string]any,keyID,sig string)(map[string]any,string,*
 	senderID,_:=str(sender,"peer_id");recipientID,_:=str(recipient,"peer_id");principal,_:=str(auth,"principal_ref")
 	if senderID!=cred.PeerID||recipientID!=p.ID||principal!=cred.PrincipalRef{return nil,"",&Error{"identity.authentication_failed","peer/principal mismatch",401}}
 	nonce,_:=str(m,"nonce"); replayKey:=keyID+":"+nonce
+	now:=time.Now()
+	p.mu.Lock(); guard:=p.replayGuard
+	if guard == nil {
+		for k,until:=range p.seen{if !until.After(now){delete(p.seen,k)}}
+		if _,exists:=p.seen[replayKey];exists{p.mu.Unlock();return nil,"",&Error{"request.replay_detected","duplicate nonce",409}}
+		p.seen[replayKey]=now.Add(time.Duration(MaxTTLSeconds+ClockSkewSeconds)*time.Second)
+	}
+	p.mu.Unlock()
+	if guard != nil {
+		if err:=guard.Accept(replayKey, now.Add(time.Duration(MaxTTLSeconds+ClockSkewSeconds)*time.Second)); err != nil {
+			if errors.Is(err, ErrReplayDetected) { return nil,"",&Error{"request.replay_detected","duplicate nonce",409} }
+			return nil,"",&Error{"replay.storage_unavailable","replay protection storage unavailable",503}
+		}
+	}
 	p.mu.Lock()
-	now:=time.Now();for k,until:=range p.seen{if !until.After(now){delete(p.seen,k)}}
-	if _,exists:=p.seen[replayKey];exists{p.mu.Unlock();return nil,"",&Error{"request.replay_detected","duplicate nonce",409}}
-	p.seen[replayKey]=now.Add(time.Duration(MaxTTLSeconds+ClockSkewSeconds)*time.Second)
-	capMap,_:=obj(m,"capability");capID,_:=str(capMap,"id");capVersion,_:=str(capMap,"version");cap,exists:=p.capabilities[capID+"\x00"+capVersion]
+	capMap,_:=obj(m,"capability");capID,_:=str(capMap,"id");capVersion,_:=str(capMap,"version");cap,exists:=p.capabilities[capID+"\\x00"+capVersion]
 	p.mu.Unlock()
 	if !exists{return nil,"",&Error{"capability.unknown","capability is not registered",404}}
 	requested:=map[string]bool{};rawScopes,_:=auth["scopes"].([]any);for _,s:=range rawScopes{requested[s.(string)]=true}
