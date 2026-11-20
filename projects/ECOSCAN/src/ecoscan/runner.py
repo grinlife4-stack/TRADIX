@@ -100,7 +100,7 @@ def _validate_measurement(
         raise AdapterContractError("measurement adapter identity mismatch")
     if record["coverage_state"] != coverage_state or coverage_state not in {"COMPLETE", "PARTIAL"}:
         raise AdapterContractError("measurement coverage state mismatch")
-    if record["confidence"] not in CONFIDENCE:
+    if not isinstance(record["confidence"], str) or record["confidence"] not in CONFIDENCE:
         raise AdapterContractError("invalid measurement confidence")
     if (
         not isinstance(record["limitations"], (list, tuple))
