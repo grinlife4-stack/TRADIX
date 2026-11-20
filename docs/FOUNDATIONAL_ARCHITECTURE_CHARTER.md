@@ -250,5 +250,7 @@ OBIS must not depend on TRADIX or BRIDEX repositories, runtime services, registr
 
 Each standard must have its own specification, versioning, conformance tests, and failure boundary. A Bridge must pass OBIS interoperability tests independently of TIIS tests. Loss or removal of TRADIX or BRIDEX may disable only the optional development/management or TRADIX-facing conveniences; it must not disable a released Bridge's OBIS operation.
 
+The detailed contracts are maintained separately: [OBIS Specification](OBIS_SPECIFICATION.md) and [TIIS Specification](TIIS_SPECIFICATION.md). Both are draft baselines at version 0.1.0 and are not production 1.0 conformance claims.
+
 This separation is mandatory for new designs and must be applied to existing Bridge and integration work during material changes, integration, or production-readiness review.
 
