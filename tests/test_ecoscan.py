@@ -653,3 +653,60 @@ def test_railway_refresh_never_replays_old_token_after_uncertain_failure():
         oauth_refresh.get_valid_access_token(
             store, _TestRefreshLock(), "id", "secret", now=100, opener=forbidden,
         )
+
+
+def test_main_uses_persisted_railway_oauth_token_for_volume_scan(tmp_path, monkeypatch):
+    config = {
+        "mode": "MANUAL",
+        "projects": [{"project_id": "p1", "name": "One", "enabled": True, "sources": ["r1"]}],
+        "sources": [{
+            "source_id": "r1", "project_id": "p1", "provider": "railway_volume",
+            "enabled": True, "volume_instance_id": "instance-1",
+        }],
+    }
+    config_path = tmp_path / "config.json"
+    output_path = tmp_path / "report.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(monitor, "resolve_railway_access_token", lambda: "persisted-access-token")
+    captured = {}
+
+    def fake_scan(source, github_token, railway_access_token=None):
+        captured["token"] = railway_access_token
+        return {
+            "source_id": "r1", "project_id": "p1", "provider": "railway_volume",
+            "status": "COMPLETE", "logical_bytes": None, "file_count": None,
+        }
+
+    monkeypatch.setattr(monitor, "scan_source", fake_scan)
+    assert monitor.main(["--config", str(config_path), "--output", str(output_path)]) == 0
+    assert captured["token"] == "persisted-access-token"
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert report["projects"][0]["sources"][0]["status"] == "COMPLETE"
+
+
+def test_main_fails_closed_when_railway_oauth_backend_is_unavailable(tmp_path, monkeypatch):
+    config = {
+        "mode": "MANUAL",
+        "projects": [{"project_id": "p1", "name": "One", "enabled": True, "sources": ["r1"]}],
+        "sources": [{
+            "source_id": "r1", "project_id": "p1", "provider": "railway_volume",
+            "enabled": True,
+        }],
+    }
+    config_path = tmp_path / "config.json"
+    output_path = tmp_path / "report.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    def fail():
+        raise RuntimeError("Railway OAuth client credentials are not configured")
+
+    monkeypatch.setattr(monitor, "resolve_railway_access_token", fail)
+    monkeypatch.setattr(
+        monitor, "scan_source",
+        lambda *args: (_ for _ in ()).throw(AssertionError("scan must not proceed without OAuth")),
+    )
+    assert monitor.main(["--config", str(config_path), "--output", str(output_path)]) == 0
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    source = report["projects"][0]["sources"][0]
+    assert source["status"] == "NOT_CONFIGURED"
+    assert source["logical_bytes"] is None
