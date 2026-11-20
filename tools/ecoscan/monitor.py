@@ -178,31 +178,64 @@ def _railway_graphql(query: str, variables: dict[str, Any], token: str) -> dict[
 def scan_railway_volume(source: dict[str, Any], token: str | None) -> dict[str, Any]:
     measured_at = utc_now()
     volume_instance_id = source.get("volume_instance_id")
-    if not volume_instance_id:
-        return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume", "reference": source.get("reference"), "measured_at": measured_at, "status": "NOT_CONFIGURED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "Railway volume-instance metadata and backup inventory", "error": "volume_instance_id is required; a project-level volume ID is not assumed to be a volume-instance ID", "limitations": []}
+    volume_id = source.get("volume_id")
+    environment_id = source.get("environment_id")
+    reference = source.get("reference") or volume_id or volume_instance_id
     if not token:
-        return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume", "reference": volume_instance_id, "measured_at": measured_at, "status": "NOT_CONFIGURED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "Railway volume-instance metadata and backup inventory", "error": "RAILWAY_API_TOKEN is required", "limitations": []}
-    query = """
-    query EcoscanRailwayVolume($id: String!, $volumeInstanceId: String!) {
-      volumeInstance(id: $id) {
-        id
-        mountPath
-        currentSizeMB
-        state
-        volume { id name }
-        serviceInstance { serviceName }
-      }
-      volumeInstanceBackupList(volumeInstanceId: $volumeInstanceId) {
-        id
-        name
-        createdAt
-        expiresAt
-        usedMB
-        referencedMB
-      }
-    }
-    """
+        return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume", "reference": reference, "measured_at": measured_at, "status": "NOT_CONFIGURED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "Railway volume-instance metadata and backup inventory", "error": "RAILWAY_API_TOKEN is required", "limitations": []}
     try:
+        if not volume_instance_id:
+            if not volume_id or not environment_id:
+                raise ScanError("NOT_CONFIGURED", "volume_instance_id or both volume_id and environment_id are required")
+            discovery_query = """
+            query EcoscanRailwayVolumeInstances($environmentId: String!) {
+              environment(id: $environmentId) {
+                volumeInstances {
+                  id
+                  mountPath
+                  currentSizeMB
+                  state
+                  volume { id name }
+                  serviceInstance { serviceName }
+                }
+              }
+            }
+            """
+            discovery = _railway_graphql(discovery_query, {"environmentId": environment_id}, token)
+            environment = discovery.get("environment") or {}
+            instances = environment.get("volumeInstances") or []
+            if isinstance(instances, dict):
+                instances = [edge.get("node") for edge in instances.get("edges", []) if isinstance(edge, dict)]
+            matches = [
+                item for item in instances
+                if isinstance(item, dict) and (item.get("volume") or {}).get("id") == volume_id
+            ]
+            if len(matches) != 1:
+                status = "NOT_AUTHORIZED_OR_NOT_FOUND" if not matches else "FAILED"
+                raise ScanError(status, "Railway volume-instance lookup did not return exactly one instance for the configured volume and environment")
+            volume_instance_id = matches[0].get("id")
+            if not volume_instance_id:
+                raise ScanError("FAILED", "Railway volume-instance lookup returned an item without an ID")
+        query = """
+        query EcoscanRailwayVolume($id: String!, $volumeInstanceId: String!) {
+          volumeInstance(id: $id) {
+            id
+            mountPath
+            currentSizeMB
+            state
+            volume { id name }
+            serviceInstance { serviceName }
+          }
+          volumeInstanceBackupList(volumeInstanceId: $volumeInstanceId) {
+            id
+            name
+            createdAt
+            expiresAt
+            usedMB
+            referencedMB
+          }
+        }
+        """
         data = _railway_graphql(query, {"id": volume_instance_id, "volumeInstanceId": volume_instance_id}, token)
         volume = data.get("volumeInstance")
         if not isinstance(volume, dict):
@@ -228,7 +261,7 @@ def scan_railway_volume(source: dict[str, Any], token: str | None) -> dict[str, 
             "limitations": ["currentSizeMB is provisioned volume capacity, not used filesystem bytes.", "Backup usedMB and referencedMB are separate backup metrics and are not added to volume capacity.", "Volume contents and per-file usage are not exposed by this metadata scan."]
         }
     except ScanError as exc:
-        return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume", "reference": volume_instance_id, "measured_at": measured_at, "status": exc.status, "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "Railway GraphQL volume-instance metadata and backup inventory", "error": str(exc), "limitations": []}
+        return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume", "reference": reference, "measured_at": measured_at, "status": exc.status, "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "Railway GraphQL volume-instance metadata and backup inventory", "error": str(exc), "limitations": []}
 
 
 def _sign_s3_request(method: str, url: str, access_key: str, secret_key: str, region: str, now: datetime) -> urllib.request.Request:
