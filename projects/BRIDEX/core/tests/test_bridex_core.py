@@ -133,3 +133,25 @@ def test_package_rejects_symlinked_source(tmp_path: Path) -> None:
     link.symlink_to(outside)
     with pytest.raises(PackageError, match="symlink_not_allowed"):
         package_bridge(root, tmp_path / "bridge.zip")
+
+
+def test_package_rejects_private_key_material_even_when_filename_looks_safe(tmp_path: Path) -> None:
+    root = create(tmp_path)
+    private_file = root / "src" / "nexora_catalog_bridge" / "settings.py"
+    private_file.write_text(
+        'PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----"',
+        encoding="utf-8",
+    )
+    with pytest.raises(PackageError, match="secret_material_detected"):
+        package_bridge(root, tmp_path / "bridge.zip")
+
+
+def test_package_rejects_symlink_output_path(tmp_path: Path) -> None:
+    root = create(tmp_path)
+    actual = tmp_path / "actual.zip"
+    actual.write_bytes(b"do-not-overwrite")
+    link = tmp_path / "linked.zip"
+    link.symlink_to(actual)
+    with pytest.raises(PackageError, match="package_output_symlink_not_allowed"):
+        package_bridge(root, link)
+    assert actual.read_bytes() == b"do-not-overwrite"
