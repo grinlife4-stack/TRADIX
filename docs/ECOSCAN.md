@@ -272,3 +272,25 @@ Example source:
 Credentials are read only from the named environment variables and are never included in reports. The adapter lists object keys/sizes and pagination metadata; it does not download object bodies. It counts current objects only. Object versions and incomplete multipart uploads are not included. An interrupted or capped listing is `PARTIAL`, not `COMPLETE`.
 
 The measured logical object total is not provider billing, physical disk consumption, or backup size. Capacity is left unknown unless a separate trusted capacity source is configured. No bucket is added to the live registry until its owner supplies an explicit endpoint, bucket, and read-only credentials.
+
+## 17. Railway OAuth refresh-token persistence decision (2026-11-20)
+
+**Decision: unattended Railway OAuth refresh is intentionally disabled until a durable, access-controlled token store is selected and provisioned.** This is a security boundary, not an unfinished retry loop.
+
+Railway rotates refresh tokens. Every successful refresh response must be treated as the new authoritative token state, and an older rotated token may revoke the authorization if reused. The refresh operation and persistence of the replacement token therefore form one critical state transition. A workflow must not run parallel refreshes or continue with an access token when it cannot durably persist the returned refresh token.
+
+The following storage shortcuts are explicitly rejected for refresh-token state:
+- Git repository files, including encrypted blobs committed to Git history.
+- GitHub Actions cache: it is an evictable build cache, not a durable secret store, and default entries can be removed after seven days without access.
+- Workflow artifacts: they are build outputs with retention and access semantics, not a token database.
+- Workflow inputs, command-line arguments, logs, issue comments, or generated reports.
+
+The current safe operating mode remains:
+- `RAILWAY_OAUTH_ACCESS_TOKEN` is supplied only as a repository secret for a manually dispatched workflow.
+- The workflow does not receive this token during scheduled runs.
+- Scheduled Railway scans must report `NOT_CONFIGURED`; other configured sources may still be scanned.
+- No OAuth client secret or refresh token has been provisioned in this repository, and no live Railway OAuth refresh has been claimed or tested.
+
+Before unattended refresh can be enabled, an explicitly approved store must provide all of the following: durable encrypted persistence; narrowly scoped read/write access for the ECOSCAN job only; atomic replacement or compare-and-swap; a single-writer lock; no token values in logs or reports; and a recovery/re-authorization path if the token endpoint succeeds but persistence fails. The OAuth client secret must be stored separately from the refresh-token ciphertext. The job must persist the newest refresh token before using the returned access token for a scan; if persistence fails, it must stop and report an authentication-state failure rather than reuse the previous token.
+
+The next implementation gate is therefore provider selection and explicit owner authorization for that store. Until that gate is met, do not add write permissions to `GITHUB_TOKEN`, create a GitHub App solely to mutate repository secrets, introduce a paid external vault, or deploy a token-broker service. Manual access-token validation remains the only enabled Railway path.
