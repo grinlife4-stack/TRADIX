@@ -9,7 +9,7 @@ from typing import Any
 
 _BRIDGE_ID = re.compile(r"^[a-z][a-z0-9-]{2,62}$")
 _SLUG = re.compile(r"^[a-z][a-z0-9-]{1,62}$")
-_VERSION = re.compile(r"^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")
+_VERSION = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 _ALLOWED_ROOT = {
     "format_version", "bridge_id", "name", "version", "owner", "operator",
     "maintainer", "protocols", "peers", "capabilities", "lifecycle",
