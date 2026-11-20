@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from tradix.tiis import TIISValidator
 from .adapter import AdapterResult, ResourceLimits, ToolInvocation
@@ -127,6 +127,9 @@ def invocation_from_tiis(
     }
     if not isinstance(data, Mapping) or set(data) != required:
         raise ToolAdapterTIISCodecError("invocation_fields_invalid")
+    expected_idempotency = "tiis-" + sha256(str(data.get("idempotency_key", "")).encode("utf-8")).hexdigest()
+    if checked.get("idempotency_key") != expected_idempotency:
+        raise ToolAdapterTIISCodecError("idempotency_binding_mismatch")
     limits_data = data["limits"]
     limit_fields = {
         "cpu_millis", "memory_mb", "timeout_seconds", "network_enabled", "writable_workspace"
@@ -169,6 +172,10 @@ def result_to_tiis_event(
     result.validate(invocation)
     sender = _identity(sender_component, "sender")
     recipient = _identity(recipient_component, "recipient")
+    try:
+        UUID(correlation_id)
+    except (TypeError, ValueError) as exc:
+        raise ToolAdapterTIISCodecError("correlation_id_must_be_uuid") from exc
     issued = _timestamp(now)
     return {
         "protocol": "TIIS",
