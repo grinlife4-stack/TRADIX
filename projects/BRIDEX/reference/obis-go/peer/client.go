@@ -60,6 +60,9 @@ func NewTLS13HTTPClient(caPEM, certificatePEM, privateKeyPEM []byte, serverName,
 			MaxVersion: tls.VersionTLS13,
 			NextProtos: []string{"http/1.1"},
 			VerifyConnection: func(state tls.ConnectionState) error {
+				if state.Version != tls.VersionTLS13 || state.NegotiatedProtocol != "http/1.1" {
+					return errors.New("OBIS requires TLS 1.3 with HTTP/1.1 ALPN")
+				}
 				if len(state.PeerCertificates) == 0 {
 					return errors.New("OBIS server certificate is missing")
 				}
