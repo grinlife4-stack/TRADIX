@@ -51,7 +51,7 @@ func main() {
 	if err=p.AddCredential(obis.Credential{KeyID:*keyID,PeerID:*remoteID,PrincipalRef:*principal,Secret:secret,AllowedScopes:scopes,AllowedResources:allowedResources});err!=nil{log.Fatal(err)}
 	err=p.RegisterCapability(obis.Capability{ID:"records.read",Version:"1.0",RequiredScopes:map[string]bool{"records:read":true},Handler:func(payload map[string]any)(map[string]any,error){return map[string]any{"record_id":payload["record_id"],"served_by":"go-peer"},nil}})
 	if err!=nil{log.Fatal(err)}
-	if err=p.RegisterCapability(obis.Capability{ID:"ecoscan.inventory.read",Version:"1.0",RequiredScopes:map[string]bool{"ecoscan:inventory:read":true},Handler:func(payload map[string]any)(map[string]any,error){
+	if err=p.RegisterCapability(obis.Capability{ID:"ecoscan.inventory.read",Version:"1.0",RequiredScopes:map[string]bool{"ecoscan:inventory:read":true},ResourceBinding:true,Handler:func(payload map[string]any)(map[string]any,error){
 		projectID,ok1:=payload["project_id"].(string);sourceID,ok2:=payload["source_id"].(string)
 		if !ok1||!ok2{return nil,fmt.Errorf("project_id and source_id are required")}
 		rawKinds,_:=payload["measurement_kinds"].([]any)
