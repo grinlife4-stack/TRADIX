@@ -85,7 +85,7 @@ A Bridge may run as a separate process or service. This is the preferred default
 
 A Bridge is an independent, general-purpose, standards-based tool that establishes an authorized integration boundary between its peers. It is **owned by the project whose resources, data, or capabilities it exposes, not by BRIDEX or automatically by the receiving destination**, and it is not a TRADIX-only connector. It must not assume that TRADIX is the hub, broker, gateway, identity provider, or permanent intermediary for all communication.
 
-Subject to the owning product's authorization and security policies, a Bridge must be designed to communicate with:
+Subject to the owning product's authorization and security policies, a Bridge must be designed as an independently usable integration tool for its designated project or tool, and must remain connectable to authorized applications and systems after its owner separates from the originating ecosystem. It must be designed to communicate with:
 
 - TRADIX, when the product chooses to use TRADIX capabilities.
 - Other products and tools within the portfolio.
@@ -186,6 +186,9 @@ The catalog must not store product payloads, detailed operational records, custo
 The following checks are mandatory and must be recorded in the project's dossier or technical decision record:
 
 - [ ] Independent product/tool identity and ownership boundary defined.
+- [ ] The Bridge can be installed and operated from its owner-held package outside the originating ecosystem.
+- [ ] At least one authorized external application or independent peer connection is tested without TRADIX/BRIDEX runtime participation.
+- [ ] Owner-controlled separation, peer reconfiguration, export, and operator replacement procedures are demonstrated.
 - [ ] Bridge recorded as an independent tool with explicit owner/operator, lifecycle, and exportable implementation.
 - [ ] Bridge protocol version and supported capabilities declared.
 - [ ] Data disclosure and authorization boundaries documented.
