@@ -140,7 +140,7 @@ def test_adapter_passes_deadline_and_rejects_late_empty_peer_response():
             scopes=None, deadline=None,
         ):
             self.deadline = deadline
-            time.sleep(0.04)
+            time.sleep(1.05)
             return {
                 "sender": {"peer_id": OWNER_PEER_ID},
                 "recipient": {"peer_id": ECOSCAN_PEER_ID},
@@ -158,7 +158,7 @@ def test_adapter_passes_deadline_and_rejects_late_empty_peer_response():
                 },
             }
 
-    source = _source(timeout_seconds=0.01)
+    source = _source(timeout_seconds=1)
     context = _context(source)
     client = SlowEmptyClient()
     adapter = OBISBridgeAdapter(client, "http://127.0.0.1:8080")
