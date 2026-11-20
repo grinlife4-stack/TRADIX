@@ -328,3 +328,62 @@ func TestInvokeRejectsMalformedSignedErrorResponse(t *testing.T) {
 	)
 	if err == nil { t.Fatal("client accepted a malformed signed error response") }
 }
+
+
+func TestFileReplayGuardPersistsAcrossGuardRestart(t *testing.T) {
+	directory := t.TempDir()
+	first, err := NewFileReplayGuard(directory)
+	if err != nil { t.Fatal(err) }
+	if err := first.Accept("credential:nonce-persistent", time.Now().Add(time.Minute)); err != nil {
+		t.Fatalf("first durable acceptance failed: %v", err)
+	}
+	restarted, err := NewFileReplayGuard(directory)
+	if err != nil { t.Fatal(err) }
+	if err := restarted.Accept("credential:nonce-persistent", time.Now().Add(time.Minute)); !errors.Is(err, ErrReplayDetected) {
+		t.Fatalf("expected replay rejection after guard restart, got %v", err)
+	}
+}
+
+func TestFileReplayGuardIsAtomicAcrossInstances(t *testing.T) {
+	directory := t.TempDir()
+	guards := make([]*FileReplayGuard, 8)
+	for i := range guards {
+		guard, err := NewFileReplayGuard(directory)
+		if err != nil { t.Fatal(err) }
+		guards[i] = guard
+	}
+	var accepted int
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for _, guard := range guards {
+		wg.Add(1)
+		go func(g *FileReplayGuard) {
+			defer wg.Done()
+			err := g.Accept("same-key:same-nonce", time.Now().Add(time.Minute))
+			if err == nil { mu.Lock(); accepted++; mu.Unlock() } else if !errors.Is(err, ErrReplayDetected) {
+				t.Errorf("unexpected replay guard error: %v", err)
+			}
+		}(guard)
+	}
+	wg.Wait()
+	if accepted != 1 { t.Fatalf("expected exactly one durable claim, got %d", accepted) }
+}
+
+func TestFileReplayGuardStorageFailureFailsClosedBeforeExecution(t *testing.T) {
+	directory := t.TempDir()
+	guard, err := NewFileReplayGuard(directory)
+	if err != nil { t.Fatal(err) }
+	if err := os.Remove(directory); err != nil { t.Fatal(err) }
+
+	calls := 0
+	peer, secret := newNegativeTestPeer(t, &calls)
+	if err := peer.SetReplayGuard(guard); err != nil { t.Fatal(err) }
+	request := validNegativeTestRequest(time.Now())
+	signature, err := Sign(request, secret)
+	if err != nil { t.Fatal(err) }
+	_, _, protocolErr := peer.Handle(request, "python-key", signature)
+	if protocolErr == nil || protocolErr.Code != "replay.storage_unavailable" || protocolErr.Status != 503 {
+		t.Fatalf("expected fail-closed replay storage error, got %#v", protocolErr)
+	}
+	if calls != 0 { t.Fatalf("capability executed despite replay storage failure: %d", calls) }
+}
