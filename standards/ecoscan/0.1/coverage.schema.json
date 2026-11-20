@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tradix.dev/standards/ecoscan/0.1/coverage.schema.json",
+  "title": "ECOSCAN Coverage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scan_id",
+    "project_id",
+    "source_id",
+    "requested_scope",
+    "coverage_state",
+    "started_at",
+    "finished_at",
+    "actor_id",
+    "adapter_id",
+    "adapter_version",
+    "items_seen",
+    "pages_seen",
+    "reason_code",
+    "limitations",
+    "checkpoint_ref"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "scan_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "coverage_state": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL",
+        "FAILED",
+        "DISABLED",
+        "NOT_AUTHORIZED",
+        "NOT_CONFIGURED"
+      ]
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "actor_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adapter_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "items_seen": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pages_seen": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reason_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checkpoint_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

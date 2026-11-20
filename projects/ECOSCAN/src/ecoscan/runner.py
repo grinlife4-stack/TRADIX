@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from .contracts import Adapter, AdapterContractError, AdapterResult, BudgetExceeded, BudgetGuard, ScanContext
+from .contracts import Adapter, AdapterContractError, AdapterResult, AuthorizationRevoked, BudgetExceeded, BudgetGuard, ScanContext
 from .controls import ExecutionGate
 from .models import ProjectRegistry, SourceDescriptor
 from .store import ProjectStore
@@ -210,7 +210,10 @@ class ScanRunner:
                 source, actor_id, scan_id, started_at, "FAILED", "adapter_version_mismatch"
             )
 
-        guard = BudgetGuard(source.budget)
+        def still_authorized() -> bool:
+            return self.gate.evaluate(self.registry, source, actor_id).allowed
+
+        guard = BudgetGuard(source.budget, before_page=still_authorized)
         context = ScanContext(self.registry.project_id, actor_id, source, source.budget, guard, checkpoint)
         result: AdapterResult | None = None
         measurements: list[dict[str, Any]] = []
@@ -233,8 +236,9 @@ class ScanRunner:
                 raise AdapterContractError("adapter counters do not match budget guard")
             if not isinstance(result.measurements, (list, tuple)):
                 raise AdapterContractError("measurements must be a list or tuple")
-            if len(result.measurements) > result.items_seen:
-                raise AdapterContractError("measurement count exceeds observed item count")
+            maximum_measurements = len(source.expected_measurements) * max(1, result.items_seen)
+            if len(result.measurements) > maximum_measurements:
+                raise AdapterContractError("measurement count exceeds configured metric budget")
             if result.coverage_state == "FAILED" and result.measurements:
                 raise AdapterContractError("failed scan cannot publish measurements")
             if result.reason_code is not None and (not isinstance(result.reason_code, str) or not result.reason_code):
@@ -252,6 +256,8 @@ class ScanRunner:
                 raise AdapterContractError("measurement IDs must be unique within a scan")
             if result.checkpoint is not None and not isinstance(result.checkpoint, Mapping):
                 raise AdapterContractError("checkpoint must be an object")
+        except AuthorizationRevoked:
+            failure_state, failure_reason = "NOT_AUTHORIZED", "authorization_revoked"
         except BudgetExceeded:
             failure_state, failure_reason = "FAILED", "budget_exhausted"
         except AdapterContractError:
