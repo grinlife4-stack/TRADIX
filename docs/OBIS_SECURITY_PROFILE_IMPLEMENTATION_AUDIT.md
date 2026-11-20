@@ -327,3 +327,14 @@ This section supersedes the earlier “not yet cross-language executable” stat
 6. Independent security review and production threat-model review remain outstanding.
 
 No live provider, non-loopback peer, deployment, or production pilot was used or authorized. MegaMarket and NEXORA remain untouched.
+
+
+## 16. Shared conformance vectors and resource-identity hardening — 2026-11-20
+
+- Added the shared contract fixture at `projects/BRIDEX/reference/obis-contract/testdata/operation-request-hash-vectors.json`. Go and Python test suites now read the same file rather than relying only on duplicated inline hash constants.
+- Added resource-identity validation to both OBIS 0.2 peers. Project and source identifiers must match the same bounded ASCII identifier grammar before grant lookup.
+- This closes a delimiter-collision risk in the Go reference peer, where a slash-joined resource key could otherwise make a crafted project/source pair ambiguous. A regression test constructs that collision and asserts authorization fails before the capability handler runs.
+- The latest PR #42 head at preparation time is `9f222ec75b46bce7d8cf1425e8d1bb2fa788176b`. Its CI run `44807973002` is still in progress. The new shared-vector and Python resource-identity changes are therefore **not yet declared CI-validated**.
+- PR #67's standalone workflow previously passed the separate-process ECOSCAN ↔ Go OBIS 0.2 loopback test on commit `28f6511b538606e9db40b1d45049738f434ab317` (runs `44807142827` and `44807150588`), using a pinned earlier reference commit. The pin must be advanced only after the current PR #42 head passes its own CI, then the ECOSCAN workflow must be rerun against that exact pin.
+
+This addendum does not change the production decision in §15: loopback HTTP/HMAC remains a development/conformance profile only. No non-loopback provider, deployment, or production pilot was used or authorized.
