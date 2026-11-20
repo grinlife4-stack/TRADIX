@@ -317,3 +317,12 @@ def test_init_accepts_explicit_uuid_and_preserves_owner_operator_separation(tmp_
     assert manifest["bridge_id"] == bridge_id
     assert manifest["owner"]["entity_id"] != manifest["operator"]["entity_id"]
     assert manifest["owner"]["assignment_ref"] != manifest["operator"]["assignment_ref"]
+
+
+
+def test_manifest_rejects_duplicate_peer_ids() -> None:
+    manifest = sample_manifest()
+    peer = {"peer_id": "remote-peer", "trust_ref": "trust:one", "enabled": False}
+    manifest["peers"] = [peer, dict(peer)]
+    with pytest.raises(BridgeManifestError, match="peer_ids_must_be_unique"):
+        validate_manifest_data(manifest)
