@@ -8,6 +8,7 @@ from ecoscan.cli import main
 from ecoscan.contracts import BudgetExceeded, BudgetGuard
 from ecoscan.controls import ControlState, ExecutionGate
 from ecoscan.filesystem import FilesystemAdapter
+from ecoscan.obis_bridge import OBISBridgeAdapter, REQUIRED_SCOPE
 from ecoscan.registry import parse_registry
 from ecoscan.runner import ScanRunner
 from ecoscan.store import ProjectStore
