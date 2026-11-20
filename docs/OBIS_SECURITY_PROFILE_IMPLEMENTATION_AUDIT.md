@@ -319,7 +319,7 @@ This section supersedes the earlier “not yet cross-language executable” stat
 
 ### Remaining blockers and limits
 
-1. OBIS 0.2 error responses are not yet signed correlated error envelopes. Successful responses are signed and checked; HTTP/protocol rejection paths still return unsigned errors. Define and test the authenticated error contract before relying on remote error details.
+1. Authenticated OBIS 0.2 protocol errors now use signed, correlated error envelopes. Clients verify signature, correlation ID, and sender/recipient identity before exposing the remote code. Errors before successful authentication (malformed requests, unknown credentials, invalid signatures) remain unsigned by design. Expand tests for replay-store failure and all ledger failure boundaries.
 2. Production TLS/mTLS, certificate-to-peer identity binding, trust-anchor management, rotation/revocation, and production credential lifecycle are not implemented.
 3. The Go server has no explicit concurrency cap or rate limiter. The Python threaded server also needs bounded concurrency and request-resource controls.
 4. The capability recovery class is registered as metadata; a complete policy engine for IDEMPOTENT, QUERYABLE, and NON_RECOVERABLE recovery behavior is still required. UNKNOWN remains fail-closed.
@@ -334,7 +334,17 @@ No live provider, non-loopback peer, deployment, or production pilot was used or
 - Added the shared contract fixture at `projects/BRIDEX/reference/obis-contract/testdata/operation-request-hash-vectors.json`. Go and Python test suites now read the same file rather than relying only on duplicated inline hash constants.
 - Added resource-identity validation to both OBIS 0.2 peers. Project and source identifiers must match the same bounded ASCII identifier grammar before grant lookup.
 - This closes a delimiter-collision risk in the Go reference peer, where a slash-joined resource key could otherwise make a crafted project/source pair ambiguous. A regression test constructs that collision and asserts authorization fails before the capability handler runs.
-- The latest PR #42 head at preparation time is `9f222ec75b46bce7d8cf1425e8d1bb2fa788176b`. Its CI run `44807973002` is still in progress. The new shared-vector and Python resource-identity changes are therefore **not yet declared CI-validated**.
-- PR #67's standalone workflow previously passed the separate-process ECOSCAN ↔ Go OBIS 0.2 loopback test on commit `28f6511b538606e9db40b1d45049738f434ab317` (runs `44807142827` and `44807150588`), using a pinned earlier reference commit. The pin must be advanced only after the current PR #42 head passes its own CI, then the ECOSCAN workflow must be rerun against that exact pin.
+- The latest PR #42 head `ab6cf9ba108d5368844428eabbd5c492ad2e6069` passed its Go build, Go tests, Python tests, and cross-language suite in CI run `44808374243`.
+- PR #67's standalone workflow passed the separate-process ECOSCAN ↔ Go OBIS 0.2 loopback test on commit `28f6511b538606e9db40b1d45049738f434ab317` (runs `44807142827` and `44807150588`). Its test-only pin should now advance from the earlier reference commit to the validated PR #42 head, followed by another standalone workflow run.
 
 This addendum does not change the production decision in §15: loopback HTTP/HMAC remains a development/conformance profile only. No non-loopback provider, deployment, or production pilot was used or authorized.
+
+
+## 17. Authenticated OBIS 0.2 error envelopes — 2026-11-20
+
+- After successful request authentication, the Python and Go OBIS 0.2 peers now return a signed error envelope containing a request correlation ID, sender/recipient peer identities, stable error code, and safe message.
+- Python and Go clients verify the error signature, envelope shape, correlation ID, and both peer identities before returning the remote protocol error to the caller.
+- Errors that occur before authentication (invalid JSON/schema, unknown credential, invalid signature) remain unsigned; no identity or credential details are disclosed for unauthenticated requests.
+- Added tests for a resource-authorization rejection over Python HTTP and Go HTTP, including assertions that the capability handler is not executed.
+- Latest PR #42 CI passed on `ab6cf9ba108d5368844428eabbd5c492ad2e6069`, run `44808374243`.
+- Remaining work: signed error behavior for replay-store failures and exhaustive persistence/transition failure injection; production TLS/mTLS and server concurrency/rate controls remain out of scope.
