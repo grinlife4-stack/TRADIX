@@ -482,12 +482,17 @@ class _MemoryTokenStore:
         self.state = state
         self.saved = []
         self.allow_commit = True
+        self.commit_count = 0
+        self.fail_on_commit_number = None
 
     def load(self):
         return self.state
 
     def compare_and_swap(self, expected_version, replacement):
-        if not self.allow_commit or self.state.version != expected_version:
+        self.commit_count += 1
+        if (not self.allow_commit
+                or self.commit_count == self.fail_on_commit_number
+                or self.state.version != expected_version):
             return False
         self.state = replacement
         self.saved.append(replacement)
@@ -551,7 +556,7 @@ def test_railway_refresh_reuses_unexpired_access_token_without_network():
 
 def test_railway_refresh_fails_closed_when_durable_commit_fails():
     store = _MemoryTokenStore(oauth_refresh.TokenState(1, "expired", "old-refresh", 0))
-    store.allow_commit = False
+    store.fail_on_commit_number = 2
     def opener(request, timeout):
         return _FakeHttpResponse({
             "access_token": "new-access", "refresh_token": "new-refresh", "expires_in": 3600,
