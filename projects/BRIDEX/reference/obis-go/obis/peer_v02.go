@@ -190,7 +190,7 @@ func (p *PeerV02) Handle(m map[string]any, keyID, signature string) (map[string]
 		operationID,_ := str(m,"operation_id")
 		resourceRef:=operationResourceRef(m,capability)
 		record,err := p.Ledger.GetForResource(operationID,credential.PeerID,credential.PrincipalRef,capability.ID,capability.Version,resourceRef)
-		if err != nil { return failAuthenticated(&Error{"operation.not_found","operation not found",404)} }
+		if err != nil { return failAuthenticated(&Error{"operation.not_found","operation not found",404}) }
 		return operationResponse(m,p.Peer.ID,record),credential.Secret,nil
 	}
 	expectedHash,err := OperationRequestHash(m)
