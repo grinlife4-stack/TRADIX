@@ -69,7 +69,7 @@ def test_manifest_validation_requires_owner_operator_and_capability_contract() -
 
 def test_manifest_rejects_invalid_uuid_and_duplicate_capabilities() -> None:
     invalid_id = sample_manifest()
-    invalid_id["bridge_id"] = "urn:uuid:not-a-uuid"
+    invalid_id["bridge_id"] = "urn:uuid:------------------------------------"
     with pytest.raises(BridgeManifestError, match="bridge_id_must_contain_uuid"):
         validate_manifest_data(invalid_id)
 
