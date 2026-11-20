@@ -39,7 +39,17 @@ go build -o obis-go-peer ./cmd/obis-go-peer
   --scopes=records:read
 ```
 
-The server prints its bound address on startup. The sample capability is `records.read@1.0`.
+The server prints its bound address on startup. The sample capability is `records.read@1.0`. The `invoke` mode can call a configured Python peer directly:
+
+```bash
+./obis-go-peer --mode invoke \\
+  --endpoint=http://127.0.0.1:8081 \\
+  --peer-id=peer:go --remote-peer=peer:python \\
+  --key-id=go-key --principal=principal:go \\
+  --secret-hex=<64-hex-character-development-secret> \\
+  --scopes=records:read --capability=records.read \\
+  --capability-version=1.0 --payload-json='{"record_id":"record-123"}'
+```
 
 ## Security and conformance boundary
 
