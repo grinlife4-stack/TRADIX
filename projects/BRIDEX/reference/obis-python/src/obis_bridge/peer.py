@@ -32,7 +32,7 @@ MESSAGE_PATH = "/obis/v0.1/messages"
 MAX_MESSAGE_BYTES = 64 * 1024
 MAX_TTL_SECONDS = 60
 CLOCK_SKEW_SECONDS = 30
-TLS_ALPN = "obis/1"
+TLS_ALPN = "http/1.1"
 
 
 def create_tls13_client_context(cafile: str, certfile: str, keyfile: str) -> ssl.SSLContext:
