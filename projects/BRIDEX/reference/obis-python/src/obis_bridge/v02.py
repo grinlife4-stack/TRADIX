@@ -83,6 +83,8 @@ def validate_v02_message(message: Any, now: float | None = None) -> None:
         raise OBISRequestError("protocol.unsupported_version", "unsupported protocol/version", 426)
     message_type = message.get("message_type")
     required = common | ({"operation", "payload"} if message_type == "request" else {"operation_id"} if message_type == "operation_status_request" else set())
+    if message_type == "operation_status_request" and "resource" in message:
+        required.add("resource")
     if not required or set(message) != required:
         raise OBISRequestError("protocol.invalid_message", "unknown or missing OBIS 0.2 fields")
     for field in ("message_id", "nonce", "attempt_id"):
@@ -127,6 +129,10 @@ def validate_v02_message(message: Any, now: float | None = None) -> None:
         operation_id = message.get("operation_id")
         if not isinstance(operation_id, str) or not operation_id:
             raise OBISRequestError("protocol.invalid_message", "invalid operation_id")
+        if "resource" in message:
+            resource = message["resource"]
+            if not isinstance(resource, dict) or set(resource) != {"project_id", "source_id"} or any(not isinstance(resource.get(k), str) or not resource[k] for k in ("project_id", "source_id")):
+                raise OBISRequestError("protocol.invalid_message", "invalid resource identity")
 
 
 class OBISPeerV02:
@@ -185,7 +191,7 @@ class OBISPeerV02:
         if not capability.required_scopes.issubset(requested) or not requested.issubset(credential.allowed_scopes):
             raise OBISRequestError("authorization.denied", "requested scope exceeds capability or credential grant", 403)
         if capability.resource_binding:
-            payload = message.get("payload", {})
+            payload = message.get("payload", message.get("resource", {}))
             project_id, source_id = payload.get("project_id"), payload.get("source_id")
             if (project_id, source_id) not in credential.allowed_resources:
                 raise OBISRequestError("authorization.denied", "resource is outside credential grant", 403)
@@ -479,8 +485,10 @@ class OBISV02Client:
 
     def status(
         self, endpoint: str, capability_id: str, capability_version: str,
-        operation_id: str,
+        operation_id: str, *, resource: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         message = self._base("operation_status_request", capability_id, capability_version, time.time())
         message["operation_id"] = operation_id
+        if resource is not None:
+            message["resource"] = resource
         return self._exchange(endpoint, message)
