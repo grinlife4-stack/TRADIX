@@ -1,7 +1,7 @@
 # BRIDEX — Architecture and Engineering Boundaries
 
 **Document ID:** BRIDEX-ARCH-001  
-**Status:** Architecture baseline / implementation pending  
+**Status:** Engineering-plane Phase 1 implemented; generated Bridge runtime and OBIS production profile remain pending  
 **Version:** 0.1.0  
 **Authority:** Project owner  
 **Scope:** BRIDEX project and every Bridge tool generated or maintained under its method
@@ -47,6 +47,19 @@ A Bridge may expose approved capabilities and consume approved capabilities from
 ### C. Connected peer
 
 Each connected project, tool, service, platform, or other Bridge is a separate trust and data boundary. It defines what it exposes, what it accepts, and what data may cross the boundary.
+
+## 2A. Implemented engineering-plane baseline
+
+The standalone package at `projects/BRIDEX/engine` currently provides:
+
+- JSON Schema 2020-12 validation for an owner/operator-aware Bridge manifest.
+- Explicit capability declarations with scopes, side-effect class, idempotency, time and payload bounds, and input/output schema URIs.
+- Explicit package file allowlists; path traversal, symlinks, secret-bearing path patterns, and unlisted files are rejected.
+- Deterministic ZIP packaging with fixed timestamps/order and a per-file SHA-256 manifest.
+- Offline package verification of identity, exact file set, archive bounds, and content hashes without extraction or execution.
+- A standalone `bridex` CLI and wheel package with no TRADIX imports or network access.
+
+This is not yet a complete Bridge generator or runtime. Project-specific scaffolding, protocol negotiation, production transport/security profiles, durable audit/replay, cross-implementation conformance, and owner-operated runtime tests remain open gates.
 
 ## 3. Configuration and change isolation
 

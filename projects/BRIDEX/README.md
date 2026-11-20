@@ -2,7 +2,7 @@
 
 **Project ID:** BRIDEX-PROJECT-001  
 **Project type:** Independent specialist software/tooling project  
-**Status:** Architecture established; OBIS 0.1 standalone Python reference prototype implemented; production security and full conformance remain pending  
+**Status:** BRIDEX Engine Phase 1 implemented (manifest validation and deterministic package verification); OBIS 0.1 standalone Python reference prototype implemented; generated Bridge scaffolding, production security, and full conformance remain pending  
 **Parent portfolio:** TRADIX portfolio  
 **Operating rule:** Independent identity, source, configuration, data, lifecycle, and runtime boundary
 
@@ -62,6 +62,22 @@ The root CI also runs these reference tests. The reference now includes `ecoscan
 ## 3C. Relationship to existing TRADIX infrastructure
 
 BRIDEX may reuse the Artifact Gateway, Tool Catalog, and Tool Adapter Contract as optional supporting capabilities, but none is a substitute for an independent Bridge or the OBIS protocol. Their exact boundaries, PR dependency order, and separation tests are recorded in [BRIDEX Existing Component Integration Map](../../docs/BRIDEX_EXISTING_COMPONENT_INTEGRATION_MAP.md). These components must not become mandatory runtime dependencies for released Bridges.
+
+## 3D. BRIDEX Engine Phase 1
+
+The independent engineering-plane package is maintained at [BRIDEX Engine](engine/README.md). It is installable and executable without importing TRADIX:
+
+```bash
+cd projects/BRIDEX/engine
+python -m pip install -e ".[dev]"
+bridex validate --root ./path-to-bridge
+bridex package --root ./path-to-bridge --output ./release/bridge.zip
+bridex verify ./release/bridge.zip
+```
+
+Phase 1 validates the canonical Bridge manifest, owner/operator separation, OBIS profile declarations, capability scopes and limits, and an explicit package file allowlist. It rejects symlinks, traversal, secret-bearing path patterns, unlisted files, and oversized packages. It produces deterministic ZIP packages with a per-file SHA-256 manifest and verifies the exact package file set without extracting or executing content.
+
+The engine is engineering-plane tooling only. It has no network client, listener, runtime registry, relay, credential store, or dependency in a released Bridge. It does not yet scaffold Bridge source code or establish OBIS production conformance.
 
 ## 4. Responsibility boundaries
 
