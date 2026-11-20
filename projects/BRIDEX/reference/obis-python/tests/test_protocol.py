@@ -7,7 +7,7 @@ import urllib.request
 
 import pytest
 
-from obis_bridge import Credential, OBISClient, OBISPeer, OBISRequestError, OBISServer, register_ecoscan_inventory_capability
+from obis_bridge import Credential, OBISClient, OBISPeer, OBISRequestError, OBISServer, SQLiteReplayGuard, register_ecoscan_inventory_capability
 from obis_bridge.peer import MAX_MESSAGE_BYTES, MAX_TTL_SECONDS, MESSAGE_PATH, ReplayGuard, canonical_json, sign_message, strict_json_loads, validate_request, validate_response, verify_signature
 
 
@@ -571,3 +571,55 @@ def test_documented_obis_request_example_validates_against_canonical_schema():
         (repo_root / "standards" / "obis" / "0.1" / "message.schema.json").read_text(encoding="utf-8")
     )
     Draft202012Validator(canonical_schema).validate(example)
+
+
+def test_sqlite_replay_guard_rejects_nonce_after_peer_restart(tmp_path):
+    database = tmp_path / "replay.sqlite3"
+    first_process_guard = SQLiteReplayGuard(database)
+    assert first_process_guard.accept("key-1:nonce-1", now=1000)
+    del first_process_guard
+
+    restarted_process_guard = SQLiteReplayGuard(database)
+    assert not restarted_process_guard.accept("key-1:nonce-1", now=1001)
+    assert restarted_process_guard.accept("key-1:nonce-2", now=1001)
+
+
+def test_sqlite_replay_guard_expires_old_nonce_records(tmp_path):
+    guard = SQLiteReplayGuard(tmp_path / "replay.sqlite3", retention_seconds=10)
+    assert guard.accept("key-1:nonce-1", now=1000)
+    assert guard.accept("key-1:nonce-1", now=1010)
+
+
+def test_sqlite_replay_guard_rejects_memory_database():
+    with pytest.raises(ValueError, match="filesystem database path"):
+        SQLiteReplayGuard(":memory:")
+
+
+def test_replay_storage_failure_fails_closed_before_capability_execution():
+    executed = []
+    credential = Credential(
+        key_id=KEY_ID,
+        peer_id=PEER_A,
+        principal_ref=PRINCIPAL_A,
+        secret=SECRET,
+        allowed_scopes=frozenset({"inventory:read"}),
+    )
+    peer = OBISPeer(PEER_B, [credential])
+    peer.register_capability(
+        "inventory.get", "1.0", {"inventory:read"},
+        lambda payload: executed.append(payload) or {"ok": True},
+    )
+
+    class BrokenReplayGuard:
+        def accept(self, nonce, now=None):
+            raise OSError("storage unavailable")
+
+    peer.replay_guard = BrokenReplayGuard()
+    client = OBISClient(PEER_A, PEER_B, KEY_ID, PRINCIPAL_A, SECRET, {"inventory:read"})
+    request = client.build_request("inventory.get", "1.0", {"item_id": "sku-42"})
+    with pytest.raises(OBISRequestError) as exc:
+        peer.handle(request, KEY_ID, sign_message(request, SECRET))
+
+    assert exc.value.code == "replay.storage_unavailable"
+    assert exc.value.http_status == 503
+    assert executed == []
