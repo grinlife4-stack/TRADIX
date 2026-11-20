@@ -1,5 +1,7 @@
 from __future__ import annotations
 import json
+import math
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -63,22 +65,35 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
         scan_id, source_id = record.get("scan_id"), record.get("source_id")
         if not isinstance(scan_id, str) or not scan_id or not isinstance(source_id, str) or not source_id:
             raise TransferError("coverage identifiers are invalid")
+        if record.get("coverage_state") not in {"COMPLETE", "PARTIAL", "FAILED", "DISABLED", "NOT_AUTHORIZED", "NOT_CONFIGURED"}:
+            raise TransferError("coverage state is invalid")
+        if any(isinstance(record.get(key), bool) or not isinstance(record.get(key), int) or record[key] < 0 for key in ("items_seen", "pages_seen")):
+            raise TransferError("coverage counters are invalid")
         if scan_id in scan_sources:
             raise TransferError("duplicate scan_id in export")
         scan_sources[scan_id] = source_id
     measurement_ids = set()
+    coverage_states = {record["scan_id"]: record["coverage_state"] for record in bundle["coverage"]}
+    allowed_units = {"logical_bytes": "byte", "allocated_bytes": "byte", "physical_bytes": "byte", "capacity_bytes": "byte", "object_count": "object", "file_count": "file", "provider_reported_usage": "provider_unit"}
     for record in bundle["measurements"]:
         if not isinstance(record, dict) or record.get("project_id") != project_id:
             raise TransferError("measurement crosses project boundary")
         if scan_sources.get(record.get("scan_id")) != record.get("source_id"):
             raise TransferError("measurement source does not match its coverage record")
         measurement_id = record.get("measurement_id")
-        if not isinstance(measurement_id, str) or not measurement_id or measurement_id in measurement_ids:
-            raise TransferError("measurement IDs must be present and unique")
+        if not isinstance(measurement_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", measurement_id) or measurement_id in measurement_ids:
+            raise TransferError("measurement IDs must be valid and unique")
         measurement_ids.add(measurement_id)
         value = record.get("value")
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
-            raise TransferError("measurement value must be non-negative numeric data")
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or value < 0:
+            raise TransferError("measurement value must be finite non-negative numeric data")
+        kind = record.get("kind")
+        if kind not in allowed_units or record.get("unit") != allowed_units[kind]:
+            raise TransferError("measurement kind and unit are invalid")
+        if record.get("coverage_state") != coverage_states.get(record.get("scan_id")):
+            raise TransferError("measurement coverage state does not match its scan")
+        if not isinstance(record.get("measured_at"), str) or not isinstance(record.get("method"), str) or not isinstance(record.get("confidence"), str):
+            raise TransferError("measurement metadata is invalid")
     for record in bundle["checkpoints"]:
         if not isinstance(record, dict) or not isinstance(record.get("checkpoint"), dict):
             raise TransferError("invalid checkpoint record")
