@@ -331,6 +331,19 @@ def test_railway_volume_requires_instance_or_volume_environment_and_token():
     assert missing_token["logical_bytes"] is None
 
 
+def test_scan_source_prefers_project_scoped_railway_token(monkeypatch):
+    monkeypatch.setenv("RAILWAY_PROJECT_TOKEN", "project-token")
+    monkeypatch.setenv("RAILWAY_API_TOKEN", "account-token")
+    captured = {}
+    def fake_scan(source, token):
+        captured["token"] = token
+        return {"status": "COMPLETE"}
+    monkeypatch.setattr(monitor, "scan_railway_volume", fake_scan)
+    result = monitor.scan_source({"source_id": "r1", "project_id": "P1", "provider": "railway_volume"}, None)
+    assert result["status"] == "COMPLETE"
+    assert captured["token"] == "project-token"
+
+
 def test_railway_graphql_uses_project_access_token_header(monkeypatch):
     monkeypatch.setenv("RAILWAY_PROJECT_TOKEN", "project-token")
     captured = {}
