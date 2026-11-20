@@ -123,7 +123,7 @@ func (p *PeerV02) authorize(m map[string]any, credential Credential) (OperationC
 	if capability.ResourceBinding {
 		payload,ok:=obj(m,"payload"); if !ok { return OperationCapabilityV02{}, &Error{"authorization.denied","resource-bound capability requires payload resource identity",403} }
 		projectID,ok1:=str(payload,"project_id"); sourceID,ok2:=str(payload,"source_id")
-		if !ok1||!ok2||!credential.AllowedResources[projectID+"\x00"+sourceID] { return OperationCapabilityV02{}, &Error{"authorization.denied","resource is outside credential grant",403} }
+		if !ok1||!ok2||!credential.AllowedResources[projectID+"/"+sourceID] { return OperationCapabilityV02{}, &Error{"authorization.denied","resource is outside credential grant",403} }
 	}
 	return capability,nil
 }
