@@ -2,6 +2,7 @@ package peer
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 )
@@ -49,5 +50,25 @@ func TestGoClientInvokesGoPeerOverHTTPDevelopmentBinding(t *testing.T) {
 	result, ok := response["result"].(map[string]any)
 	if !ok || result["echo"] != "round-trip" {
 		t.Fatalf("unexpected response result: %#v", response["result"])
+	}
+}
+
+
+func TestNewClientMTLSRequiresNoHMACSecret(t *testing.T) {
+	config := ClientConfig{
+		LocalPeerID: "urn:obis:peer:11111111-1111-4111-8111-111111111111",
+		RemotePeerID: "urn:obis:peer:22222222-2222-4222-8222-222222222222",
+		KeyID: "client-cert",
+		PrincipalRef: "principal:client",
+		Scopes: map[string]bool{"catalog:read": true},
+		HTTPClient: &http.Client{},
+		MTLS: true,
+	}
+	if _, err := NewClient(config); err != nil {
+		t.Fatalf("mTLS client without shared secret rejected: %v", err)
+	}
+	config.Secret = []byte("0123456789abcdef0123456789abcdef")
+	if _, err := NewClient(config); err == nil {
+		t.Fatal("mTLS client accepted an HMAC secret")
 	}
 }
