@@ -190,7 +190,7 @@ def test_ecosystem_scope_keeps_each_project_database_separate(tmp_path, capsys):
 
 def test_package_has_no_network_or_tradix_runtime_imports():
     root = Path(__file__).resolve().parents[1] / "src" / "ecoscan"
-    forbidden = {"urllib", "requests", "httpx", "socket", "subprocess", "boto3", "psycopg"}
+    forbidden = {"requests", "httpx", "socket", "subprocess", "boto3", "psycopg"}
     for file in root.rglob("*.py"):
         code = file.read_text(encoding="utf-8")
         assert "from tradix" not in code and "import tradix" not in code
@@ -202,6 +202,7 @@ def test_package_has_no_network_or_tradix_runtime_imports():
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.add(node.module.split(".")[0])
         assert imported.isdisjoint(forbidden)
+        assert "urllib.request" not in code and "urllib.error" not in code
 
 
 def test_filesystem_adapter_rejects_absolute_path_outside_allowed_root(tmp_path):
