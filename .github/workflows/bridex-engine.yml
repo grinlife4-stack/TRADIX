@@ -6,12 +6,10 @@ on:
     paths:
       - "projects/BRIDEX/engine/**"
       - "standards/bridex/**"
-      - ".github/workflows/bridex-engine.yml"
   pull_request:
     paths:
       - "projects/BRIDEX/engine/**"
       - "standards/bridex/**"
-      - ".github/workflows/bridex-engine.yml"
 
 permissions:
   contents: read
