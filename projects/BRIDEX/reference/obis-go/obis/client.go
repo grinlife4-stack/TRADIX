@@ -122,25 +122,3 @@ func validateFailureResponse(message map[string]any, requestID, localPeerID, rem
 	return nil
 }
 
-func validateErrorResponse(message map[string]any, requestID, localPeerID, remotePeerID string) error {
-	keys := []string{"protocol", "version", "message_type", "message_id", "correlation_id", "sender", "recipient", "issued_at", "outcome", "error"}
-	if !exactKeys(message, keys...) { return errors.New("error response has unknown or missing fields") }
-	if message["protocol"] != Protocol || message["version"] != Version || message["message_type"] != "response" || message["outcome"] != "failed" {
-		return errors.New("invalid error response envelope")
-	}
-	messageID, ok1 := str(message, "message_id")
-	correlation, ok2 := str(message, "correlation_id")
-	if !ok1 || messageID == "" || !ok2 || correlation != requestID { return errors.New("error response correlation mismatch") }
-	sender, ok1 := obj(message, "sender")
-	recipient, ok2 := obj(message, "recipient")
-	if !ok1 || !ok2 || !exactKeys(sender, "peer_id") || !exactKeys(recipient, "peer_id") { return errors.New("invalid error response peer references") }
-	senderID, _ := str(sender, "peer_id")
-	recipientID, _ := str(recipient, "peer_id")
-	if senderID != remotePeerID || recipientID != localPeerID { return errors.New("error response peer identity mismatch") }
-	if _, ok := number(message, "issued_at"); !ok { return errors.New("invalid error response timestamp") }
-	errorObject, ok := obj(message, "error")
-	if !ok || !exactKeys(errorObject, "code", "message") { return errors.New("invalid structured error response") }
-	if code, ok := str(errorObject, "code"); !ok || code == "" { return errors.New("invalid error code") }
-	if text, ok := str(errorObject, "message"); !ok || text == "" { return errors.New("invalid error message") }
-	return nil
-}
