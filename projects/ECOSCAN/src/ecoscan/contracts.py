@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any, Mapping, Protocol
+from typing import Any, Callable, Mapping, Protocol
 
 from .models import ScanBudget, SourceDescriptor
 
@@ -17,9 +17,18 @@ class AdapterContractError(ValueError):
     """Raised when an adapter result violates the ECOSCAN contract."""
 
 
+class AuthorizationRevoked(RuntimeError):
+    """Raised when any control or owner/operator grant is withdrawn mid-scan."""
+
+
 class BudgetGuard:
-    def __init__(self, budget: ScanBudget) -> None:
+    def __init__(
+        self,
+        budget: ScanBudget,
+        authorization_check: Callable[[], bool] | None = None,
+    ) -> None:
         self.budget = budget
+        self._authorization_check = authorization_check
         self.started = time.monotonic()
         self.deadline = self.started + budget.max_duration_seconds
         self.items_seen = 0
@@ -33,13 +42,25 @@ class BudgetGuard:
         if time.monotonic() >= self.deadline:
             raise BudgetExceeded("max_duration_seconds exhausted")
 
+    def check_authorization(self) -> None:
+        if self._authorization_check is None:
+            raise AuthorizationRevoked("no per-operation authorization callback")
+        try:
+            allowed = self._authorization_check()
+        except Exception:
+            allowed = False
+        if allowed is not True:
+            raise AuthorizationRevoked("authorization was revoked")
+
     def consume_item(self) -> None:
+        self.check_authorization()
         self.check_time()
         if self.items_seen >= self.budget.max_items:
             raise BudgetExceeded("max_items exhausted")
         self.items_seen += 1
 
     def consume_page(self) -> None:
+        self.check_authorization()
         self.check_time()
         if self.pages_seen >= self.budget.max_pages:
             raise BudgetExceeded("max_pages exhausted")
