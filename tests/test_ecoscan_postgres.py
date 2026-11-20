@@ -150,3 +150,40 @@ def test_postgres_backend_rejects_transaction_pooler_for_session_lock():
         PostgresTokenStore("postgresql://user:pass@ep-example-pooler.us-east-2.aws.neon.tech/db", key)
     with pytest.raises(ValueError, match="direct PostgreSQL endpoint"):
         PostgresRefreshLock("postgresql://user:pass@ep-example-pooler.us-east-2.aws.neon.tech/db")
+
+
+def test_bootstrap_initializes_schema_only_when_requested_and_never_overwrites(monkeypatch, capsys):
+    from tools.ecoscan import bootstrap_oauth
+
+    class FakeStore:
+        def __init__(self):
+            self.schema_calls = 0
+            self.states = []
+        def initialize_schema(self):
+            self.schema_calls += 1
+        def initialize_state(self, state):
+            self.states.append(state)
+            return len(self.states) == 1
+
+    fake = FakeStore()
+    monkeypatch.setattr(bootstrap_oauth.PostgresTokenStore, "from_env", lambda: fake)
+    monkeypatch.setenv("RAILWAY_OAUTH_INITIAL_ACCESS_TOKEN", "initial-access-secret")
+    monkeypatch.setenv("RAILWAY_OAUTH_INITIAL_REFRESH_TOKEN", "initial-refresh-secret")
+    monkeypatch.setenv("RAILWAY_OAUTH_ACCESS_EXPIRES_IN", "3600")
+
+    assert bootstrap_oauth.main(["--create-schema"]) == 0
+    assert fake.schema_calls == 1
+    assert fake.states[0].version == 0
+    assert fake.states[0].status == "ACTIVE"
+    assert fake.states[0].access_token == "initial-access-secret"
+    assert "initial-access-secret" not in capsys.readouterr().out
+
+    assert bootstrap_oauth.main([]) == 3
+    assert fake.schema_calls == 1
+    assert len(fake.states) == 2
+
+
+def test_postgres_backend_requires_explicit_postgresql_uri():
+    key = AESGCM.generate_key(bit_length=256)
+    with pytest.raises(ValueError, match="explicit host"):
+        PostgresTokenStore("host=somewhere dbname=neondb", key)
