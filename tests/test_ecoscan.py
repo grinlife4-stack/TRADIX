@@ -598,3 +598,40 @@ def test_railway_refresh_requires_persisted_token_state():
         oauth_refresh.get_valid_access_token(
             store, _TestRefreshLock(), "id", "secret", now=100,
         )
+
+def test_railway_refresh_serializes_two_callers_and_rotates_once():
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    class SharedLock:
+        def __init__(self):
+            self.lock = threading.Lock()
+        def __enter__(self):
+            self.lock.acquire()
+            return self
+        def __exit__(self, *args):
+            self.lock.release()
+            return False
+
+    store = _MemoryTokenStore(oauth_refresh.TokenState(1, "expired", "old-refresh", 0))
+    lock = SharedLock()
+    calls = []
+    def opener(request, timeout):
+        calls.append(request)
+        time.sleep(0.05)
+        return _FakeHttpResponse({
+            "access_token": "rotated-access", "refresh_token": "rotated-refresh", "expires_in": 3600,
+        })
+
+    def refresh():
+        return oauth_refresh.get_valid_access_token(
+            store, lock, "id", "secret", now=100, opener=opener,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: refresh(), range(2)))
+    assert results == ["rotated-access", "rotated-access"]
+    assert len(calls) == 1
+    assert store.state.version == 2
+    assert store.state.refresh_token == "rotated-refresh"
