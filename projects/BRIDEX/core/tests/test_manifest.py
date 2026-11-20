@@ -214,3 +214,32 @@ def test_restore_rejects_symlink_entries(tmp_path):
     with pytest.raises(ManifestValidationError, match="symlink or special file"):
         restore_package(archive, tmp_path / "restored")
     assert not (tmp_path / "restored").exists()
+
+
+def test_published_obis_schema_conformance_vectors_pass():
+    from pathlib import Path
+    from bridex_core import run_schema_suite
+    repo_root = Path(__file__).resolve().parents[4]
+    suite = repo_root / "standards" / "obis" / "0.1" / "conformance" / "vectors.json"
+    report = run_schema_suite(suite)
+    assert report["result"] == "passed"
+    assert report["vectors"] == 7
+    assert report["accepted"] == 3
+    assert report["rejected"] == 4
+
+
+def test_obis_schema_conformance_runner_fails_on_wrong_expected_result(tmp_path):
+    import shutil
+    from pathlib import Path
+    from bridex_core import ConformanceSuiteError, run_schema_suite
+    repo_root = Path(__file__).resolve().parents[4]
+    source = repo_root / "standards" / "obis" / "0.1"
+    target = tmp_path / "standards" / "obis" / "0.1"
+    (target / "conformance").mkdir(parents=True)
+    shutil.copyfile(source / "message.schema.json", target / "message.schema.json")
+    shutil.copyfile(source / "conformance" / "suite.schema.json", target / "conformance" / "suite.schema.json")
+    suite_data = json.loads((source / "conformance" / "vectors.json").read_text(encoding="utf-8"))
+    suite_data["vectors"][0]["expected"] = "reject"
+    (target / "conformance" / "vectors.json").write_text(json.dumps(suite_data), encoding="utf-8")
+    with pytest.raises(ConformanceSuiteError, match="request.valid.basic"):
+        run_schema_suite(target / "conformance" / "vectors.json")
