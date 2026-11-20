@@ -117,6 +117,12 @@ def validate_request(message: dict[str, Any], now: float | None = None) -> None:
         raise OBISRequestError("protocol.unsupported_version", "unsupported protocol/version", 426)
     if message.get("message_type") != "request":
         raise OBISRequestError("protocol.invalid_message", "message_type must be request")
+    allowed_top_level = {
+        "protocol", "version", "message_type", "message_id", "nonce", "sender",
+        "recipient", "issued_at", "expires_at", "capability", "authorization", "payload",
+    }
+    if set(message) != allowed_top_level:
+        raise OBISRequestError("protocol.invalid_message", "unknown or missing top-level fields")
 
     for key in ("message_id", "nonce"):
         value = _required(message, key, str)
@@ -127,18 +133,24 @@ def validate_request(message: dict[str, Any], now: float | None = None) -> None:
     recipient = _required(message, "recipient", dict)
     auth = _required(message, "authorization", dict)
     capability = _required(message, "capability", dict)
+    if set(sender) != {"peer_id"} or set(recipient) != {"peer_id"}:
+        raise OBISRequestError("protocol.invalid_message", "peer references contain unknown fields")
+    if set(auth) != {"principal_ref", "scopes"} or set(capability) != {"id", "version"}:
+        raise OBISRequestError("protocol.invalid_message", "authorization/capability contains unknown fields")
     _required(sender, "peer_id", str)
     _required(recipient, "peer_id", str)
     _required(auth, "principal_ref", str)
     scopes = _required(auth, "scopes", list)
-    if not all(isinstance(scope, str) and scope for scope in scopes):
-        raise OBISRequestError("protocol.invalid_message", "authorization.scopes must be strings")
+    if not all(isinstance(scope, str) and scope for scope in scopes) or len(set(scopes)) != len(scopes):
+        raise OBISRequestError("protocol.invalid_message", "authorization.scopes must be unique non-empty strings")
     _required(capability, "id", str)
     _required(capability, "version", str)
     _required(message, "payload", dict)
 
     issued_at = _required(message, "issued_at", (int, float))
     expires_at = _required(message, "expires_at", (int, float))
+    if isinstance(issued_at, bool) or isinstance(expires_at, bool):
+        raise OBISRequestError("protocol.invalid_message", "timestamps must be numeric, not boolean")
     if issued_at > now + CLOCK_SKEW_SECONDS:
         raise OBISRequestError("request.expired", "issued_at is in the future", 408)
     if expires_at <= now or expires_at <= issued_at:
