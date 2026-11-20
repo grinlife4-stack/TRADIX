@@ -603,7 +603,7 @@ def test_python_v02_client_invokes_go_v02_peer_and_queries_status(tmp_path):
         )
         status = client.status(
             endpoint, "ecoscan.inventory.read", "1.0", "cross-op-1",
-            resource={"project_id": "project-a", "source_id": "source-a", "measurement_kinds": ["logical_bytes", "file_count"]},
+            resource={"project_id": "project-a", "source_id": "source-a"},
         )
         assert first["operation"]["state"] == "SUCCEEDED"
         assert second["operation"]["result"] == first["operation"]["result"]
