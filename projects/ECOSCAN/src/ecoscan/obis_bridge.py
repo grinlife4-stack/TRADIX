@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Protocol
 from urllib.parse import urlparse
 
-from .contracts import AdapterContractError, AdapterResult, ScanContext, TransportOutcomeUnknown
+from .contracts import AdapterContractError, AdapterResult, BudgetExceeded, ScanContext, TransportOutcomeUnknown
 from .models import SourceDescriptor
 
 
