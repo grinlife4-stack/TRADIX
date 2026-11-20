@@ -145,3 +145,16 @@ The standalone Go server CLI now exposes the durable store through optional `--r
 
 
 A further HTTP-level cross-language test removes the configured Go replay directory after server startup. The Python client receives and validates the Go peer's signed `replay.storage_unavailable` error with HTTP 503; the Go unit test separately verifies that the capability handler is not executed. CI run #1170 passed on commit `afbc6e9f1b877b24ebebcabc06820cee7ccd18a3`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
+
+
+## Python transport-error classification and Go-to-Python negative requests — 2026-11-20
+
+The Python client now distinguishes a request timeout from a peer connection/unavailability failure:
+- A direct `TimeoutError` or `socket.timeout`, including the Python 3.12 response-read timeout path, is normalized to `peer.timeout` / HTTP 504.
+- A non-timeout `URLError` remains `peer.unavailable` / HTTP 503.
+
+The first CI attempt (#1176) exposed that Python 3.12 can raise `TimeoutError` directly while reading the response rather than wrapping it in `URLError`. The handler was corrected to catch the direct timeout exception, and the separate timeout and connection-failure tests then passed.
+
+The Go-to-Python raw negative integration test sends an authenticated unsupported-version request and an invalid-signature request from the independent Go test harness to the Python peer. The Python capability handler must not execute for either rejected request. CI #1175 passed for this cross-peer test and the full suite. CI #1177 passed on commit `d630ada3683ec0793c818bf1281b5b04aa4f6e12`, including the Go tests/build, full Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
+
+This remains selected negative-path coverage, not a complete two-way negative conformance matrix. OBIS schema, wire envelope, TIIS contract, version negotiation semantics, and production security profile were not changed. HMAC remains development/conformance-only; production TLS/mTLS, credential lifecycle, distributed replay policy, business-operation idempotency/outcome reconciliation, persistent audit, and independent security review remain open.
