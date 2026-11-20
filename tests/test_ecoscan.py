@@ -415,3 +415,29 @@ def test_s3_compatible_adapter_marks_truncated_listing_partial(monkeypatch):
     })
     assert result["status"] == "PARTIAL"
     assert result["logical_bytes"] == 7
+
+def test_railway_volume_resolution_accepts_relay_connection_shape(monkeypatch):
+    calls = []
+    def fake_graphql(query, variables, token):
+        calls.append(query)
+        if "volumeInstances" in query:
+            return {"environment": {"volumeInstances": {"edges": [
+                {"node": {"id": "instance-1", "volume": {"id": "volume-1", "name": "artifact-data"}}}
+            ]}}}
+        return {
+            "volumeInstance": {
+                "id": "instance-1", "mountPath": "/data", "currentSizeMB": 500,
+                "state": "READY", "volume": {"id": "volume-1", "name": "artifact-data"},
+                "serviceInstance": {"serviceName": "artifact-gateway"},
+            },
+            "volumeInstanceBackupList": [],
+        }
+    monkeypatch.setattr(monitor, "_railway_graphql", fake_graphql)
+    result = monitor.scan_railway_volume({
+        "source_id": "railway-vol-1", "project_id": "TRADIX",
+        "volume_id": "volume-1", "environment_id": "env-1",
+    }, "test-token")
+    assert result["status"] == "COMPLETE"
+    assert result["volume_instance_id"] == "instance-1"
+    assert len(calls) == 2
+
