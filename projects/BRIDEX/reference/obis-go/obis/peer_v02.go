@@ -181,13 +181,13 @@ func operationResourceRef(m map[string]any, capability OperationCapabilityV02) s
 func (p *PeerV02) Handle(m map[string]any, keyID, signature string) (map[string]any, []byte, *Error) {
 	if e := validateV02Message(m,time.Now()); e != nil { return nil,nil,e }
 	credential,e := p.authenticate(m,keyID,signature); if e != nil { return nil,nil,e }
-	capability,e := p.authorize(m,credential); if e != nil { return nil,nil,e }
+	capability,e := p.authorize(m,credential); if e != nil { return nil,credential.Secret,e }
 	messageType,_ := str(m,"message_type")
 	if messageType == "operation_status_request" {
 		operationID,_ := str(m,"operation_id")
 		resourceRef:=operationResourceRef(m,capability)
 		record,err := p.Ledger.GetForResource(operationID,credential.PeerID,credential.PrincipalRef,capability.ID,capability.Version,resourceRef)
-		if err != nil { return nil,nil,&Error{"operation.not_found","operation not found",404} }
+		if err != nil { return nil,credential.Secret,&Error{"operation.not_found","operation not found",404} }
 		return operationResponse(m,p.Peer.ID,record),credential.Secret,nil
 	}
 	expectedHash,err := OperationRequestHash(m)
