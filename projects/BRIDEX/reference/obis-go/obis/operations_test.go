@@ -16,7 +16,7 @@ func newTestOperationLedger(t *testing.T) *FileOperationLedger {
 	return ledger
 }
 
-func reserveTestOperation(t *testing.T, ledger *FileOperationLedger, operationID, key, hash string) (OperationRecord, bool) {
+func reserveTestOperation(t *testing.T, ledger *FileOperationLedger, operationID, key, hash string) (OperationRecord, bool, error) {
 	t.Helper()
 	keyHash, err := ledger.IdempotencyKeyHash(key)
 	if err != nil { t.Fatal(err) }
