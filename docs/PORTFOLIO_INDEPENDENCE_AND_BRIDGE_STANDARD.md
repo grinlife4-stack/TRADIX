@@ -58,6 +58,8 @@ TRADIX must not become the repository of product-specific Bridge logic, operatio
 
 ### Project ownership rule for every Bridge
 
+For this standard, the **source/resource-owning project** means the portfolio project that owns, administers, or has delegated authority over the relevant source account, resource, data, or capability and that authorizes the Bridge to access or expose it. It does not mean the external SaaS/cloud provider that hosts the resource.
+
 1. Every project-specific Bridge instance is owned by the portfolio project whose resources, data, or capabilities it is authorized to expose. The project retains final authority over its Bridge identity, source/package, configuration, credentials, permissions, release, operation, maintenance appointments, suspension, replacement, and retirement.
 2. BRIDEX is a generator and engineering-method provider only. It may not be named as owner, acquire ownership by generating or maintaining a Bridge, or retain exclusive control over source, signing, deployment, credentials, or runtime.
 3. A consuming project remains owner of its own receiving adapter, local validation, and data-acceptance boundary. It does not thereby acquire ownership of another project's source-side Bridge.
