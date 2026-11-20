@@ -14,6 +14,7 @@ import hmac
 import json
 import math
 import secrets
+import socket
 import sqlite3
 import threading
 import time
@@ -699,6 +700,8 @@ class OBISClient:
                     raise OBISRequestError("protocol.invalid_message", "malformed authenticated error response", 502) from parse_exc
             raise OBISRequestError("peer.request_rejected", f"peer returned HTTP {exc.code}", exc.code) from exc
         except urllib.error.URLError as exc:
+            if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+                raise OBISRequestError("peer.timeout", "peer request timed out", 504) from exc
             raise OBISRequestError("peer.unavailable", "peer is unavailable", 503) from exc
 
         try:
