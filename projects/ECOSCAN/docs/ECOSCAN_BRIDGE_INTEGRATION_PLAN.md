@@ -11,7 +11,7 @@ ECOSCAN remains an independent, local-first inventory system. Its core registry,
 
 External provider connectivity is a separate integration layer. It must be implemented as an independently deployable Bridge instance owned by the project that owns the external source/resource being inventoried, not by ECOSCAN by default and never by BRIDEX. Provider-specific network clients must not be embedded in the ECOSCAN core.
 
-The Bridge is a replaceable peer adapter. It is not a mandatory hub, relay, broker, registry, identity provider, or runtime dependency.
+The Bridge is an optional, replaceable peer adapter for sources that require external access. It is not a mandatory component of ECOSCAN, hub, relay, broker, registry, identity provider, or runtime dependency.
 
 ## 2. Intended topology
 
@@ -67,7 +67,7 @@ ECOSCAN does not receive provider credentials. The Bridge must not receive permi
 
 ## 4. OBIS contract for the ECOSCAN integration
 
-The Bridge integration must use OBIS as the independent peer-to-peer contract. It must explicitly declare:
+When an optional Bridge integration is enabled, it must use OBIS as the independent peer-to-peer contract. It must explicitly declare:
 - Bridge peer identity and ECOSCAN peer identity.
 - Supported OBIS version and security profile.
 - Narrow read-only capability identifiers and versions.
@@ -76,7 +76,7 @@ The Bridge integration must use OBIS as the independent peer-to-peer contract. I
 - Data classification, payload limits, request limits, TTL, timeout, and replay/idempotency behavior.
 - Revocation behavior and audit/evidence references.
 
-The first capability is now fixed for this integration: `ecoscan.inventory.read` version `1.0`, requiring the read-only scope `ecoscan:inventory:read`. The ECOSCAN adapter is implemented in `src/ecoscan/obis_bridge.py`. It accepts an injected authenticated OBIS client and endpoint, verifies sender/recipient identity and the project/source binding in the response, enforces local page/item budgets, and maps only the declared `logical_bytes` and `file_count` measurements. The BRIDEX reference peer now has a matching server-side helper in PR #66, with per-credential `allowed_resources` pairs enforced before the provider callback. A separate `ecoscan.measurement.submit` capability is not part of this read-only integration.
+The optional inventory capability contract is `ecoscan.inventory.read@1.0`, requiring the read-only scope `ecoscan:inventory:read`. The ECOSCAN adapter is implemented in `src/ecoscan/obis_bridge.py`. It accepts an injected authenticated OBIS client and endpoint, verifies sender/recipient identity and project/source binding in the response, enforces local page/item budgets, and maps only the declared `logical_bytes` and `file_count` measurements. BRIDEX reference code contains a matching development helper, but it is only a test/reference implementation and does not own or constitute the source project's deployed Bridge. A separate `ecoscan.measurement.submit` capability is not part of this read-only integration.
 
 The receiving ECOSCAN peer must authorize every request independently. A Bridge may submit only for the project/source pair explicitly bound to its peer grant. It cannot choose or widen the project boundary from payload data alone.
 
@@ -113,7 +113,7 @@ The receiving ECOSCAN peer must authorize every request independently. A Bridge 
 
 ## 8. Acceptance statement
 
-The Bridge connection is a required future integration path, not a reason to weaken or bypass ECOSCAN's local independence. Phase 1 is accepted only on its own local evidence. The Bridge is accepted separately only after its OBIS security, authorization, portability, provider read-only, and failure-isolation gates pass.
+Bridge connectivity is an optional future capability, not a requirement for ECOSCAN completion or operation. Phase 1 is accepted on its own local evidence. Any source-project-owned Bridge is accepted separately only after its OBIS security, authorization, portability, provider read-only, ownership, and failure-isolation gates pass.
 
 
 ## 9. Implemented adapter contract and current connection status
@@ -122,7 +122,7 @@ The ECOSCAN package now contains `src/ecoscan/obis_bridge.py`. Its transport is 
 
 The adapter invokes `ecoscan.inventory.read@1.0` with `ecoscan:inventory:read`, passing only the registered project ID, source ID, and requested measurement kinds. It rejects mismatched sender/recipient identity, project/source mismatch, unexpected result fields, unsupported measurement kinds, invalid counters, and budget overflow. The local runner remains the final authority and commits no measurement if adapter validation fails.
 
-Synthetic tests exercise the injected-client boundary. They do not yet constitute a live OBIS wire test. The CLI intentionally registers only the local filesystem adapter. A real Bridge endpoint, peer IDs, credential reference, and runtime secret injection must be supplied by the owner after local Phase 1 acceptance. The generic OBIS loopback reference implementation may be used as an optional development fixture, but its HTTP/HMAC profile must not be exposed beyond loopback or treated as production security. It is not a substitute for a Bridge owned and operated by the source project.
+Synthetic tests exercise the injected-client boundary. They do not yet constitute a live OBIS wire test. The CLI intentionally registers only the local filesystem adapter. The source project must configure and operate its own Bridge endpoint, peer identity, provider credentials, and secret injection. ECOSCAN must be configured only with the approved peer identity, source/project grant, and non-secret connection metadata; it must never receive the provider credential or its secret reference. The generic OBIS loopback reference implementation may be used as an optional development fixture, but its HTTP/HMAC profile must not be exposed beyond loopback or treated as production security. It is not a substitute for a Bridge owned and operated by the source project.
 
 
 ## 10. Bridge-side credential grant mapping
