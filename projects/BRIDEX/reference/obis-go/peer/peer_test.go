@@ -188,3 +188,47 @@ func TestRevokeCredentialRejectsUnknownOrRepeatedKey(t *testing.T) {
 		t.Fatal("repeated revocation must be idempotent and report no new change")
 	}
 }
+
+
+func TestMTLSCredentialRevocationBlocksSubsequentRequest(t *testing.T) {
+	peerURI := "urn:obis:peer:11111111-1111-4111-8111-111111111111"
+	serverURI := "urn:obis:peer:22222222-2222-4222-8222-222222222222"
+	fingerprint := strings.Repeat("a", 64)
+	server, err := NewPeer(serverURI, Credential{
+		KeyID: "client-cert",
+		PeerID: peerURI,
+		PrincipalRef: "principal:client",
+		CertificateURI: peerURI,
+		CertificateSHA256: fingerprint,
+		AllowedScopes: map[string]bool{"catalog:read": true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.RegisterCapability("catalog.lookup", "1.0", map[string]bool{"catalog:read": true},
+		func(payload map[string]any) (map[string]any, error) { return map[string]any{"ok": true}, nil }); err != nil {
+		t.Fatal(err)
+	}
+	message := map[string]any{
+		"protocol": "obis", "version": "0.1", "message_type": "request",
+		"message_id": "mtls-m-1", "nonce": "mtls-n-1",
+		"sender": map[string]any{"peer_id": peerURI},
+		"recipient": map[string]any{"peer_id": serverURI},
+		"issued_at": json.Number("1763640000"), "expires_at": json.Number("1763640060"),
+		"capability": map[string]any{"id": "catalog.lookup", "version": "1.0"},
+		"authorization": map[string]any{"principal_ref": "principal:client", "scopes": []any{"catalog:read"}},
+		"payload": map[string]any{"item_id": "sample"},
+	}
+	now := time.Unix(1763640000, 0)
+	if _, _, err := server.validate(message, "client-cert", "", peerURI, fingerprint, now); err != nil {
+		t.Fatalf("valid mTLS request rejected: %v", err)
+	}
+	if !server.RevokeCredential("client-cert") {
+		t.Fatal("mTLS credential revocation did not take effect")
+	}
+	message["message_id"] = "mtls-m-after-revoke"
+	message["nonce"] = "mtls-n-after-revoke"
+	if _, _, err := server.validate(message, "client-cert", "", peerURI, fingerprint, now); err == nil || err.Error() != "identity.credential_revoked" {
+		t.Fatalf("expected revoked mTLS credential rejection, got %v", err)
+	}
+}
