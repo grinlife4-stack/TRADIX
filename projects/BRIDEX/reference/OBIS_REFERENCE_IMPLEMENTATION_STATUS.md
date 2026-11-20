@@ -82,3 +82,17 @@ Both reference paths now support an opt-in TLS 1.3 mutual-authentication candida
 - The Go reference listener is explicitly loopback-only in both HTTP and HTTPS modes.
 
 Still open before production: owner-approved trust model, CA/issuance ownership, certificate rotation and revocation, trust-bundle expiry/freshness, emergency denylisting, key custody, complete negative certificate tests, independent security review, and removal or replacement of the HMAC development authentication layer. The TLS implementation is a candidate profile, not production approval.
+
+
+## Latest TLS candidate verification
+
+Draft PR #76 head `c67e7bde0a215673a432c4ca22031bdd31909fde` passed GitHub Actions run `44736402319`:
+
+- 119 Python tests passed.
+- Go reference peer unit tests passed.
+- Python client to Go server TLS 1.3 mTLS request/response passed using ephemeral certificates.
+- Python TLS server/client mTLS request/response passed.
+- The generated Bridge template's OBIS peer is byte-identical to the Python reference peer.
+- TRADIX, OBIS Python, ECOSCAN, and BRIDEX Core packaging checks passed; generated Bridge wheel build passed.
+
+This validates the candidate's loopback implementation only. It does not close certificate lifecycle, revocation, trust-bundle freshness, emergency response, independent security review, or production authorization gates.
