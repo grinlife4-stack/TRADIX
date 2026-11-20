@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -28,15 +29,12 @@ func TestGoRawNegativeRequestsToPythonPeer(t *testing.T) {
 		"nonce": "go-raw-negative-version-nonce",
 		"sender": map[string]any{"peer_id": "peer:go"},
 		"recipient": map[string]any{"peer_id": "peer:python"},
-		"issued_at": json.Number(time.Unix(now, 0).Format("")),
-		"expires_at": json.Number(time.Unix(now+30, 0).Format("")),
+		"issued_at": json.Number(strconv.FormatInt(now, 10)),
+		"expires_at": json.Number(strconv.FormatInt(now+30, 10)),
 		"capability": map[string]any{"id": "records.read", "version": "1.0"},
 		"authorization": map[string]any{"principal_ref": "principal:go", "scopes": []any{"records:read"}},
 		"payload": map[string]any{"record_id": "negative-cross-peer"},
 	}
-	// Use integer JSON numbers, not floating-point timestamps.
-	request["issued_at"] = json.Number(strconv.FormatInt(now, 10))
-	request["expires_at"] = json.Number(strconv.FormatInt(now+30, 10))
 
 	post := func(message map[string]any, signature string) int {
 		body, err := CanonicalJSON(message)
