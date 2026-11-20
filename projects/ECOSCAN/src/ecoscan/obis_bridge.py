@@ -9,6 +9,7 @@ into ECOSCAN's bounded measurement contract.
 from __future__ import annotations
 
 import math
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Mapping, Protocol
@@ -111,12 +112,14 @@ class OBISBridgeAdapter:
             # Once invoke() has begun, an exception without a verified,
             # pre-execution rejection cannot prove that the remote capability
             # did not run. Never turn that uncertainty into a retryable FAILED.
+            if isinstance(exc, (TransportOutcomeUnknown, BudgetExceeded)):
+                raise
             code = getattr(exc, "code", None)
-            definitely_not_executed = {
+            known_terminal_or_pre_execution = {
                 "authorization.denied", "capability.unknown", "identity.unknown_peer",
-                "request.expired", "request.replay_detected",
+                "request.expired", "request.replay_detected", "operation.failed",
             }
-            if code in definitely_not_executed:
+            if code in known_terminal_or_pre_execution:
                 raise
             raise TransportOutcomeUnknown("OBIS request outcome is unknown") from exc
         context.guard.check_deadline()
@@ -206,3 +209,100 @@ class OBISBridgeAdapter:
             tuple(limitations),
             None,
         )
+
+
+class OBISV02OperationFailed(RuntimeError):
+    """A durable OBIS 0.2 operation reached a known terminal failure state."""
+
+    code = "operation.failed"
+
+    def __init__(self, state: str, failure_code: str | None):
+        self.state = state
+        self.failure_code = failure_code
+        super().__init__(f"OBIS operation ended in {state}: {failure_code or 'no failure code'}")
+
+
+class OBISV02Invoker:
+    """Adapts an injected OBISV02Client to ECOSCAN's read-only OBISInvoker contract.
+
+    Operation identity is generated per scan. The client verifies the signed
+    operation response; this wrapper exposes only a committed SUCCEEDED result.
+    RUNNING, ACCEPTED, and UNKNOWN are never translated into empty measurements.
+    """
+
+    def __init__(self, client: Any, operation_ttl: int = 300) -> None:
+        required = ("local_peer_id", "remote_peer_id", "key_id", "principal_ref", "secret", "scopes", "timeout")
+        if client is None or not callable(getattr(client, "invoke", None)) or any(not hasattr(client, name) for name in required):
+            raise ValueError("a configured OBIS 0.2 client is required")
+        if isinstance(operation_ttl, bool) or not isinstance(operation_ttl, int) or operation_ttl <= 60:
+            raise ValueError("operation_ttl must exceed the OBIS message TTL")
+        self.client = client
+        self.operation_ttl = operation_ttl
+        self.local_peer_id = client.local_peer_id
+        self.remote_peer_id = client.remote_peer_id
+        self.scopes = frozenset(client.scopes)
+
+    def _client_for_deadline(self, deadline: float | None) -> Any:
+        if deadline is None:
+            return self.client
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            from .contracts import BudgetExceeded
+            raise BudgetExceeded("OBIS deadline elapsed before request dispatch")
+        timeout = min(float(self.client.timeout), remaining)
+        if timeout <= 0:
+            from .contracts import BudgetExceeded
+            raise BudgetExceeded("OBIS deadline elapsed before request dispatch")
+        return type(self.client)(
+            local_peer_id=self.client.local_peer_id,
+            remote_peer_id=self.client.remote_peer_id,
+            key_id=self.client.key_id,
+            principal_ref=self.client.principal_ref,
+            secret=self.client.secret,
+            scopes=self.client.scopes,
+            timeout=timeout,
+        )
+
+    def invoke(
+        self,
+        endpoint: str,
+        capability_id: str,
+        capability_version: str,
+        payload: dict[str, Any],
+        scopes: set[str] | frozenset[str] | None = None,
+        deadline: float | None = None,
+    ) -> dict[str, Any]:
+        requested = frozenset(scopes if scopes is not None else self.scopes)
+        if not requested or not requested.issubset(self.scopes):
+            raise AdapterContractError("OBIS 0.2 client does not hold the requested scope")
+        client = self._client_for_deadline(deadline)
+        response = client.invoke(
+            endpoint,
+            capability_id,
+            capability_version,
+            payload,
+            operation_id=str(uuid.uuid4()),
+            idempotency_key=str(uuid.uuid4()),
+            operation_ttl=self.operation_ttl,
+        )
+        if not isinstance(response, Mapping):
+            raise AdapterContractError("OBIS 0.2 response must be an object")
+        operation = response.get("operation")
+        if not isinstance(operation, Mapping):
+            raise AdapterContractError("OBIS 0.2 response has no operation record")
+        state = operation.get("state")
+        if state == "SUCCEEDED":
+            result = operation.get("result")
+            if not isinstance(result, Mapping):
+                raise AdapterContractError("committed OBIS 0.2 result must be an object")
+            return {
+                "sender": response.get("sender"),
+                "recipient": response.get("recipient"),
+                "outcome": "succeeded",
+                "result": dict(result),
+            }
+        if state in {"ACCEPTED", "RUNNING", "UNKNOWN"}:
+            raise TransportOutcomeUnknown(f"OBIS operation outcome is {state}")
+        if state in {"FAILED", "REJECTED", "CANCELLED", "EXPIRED"}:
+            raise OBISV02OperationFailed(state, operation.get("failure_code"))
+        raise AdapterContractError("OBIS 0.2 operation state is invalid")
