@@ -243,3 +243,12 @@ def test_obis_schema_conformance_runner_fails_on_wrong_expected_result(tmp_path)
     (target / "conformance" / "vectors.json").write_text(json.dumps(suite_data), encoding="utf-8")
     with pytest.raises(ConformanceSuiteError, match="request.valid.basic"):
         run_schema_suite(target / "conformance" / "vectors.json")
+
+
+def test_cli_runs_published_obis_schema_conformance_suite(tmp_path, capsys):
+    from pathlib import Path
+    from bridex_core.cli import main
+    repo_root = Path(__file__).resolve().parents[4]
+    suite = repo_root / "standards" / "obis" / "0.1" / "conformance" / "vectors.json"
+    assert main(["conformance", "schema", str(suite)]) == 0
+    assert "passed: OBIS schema conformance suite" in capsys.readouterr().out
