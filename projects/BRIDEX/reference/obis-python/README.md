@@ -3,7 +3,7 @@
 This is a small, independently installable reference implementation for the OBIS 0.1 draft. It is intentionally located outside the TRADIX runtime package and has **no runtime dependency on TRADIX or BRIDEX**.
 
 ## What is executable
-The canonical draft schema is published independently at [standards/http/1.1/message.schema.json](../../../../standards/http/1.1/message.schema.json). The Python package includes a byte-identical copy for offline installation; CI checks that they do not drift.
+The canonical draft schema is published independently at [standards/obis/0.1/message.schema.json](../../../../standards/obis/0.1/message.schema.json). The Python package includes a byte-identical copy for offline installation; CI checks that they do not drift.
 
 
 - Direct HTTP request/response between two separately instantiated peers.
