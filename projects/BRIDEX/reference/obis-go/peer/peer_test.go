@@ -2,7 +2,10 @@ package peer
 
 import (
 	"encoding/json"
+	"net/url"
+	"strings"
 	"testing"
+	"crypto/x509"
 	"time"
 )
 
@@ -69,7 +72,7 @@ func TestRequestValidationAndReplayProtection(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Unix(1763640000, 0)
-	if _, _, err := server.validate(message, "python-key", signature, now); err != nil {
+	if _, _, err := server.validate(message, "python-key", signature, "", "", now); err != nil {
 		t.Fatalf("valid request rejected: %v", err)
 	}
 	if _, _, err := server.validate(message, "python-key", signature, now); err == nil || err.Error() != "request.replay_detected" {
@@ -97,7 +100,57 @@ func TestRejectsUnauthorizedScope(t *testing.T) {
 		"payload": map[string]any{"item_id": "sample-1"},
 	}
 	signature, _ := Sign(message, secret)
-	if _, _, err := server.validate(message, "python-key", signature, time.Unix(1763640000, 0)); err == nil || err.Error() != "authorization.denied" {
+	if _, _, err := server.validate(message, "python-key", signature, "", "", time.Unix(1763640000, 0)); err == nil || err.Error() != "authorization.denied" {
 		t.Fatalf("expected authorization denial, got %v", err)
+	}
+}
+
+
+func TestNewPeerAcceptsCertificateBoundCredentialWithoutHMAC(t *testing.T) {
+	peerURI := "urn:obis:peer:11111111-1111-4111-8111-111111111111"
+	credential := Credential{
+		KeyID: "client-cert",
+		PeerID: peerURI,
+		PrincipalRef: "principal:client",
+		CertificateURI: peerURI,
+		CertificateSHA256: strings.Repeat("a", 64),
+		AllowedScopes: map[string]bool{"catalog:read": true},
+	}
+	if _, err := NewPeer("urn:obis:peer:22222222-2222-4222-8222-222222222222", credential); err != nil {
+		t.Fatalf("valid mTLS credential rejected: %v", err)
+	}
+}
+
+func TestNewPeerRejectsMismatchedOrSecretBearingMTLSCredential(t *testing.T) {
+	peerURI := "urn:obis:peer:11111111-1111-4111-8111-111111111111"
+	base := Credential{
+		KeyID: "client-cert",
+		PeerID: peerURI,
+		PrincipalRef: "principal:client",
+		CertificateURI: peerURI,
+		CertificateSHA256: strings.Repeat("a", 64),
+		AllowedScopes: map[string]bool{"catalog:read": true},
+	}
+	mismatched := base
+	mismatched.CertificateURI = "urn:obis:peer:33333333-3333-4333-8333-333333333333"
+	if _, err := NewPeer("urn:obis:peer:22222222-2222-4222-8222-222222222222", mismatched); err == nil {
+		t.Fatal("mismatched certificate URI accepted")
+	}
+	secretBearing := base
+	secretBearing.Secret = []byte("0123456789abcdef0123456789abcdef")
+	if _, err := NewPeer("urn:obis:peer:22222222-2222-4222-8222-222222222222", secretBearing); err == nil {
+		t.Fatal("mTLS credential with HMAC secret accepted")
+	}
+}
+
+func TestPeerIDFromCertificateRequiresOneCanonicalOBISURI(t *testing.T) {
+	valid, _ := url.Parse("urn:obis:peer:11111111-1111-4111-8111-111111111111")
+	got, err := PeerIDFromCertificate(&x509.Certificate{URIs: []*url.URL{valid}})
+	if err != nil || got != valid.String() {
+		t.Fatalf("valid OBIS URI SAN rejected: %q %v", got, err)
+	}
+	invalid, _ := url.Parse("urn:obis:peer:not-a-uuid")
+	if _, err := PeerIDFromCertificate(&x509.Certificate{URIs: []*url.URL{invalid}}); err == nil {
+		t.Fatal("invalid OBIS URI SAN accepted")
 	}
 }
