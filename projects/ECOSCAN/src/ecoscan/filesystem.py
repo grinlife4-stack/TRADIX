@@ -12,13 +12,22 @@ class FilesystemAdapter:
     adapter_id = "filesystem"
     version = "0.1.0"
 
-    def __init__(self, base_dir: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        base_dir: str | Path | None = None,
+        allowed_root: str | Path | None = None,
+    ) -> None:
         self.base_dir = Path(base_dir or Path.cwd()).expanduser().absolute()
+        # Direct use is confined to base_dir unless a narrower/explicit root is supplied.
+        self.allowed_root = Path(allowed_root or self.base_dir).expanduser().resolve()
 
     def _root(self, source: SourceDescriptor) -> Path:
         configured = Path(source.locator).expanduser()
-        root = configured if configured.is_absolute() else self.base_dir / configured
-        root = root.absolute()
+        root = Path(os.path.abspath(configured if configured.is_absolute() else self.base_dir / configured))
+        try:
+            root.relative_to(self.allowed_root)
+        except ValueError as exc:
+            raise AdapterContractError("filesystem source escapes its configured allowed root") from exc
         cursor = root
         while cursor != cursor.parent:
             if cursor.is_symlink():
