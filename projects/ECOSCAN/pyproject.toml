@@ -12,6 +12,9 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 
+[project.scripts]
+ecoscan = "ecoscan.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
