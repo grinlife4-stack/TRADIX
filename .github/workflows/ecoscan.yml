@@ -1,0 +1,37 @@
+name: ecoscan
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1" # Weekly report
+    - cron: "0 5 1 * *" # Monthly portfolio inventory review
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ecoscan
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout TRADIX monitor
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run read-only portfolio inventory
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PORTFOLIO_GITHUB_TOKEN: ${{ secrets.PORTFOLIO_GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: >-
+          python -m tools.ecoscan
+          --config tools/ecoscan/config/ecoscan.json
+          --output "${{ runner.temp }}/ecoscan-report.json"
+          --publish-github-issue
