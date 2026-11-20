@@ -15,6 +15,9 @@
 - [x] Explicit credential-to-peer and credential-to-principal binding.
 - [x] HMAC-SHA256 request and response integrity for local tests.
 - [x] Capability registration and receiver-side scope authorization.
+- [x] Optional resource-bound capabilities with per-credential project/source allowlists, checked before the capability handler runs.
+- [x] ECOSCAN read-only inventory capability `ecoscan.inventory.read@1.0` with strict payload/result validation.
+- [x] Loopback HTTP integration tests for a successful ECOSCAN inventory request and denial of an ungranted project/source before provider invocation.
 - [x] Client-side scope narrowing prevents requests beyond the configured local grant.
 - [x] Capability result JSON serializability and response-size bounds.
 - [x] Loopback URL restrictions and finite positive client timeout.
@@ -49,5 +52,11 @@ The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/messa
 7. Pass cross-implementation positive and negative conformance suites.
 8. Verify portable operation from a clean environment with TRADIX and BRIDEX unavailable.
 9. Complete threat-model review and security testing.
+10. Run the ECOSCAN adapter against this BRIDEX loopback peer in a combined cross-project integration test; the current two projects test their adapter and peer halves independently.
 
 A passing local test suite proves only the implemented reference behavior. It does not establish production security or universal interoperability.
+
+
+## Latest ECOSCAN capability branch verification note
+
+The ECOSCAN inventory capability, credential-bound project/source grant, and three loopback HTTP tests were added on the open Draft PR #66 branch. Current branch head: `7c40d7e81d76a3bb322df809809a1ca41e3f51ab`. The last recorded successful CI remains the earlier head `ae52784ce20f006bade68a35f24d0489bb29be78` with 45 tests. No check run or commit status is recorded for the latest head, so the new capability/resource-grant changes are **not yet CI-verified**. Do not treat the newly added tests as passed until a fresh run completes successfully.
