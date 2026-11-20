@@ -61,7 +61,7 @@ The root CI also runs these reference tests. The reference now includes `ecoscan
 
 ## 3C. Generic BRIDEX Core package foundation
 
-A standalone generic core package is maintained at [BRIDEX Core](core/README.md). Version 0.1 provides an owner-portable Bridge package manifest schema, strict validation, package-directory verification, deterministic ZIP export, safe restore, and a language-neutral OBIS 0.1 message-schema conformance suite with a standalone runner. It records the Bridge identity, explicit owner/operator and assignment record, artifact integrity, supported OBIS/adapter versions, peer scopes, capability declarations, dependency/license inventory, configuration schema, and lifecycle procedure references. Restore validates archive paths and file types, refuses to overwrite an existing destination, and verifies the artifact digest after extraction. The conformance suite validates published accept/reject message vectors against the canonical OBIS schema; it does not yet prove peer runtime interoperability.
+A standalone generic core package is maintained at [BRIDEX Core](core/README.md). Version 0.1 provides an owner-portable Bridge package manifest schema, strict validation, package-directory verification, deterministic ZIP export, safe restore, a scaffold-only Bridge generator with explicit pending owner attestation, and a language-neutral OBIS 0.1 message-schema conformance suite with a standalone runner. It records the Bridge identity, explicit owner/operator and assignment record, artifact integrity, supported OBIS/adapter versions, peer scopes, capability declarations, dependency/license inventory, configuration schema, and lifecycle procedure references. Restore validates archive paths and file types, refuses to overwrite an existing destination, and verifies the artifact digest after extraction. The conformance suite validates published accept/reject message vectors against the canonical OBIS schema; it does not yet prove peer runtime interoperability.
 
 Run and test it independently:
 
@@ -71,7 +71,7 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-The manifest is descriptive package metadata. It does not grant trust or permissions, prove ownership by itself, provide a runtime, generate Bridges, or establish OBIS conformance. The package is included in root CI with wheel-build and isolated-install schema checks. The next generic-core gates are clean-environment portability proof and transport-independent peer behavior tests. Lifecycle/health primitives remain gated on explicit state-transition and failure contracts.
+The manifest is descriptive package metadata. It does not grant trust or permissions, prove ownership by itself, provide a runtime, generate Bridges, or establish OBIS conformance. The package is included in root CI with wheel-build and isolated-install schema checks. The generated scaffold is intentionally not an executable Bridge; runtime templates remain gated on approved generic adapter and transport contracts. The next generic-core gates are clean-environment portability proof and transport-independent peer behavior tests. Lifecycle/health primitives remain gated on explicit state-transition and failure contracts.
 
 ## 3D. Relationship to existing TRADIX infrastructure
 
