@@ -267,7 +267,7 @@ Import must reject unknown schema versions by default, preserve IDs and timestam
 
 ## 11. Immediate next engineering action
 
-Implement Phase 0 artifacts only: versioned JSON Schemas for registry, measurement, coverage, and export manifest, plus a threat model and acceptance-test matrix. Do not begin network adapters or provision credentials before those contracts are reviewed.
+Phase 0 contract artifacts have now been drafted: versioned JSON Schemas for registry, measurement, coverage, and export manifest, plus a threat model and acceptance-test matrix. Next: validate the schemas mechanically, review cross-field semantics and owner/operator authorization, then implement Phase 1 with synthetic/local fixtures only. Do not begin network adapters or provision credentials before those contracts are reviewed.
 
 ## 12. Explicit non-claims
 
