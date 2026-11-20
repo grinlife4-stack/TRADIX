@@ -54,6 +54,7 @@ A production candidate must provide:
 - An independently buildable Go reference now uses the standard `crypto/tls` and `crypto/x509` packages.
 - The Go mTLS path binds the client certificate URI SAN and SHA-256 fingerprint to the configured peer credential, verifies the server certificate's URI SAN against the remote peer, and does not use an HMAC secret in mTLS mode.
 - The Go client verifies its local certificate URI before sending and validates TLS 1.3 / HTTP/1.1 ALPN and the remote peer URI.
+- The Go reference also supports process-local credential revocation for subsequent requests.
 - CI now exercises Python client → Go server and Go client → Python server mTLS exchanges, plus a same-URI/different-fingerprint rejection case.
 - Both implementations remain separate packages and do not import or execute each other's runtime code.
 
