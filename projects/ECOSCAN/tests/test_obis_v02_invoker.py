@@ -78,8 +78,8 @@ def test_v02_invoker_narrows_scopes_and_returns_only_committed_result():
 
 
 def test_v02_invoker_never_converts_unknown_operation_into_success():
-    FakeV02Client.default_state = "UNKNOWN"
     invoker, _ = make_invoker()
+    FakeV02Client.default_state = "UNKNOWN"
     with pytest.raises(TransportOutcomeUnknown):
         invoker.invoke(
             "http://127.0.0.1:9000", "ecoscan.inventory.read", "1.0",
@@ -89,9 +89,9 @@ def test_v02_invoker_never_converts_unknown_operation_into_success():
 
 
 def test_v02_invoker_surfaces_known_terminal_failure():
+    invoker, _ = make_invoker()
     FakeV02Client.default_state = "FAILED"
     FakeV02Client.default_failure_code = "provider.denied"
-    invoker, _ = make_invoker()
     with pytest.raises(OBISV02OperationFailed) as raised:
         invoker.invoke(
             "http://127.0.0.1:9000", "ecoscan.inventory.read", "1.0",
