@@ -120,6 +120,20 @@ func (p *PeerV02) authenticate(m map[string]any, keyID, signature string) (Crede
 	return credential,nil
 }
 
+func validResourceIdentifier(value string) bool {
+	if len(value) == 0 || len(value) > 128 { return false }
+	for index, char := range value {
+		letter := char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z'
+		digit := char >= '0' && char <= '9'
+		if index == 0 {
+			if !letter && !digit { return false }
+		} else if !letter && !digit && char != '.' && char != '_' && char != ':' && char != '-' {
+			return false
+		}
+	}
+	return true
+}
+
 func (p *PeerV02) authorize(m map[string]any, credential Credential) (OperationCapabilityV02, *Error) {
 	capMap,_ := obj(m,"capability"); id,_ := str(capMap,"id"); version,_ := str(capMap,"version")
 	capability, ok := p.capabilities[id+"\x00"+version]
@@ -134,7 +148,7 @@ func (p *PeerV02) authorize(m map[string]any, credential Credential) (OperationC
         if !ok { payload,ok=obj(m,"resource") }
         if !ok { return OperationCapabilityV02{}, &Error{"authorization.denied","resource-bound capability requires resource identity",403} }
 		projectID,ok1:=str(payload,"project_id"); sourceID,ok2:=str(payload,"source_id")
-		if !ok1||!ok2||!credential.AllowedResources[projectID+"/"+sourceID] { return OperationCapabilityV02{}, &Error{"authorization.denied","resource is outside credential grant",403} }
+		if !ok1||!ok2||!validResourceIdentifier(projectID)||!validResourceIdentifier(sourceID)||!credential.AllowedResources[projectID+"/"+sourceID] { return OperationCapabilityV02{}, &Error{"authorization.denied","resource is outside credential grant",403} }
 	}
 	return capability,nil
 }
