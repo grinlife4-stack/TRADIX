@@ -54,7 +54,8 @@ ECOSCAN does not receive provider credentials. The Bridge must not receive permi
 - Remains fully usable in local-only mode when the Bridge is absent or disabled.
 
 ### Source-project-owned Bridge instance
-- Is owned by the project whose external source/resources it exposes to ECOSCAN; BRIDEX never owns it. Has a separately appointed operator and maintainer, its own identity, version, source/package, configuration, provider credentials, logs, and lifecycle.
+- Is owned by the project whose external source/resources it exposes to ECOSCAN; BRIDEX never owns it.
+- Has a separately appointed operator and maintainer, its own identity, version, source/package, configuration, provider credentials, logs, and lifecycle.
 - Holds only the provider credentials required for its explicitly assigned source and uses read-only scopes.
 - Exposes narrow, typed inventory capabilities; it must not expose arbitrary shell, filesystem, database, or network-proxy operations.
 - Performs provider-specific pagination, rate-limit handling, timestamp normalization, and bounded collection.
@@ -78,12 +79,12 @@ When an optional Bridge integration is enabled, it must use OBIS as the independ
 
 The optional inventory capability contract is `ecoscan.inventory.read@1.0`, requiring the read-only scope `ecoscan:inventory:read`. The ECOSCAN adapter is implemented in `src/ecoscan/obis_bridge.py`. It accepts an injected authenticated OBIS client and endpoint, verifies sender/recipient identity and project/source binding in the response, enforces local page/item budgets, and maps only the declared `logical_bytes` and `file_count` measurements. BRIDEX reference code contains a matching development helper, but it is only a test/reference implementation and does not own or constitute the source project's deployed Bridge. A separate `ecoscan.measurement.submit` capability is not part of this read-only integration.
 
-The receiving ECOSCAN peer must authorize every request independently. A Bridge may submit only for the project/source pair explicitly bound to its peer grant. It cannot choose or widen the project boundary from payload data alone.
+The receiving ECOSCAN peer must authorize every request independently. A Bridge may expose inventory only for the project/source pair explicitly bound to its peer grant. It cannot choose or widen the project boundary from payload data alone.
 
 ## 5. Staged connection gates
 
 1. **Local Phase 1 acceptance:** Complete and pass the local path-boundary, symlink, control-precedence, budget/timeout, corrupted-transfer, SQLite portability, and independence tests. No external connection is enabled.
-2. **Bridge contract:** The initial `ecoscan.inventory.read@1.0` adapter contract and synthetic conformance tests now exist. The Bridge implementation must register that exact capability and independently bind its authenticated peer grant to the allowed project/source. Revocation, production transport, and durable replay handling remain additional requirements.
+2. **Bridge contract:** The initial `ecoscan.inventory.read@1.0` adapter contract and synthetic conformance tests now exist. The source-project-owned Bridge implementation must register that exact capability and independently bind its authenticated peer grant to the allowed project/source. Revocation, production transport, and durable replay handling remain additional requirements.
 3. **Development conformance:** ECOSCAN CI synthetic tests cover successful adapter invocation, peer mismatch, and cross-project rejection. A generic OBIS peer fixture may be used to test the adapter contract and wire behavior. BRIDEX's reference Python/Go peers may be optional fixtures, but an ECOSCAN-to-BRIDEX-specific wire test is not a required acceptance gate and does not prove that a source project's own Bridge is deployed or authorized. The current synthetic tests do not prove a live project-owned Bridge integration or production readiness.
 4. **Production security profile:** Before any non-loopback connection, implement and independently review maintained TLS/mTLS or another approved authenticated transport, trust-anchor and certificate lifecycle, durable replay/idempotency, secret isolation, audit persistence, and operational revocation. The current BRIDEX OBIS reference prototype is loopback-only and its shared-secret HMAC profile is development-only.
 5. **Provider pilot:** Only after explicit owner approval, select one synthetic or specifically authorized low-risk source, use read-only credentials held by the Bridge, and prove bounded operation and complete export/restore. No broad ecosystem scan.
