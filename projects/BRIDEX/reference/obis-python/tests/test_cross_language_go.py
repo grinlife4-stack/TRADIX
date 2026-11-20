@@ -20,18 +20,21 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _start_go_server():
+def _start_go_server(replay_dir=None):
+    command = [
+        GO_PEER_BINARY,
+        "--peer-id", "peer:go",
+        "--listen", "127.0.0.1:0",
+        "--key-id", "python-dev-key",
+        "--remote-peer", "peer:python",
+        "--principal", "principal:python",
+        "--secret-hex", SECRET.hex(),
+        "--scopes", "records:read",
+    ]
+    if replay_dir is not None:
+        command.extend(["--replay-dir", str(replay_dir)])
     process = subprocess.Popen(
-        [
-            GO_PEER_BINARY,
-            "--peer-id", "peer:go",
-            "--listen", "127.0.0.1:0",
-            "--key-id", "python-dev-key",
-            "--remote-peer", "peer:python",
-            "--principal", "principal:python",
-            "--secret-hex", SECRET.hex(),
-            "--scopes", "records:read",
-        ],
+        command,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -341,3 +344,35 @@ def test_go_format_malformed_and_unauthenticated_requests_do_not_execute_python_
         assert status == 401
 
     assert calls == []
+
+
+
+def test_go_cli_durable_replay_survives_peer_process_restart(tmp_path):
+    client = OBISClient(
+        local_peer_id="peer:python",
+        remote_peer_id="peer:go",
+        key_id="python-dev-key",
+        principal_ref="principal:python",
+        secret=SECRET,
+        scopes={"records:read"},
+    )
+    request = client.build_request("records.read", "1.0", {"record_id": "durable-replay"})
+    signature = sign_message(request, SECRET)
+    replay_dir = tmp_path / "go-replay-state"
+    replay_dir.mkdir()
+
+    first_process, first_endpoint = _start_go_server(replay_dir)
+    try:
+        first_status, _ = _post_raw(first_endpoint, request, signature)
+        assert first_status == 200
+    finally:
+        first_process.terminate()
+        first_process.wait(timeout=5)
+
+    restarted_process, restarted_endpoint = _start_go_server(replay_dir)
+    try:
+        replay_status, _ = _post_raw(restarted_endpoint, request, signature)
+        assert replay_status == 409
+    finally:
+        restarted_process.terminate()
+        restarted_process.wait(timeout=5)
