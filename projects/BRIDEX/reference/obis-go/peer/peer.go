@@ -68,8 +68,9 @@ func NewPeer(id string, credential Credential) (*Peer, error) {
 			return nil, errors.New("development credential requires a 32-byte secret and no certificate binding")
 		}
 	} else {
-		if credential.Secret != nil || credential.CertificateURI != credential.PeerID || len(credential.CertificateSHA256) != 64 {
-			return nil, errors.New("mTLS credential requires a matching certificate URI, fingerprint, and no shared secret")
+		if credential.Secret != nil || credential.CertificateURI != credential.PeerID ||
+			!peerIDPattern.MatchString(credential.CertificateURI) || len(credential.CertificateSHA256) != 64 {
+			return nil, errors.New("mTLS credential requires a canonical matching certificate URI, fingerprint, and no shared secret")
 		}
 		if _, err := hex.DecodeString(credential.CertificateSHA256); err != nil || strings.ToLower(credential.CertificateSHA256) != credential.CertificateSHA256 {
 			return nil, errors.New("mTLS certificate fingerprint must be lowercase SHA-256 hex")
