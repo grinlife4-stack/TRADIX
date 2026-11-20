@@ -89,6 +89,7 @@ func serveV02(args []string) {
 	principal:=flags.String("principal","principal:python","authenticated principal")
 	secretHex:=flags.String("secret-hex","","32-byte development secret in hex")
 	scopesRaw:=flags.String("scopes","inventory.read","comma-separated granted scopes")
+	requiredScope:=flags.String("required-scope","inventory.read","scope required by the registered capability")
 	ledgerPath:=flags.String("ledger-path","","persistent operation ledger path")
 	replayDir:=flags.String("replay-dir","","owner-controlled durable replay directory")
 	allowedResourcesRaw:=flags.String("allowed-resource","","comma-separated project/source resource grants")
@@ -107,7 +108,7 @@ func serveV02(args []string) {
 	}
 	ledger,err:=obis.NewFileOperationLedger(*ledgerPath);if err!=nil{log.Fatal(err)}
 	p02,err:=obis.NewPeerV02(peer,ledger);if err!=nil{log.Fatal(err)}
-	err=p02.RegisterCapabilityWithResourceBinding(*capabilityID,*capabilityVersion,map[string]bool{"inventory.read":true},func(payload map[string]any)(map[string]any,error){
+	err=p02.RegisterCapabilityWithResourceBinding(*capabilityID,*capabilityVersion,map[string]bool{*requiredScope:true},func(payload map[string]any)(map[string]any,error){
 		rawKinds,_:=payload["measurement_kinds"].([]any)
 		measurements:=map[string]any{}
 		for _,raw:=range rawKinds {
