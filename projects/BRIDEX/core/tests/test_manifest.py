@@ -83,6 +83,8 @@ def _write_portable_package(root):
     artifact = root / "artifact" / "bridge.tar"
     artifact.parent.mkdir(parents=True)
     artifact.write_bytes(b"independent bridge artifact")
+    (root / "records").mkdir()
+    (root / "records" / "ownership.json").write_text('{"owner":"project:alpha"}', encoding="utf-8")
     (root / "schemas").mkdir()
     (root / "schemas" / "config.schema.json").write_text('{"type":"object"}', encoding="utf-8")
     (root / "docs" / "lifecycle").mkdir(parents=True)
