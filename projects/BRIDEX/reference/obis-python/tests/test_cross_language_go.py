@@ -569,6 +569,7 @@ def _start_go_v02_server(tmp_path):
         "--secret-hex", SECRET.hex(),
         "--scopes", "inventory.read",
         "--ledger-path", str(tmp_path / "go-operations.json"),
+        "--allowed-resource", "project-a/source-a",
     ]
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     assert process.stdout is not None
@@ -619,6 +620,7 @@ def test_go_v02_client_invokes_python_v02_peer(tmp_path):
     credential = Credential(
         key_id="go-v02-key", peer_id="peer:go", principal_ref="principal:go",
         secret=SECRET, allowed_scopes=frozenset({"inventory.read"}),
+        allowed_resources=frozenset({("project-b", "source-b")}),
     )
     peer = OBISPeer("peer:python-v02", [credential])
     calls = []
@@ -628,7 +630,7 @@ def test_go_v02_client_invokes_python_v02_peer(tmp_path):
         lambda payload: calls.append(payload) or {
             "items_seen": 1, "source_id": payload["source_id"], "served_by": "python-peer-v02",
         },
-        recovery_class="IDEMPOTENT",
+        recovery_class="IDEMPOTENT", resource_binding=True,
     )
     with OBISV02Server(peer_v02) as server:
         result = subprocess.run(
