@@ -2,21 +2,92 @@
   "schema_version": 1,
   "mode": "MANUAL",
   "projects": [
-    {"project_id": "TRADIX", "name": "TRADIX", "sources": ["tradix-github"]},
-    {"project_id": "NEXORA", "name": "NEXORA", "sources": ["nexora-github"]},
-    {"project_id": "MEGAMARKET", "name": "MegaMarket", "sources": []},
-    {"project_id": "EXVARLI", "name": "EXVARLI", "sources": []},
-    {"project_id": "AAECN", "name": "AAECN", "sources": []},
-    {"project_id": "TRADING_INTELLIGENCE", "name": "Trading Intelligence Platform", "sources": ["info-engine-github"]},
-    {"project_id": "XENORA_AI", "name": "XENORA AI", "sources": []},
-    {"project_id": "UNCLASSIFIED_ARCHIVE", "name": "Unclassified repository archive", "sources": ["fluffy-happiness-github", "green888-github"]}
+    {
+      "project_id": "TRADIX",
+      "name": "TRADIX",
+      "sources": [
+        "tradix-github"
+      ]
+    },
+    {
+      "project_id": "NEXORA",
+      "name": "NEXORA",
+      "sources": [
+        "nexora-github"
+      ]
+    },
+    {
+      "project_id": "MEGAMARKET",
+      "name": "MegaMarket",
+      "sources": []
+    },
+    {
+      "project_id": "EXVARLI",
+      "name": "EXVARLI",
+      "sources": []
+    },
+    {
+      "project_id": "AAECN",
+      "name": "AAECN",
+      "sources": []
+    },
+    {
+      "project_id": "TRADING_INTELLIGENCE",
+      "name": "Trading Intelligence Platform",
+      "sources": [
+        "info-engine-github"
+      ]
+    },
+    {
+      "project_id": "XENORA_AI",
+      "name": "XENORA AI",
+      "sources": []
+    },
+    {
+      "project_id": "UNCLASSIFIED_ARCHIVE",
+      "name": "Unclassified repository archive",
+      "sources": [
+        "fluffy-happiness-github",
+        "green888-github"
+      ]
+    }
   ],
   "sources": [
-    {"source_id": "tradix-github", "project_id": "TRADIX", "provider": "github", "repository": "grinlife4-stack/TRADIX", "ref": "main"},
-    {"source_id": "nexora-github", "project_id": "NEXORA", "provider": "github", "repository": "grinlife4-stack/NEXORA", "ref": "main"},
-    {"source_id": "info-engine-github", "project_id": "TRADING_INTELLIGENCE", "provider": "github", "repository": "grinlife4-stack/info_engine", "ref": "main"},
-    {"source_id": "fluffy-happiness-github", "project_id": "UNCLASSIFIED_ARCHIVE", "provider": "github", "repository": "grinlife4-stack/fluffy-happiness", "ref": "main"},
-    {"source_id": "green888-github", "project_id": "UNCLASSIFIED_ARCHIVE", "provider": "github", "repository": "grinlife4-stack/-Green888", "ref": "main"}
+    {
+      "source_id": "tradix-github",
+      "project_id": "TRADIX",
+      "provider": "github",
+      "repository": "grinlife4-stack/TRADIX",
+      "ref": "main"
+    },
+    {
+      "source_id": "nexora-github",
+      "project_id": "NEXORA",
+      "provider": "github",
+      "repository": "grinlife4-stack/NEXORA",
+      "ref": "main"
+    },
+    {
+      "source_id": "info-engine-github",
+      "project_id": "TRADING_INTELLIGENCE",
+      "provider": "github",
+      "repository": "grinlife4-stack/info_engine",
+      "ref": "main"
+    },
+    {
+      "source_id": "fluffy-happiness-github",
+      "project_id": "UNCLASSIFIED_ARCHIVE",
+      "provider": "github",
+      "repository": "grinlife4-stack/fluffy-happiness",
+      "ref": "main"
+    },
+    {
+      "source_id": "green888-github",
+      "project_id": "UNCLASSIFIED_ARCHIVE",
+      "provider": "github",
+      "repository": "grinlife4-stack/-Green888",
+      "ref": "main"
+    }
   ],
   "notes": [
     "This registry reflects only repositories currently visible through the connected GitHub account; it is not proof that all portfolio storage sources have been registered.",
@@ -24,5 +95,6 @@
     "fluffy-happiness is not yet mapped to a confirmed portfolio product and is intentionally isolated under UNCLASSIFIED_ARCHIVE.",
     "TRADIX project dossiers embedded in the TRADIX repository are not counted again as separate repositories.",
     "Local disks, Railway volume contents, object-storage buckets, backups, and other providers are not yet registered as measurable sources."
-  ]
+  ],
+  "scheduled_enabled": true
 }
