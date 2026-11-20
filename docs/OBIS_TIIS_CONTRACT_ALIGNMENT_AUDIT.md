@@ -182,3 +182,12 @@ Additional implementation evidence, without normative contract changes:
 - CI #1177 passed on commit `d630ada3683ec0793c818bf1281b5b04aa4f6e12`, including the full Python/BRIDEX Core/OBIS/ECOSCAN test suite, Go tests/build, and isolated wheel/install/schema checks.
 
 The evidence increases selected negative-path coverage but does not establish a complete two-way negative conformance matrix. It does not change OBIS schema/envelope, TIIS contract, version negotiation semantics, or the production security profile. HMAC remains development/conformance-only. Production TLS/mTLS, identity lifecycle, distributed replay, business-operation idempotency/outcome reconciliation, persistent audit, and independent security review remain unresolved.
+
+
+## 13. Go-to-Python durable replay across Python process restart — 2026-11-20
+
+The independent Go test harness now sends the same signed OBIS request to two separate Python peer processes. The first Python process uses an owner-local `SQLiteReplayGuard` and accepts the request. The process is then terminated; a new Python peer process starts with the same SQLite database and receives the identical request. The second attempt is rejected with a signed HTTP 409 `request.replay_detected` response. The test verifies the HMAC signature and correlation ID for both responses and uses a fsynced capability-call counter to prove the handler executes once only.
+
+CI run #1185 passed on commit `515079aeb0d4a69494d7dba3b2f6d8cd4d385d1e`. Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated wheel/install/schema checks all passed.
+
+This is evidence of owner-local SQLite nonce persistence across an actual Python process restart for a Go→Python request. It is not distributed replay protection, business-operation idempotency/outcome reconciliation, or persistent audit/evidence storage. HMAC remains development/conformance-only. No normative OBIS schema, wire envelope, TIIS contract, version negotiation semantics, or production security profile was changed.
