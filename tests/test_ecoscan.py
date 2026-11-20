@@ -239,7 +239,7 @@ def test_disabled_project_is_reported_as_disabled_not_unregistered_or_zero(tmp_p
     report = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
     project = report["projects"][0]
     assert project["coverage"] == "DISABLED"
-    assert project["known_logical_bytes"] == 0
+    assert project["known_logical_bytes"] is None
     assert project["sources"][0]["status"] == "DISABLED"
     assert any(alert["code"] == "PROJECT_DISABLED" for alert in report["alerts"])
 
