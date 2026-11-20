@@ -23,6 +23,7 @@
 - [x] Loopback URL restrictions and finite positive client timeout.
 - [x] HTTP content-type enforcement and rejection of unsupported transfer encoding.
 - [x] Nonce replay rejection within one running process.
+- [x] Optional owner-local SQLite replay persistence across process restarts, with atomic uniqueness and fail-closed storage errors.
 - [x] Correlation ID verification.
 - [x] Signed, correlated error envelopes for authenticated request failures.
 - [x] Draft JSON Schema 2020-12 artifact and schema-validation tests.
@@ -34,7 +35,7 @@ The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/messa
 
 - Production TLS or mutual TLS.
 - Production identity issuance, asymmetric signing, trust-anchor management, key rotation, or revocation service.
-- Durable/distributed replay protection and idempotency ledger.
+- Distributed replay protection and a durable business-operation idempotency/outcome ledger. The optional SQLite guard only persists nonce replay state for one owner-operated Bridge instance; it does not reconcile unknown side-effect outcomes.
 - Runtime schema negotiation and automatic schema-driven payload validation.
 - Asynchronous operation lifecycle.
 - Production audit persistence and tamper-evident evidence.
