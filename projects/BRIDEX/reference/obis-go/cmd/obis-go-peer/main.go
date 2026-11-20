@@ -1,0 +1,52 @@
+package main
+
+import (
+	"log"
+	"net/http"
+	"os"
+	"time"
+
+	"example.com/bridex/obis-go/peer"
+)
+
+func main() {
+	secret := []byte(os.Getenv("OBIS_TEST_SECRET"))
+	if len(secret) < 32 {
+		log.Fatal("OBIS_TEST_SECRET must contain at least 32 bytes")
+	}
+	address := os.Getenv("OBIS_LISTEN_ADDR")
+	if address == "" {
+		address = "127.0.0.1:18081"
+	}
+	credential := peer.Credential{
+		KeyID: "python-key",
+		PeerID: "python-peer",
+		PrincipalRef: "principal:python",
+		Secret: secret,
+		AllowedScopes: map[string]bool{"catalog:read": true},
+	}
+	serverPeer, err := peer.NewPeer("go-peer", credential)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = serverPeer.RegisterCapability("catalog.lookup", "1.0", map[string]bool{"catalog:read": true},
+		func(payload map[string]any) (map[string]any, error) {
+			itemID, ok := payload["item_id"].(string)
+			if !ok || itemID == "" {
+				return nil, http.ErrBodyNotAllowed
+			}
+			return map[string]any{"accepted": true, "item_id": itemID, "served_by": "go-peer"}, nil
+		})
+	if err != nil {
+		log.Fatal(err)
+	}
+	server := &http.Server{
+		Addr: address,
+		Handler: serverPeer,
+		ReadHeaderTimeout: 3 * time.Second,
+		ReadTimeout: 5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+		IdleTimeout: 10 * time.Second,
+	}
+	log.Fatal(server.ListenAndServe())
+}
