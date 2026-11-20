@@ -1,6 +1,7 @@
 package obis
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
