@@ -584,9 +584,12 @@ def _deadline_http_exchange(
     peer that slowly drips response bytes cannot extend the total request time.
     """
     parsed = urlparse(endpoint)
+    initial_remaining = deadline - time.monotonic()
+    if initial_remaining <= 0:
+        raise socket.timeout("OBIS request deadline exceeded")
     connection = http.client.HTTPConnection(
         parsed.hostname, parsed.port or 80,
-        timeout=max(0.001, deadline - time.monotonic()),
+        timeout=initial_remaining,
     )
     completed = threading.Event()
     result: dict[str, Any] = {}
@@ -594,6 +597,10 @@ def _deadline_http_exchange(
 
     def exchange() -> None:
         try:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise socket.timeout("OBIS request deadline exceeded")
+            connection.timeout = remaining
             connection.connect()
             sock = connection.sock
             if sock is None:
