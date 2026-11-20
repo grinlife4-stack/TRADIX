@@ -70,10 +70,10 @@ A passing local test suite proves only the implemented reference behavior. It do
 
 This OBIS implementation is carried in Draft PR #78, stacked on the unified BRIDEX Engine branch (PR #77), which itself is stacked on the TIIS/TRADIX tooling integration (PR #70). The older parallel OBIS branches (#72, #75, #76) are reference material only and are not dependencies of this branch.
 
-Latest code-tested PR #78 head: `89113c33aa12b71cc59dfe072773b92368955bf7`.
+Latest code-tested PR #78 head: `0cf2a45bc1b1e4593bdbfebcd2aa2431d9bebbfd`.
 
-- OBIS conformance run `44743858735` completed successfully on the latest code-tested head: **57 Python tests passed**, Go reference tests passed (`example.com/bridex/obis-go/peer`), the Python wheel built and installed in an isolated target, schema copies were byte-identical, and the installed package imported without TRADIX or BRIDEX Engine. The later status-document update does not change implementation code.
-- Shared repository run `44743120802` completed successfully: **104 TRADIX tests passed**.
+- OBIS conformance run `44744149965` completed successfully on the latest code-tested head: **57 Python tests passed**, Go reference tests passed (`example.com/bridex/obis-go/peer`), the Python wheel built and installed in an isolated target, schema copies were byte-identical, and the installed package imported without TRADIX or BRIDEX Engine.
+- Shared repository run `44744149964` completed successfully: **104 TRADIX tests passed**.
 - The BRIDEX Engine dependency on PR #77 was separately validated: run `44742859047` completed successfully with **27 BRIDEX Engine tests passed**.
 
 The Go mTLS path uses no HMAC secret and binds the certificate URI and SHA-256 fingerprint to the configured peer credential. Python and Go exercise both directions over TLS 1.3 mTLS using ephemeral certificates, including same-URI/different-fingerprint rejection. These results validate the loopback candidate only; they do not approve production use.
