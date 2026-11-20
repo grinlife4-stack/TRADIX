@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from .contracts import Adapter, AdapterContractError, AdapterResult, BudgetExceeded, BudgetGuard, ScanContext
+from .contracts import Adapter, AdapterContractError, AdapterResult, AuthorizationRevoked, BudgetExceeded, BudgetGuard, ScanContext
 from .controls import ExecutionGate
 from .models import ProjectRegistry, SourceDescriptor
 from .store import ProjectStore
@@ -210,8 +210,15 @@ class ScanRunner:
                 source, actor_id, scan_id, started_at, "FAILED", "adapter_version_mismatch"
             )
 
-        guard = BudgetGuard(source.budget)
+        guard = BudgetGuard(
+            source.budget,
+            authorization_check=lambda: self.gate.evaluate(self.registry, source, actor_id).allowed,
+        )
         context = ScanContext(self.registry.project_id, actor_id, source, source.budget, guard, checkpoint)
+        result: AdapterResult | None = None
+        measurements: list[dict[str, Any]] = []
+        failure_state: str | None = None
+        failure_reason: str | None = None
         try:
             adapter.validate_config(source)
             result = adapter.scan(context)
@@ -236,7 +243,10 @@ class ScanRunner:
                 raise AdapterContractError("failed scan cannot publish measurements")
             if result.reason_code is not None and (not isinstance(result.reason_code, str) or not result.reason_code):
                 raise AdapterContractError("reason_code must be null or a non-empty string")
-            if any(not isinstance(item, str) or not item for item in result.limitations):
+            if (
+                not isinstance(result.limitations, (list, tuple))
+                or any(not isinstance(item, str) or not item for item in result.limitations)
+            ):
                 raise AdapterContractError("limitations must be non-empty strings")
             measurements = [
                 _validate_measurement(item, self.registry, source, adapter, result.coverage_state)
@@ -246,30 +256,29 @@ class ScanRunner:
                 raise AdapterContractError("measurement IDs must be unique within a scan")
             if result.checkpoint is not None and not isinstance(result.checkpoint, Mapping):
                 raise AdapterContractError("checkpoint must be an object")
+        except AuthorizationRevoked:
+            failure_state, failure_reason = "NOT_AUTHORIZED", "authorization_revoked"
         except BudgetExceeded:
-            state = "FAILED"
-            reason = "budget_exhausted"
-            failed_record = self._coverage(
-                source, actor_id, scan_id, started_at, state, reason,
-                adapter.adapter_id, adapter.version, guard.items_seen, guard.pages_seen,
-                ["Adapter exhausted its declared budget before returning a complete result."],
-            )
-            self.store.append_scan(failed_record, [])
-            return ScanOutcome(scan_id, self.registry.project_id, source.source_id, state, reason, 0)
+            failure_state, failure_reason = "FAILED", "budget_exhausted"
         except AdapterContractError:
-            state, reason = "FAILED", "adapter_contract_violation"
+            failure_state, failure_reason = "FAILED", "adapter_contract_violation"
         except Exception:
-            state, reason = "FAILED", "adapter_execution_failed"
+            failure_state, failure_reason = "FAILED", "adapter_execution_failed"
 
-        if "measurements" not in locals():
+        if failure_state is not None:
             failed_record = self._coverage(
-                source, actor_id, scan_id, started_at, state, reason,
+                source, actor_id, scan_id, started_at, failure_state, failure_reason,
                 adapter.adapter_id, adapter.version, guard.items_seen, guard.pages_seen,
                 ["No complete measurement set was committed for this scan attempt."],
             )
             self.store.append_scan(failed_record, [])
-            return ScanOutcome(scan_id, self.registry.project_id, source.source_id, state, reason, 0)
+            return ScanOutcome(
+                scan_id, self.registry.project_id, source.source_id,
+                failure_state, failure_reason, 0
+            )
 
+        if result is None:
+            raise ScanError("adapter completed without a result")
         checkpoint_ref = scan_id if result.checkpoint is not None else None
         coverage_record = self._coverage(
             source, actor_id, scan_id, started_at, result.coverage_state, result.reason_code,
