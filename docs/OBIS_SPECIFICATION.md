@@ -344,7 +344,7 @@ The standard's governance process and long-term stewardship arrangement remain t
 The engineering recommendations and explicit evidence gates are tracked in [OBIS 0.1 Decision Register](OBIS_0.1_DECISION_REGISTER.md). They are proposals for review, not normative decisions or production approval.
 
 
-An executable Python reference peer, its draft JSON Schema 2020-12 artifact, local integration tests, and an explicit implementation-status record are maintained in [BRIDEX OBIS Reference Implementation](../projects/BRIDEX/reference/obis-python/README.md). The prototype uses loopback-only HTTP and a shared-secret HMAC development profile; it is not a production security profile or OBIS 1.0 implementation.
+Executable Python and Go reference peers, the draft JSON Schema 2020-12 artifact, local integration tests, and an explicit implementation-status record are maintained in [BRIDEX OBIS Reference Implementation](../projects/BRIDEX/reference/obis-python/README.md) and [the Go reference](../projects/BRIDEX/reference/obis-go/). The Python client performs a real loopback request/response against the Go peer, and both implementations share a development-profile canonical JSON/HMAC test vector. Both peers use loopback-only HTTP and a shared-secret HMAC development profile; this is not a production security profile or OBIS 1.0 implementation.
 
 The security design baseline is documented separately in [OBIS Threat Model](OBIS_THREAT_MODEL.md). It identifies assets, trust boundaries, adversaries, abuse cases, required mitigations, and the security profiles that must be finalized before OBIS 1.0.0. The threat model is a draft and does not itself select or certify a production cryptographic profile.
 
