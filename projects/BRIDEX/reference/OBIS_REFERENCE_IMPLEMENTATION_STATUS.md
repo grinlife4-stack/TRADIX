@@ -69,3 +69,16 @@ The current combined BRIDEX/TIIS/OBIS work is in Draft PR #72 at head `3c3168f04
 - TRADIX, OBIS Python, ECOSCAN, and BRIDEX Core wheels built and were installed into isolated targets; packaged schema checks passed.
 
 The combined ECOSCAN adapter-to-BRIDEX OBIS wire test remains intentionally deferred. The ECOSCAN adapter and BRIDEX provider capability are not yet joined into a live cross-project integration. No production endpoint, non-loopback listener, production credential, deployment, or production security profile has been used.
+
+
+## TLS 1.3 mTLS candidate implementation
+
+Both reference paths now support an opt-in TLS 1.3 mutual-authentication candidate:
+
+- Python reference client and server build owner-supplied SSL contexts with certificate verification required, TLS 1.3 only, and ALPN obis/1.
+- Python server maps the client certificate's single URI SAN urn:obis:peer:<peer-id> to the OBIS sender field and configured credential peer.
+- Go reference server requires a client certificate, TLS 1.3, ALPN obis/1, validates the certificate chain against an owner-supplied CA bundle, and applies the same URI-SAN-to-peer binding.
+- The cross-language test creates ephemeral CA/server/client certificates and exercises Python-to-Go mTLS request/response. It also exercises the Python server with the same client certificate.
+- The Go reference listener is explicitly loopback-only in both HTTP and HTTPS modes.
+
+Still open before production: owner-approved trust model, CA/issuance ownership, certificate rotation and revocation, trust-bundle expiry/freshness, emergency denylisting, key custody, complete negative certificate tests, independent security review, and removal or replacement of the HMAC development authentication layer. The TLS implementation is a candidate profile, not production approval.
