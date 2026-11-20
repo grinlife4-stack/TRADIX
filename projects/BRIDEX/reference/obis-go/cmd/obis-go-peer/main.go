@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -48,5 +51,39 @@ func main() {
 		WriteTimeout: 5 * time.Second,
 		IdleTimeout: 10 * time.Second,
 	}
-	log.Fatal(server.ListenAndServe())
+	certPath := os.Getenv("OBIS_TLS_CERT")
+	keyPath := os.Getenv("OBIS_TLS_KEY")
+	caPath := os.Getenv("OBIS_TLS_CA")
+	if certPath == "" && keyPath == "" && caPath == "" {
+		log.Fatal(server.ListenAndServe())
+	}
+	if certPath == "" || keyPath == "" || caPath == "" {
+		log.Fatal("OBIS_TLS_CERT, OBIS_TLS_KEY, and OBIS_TLS_CA must be configured together")
+	}
+	certificate, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	caPEM, err := os.ReadFile(caPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	clientRoots := x509.NewCertPool()
+	if !clientRoots.AppendCertsFromPEM(caPEM) {
+		log.Fatal("OBIS_TLS_CA contains no valid certificate")
+	}
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS13,
+		MaxVersion: tls.VersionTLS13,
+		ClientAuth: tls.RequireAndVerifyClientCert,
+		ClientCAs: clientRoots,
+		Certificates: []tls.Certificate{certificate},
+		NextProtos: []string{"obis/1"},
+	}
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		log.Fatal(err)
+	}
+	server.TLSConfig = tlsConfig
+	log.Fatal(server.Serve(tls.NewListener(listener, tlsConfig)))
 }
