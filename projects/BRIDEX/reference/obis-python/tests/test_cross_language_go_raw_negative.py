@@ -83,7 +83,7 @@ peer = OBISPeer(
 
 def handle(payload):
     with open(counter_path, "a", encoding="utf-8") as counter:
-        counter.write("called\\n")
+        counter.write("called" + chr(10))
         counter.flush()
         os.fsync(counter.fileno())
     return {"record_id": payload["record_id"], "served_by": "python-peer"}
