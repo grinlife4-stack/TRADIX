@@ -14,7 +14,7 @@ class FilesystemAdapter:
     """Read-only metadata adapter using descriptor-relative, no-follow traversal."""
 
     adapter_id = "filesystem"
-    version = "0.2.0"
+    version = "0.1.0"
 
     def __init__(
         self,
