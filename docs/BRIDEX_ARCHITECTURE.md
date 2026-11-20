@@ -177,8 +177,8 @@ Passing unit tests alone is not proof of external interoperability or production
 - **Phase 0 — Architecture and ownership baseline:** established in the BRIDEX dossier, architecture, threat model, and ownership/portability policy.
 - **Phase 1 — Protocol specifications:** OBIS 0.1 and TIIS 0.1 draft specifications and schemas exist. TIIS is internal-only; OBIS is the external Bridge protocol. Neither is a production 1.0 release.
 - **Phase 2 — BRIDEX engineering plane:** implemented as Engine 0.1: scaffold, manifest validation, deterministic package generation, and package verification. New Bridge projects remain draft-only and inert.
-- **Phase 3 — OBIS reference and security:** complete the standalone peer, transport/security profile, credential lifecycle, replay/idempotency, revocation, and independent negative tests. This phase is not accepted yet.
-- **Phase 4 — Cross-language conformance:** run shared positive/negative vectors and bidirectional interoperability against independently built implementations; prove Bridge operation without TRADIX/BRIDEX.
+- **Phase 3 — OBIS reference and mTLS candidate:** Python and Go standalone peers now implement the draft envelope and TLS 1.3 mTLS candidate with certificate URI/fingerprint binding; bidirectional loopback tests exist. Production credential lifecycle, durable replay/idempotency, revocation, trust-bundle freshness, and security review remain open.
+- **Phase 4 — Expanded cross-language conformance:** broaden shared positive/negative vectors to malformed envelopes, expiry, replay, timeouts, revocation, and failure recovery; prove an installed Bridge operates without TRADIX/BRIDEX.
 - **Phase 5 — Generated Bridge acceptance:** add destination-specific capability contracts, owner-approved peers, scoped authorization, operational audit, failure isolation, export/restore, and replacement tests.
 - **Phase 6 — First pilot:** select one low-risk integration only after all preceding gates pass and the owner explicitly approves the scope.
 - **Phase 7 — Portfolio rollout:** generate additional Bridge instances only after the first pilot passes and each project's scope/permissions are approved.
