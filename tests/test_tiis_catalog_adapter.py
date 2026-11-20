@@ -39,42 +39,58 @@ def adapter(tmp_path, policy=None):
 
 
 def descriptor():
-    return {
-        "tool_id": "pdf-reader",
-        "version": "1.0.0",
-        "category": "document",
-        "source_uri": "https://example.org/pdf-reader",
-        "license_id": "Apache-2.0",
-        "platforms": ["linux"],
-        "capabilities": ["pdf.read"],
-        "execution_modes": ["bounded"],
-        "adapter_contract_version": "0.1.0",
-        "free_open_source": True,
-        "notes": "Metadata-only test fixture",
-    }
+    return ToolDescriptor(
+        tool_id="pdf-reader",
+        version="1.0.0",
+        category="document",
+        source_uri="https://example.org/pdf-reader",
+        license_id="Apache-2.0",
+        platforms=("linux",),
+        capabilities=("pdf.read",),
+        execution_modes=("bounded",),
+        adapter_contract_version="0.1.0",
+        free_open_source=True,
+        notes="Metadata-only test fixture",
+    )
 
 
-def test_catalog_register_uses_authenticated_actor_not_payload(tmp_path):
+def test_catalog_read_operations_are_exposed_through_tiis(tmp_path):
     catalog, service = adapter(tmp_path)
+    catalog.register(descriptor(), actor="bootstrap")
     response = service.handle(
-        request("register", {"descriptor": descriptor(), "reason": "reviewed"}),
+        request("get", {"tool_id": "pdf-reader", "version": "1.0.0"}),
         authenticated_sender=SENDER,
         now=NOW,
     )
     assert response["outcome"] == "succeeded"
-    record = catalog.get("pdf-reader", "1.0.0")
-    assert record["status"] == "discovered"
-    assert catalog.history("pdf-reader", "1.0.0")[0]["actor"] == "tradix/tool-admin"
+    assert response["payload"]["result"]["status"] == "discovered"
 
+    listed = service.handle(request("list", {"status": "discovered"}), authenticated_sender=SENDER, now=NOW)
+    assert len(listed["payload"]["result"]) == 1
 
-def test_catalog_transition_requires_evidence_and_uses_authenticated_actor(tmp_path):
-    catalog, service = adapter(tmp_path)
-    catalog.register(
-        ToolDescriptor(
-            **{**descriptor(), "platforms": ("linux",), "capabilities": ("pdf.read",), "execution_modes": ("bounded",)}
-        ),
-        actor="bootstrap",
+    history = service.handle(
+        request("history", {"tool_id": "pdf-reader", "version": "1.0.0"}),
+        authenticated_sender=SENDER,
+        now=NOW,
     )
+    assert history["payload"]["result"][0]["status"] == "discovered"
+
+
+def test_catalog_mutations_remain_disabled_until_durable_idempotency_exists(tmp_path):
+    catalog, service = adapter(tmp_path)
+    response = service.handle(
+        request("register", {"descriptor": {"tool_id": "pdf-reader"}}),
+        authenticated_sender=SENDER,
+        now=NOW,
+    )
+    assert response["outcome"] == "rejected"
+    assert response["error"]["code"] == "catalog.mutation-disabled"
+    assert catalog.get("pdf-reader", "1.0.0") is None
+
+
+def test_catalog_lifecycle_transition_is_not_exposed_yet(tmp_path):
+    catalog, service = adapter(tmp_path)
+    catalog.register(descriptor(), actor="bootstrap")
     response = service.handle(
         request("transition", {
             "tool_id": "pdf-reader",
@@ -86,31 +102,20 @@ def test_catalog_transition_requires_evidence_and_uses_authenticated_actor(tmp_p
         authenticated_sender=SENDER,
         now=NOW,
     )
-    assert response["outcome"] == "succeeded"
-    assert catalog.history("pdf-reader", "1.0.0")[-1]["actor"] == "tradix/tool-admin"
+    assert response["outcome"] == "rejected"
+    assert response["error"]["code"] == "catalog.mutation-disabled"
+    assert catalog.history("pdf-reader", "1.0.0")[-1]["status"] == "discovered"
 
 
-def test_catalog_rejects_caller_supplied_actor(tmp_path):
+def test_catalog_rejects_caller_supplied_actor_on_read_request(tmp_path):
     _, service = adapter(tmp_path)
     response = service.handle(
-        request("register", {"descriptor": descriptor(), "actor": "root"}),
+        request("get", {"tool_id": "pdf-reader", "version": "1.0.0", "actor": "root"}),
         authenticated_sender=SENDER,
         now=NOW,
     )
     assert response["outcome"] == "rejected"
     assert response["error"]["code"] == "catalog.request-invalid"
-
-
-def test_catalog_rejects_scalar_descriptor_lists(tmp_path):
-    _, service = adapter(tmp_path)
-    invalid = descriptor()
-    invalid["platforms"] = "linux"
-    response = service.handle(
-        request("register", {"descriptor": invalid}),
-        authenticated_sender=SENDER,
-        now=NOW,
-    )
-    assert response["outcome"] == "rejected"
 
 
 def test_catalog_requires_tiis_authorization_policy(tmp_path):
