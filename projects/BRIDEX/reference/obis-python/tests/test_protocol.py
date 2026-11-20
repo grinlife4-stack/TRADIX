@@ -557,6 +557,7 @@ def test_ecoscan_inventory_capability_rejects_unsupported_measurement_kind():
 def test_documented_obis_request_example_validates_against_canonical_schema():
     """Keep the normative Section 9 request example aligned with the 0.1 wire schema."""
     import re
+    from pathlib import Path
     from jsonschema import Draft202012Validator
 
     repo_root = Path(__file__).resolve().parents[5]
