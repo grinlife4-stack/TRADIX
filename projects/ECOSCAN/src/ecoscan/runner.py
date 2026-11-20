@@ -222,6 +222,9 @@ class ScanRunner:
         try:
             adapter.validate_config(source)
             result = adapter.scan(context)
+            # Enforce the absolute deadline even when an adapter reports zero
+            # items and therefore never calls consume_item() after its I/O.
+            guard.check_deadline()
             if not isinstance(result, AdapterResult):
                 raise AdapterContractError("adapter must return AdapterResult")
             if result.coverage_state not in {"COMPLETE", "PARTIAL", "FAILED"}:
