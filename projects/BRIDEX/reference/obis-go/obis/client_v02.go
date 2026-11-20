@@ -119,7 +119,30 @@ func sendV02(endpoint,localPeerID,remotePeerID,keyID string,secret []byte,messag
 	raw,err:=io.ReadAll(io.LimitReader(response.Body,MaxMessageBytes+1));if err!=nil{return OperationResultV02{},classifyTransportError(err)}
 	if len(raw)==0||len(raw)>MaxMessageBytes{return OperationResultV02{},errors.New("OBIS 0.2 response size invalid")}
 	if response.Header.Get("Content-Type")!="application/obis+json"{return OperationResultV02{},errors.New("unexpected OBIS 0.2 response content type")}
-	if response.StatusCode!=http.StatusOK{return OperationResultV02{},&Error{Code:"transport.remote_error",Message:"remote OBIS 0.2 request rejected with HTTP "+strconv.Itoa(response.StatusCode),Status:response.StatusCode}}
+	if response.StatusCode!=http.StatusOK {
+		responseSignature:=response.Header.Get("X-OBIS-Signature")
+		if responseSignature!="" {
+			errorMessage,decodeErr:=DecodeStrict(raw)
+			if decodeErr!=nil||!Verify(errorMessage,secret,responseSignature) {
+				return OperationResultV02{},errors.New("OBIS 0.2 signed error response verification failed")
+			}
+			if !exactKeys(errorMessage,"protocol","version","message_type","message_id","correlation_id","sender","recipient","issued_at","error")||
+				errorMessage["protocol"]!="obis"||errorMessage["version"]!="0.2"||errorMessage["message_type"]!="error_response" {
+				return OperationResultV02{},errors.New("invalid OBIS 0.2 signed error envelope")
+			}
+			correlation,_:=str(errorMessage,"correlation_id")
+			if correlation!=message["message_id"] { return OperationResultV02{},errors.New("OBIS 0.2 signed error correlation mismatch") }
+			sender,_:=obj(errorMessage,"sender");recipient,_:=obj(errorMessage,"recipient")
+			senderID,_:=str(sender,"peer_id");recipientID,_:=str(recipient,"peer_id")
+			if senderID!=remotePeerID||recipientID!=localPeerID { return OperationResultV02{},errors.New("OBIS 0.2 signed error peer identity mismatch") }
+			errorFields,ok:=obj(errorMessage,"error")
+			if !ok||!exactKeys(errorFields,"code","message") { return OperationResultV02{},errors.New("invalid OBIS 0.2 signed error details") }
+			code,ok1:=str(errorFields,"code");detail,ok2:=str(errorFields,"message")
+			if !ok1||!ok2||code==""||detail=="" { return OperationResultV02{},errors.New("invalid OBIS 0.2 signed error code/message") }
+			return OperationResultV02{},&Error{Code:code,Message:detail,Status:response.StatusCode}
+		}
+		return OperationResultV02{},&Error{Code:"transport.remote_error",Message:"remote OBIS 0.2 request rejected with HTTP "+strconv.Itoa(response.StatusCode),Status:response.StatusCode}
+	}
 	resultMessage,err:=DecodeStrict(raw);if err!=nil{return OperationResultV02{},err}
 	if !Verify(resultMessage,secret,response.Header.Get("X-OBIS-Signature")){return OperationResultV02{},errors.New("OBIS 0.2 response signature verification failed")}
 	if !exactKeys(resultMessage,"protocol","version","message_type","message_id","correlation_id","sender","recipient","issued_at","operation")||
