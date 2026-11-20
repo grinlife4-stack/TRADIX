@@ -34,11 +34,17 @@ def _zip_info(name: str) -> zipfile.ZipInfo:
 
 def build_package(root: str | Path, output: str | Path, *, max_package_bytes: int = MAX_PACKAGE_BYTES) -> dict[str, Any]:
     root_path, manifest = load_manifest(root)
-    requested_output = Path(output).expanduser()
+    requested_output = Path(output).expanduser().absolute()
     if not requested_output.name or requested_output.name in {".", ".."}:
         raise BridgeManifestError("package_output_path_invalid")
+    try:
+        requested_output.relative_to(root_path)
+    except ValueError:
+        pass
+    else:
+        raise BridgeManifestError("package_output_must_be_outside_bridge_root")
     requested_output.parent.mkdir(parents=True, exist_ok=True)
-    output_parent = requested_output.parent.absolute().resolve(strict=True)
+    output_parent = requested_output.parent.resolve(strict=True)
     output_path = output_parent / requested_output.name
     try:
         output_path.relative_to(root_path)
