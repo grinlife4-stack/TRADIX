@@ -2,7 +2,7 @@
 
 Optional, read-only, removable utility for measuring storage independently across registered portfolio projects and aggregating the resulting reports.
 
-**Status: first implementation in progress.** The current code supports GitHub repository tree inventory, configured local directory metadata scans, normalized JSON/Markdown reports, and optional GitHub issue publication. Scheduled execution is defined in a separate GitHub Actions workflow but will not run until that workflow reaches the default branch.
+**Status: first implementation in progress.** The current code supports GitHub repository tree inventory, configured local directory metadata scans, Railway volume capacity/backup metadata, S3-compatible current-object metadata (B2/R2/S3/Railway-compatible endpoints), normalized JSON/Markdown reports, and optional GitHub issue publication. Provider adapters still require live credential-backed validation. Scheduled execution is defined in a separate GitHub Actions workflow but will not run until that workflow reaches the default branch.
 
 ## Run manually
 
@@ -32,7 +32,7 @@ Never commit tokens or private data.
 
 ## Current source coverage
 
-The initial registry contains the five repositories visible in the connected GitHub account at implementation time. It intentionally marks other portfolio projects with no registered storage source as NOT_REGISTERED. Railway volume contents, local machines, object-storage buckets, backups, Git LFS payloads, and external archives are not yet measured.
+The initial registry contains the five repositories visible in the connected GitHub account at implementation time. It intentionally marks other portfolio projects with no registered storage source as NOT_REGISTERED. Railway volume contents, local machines not mounted into the runner, historical object versions, incomplete multipart uploads, Git LFS payload sizes, and unregistered external archives are not yet measured. Current Railway and S3-compatible metadata adapters are not yet live-validated.
 
 ## Operating and removal rules
 
