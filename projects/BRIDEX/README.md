@@ -57,7 +57,7 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-The root CI also runs these reference tests. This is a development/conformance prototype only: loopback transport and the shared-secret HMAC profile are not approved for production or sensitive workloads. See [implementation status and release gates](reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
+The root CI also runs these reference tests. The reference now includes `ecoscan.inventory.read@1.0` and an explicit per-credential `allowed_resources` grant. Its provider handler is called only after the OBIS peer validates the authenticated credential's project/source grant. This is a development/conformance prototype only: loopback transport and the shared-secret HMAC profile are not approved for production or sensitive workloads. See [implementation status and release gates](reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
 
 ## 3C. Relationship to existing TRADIX infrastructure
 
