@@ -232,6 +232,7 @@ def test_adapter_classifies_peer_timeout_as_indeterminate_not_budget_failure():
 
 
 def test_ecoscan_adapter_scans_through_independent_go_obis_v02_peer(tmp_path):
+    from obis_bridge.v02 import OBISV02Client
     binary = os.environ.get("OBIS_GO_PEER_BINARY")
     if not binary or not os.path.isfile(binary):
         pytest.skip("independent Go peer binary is built by the repository CI workflow")
