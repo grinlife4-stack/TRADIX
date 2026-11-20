@@ -8,6 +8,7 @@
 ## Implemented
 
 - [x] Standalone installable package with no TRADIX/BRIDEX runtime imports.
+- [x] CI wheel-build and isolated-target install smoke test, including packaged schema presence.
 - [x] Direct peer-to-peer request/response over loopback HTTP.
 - [x] Protocol/version, strict envelope-field, payload-size, and TTL validation.
 - [x] Explicit credential-to-peer and credential-to-principal binding.
