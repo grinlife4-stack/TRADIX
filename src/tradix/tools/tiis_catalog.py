@@ -141,7 +141,10 @@ class ToolCatalogTIISAdapter:
     def _dispatch(self, operation: str, payload: Mapping[str, Any]) -> Any:
         if operation == "get":
             _fields(payload, {"tool_id", "version"})
-            return self._catalog.get(payload["tool_id"], payload["version"])
+            record = self._catalog.get(payload["tool_id"], payload["version"])
+            if record is None:
+                raise KeyError("tool version not found")
+            return record
 
         if operation == "list":
             _fields(payload, set(), {"status", "category"})
@@ -152,6 +155,8 @@ class ToolCatalogTIISAdapter:
 
         if operation == "history":
             _fields(payload, {"tool_id", "version"})
+            if self._catalog.get(payload["tool_id"], payload["version"]) is None:
+                raise KeyError("tool version not found")
             return self._catalog.history(payload["tool_id"], payload["version"])
 
         if operation in {"register", "transition"}:
