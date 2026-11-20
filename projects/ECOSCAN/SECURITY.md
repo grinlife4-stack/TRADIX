@@ -16,7 +16,7 @@ Implemented:
 Not yet implemented or proven:
 - Secure local filesystem traversal, race-resistant symlink handling, mount-boundary enforcement, and resumable scan execution.
 - A concrete filesystem adapter that consumes the budget guard; current runner tests use only fake adapters.
-- Revalidation of owner/operator authorization before each bounded adapter operation; the current gate runs once before adapter invocation.
+- A concrete adapter that consumes the BudgetGuard before each page/item; adapters that ignore the guard cannot be considered compliant.
 - Export/import, manifest verification, safe archive extraction, and portability round-trip.
 - Credential-reference resolution and real owner/operator identity integration.
 - Tamper-evident audit history, encryption at rest, backup/restore, and migration.
