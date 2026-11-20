@@ -277,7 +277,7 @@ class OBISV02Invoker:
         scopes: set[str] | frozenset[str] | None = None,
         deadline: float | None = None,
     ) -> dict[str, Any]:
-        requested = frozenset(scopes if scopes is not None else self.scopes)
+        requested = frozenset(scopes if scopes is not None else {REQUIRED_SCOPE})
         if not requested or not requested.issubset(self.scopes):
             raise AdapterContractError("OBIS 0.2 client does not hold the requested scope")
         client = self._client_for_deadline(deadline, requested)
