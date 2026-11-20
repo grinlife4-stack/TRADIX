@@ -167,3 +167,6 @@ No production deployment, credential creation, external account setup, secret pr
 - [Foundational Architecture Charter](../../docs/FOUNDATIONAL_ARCHITECTURE_CHARTER.md)
 - [BRIDEX Architecture](../../docs/BRIDEX_ARCHITECTURE.md)
 - [Cross-Ecosystem Execution Order](../../docs/BRIDEX_CROSS_ECOSYSTEM_EXECUTION_ORDER.md)
+
+
+The Go client also rejects signed but invalid responses in CI run #1154 on commit `0a58ebe18cabb58feab1a9eb8c512186aeb2c1ee`: downgraded version, correlation mismatch, wrong sender identity, unexpected response fields, and malformed signed error objects. Unsupported protocol versions are rejected; no version-negotiation mechanism is implemented.
