@@ -205,3 +205,12 @@ CI run #1194 passed on consolidated PR #42 head `b68cd039cd66b29a4a650a49a46f942
 The correction keeps the original signed request unchanged and normalizes only a shallow validation copy for version/time-window checks after HMAC verification. The normalized timestamp values retain the `json.Number` representation expected by strict JSON validation. The Go unit/build checks, complete configured Python test suite, and isolated wheel/install/schema checks for BRIDEX Core, OBIS, and ECOSCAN all passed in the same run.
 
 This closes the selected Python→Go authenticated signed-error response cases listed above. It does not establish full bidirectional signed-error parity, full OBIS conformance, production security approval, distributed replay protection, business-operation idempotency, or durable audit/evidence storage. HMAC remains development/conformance-only. No normative OBIS/TIIS schema, wire contract, or version-negotiation semantics changed.
+
+
+## Go client authenticated-error response rejection — 2026-11-20
+
+The Go client's Invoke validation now has explicit negative unit coverage for authenticated HTTP error responses. Tests construct signed error envelopes and verify that the client rejects an invalid HMAC signature, a mismatched correlation ID, a wrong sender peer identity, and a wrong recipient peer identity. These complement the previously documented successful-response downgrade/identity/correlation checks and malformed signed-error rejection.
+
+CI run #1199 passed on consolidated PR #42 head 02270e2bd44d704718e3ef033c6be9d6c125b741 (run ID 44765422084). The run completed Go tests/build, the configured Python/BRIDEX Core/OBIS/ECOSCAN suites, and isolated wheel build/install/schema checks for BRIDEX Core, OBIS, and ECOSCAN.
+
+This is targeted Go-client validation coverage, not full bidirectional negative conformance or production security approval. HMAC remains development/conformance-only. Production TLS/mTLS, credential lifecycle, complete conformance, business-operation idempotency/outcome reconciliation, durable audit/evidence, and independent security review remain open. No normative OBIS/TIIS contract, schema, or version-negotiation semantics changed.
