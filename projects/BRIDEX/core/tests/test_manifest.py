@@ -252,3 +252,62 @@ def test_cli_runs_published_obis_schema_conformance_suite(tmp_path, capsys):
     suite = repo_root / "standards" / "obis" / "0.1" / "conformance" / "vectors.json"
     assert main(["conformance", "schema", str(suite)]) == 0
     assert "passed: OBIS schema conformance suite" in capsys.readouterr().out
+
+
+def _generate_scaffold(path):
+    from bridex_core import create_bridge_scaffold
+    return create_bridge_scaffold(
+        path,
+        bridge_id="urn:uuid:00000000-0000-4000-8000-000000000099",
+        name="Generated Example Bridge",
+        implementation_version="0.1.0",
+        owner_id="project:alpha", owner_name="Alpha Project",
+        operator_id="operator:alpha", operator_name="Alpha Operations",
+    )
+
+
+def test_generator_creates_verified_scaffold_with_explicit_pending_attestation(tmp_path):
+    import json
+    from bridex_core import verify_package
+    destination = tmp_path / "generated-bridge"
+    report = _generate_scaffold(destination)
+    assert report["status"] == "SCAFFOLD_ONLY_PENDING_IMPLEMENTATION_AND_OWNER_ATTESTATION"
+    assert verify_package(destination)["bridge_id"] == "urn:uuid:00000000-0000-4000-8000-000000000099"
+    record = json.loads((destination / "records" / "ownership.json").read_text(encoding="utf-8"))
+    assert record["status"] == "PENDING_OWNER_ATTESTATION"
+    assert "not proof of ownership" in record["notice"]
+    assert (destination / "src" / "bridge_instance" / "README.md").is_file()
+
+
+def test_generator_is_deterministic_for_identical_inputs(tmp_path):
+    first = _generate_scaffold(tmp_path / "first")
+    second = _generate_scaffold(tmp_path / "second")
+    assert first["sha256"] == second["sha256"]
+
+
+def test_generator_refuses_to_overwrite_existing_destination(tmp_path):
+    destination = tmp_path / "existing"
+    destination.mkdir()
+    with pytest.raises(ManifestValidationError, match="already exists"):
+        _generate_scaffold(destination)
+
+
+def test_generator_requires_explicit_owner_and_operator(tmp_path):
+    from bridex_core import create_bridge_scaffold
+    with pytest.raises(ManifestValidationError, match="non-empty strings"):
+        create_bridge_scaffold(
+            tmp_path / "generated", bridge_id="bridge:one", name="Bridge", implementation_version="0.1",
+            owner_id="", owner_name="Owner", operator_id="operator:one", operator_name="Operator",
+        )
+
+
+def test_cli_generates_bridge_scaffold(tmp_path, capsys):
+    from bridex_core.cli import main
+    destination = tmp_path / "generated"
+    assert main([
+        "scaffold", str(destination), "--bridge-id", "bridge:cli", "--name", "CLI Bridge",
+        "--version", "0.1.0", "--owner-id", "project:cli", "--owner-name", "CLI Owner",
+        "--operator-id", "operator:cli", "--operator-name", "CLI Operator",
+    ]) == 0
+    assert "scaffold only" in capsys.readouterr().out
+    assert (destination / "bridge-manifest.json").is_file()
