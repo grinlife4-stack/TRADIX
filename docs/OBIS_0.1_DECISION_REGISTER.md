@@ -29,7 +29,7 @@ Two independently administered implementations must exchange identifiers without
 **Draft baseline selected for the 0.1 artifact**
 
 - JSON Schema Draft 2020-12.
-- Canonical standard artifact: `standards/http/1.1/message.schema.json`.
+- Canonical standard artifact: `standards/obis/0.1/message.schema.json`.
 - The standalone Python package carries an identical packaged copy; CI verifies byte-for-byte equality.
 - Envelope schemas are strict. Domain payload schemas are separately versioned and referenced by capability contracts.
 - A schema URI is a stable identifier, not a requirement to fetch schemas from a live network service.
