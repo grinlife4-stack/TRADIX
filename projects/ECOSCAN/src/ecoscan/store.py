@@ -132,25 +132,58 @@ class ProjectStore:
         checkpoints = bundle.get("checkpoints", [])
         if not all(isinstance(x, list) for x in (coverage, measurements, checkpoints)):
             raise StoreError("bundle record collections must be arrays")
+        coverage_by_scan = {}
         for record in coverage:
-            if record.get("project_id") != self.project_id:
+            if not isinstance(record, dict) or record.get("project_id") != self.project_id:
                 raise StoreError("coverage project does not match destination store")
+            scan_id, source_id = record.get("scan_id"), record.get("source_id")
+            if not isinstance(scan_id, str) or not scan_id or not isinstance(source_id, str) or not source_id:
+                raise StoreError("coverage record has invalid identifiers")
+            if scan_id in coverage_by_scan:
+                raise StoreError("duplicate scan_id in import bundle")
+            coverage_by_scan[scan_id] = source_id
         for record in measurements:
-            if record.get("project_id") != self.project_id:
+            if not isinstance(record, dict) or record.get("project_id") != self.project_id:
                 raise StoreError("measurement project does not match destination store")
+            if coverage_by_scan.get(record.get("scan_id")) != record.get("source_id"):
+                raise StoreError("measurement source and scan must match the imported coverage record")
         for record in checkpoints:
             if not isinstance(record, dict) or not isinstance(record.get("checkpoint"), dict):
                 raise StoreError("invalid checkpoint export")
+            if coverage_by_scan.get(record.get("scan_id")) != record.get("source_id"):
+                raise StoreError("checkpoint source and scan must match the imported coverage record")
+
         inserted = 0
         with closing(self._connect()) as db:
             with db:
                 for record in coverage:
-                    cur = db.execute("INSERT OR IGNORE INTO coverage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", self._coverage_values({**record, "limitations": record.get("limitations", [])}))
-                    inserted += cur.rowcount
+                    existing = db.execute("SELECT * FROM coverage WHERE scan_id=?", (record["scan_id"],)).fetchone()
+                    if existing:
+                        current = dict(existing)
+                        current["limitations"] = json.loads(current.pop("limitations_json"))
+                        if current != record:
+                            raise StoreError("conflicting duplicate scan_id in destination store")
+                        continue
+                    db.execute("INSERT INTO coverage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", self._coverage_values({**record, "limitations": record.get("limitations", [])}))
+                    inserted += 1
                 for record in measurements:
-                    cur = db.execute("INSERT OR IGNORE INTO measurements VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", self._measurement_values({**record, "limitations": record.get("limitations", [])}))
-                    inserted += cur.rowcount
+                    existing = db.execute("SELECT * FROM measurements WHERE measurement_id=?", (record["measurement_id"],)).fetchone()
+                    if existing:
+                        current = dict(existing)
+                        current["limitations"] = json.loads(current.pop("limitations_json"))
+                        if current != {**record, "limitations": record.get("limitations", [])}:
+                            raise StoreError("conflicting duplicate measurement_id in destination store")
+                        continue
+                    db.execute("INSERT INTO measurements VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", self._measurement_values({**record, "limitations": record.get("limitations", [])}))
+                    inserted += 1
                 for record in checkpoints:
-                    cur = db.execute("INSERT OR IGNORE INTO checkpoints VALUES (?,?,?,?)", (record["source_id"], record["scan_id"], json.dumps(record["checkpoint"], ensure_ascii=False), record["updated_at"]))
-                    inserted += cur.rowcount
+                    existing = db.execute("SELECT * FROM checkpoints WHERE source_id=? AND scan_id=?", (record["source_id"], record["scan_id"])).fetchone()
+                    if existing:
+                        current = dict(existing)
+                        current["checkpoint"] = json.loads(current.pop("checkpoint_json"))
+                        if current != record:
+                            raise StoreError("conflicting duplicate checkpoint in destination store")
+                        continue
+                    db.execute("INSERT INTO checkpoints VALUES (?,?,?,?)", (record["source_id"], record["scan_id"], json.dumps(record["checkpoint"], ensure_ascii=False), record["updated_at"]))
+                    inserted += 1
         return inserted
