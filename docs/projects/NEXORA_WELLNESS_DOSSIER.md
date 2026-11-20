@@ -5,12 +5,13 @@
 **Product category:** Sleep, relaxation, mindfulness, and guided meditation  
 **Portfolio:** TRADIX  
 **Project type:** Independently managed TRADIX portfolio project  
-**Project workspace:** `projects/NEXORA/` inside the TRADIX repository  
+**TRADIX development workspace:** `projects/NEXORA/` inside the TRADIX repository  
 **Direction:** Independent NEXORA roadmap, brand, product data, runtime, and release lifecycle; development is currently on hold while TRADIX prioritizes building X  
 **Dossier status:** PAUSED — development on hold while X is the active TRADIX build priority  
 **Date:** 2026-11-17  
-**Portfolio/control repository:** TRADIX  
-**Project workspace:** `projects/NEXORA/` (dedicated project boundary; a separate repository is not required)  
+**Portfolio/tooling repository:** TRADIX  
+**NEXORA ownership and canonical source repository:** `grinlife4-stack/NEXORA`  
+**TRADIX development workspace:** `projects/NEXORA/` (working copy only; not the ownership or canonical source location)  
 **Product runtime:** Not deployed  
 **Commercial status:** Not launched
 
@@ -20,19 +21,23 @@
 
 **Official primary logo — LOCKED / SOURCE OF TRUTH**
 
-- **Official master file:** `projects/NEXORA/assets/brand/NEXORA-Official-Logo.png`
-- **Repository:** `grinlife4-stack/TRADIX`
-- **Source branch:** `docs/nexora-business-project-dossier-2026-11-17`
-- **Pull request:** [#40](https://github.com/grinlife4-stack/TRADIX/pull/40)
-- **Git blob SHA:** `7f2a39590db755077b0a903cf93056121e0ef1b5`
+- **Canonical owner and repository:** NEXORA — `grinlife4-stack/NEXORA`
+- **Canonical master path:** `projects/NEXORA/assets/brand/NEXORA-Official-Logo.png`
+- **Canonical Git blob SHA:** `7f2a39590db755077b0a903cf93056121e0ef1b5`
+- **TRADIX role:** development, build, test, packaging, and delivery workspace only
+- **TRADIX working-copy path:** `projects/NEXORA/assets/brand/NEXORA-Official-Logo.png`
 
-This exact PNG is hereby designated the **sole official primary logo of the NEXORA project and NEXORA app**. It is the authoritative master for all product, interface, documentation, presentation, web, PWA, and store-brand uses. No generated, redrawn, recreated, traced, substituted, or independently edited logo may be presented as the official NEXORA logo.
+The exact PNG historically committed through [TRADIX PR #40](https://github.com/grinlife4-stack/TRADIX/pull/40) is being preserved byte-for-byte in the independent NEXORA repository as the canonical master. The NEXORA repository is the sole source of truth for ownership and authoritative artwork. The matching file in TRADIX is a development working copy, not a second master and not a transfer of ownership to TRADIX.
 
-**Permitted derivatives:** technical exports made directly from this master for specific platforms (including iOS app icons, PWA icons, and responsive UI placements). Derivatives may change canvas size, pixel dimensions, file format, and transparent padding only as technically required. They must preserve the original artwork, wordmark, colors, proportions, and visual composition. If a platform requires a square icon and the master has a different aspect ratio, fit the complete original artwork within the square canvas; do not crop or redraw it.
+NEXORA's application and release artifacts must consume the logo from NEXORA-owned project assets. TRADIX may use its working copy during development and packaging, but NEXORA must not load the logo from a TRADIX URL or require a TRADIX checkout at runtime.
 
-**Integrity rule:** retain this master file unchanged. Record the source branch and Git blob SHA for every derivative-generation task, and verify the derivative visually against the master. A derivative is an export, never a replacement for the master.
+**Permitted derivatives:** technical exports made directly from the NEXORA canonical master for specific platforms (including iOS app icons, PWA icons, and responsive UI placements). Derivatives may change canvas size, pixel dimensions, file format, and transparent padding only as technically required. They must preserve the original artwork, wordmark, colors, proportions, and visual composition. If a platform requires a square icon and the master has a different aspect ratio, fit the complete original artwork within the square canvas; do not crop or redraw it.
 
-This designation applies to both the NEXORA project identity and the NEXORA app. The official master is committed to `main`; this does not imply that the app has been deployed or commercially launched.
+**Integrity and synchronization rule:** retain the NEXORA master unchanged. TRADIX working copies must be copied from the NEXORA canonical file. Record the canonical Git blob SHA and verify byte identity when refreshing the TRADIX copy. If the files differ, NEXORA wins; never silently promote a TRADIX copy to canonical status.
+
+**Package reconciliation completed:** the 0.5.4 package JPEG and PNG were decoded and compared; both are 784×1168 RGB images with zero per-channel pixel difference. The JPEG was redundant and removed. The corrected source archive contains no logo master copy; the sole master remains in the independent NEXORA repository. The TRADIX working copy was synchronized from that master and its Git blob SHA matches exactly.
+
+This designation applies to the NEXORA project identity and app. It does not imply that the app has been deployed or commercially launched.
 
 ## 1. Product decision
 
@@ -64,7 +69,7 @@ Do not copy a competitor's product structure or assume that another company's fe
 
 - NEXORA is one of several independent projects managed under the TRADIX portfolio; it is not a feature or subsystem of another TRADIX product.
 - NEXORA has its own product roadmap, brand, source boundaries, content rights, product data, runtime, release lifecycle, and commercial decisions.
-- Its project files belong in the dedicated `projects/NEXORA/` workspace inside the TRADIX repository. A separate repository is not the default requirement.
+- NEXORA's authoritative source, brand assets, project records, and releases belong in its independent repository `grinlife4-stack/NEXORA`. TRADIX may maintain a development workspace/working copy for approved engineering and delivery tasks; that workspace does not own NEXORA assets or create a runtime dependency.
 - TRADIX provides portfolio-level governance and reusable development, testing, packaging, security, and delivery capabilities through explicit, versioned interfaces.
 - NEXORA must not depend on the TRADIX control plane at runtime; shared tooling is for development and delivery, not a runtime dependency.
 - NEXORA must not share product data, credentials, or business logic with MegaMarket, CPIIE, AAECN, the AI trading platform, or other projects.
@@ -146,7 +151,7 @@ Track revenue and unit economics after real users exist:
 ## 9. Fast execution sequence
 
 ### Phase 1 — Working shell
-- Establish the dedicated NEXORA project workspace inside the TRADIX repository at `projects/NEXORA/`.
+- Use the independent NEXORA repository as the authoritative project source. TRADIX may provide an explicitly scoped development workspace at `projects/NEXORA/`.
 - Implement navigation, home, categories, player shell, and responsive design.
 - Load a small catalog of content metadata.
 - Deliver a build that runs on iPad and mobile browsers.
@@ -188,8 +193,8 @@ No phase is considered complete without a working artifact and recorded test evi
 | Product direction | Independent sleep and wellness PWA; English, French, and Spanish release scope |
 | Product model | Not fixed; validate against user needs and market evidence |
 | Execution priority | PAUSED — X financial-system development is the current TRADIX priority; NEXORA is retained for later resumption |
-| Project workspace | `projects/NEXORA/` in the TRADIX repository; approved brand asset committed; app source package prepared but not yet imported |
-| MVP prototype | NEXORA 0.5.3 finalized app-only archive verified; 25/25 automated smoke tests pass; full app source import into this repository remains pending |
+| Ownership/source repository | `grinlife4-stack/NEXORA`; TRADIX `projects/NEXORA/` is a development working copy; approved logo master recorded in NEXORA |
+| MVP prototype | NEXORA 0.5.3 finalized app-only archive verified; 25/25 automated smoke tests pass; full app source import into the independent NEXORA repository remains pending |
 | Content assets | Three synthesized prototype ambience tracks; production-quality audio and commercial content rights remain pending |
 | iPad/audio test | Physical iPad/iPhone Safari, background audio, accessibility, and HTTPS deployment remain unverified |
 | Backend | Not selected; minimize for first release |
@@ -213,7 +218,7 @@ NEXORA development is **PAUSED / ON HOLD** while TRADIX prioritizes the construc
 
 ## 14. Change control
 
-This file is the TRADIX-level project index and governance record. Product source code, audio assets, content-rights records, user data, and release artifacts belong in the dedicated `projects/NEXORA/` workspace, with project-specific access and release boundaries. Keep the first release narrow and executable. Any expansion beyond the MVP requires evidence that it is necessary, not merely attractive.
+This file is the TRADIX-level project index and governance record. NEXORA owns its source code, brand assets, audio assets, content-rights records, product data, and release artifacts in its independent repository and systems. The TRADIX `projects/NEXORA/` path is a development workspace/working copy only, with no ownership or runtime authority. Keep the first release narrow and executable. Any expansion beyond the MVP requires evidence that it is necessary, not merely attractive.
 
 ## 15. Financial management and EXVARLI
 
