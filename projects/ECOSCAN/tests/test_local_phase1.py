@@ -499,3 +499,86 @@ def test_corrupted_sqlite_file_fails_closed_instead_of_initializing_empty_store(
     (db_dir / "project-a.sqlite3").write_bytes(b"not a sqlite database")
     with pytest.raises(sqlite3.DatabaseError):
         ProjectStore(db_dir, "project-a")
+
+
+
+def test_filesystem_traversal_stays_on_open_directory_after_path_replacement(monkeypatch, tmp_path):
+    import os
+    import ecoscan.filesystem as filesystem_module
+
+    root = tmp_path / "source"
+    moved = tmp_path / "source-original"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    (root / "inside.bin").write_bytes(b"inside")
+    (outside / "outside-secret.bin").write_bytes(b"outside-secret")
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [source(root)],
+    })
+    original_fwalk = os.fwalk
+    replaced = {"done": False}
+
+    def replace_path_then_walk(*args, **kwargs):
+        if not replaced["done"]:
+            root.rename(moved)
+            root.symlink_to(outside, target_is_directory=True)
+            replaced["done"] = True
+        yield from original_fwalk(*args, **kwargs)
+
+    monkeypatch.setattr(filesystem_module.os, "fwalk", replace_path_then_walk)
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(
+        registry,
+        gate(),
+        {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)},
+        store,
+    ).run("fs-local", "operator-a")
+    assert outcome.coverage_state == "COMPLETE"
+    assert store.list_measurements("fs-local")[0]["value"] == 1
+    assert (root / "outside-secret.bin").exists() is False
+
+
+def test_append_scan_rolls_back_coverage_when_measurement_insert_fails(tmp_path):
+    import copy
+
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "file.bin").write_bytes(b"valid")
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [source(root)],
+    })
+    store = ProjectStore(tmp_path / "db", "project-a")
+    ScanRunner(
+        registry,
+        gate(),
+        {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)},
+        store,
+    ).run("fs-local", "operator-a")
+
+    existing_coverage = store.list_coverage()[0]
+    existing_measurement = store.list_measurements()[0]
+    failed_coverage = copy.deepcopy(existing_coverage)
+    failed_coverage.update({
+        "scan_id": "forced-transaction-failure",
+        "started_at": "2026-11-20T12:00:00Z",
+        "finished_at": "2026-11-20T12:00:01Z",
+    })
+    broken_measurement = copy.deepcopy(existing_measurement)
+    broken_measurement["measurement_id"] = "forced-measurement-failure"
+    broken_measurement.pop("kind")
+
+    with pytest.raises(KeyError):
+        store.append_scan(failed_coverage, [broken_measurement])
+    assert all(
+        item["scan_id"] != "forced-transaction-failure"
+        for item in store.list_coverage()
+    )
+    assert all(
+        item["measurement_id"] != "forced-measurement-failure"
+        for item in store.list_measurements()
+    )
