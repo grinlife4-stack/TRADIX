@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from obis_bridge import OBISClient, create_tls13_client_context
+from obis_bridge import (Credential, OBISClient, OBISPeer, OBISServer, create_tls13_client_context, create_tls13_server_context)
 
 
 @pytest.mark.skipif(shutil.which("go") is None, reason="Go toolchain is required for cross-language conformance")
@@ -172,6 +172,32 @@ def test_python_client_interoperates_with_go_peer_over_tls13_mtls(tmp_path: Path
         assert response["outcome"] == "succeeded"
         assert response["result"]["served_by"] == "go-peer"
         assert response["result"]["item_id"] == "tls-mtls-sample"
+
+        python_peer = OBISPeer(
+            "go-peer",
+            [Credential(
+                key_id="python-key",
+                peer_id="python-peer",
+                principal_ref="principal:python",
+                secret=secret,
+                allowed_scopes=frozenset({"catalog:read"}),
+            )],
+        )
+        python_peer.register_capability(
+            "catalog.lookup", "1.0", {"catalog:read"},
+            lambda payload: {"accepted": True, "item_id": payload["item_id"], "served_by": "python-peer"},
+        )
+        server_context = create_tls13_server_context(str(server_cert), str(server_key), str(ca_cert))
+        with OBISServer(python_peer, ssl_context=server_context) as python_server:
+            python_response = client.invoke(
+                python_server.address,
+                "catalog.lookup",
+                "1.0",
+                {"item_id": "tls-python-server"},
+                ssl_context=client_context,
+            )
+        assert python_response["result"]["served_by"] == "python-peer"
+        assert python_response["result"]["item_id"] == "tls-python-server"
     finally:
         process.terminate()
         try:
