@@ -321,6 +321,33 @@ func TestInvokeRejectsSignedDowngradedAndMismatchedResponses(t *testing.T) {
 	}
 }
 
+func TestInvokeDoesNotFollowRedirects(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	var redirectedRequests int
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		redirectedRequests++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusFound)
+	}))
+	defer redirector.Close()
+
+	_, err := Invoke(
+		redirector.URL, "peer:go", "peer:python", "go-key", "principal:go",
+		secret, []string{"records:read"}, "records.read", "1.0",
+		map[string]any{"record_id": "redirect-must-not-be-followed"},
+	)
+	if err == nil {
+		t.Fatal("client accepted an unsigned redirect response")
+	}
+	if redirectedRequests != 0 {
+		t.Fatalf("client followed redirect and contacted another endpoint %d times", redirectedRequests)
+	}
+}
+
 func TestInvokeRejectsSignedErrorsWithMismatchedCorrelationOrPeerIdentity(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
 	cases := []struct {
