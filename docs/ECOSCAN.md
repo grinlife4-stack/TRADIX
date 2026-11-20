@@ -220,8 +220,11 @@ These controls and scope-selection behavior have unit-test coverage. They do not
 ## 15. Railway volume and backup metadata adapter
 
 The `railway_volume` provider is a read-only Railway GraphQL adapter. It requires:
-- `RAILWAY_API_TOKEN` in the ECOSCAN execution environment.
+- Preferably, a Railway Project Token scoped to the exact Staging environment, supplied to the ECOSCAN runner as `RAILWAY_PROJECT_TOKEN`. The adapter sends this using the `Project-Access-Token` header.
+- Alternatively, an account/workspace token supplied as `RAILWAY_API_TOKEN`, sent as an `Authorization: Bearer` token. This has a broader access boundary and is not the preferred option.
 - Either an explicit `volume_instance_id`, or both `volume_id` and `environment_id` so the adapter can attempt environment-scoped instance discovery.
+
+Provide the token to the environment that runs ECOSCAN (for example, a GitHub Actions repository secret or the local shell). Do not put it in the monitored `artifact-gateway` service variables and never commit it.
 
 The documented direct lookup is `volumeInstance(id)`; Railway's public API documentation also documents `currentSizeMB` and `volumeInstanceBackupList`. The environment-level discovery query uses `environment.volumeInstances`. That field selection is implemented and unit-tested with mocked responses, but it has **not** been validated against the live account/schema yet. Treat discovery as provisional until a read-only live query succeeds. If the field is unavailable, authorization is denied, or the result is not exactly one matching instance, the scan fails closed. A direct instance ID can be configured after it has been independently obtained and verified.
 
