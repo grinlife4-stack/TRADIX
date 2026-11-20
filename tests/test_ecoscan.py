@@ -216,7 +216,7 @@ def test_manual_source_scope_scans_only_selected_source(tmp_path, monkeypatch):
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
     scanned = []
-    def fake_scan(source, token):
+    def fake_scan(source, token, railway_access_token=None):
         scanned.append(source["source_id"])
         return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "fixture", "status": "COMPLETE", "logical_bytes": 5, "file_count": 1}
     monkeypatch.setattr(monitor, "scan_source", fake_scan)
