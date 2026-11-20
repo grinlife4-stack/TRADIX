@@ -232,3 +232,16 @@ func TestMTLSCredentialRevocationBlocksSubsequentRequest(t *testing.T) {
 		t.Fatalf("expected revoked mTLS credential rejection, got %v", err)
 	}
 }
+
+
+func TestPeerIDFromCertificateRejectsAmbiguousAndNonCanonicalURISANs(t *testing.T) {
+	first, _ := url.Parse("urn:obis:peer:11111111-1111-4111-8111-111111111111")
+	second, _ := url.Parse("urn:obis:peer:22222222-2222-4222-8222-222222222222")
+	if _, err := PeerIDFromCertificate(&x509.Certificate{URIs: []*url.URL{first, second}}); err == nil {
+		t.Fatal("multiple OBIS URI SANs accepted")
+	}
+	uppercase, _ := url.Parse("urn:obis:peer:AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE")
+	if _, err := PeerIDFromCertificate(&x509.Certificate{URIs: []*url.URL{uppercase}}); err == nil {
+		t.Fatal("non-canonical uppercase OBIS URI SAN accepted")
+	}
+}
