@@ -36,6 +36,11 @@ TRADIX does not own or control OBIS as a runtime dependency. OBIS is the indepen
 
 ### Each Bridge instance has
 
+- An explicitly designated owner with documented rights to obtain the complete source/package, build and run it independently, modify and fork it, transfer it, appoint or replace maintainers/operators, and export owner-controlled configuration and operational records, subject to third-party licenses.
+- Ownership is distinct from generation, operation, and maintenance. BRIDEX is not the default owner; the project/tool commissioning or using the Bridge may own it, or another explicitly designated entity may do so.
+- A complete portability/exit package and documented adaptation path so the owner can move the Bridge to another repository, build environment, operator, or ecosystem without BRIDEX/TRADIX runtime dependencies.
+- A machine-readable and human-readable ownership record. Missing or ambiguous ownership blocks release.
+
 - Its own identity as an independent tool, versioned implementation, repository or independently exportable source package, runtime, configuration, credentials, permissions, logs, and lifecycle.
 - An explicitly recorded owner/operator responsible for its operation, security, maintenance, release, and decommissioning. Ownership is assigned per Bridge instance; it is not inferred solely from which system it connects to or which factory generated it.
 - Its own destination-specific connector, mappings, protocol adapters, and connection settings. These remain inside that Bridge instance and the connected project's own approved interface/configuration boundary.
