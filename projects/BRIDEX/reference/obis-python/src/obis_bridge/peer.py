@@ -529,7 +529,8 @@ class OBISServer:
     @property
     def address(self) -> str:
         host, port = self.httpd.server_address[:2]
-        return f"http://{host}:{port}"
+        scheme = "https" if self.httpd.tls_enabled else "http"
+        return f"{scheme}://{host}:{port}"
 
     def start(self) -> "OBISServer":
         if self.thread and self.thread.is_alive():
