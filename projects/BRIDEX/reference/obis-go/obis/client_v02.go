@@ -96,6 +96,13 @@ func GetOperationStatusV02(endpoint,localPeerID,remotePeerID,keyID,principal str
 		"authorization":map[string]any{"principal_ref":principal,"scopes":scopeValues},
 		"operation_id":operationID,
 	}
+	if len(resource)>1 { return OperationResultV02{},errors.New("at most one resource identity may be supplied") }
+	if len(resource)==1 {
+		if len(resource[0])!=2 || resource[0]["project_id"]==nil || resource[0]["source_id"]==nil {
+			return OperationResultV02{},errors.New("resource identity requires project_id and source_id")
+		}
+		message["resource"]=resource[0]
+	}
 	return sendV02(endpoint,localPeerID,remotePeerID,keyID,secret,message,operationID,"")
 }
 
