@@ -91,6 +91,7 @@ func serveV02(args []string) {
 	scopesRaw:=flags.String("scopes","inventory.read","comma-separated granted scopes")
 	ledgerPath:=flags.String("ledger-path","","persistent operation ledger path")
 	replayDir:=flags.String("replay-dir","","owner-controlled durable replay directory")
+	allowedResourcesRaw:=flags.String("allowed-resource","","comma-separated project/source resource grants")
 	capabilityID:=flags.String("capability","ecoscan.inventory.read","registered capability ID")
 	capabilityVersion:=flags.String("capability-version","1.0","registered capability version")
 	_ = flags.Parse(args)
@@ -98,16 +99,17 @@ func serveV02(args []string) {
 	if *ledgerPath==""{log.Fatal("ledger-path is required")}
 	scopes:=map[string]bool{};for _,scope:=range strings.Split(*scopesRaw,","){if scope!=""{scopes[scope]=true}}
 	peer,err:=obis.NewPeer(*peerID);if err!=nil{log.Fatal(err)}
-	if err=peer.AddCredential(obis.Credential{KeyID:*keyID,PeerID:*remoteID,PrincipalRef:*principal,Secret:secret,AllowedScopes:scopes});err!=nil{log.Fatal(err)}
+	allowedResources:=map[string]bool{};for _,pair:=range strings.Split(*allowedResourcesRaw,","){parts:=strings.SplitN(pair,"/",2);if len(parts)==2&&parts[0]!=""&&parts[1]!=""{allowedResources[parts[0]+"\\x00"+parts[1]]=true}}
+	if err=peer.AddCredential(obis.Credential{KeyID:*keyID,PeerID:*remoteID,PrincipalRef:*principal,Secret:secret,AllowedScopes:scopes,AllowedResources:allowedResources});err!=nil{log.Fatal(err)}
 	if *replayDir!=""{
 		guard,guardErr:=obis.NewFileReplayGuard(*replayDir);if guardErr!=nil{log.Fatalf("configure durable replay guard: %v",guardErr)}
 		if guardErr=peer.SetReplayGuard(guard);guardErr!=nil{log.Fatal(guardErr)}
 	}
 	ledger,err:=obis.NewFileOperationLedger(*ledgerPath);if err!=nil{log.Fatal(err)}
 	p02,err:=obis.NewPeerV02(peer,ledger);if err!=nil{log.Fatal(err)}
-	err=p02.RegisterCapability(*capabilityID,*capabilityVersion,map[string]bool{"inventory.read":true},func(payload map[string]any)(map[string]any,error){
+	err=p02.RegisterCapabilityWithResourceBinding(*capabilityID,*capabilityVersion,map[string]bool{"inventory.read":true},func(payload map[string]any)(map[string]any,error){
 		return map[string]any{"items_seen":1,"project_id":payload["project_id"],"source_id":payload["source_id"],"served_by":"go-peer-v02"},nil
-	},"IDEMPOTENT")
+	},"IDEMPOTENT",true)
 	if err!=nil{log.Fatal(err)}
 	host,_,err:=net.SplitHostPort(*addr);if err!=nil{log.Fatal(err)}
 	ip:=net.ParseIP(host);if host!="localhost"&&(ip==nil||!ip.IsLoopback()){log.Fatal("OBIS 0.2 development server is loopback-only")}
