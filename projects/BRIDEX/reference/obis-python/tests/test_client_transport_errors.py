@@ -111,3 +111,25 @@ def test_python_client_enforces_absolute_deadline_against_slow_drip_response():
         server.server_close()
         thread.join(timeout=2)
 
+def test_python_client_does_not_open_socket_for_already_expired_deadline():
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen()
+    listener.settimeout(0.05)
+    endpoint_port = listener.getsockname()[1]
+    try:
+        with pytest.raises(OBISRequestError) as raised:
+            _client(timeout=1.0).invoke(
+                f"http://127.0.0.1:{endpoint_port}",
+                "records.read",
+                "1.0",
+                {"record_id": "expired-before-connect"},
+                deadline=time.monotonic() - 1,
+            )
+        assert raised.value.code == "peer.timeout"
+        assert raised.value.http_status == 504
+        with pytest.raises(socket.timeout):
+            listener.accept()
+    finally:
+        listener.close()
+
