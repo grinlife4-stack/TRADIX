@@ -78,7 +78,7 @@ The Python reference client/server and the Go reference server now include an op
 - Both peers validate certificates against an owner-supplied trust CA.
 - The Go server requires a client certificate and checks that its single OBIS URI SAN is exactly of the form urn:obis:peer:<peer-id>, matching the authenticated OBIS sender.
 - The Python client validates the server certificate and hostname and supplies its own client certificate.
-- ALPN is fixed to obis/1.
+- ALPN is fixed to http/1.1.
 - The reference listener remains loopback-only.
 
 Python setup uses create_tls13_client_context(...) and create_tls13_server_context(...). The Go reference server enables TLS when OBIS_TLS_CERT, OBIS_TLS_KEY, and OBIS_TLS_CA are all supplied; partial configuration fails closed. The Python-to-Go test generates short-lived test certificates at runtime and exercises a real mTLS request/response.
