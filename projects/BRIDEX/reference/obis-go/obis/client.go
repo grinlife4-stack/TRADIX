@@ -3,14 +3,12 @@ package obis
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -132,5 +130,3 @@ func DecodeJSONPayload(raw string) (map[string]any, error) {
 	return value, nil
 }
 
-var _ = json.Number("")
-var _ = strconv.IntSize
