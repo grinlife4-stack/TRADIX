@@ -14,9 +14,16 @@ import (
 )
 
 func main() {
-	if len(os.Args)>1 && os.Args[1]=="invoke" {
-		invoke(os.Args[2:])
+	args:=os.Args[1:]
+	if len(args)>0 && args[0]=="invoke" {
+		invoke(args[1:])
 		return
+	}
+	if len(args)>=2 && args[0]=="--mode" {
+		mode:=args[1]
+		args=args[2:]
+		if mode=="invoke" { invoke(args); return }
+		if mode!="server" { log.Fatalf("unsupported mode: %s",mode) }
 	}
 	flags:=flag.NewFlagSet("obis-go-peer",flag.ExitOnError)
 	peerID:=flags.String("peer-id","peer:go","local peer identifier")
@@ -26,7 +33,7 @@ func main() {
 	principal:=flags.String("principal","principal:python","authenticated principal")
 	secretHex:=flags.String("secret-hex","","32-byte development secret in hex")
 	scopesRaw:=flags.String("scopes","records:read","comma-separated granted scopes")
-	_ = flags.Parse(os.Args[1:])
+	_ = flags.Parse(args)
 	secret,err:=hex.DecodeString(*secretHex);if err!=nil||len(secret)<32{log.Fatal("secret-hex must encode at least 32 bytes")}
 	scopes:=map[string]bool{};for _,s:=range strings.Split(*scopesRaw,","){if s!=""{scopes[s]=true}}
 	p,err:=obis.NewPeer(*peerID);if err!=nil{log.Fatal(err)}
@@ -42,6 +49,7 @@ func invoke(args []string) {
 	flags:=flag.NewFlagSet("obis-go-peer invoke",flag.ExitOnError)
 	endpoint:=flags.String("endpoint","","bare loopback endpoint of the Python peer")
 	local:=flags.String("local-peer","peer:go","local peer id")
+	peerID:=flags.String("peer-id","","alias for local peer id")
 	remote:=flags.String("remote-peer","peer:python","remote peer id")
 	keyID:=flags.String("key-id","go-key","configured credential id")
 	principal:=flags.String("principal","principal:go","configured principal")
@@ -50,8 +58,11 @@ func invoke(args []string) {
 	capability:=flags.String("capability","records.read","capability id")
 	version:=flags.String("capability-version","1.0","capability version")
 	payloadRaw:=flags.String("payload",`{"record_id":"record-123"}`,"JSON object payload")
+	payloadJSON:=flags.String("payload-json","","alias for payload")
 	_ = flags.Parse(args)
 	secret,err:=hex.DecodeString(*secretHex);if err!=nil||len(secret)<32{log.Fatal("secret-hex must encode at least 32 bytes")}
+	if *peerID!="" { *local=*peerID }
+	if *payloadJSON!="" { *payloadRaw=*payloadJSON }
 	payload,err:=obis.DecodeStrict([]byte(*payloadRaw));if err!=nil{log.Fatal(err)}
 	scopes:=strings.Split(*scopesRaw,",")
 	response,err:=obis.Invoke(*endpoint,*local,*remote,*keyID,*principal,secret,scopes,*capability,*version,payload)
