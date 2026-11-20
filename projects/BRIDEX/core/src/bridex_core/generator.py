@@ -62,11 +62,11 @@ def create_bridge_project(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         (staging / "pyproject.toml").write_text(
-            f"[build-system]\\nrequires = [\"setuptools>=68\"]\\nbuild-backend = \"setuptools.build_meta\"\\n\\n"
-            f"[project]\\nname = \"bridge-{module_name}\"\\nversion = \"{version}\"\\n"
-            "requires-python = \">=3.11\"\\n"
-            "[tool.setuptools.packages.find]\\nwhere = [\"src\"]\\n\\n"
-            "[tool.setuptools.package-data]\\nobis_bridge = [\"schemas/*.json\"]\\n",
+            f"[build-system]\nrequires = [\"setuptools>=68\"]\nbuild-backend = \"setuptools.build_meta\"\n\n"
+            f"[project]\nname = \"bridge-{module_name}\"\nversion = \"{version}\"\n"
+            "requires-python = \">=3.11\"\n"
+            "[tool.setuptools.packages.find]\nwhere = [\"src\"]\n\n"
+            "[tool.setuptools.package-data]\nobis_bridge = [\"schemas/*.json\"]\n",
             encoding="utf-8",
         )
         (staging / "README.md").write_text(
