@@ -65,7 +65,9 @@ Selectors are validated before scanning. Unknown IDs and invalid selector combin
 
 ### Railway volume metadata
 
-Set `provider` to `railway_volume` and configure either a verified `volume_instance_id`, or `volume_id` plus `environment_id` for environment-scoped discovery. Prefer a Railway Project Token scoped to the exact environment and expose it to the ECOSCAN runner as `RAILWAY_PROJECT_TOKEN`; the adapter sends it using Railway's `Project-Access-Token` header. Account/workspace tokens can instead be supplied as `RAILWAY_API_TOKEN` and are sent as Bearer tokens. Set these in the local runner environment or GitHub Actions secrets, not in the monitored `artifact-gateway` service. The scheduled workflow reads repository secrets named `RAILWAY_PROJECT_TOKEN` or `RAILWAY_API_TOKEN`. Project Tokens are environment-scoped, but Railway does not document them as read-only permission tokens; the adapter only issues GraphQL queries. Treat the token as a credential with possible broader capabilities inside its environment. Never commit it.
+Use `provider: "railway_volume"` and configure either a verified `volume_instance_id`, or `volume_id` plus `environment_id` for environment-scoped discovery. Authentication must use a Railway OAuth access token with the explicit `project:viewer` scope, supplied as `RAILWAY_OAUTH_ACCESS_TOKEN`. The token is sent as a Bearer token.
+
+The workflow exposes this secret only during manual dispatch because OAuth access tokens expire after one hour. Scheduled scans remain `NOT_CONFIGURED` until secure refresh-token rotation and persistence are implemented. Do not substitute an account token, workspace token, or Project Token when the required boundary is read-only.
 
 The adapter reports provisioned capacity and backup inventory metadata without reading volume contents. It does not report used filesystem bytes. Environment-level `volumeInstances` discovery is mocked-tested but still requires live schema validation.
 
