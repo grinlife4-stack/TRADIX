@@ -1,0 +1,1 @@
+ECOSCAN offline fixture
