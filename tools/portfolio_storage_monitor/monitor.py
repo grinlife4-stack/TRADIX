@@ -112,7 +112,9 @@ def scan_local(source: dict[str, Any]) -> dict[str, Any]:
         return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "local", "reference": str(root), "measured_at": measured_at, "status": "FAILED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "method": "read-only filesystem metadata", "error": "Configured local path is not a directory", "limitations": []}
     count = total = 0
     errors: list[str] = []
-    for current, dirs, files in os.walk(root, followlinks=False):
+    def record_walk_error(exc: OSError) -> None:
+        errors.append(f"directory scan: {exc.__class__.__name__}")
+    for current, dirs, files in os.walk(root, followlinks=False, onerror=record_walk_error):
         dirs[:] = [d for d in dirs if not (Path(current) / d).is_symlink()]
         for name in files:
             path = Path(current) / name
@@ -141,28 +143,37 @@ def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> dict[
     by_source = {r["source_id"]: r for r in results}
     projects = []
     for project in config.get("projects", []):
-        selected = [by_source[sid] for sid in project.get("sources", []) if sid in by_source]
+        expected_ids = project.get("sources", [])
+        selected = [by_source[sid] for sid in expected_ids if sid in by_source]
+        missing_ids = [sid for sid in expected_ids if sid not in by_source]
         known = [r for r in selected if r.get("status") in SUCCESS_STATUSES and isinstance(r.get("logical_bytes"), int)]
         failed = [r for r in selected if r.get("status") not in SUCCESS_STATUSES]
+        has_gaps = bool(failed or missing_ids)
         projects.append({
             "project_id": project["project_id"], "name": project["name"],
-            "source_count": len(selected), "measured_source_count": len(known),
-            "coverage": "NOT_REGISTERED" if not selected else ("COMPLETE" if not failed else "INCOMPLETE"),
+            "source_count": len(expected_ids), "measured_source_count": len(known),
+            "coverage": "NOT_REGISTERED" if not expected_ids else ("INCOMPLETE" if has_gaps else "COMPLETE"),
             "known_logical_bytes": sum(r["logical_bytes"] for r in known),
-            "logical_bytes_complete": bool(selected) and not failed,
+            "logical_bytes_complete": bool(expected_ids) and not has_gaps,
+            "missing_source_ids": missing_ids,
             "sources": selected
         })
     known_total = sum(p["known_logical_bytes"] for p in projects)
     incomplete = [r for r in results if r.get("status") not in SUCCESS_STATUSES]
     alerts = []
+    for project in projects:
+        if project["coverage"] == "NOT_REGISTERED":
+            alerts.append({"severity": "WARNING", "code": "PROJECT_NOT_REGISTERED", "project_id": project["project_id"], "source_id": None, "message": "No storage source is registered for this project", "evidence": None})
+        for missing_id in project.get("missing_source_ids", []):
+            alerts.append({"severity": "WARNING", "code": "SOURCE_NOT_SCANNED", "project_id": project["project_id"], "source_id": missing_id, "message": "Configured source produced no measurement record", "evidence": None})
     for result in incomplete:
         alerts.append({"severity": "WARNING", "code": "SOURCE_INCOMPLETE", "project_id": result["project_id"], "source_id": result["source_id"], "message": f"Source scan status: {result['status']}", "evidence": result.get("error")})
     return {
         "schema_version": 1, "tool": "TRADIX Portfolio Storage Monitor", "generated_at": utc_now(),
-        "mode": config.get("mode", "MANUAL"), "portfolio_coverage": "INCOMPLETE" if incomplete or any(p["coverage"] == "NOT_REGISTERED" for p in projects) else "COMPLETE",
+        "mode": config.get("mode", "MANUAL"), "portfolio_coverage": "INCOMPLETE" if incomplete or any(p["coverage"] != "COMPLETE" for p in projects) else "COMPLETE",
         "project_count": len(projects), "source_count": len(results),
         "known_logical_bytes": known_total, "known_logical_mib": round(known_total / (1024 * 1024), 3),
-        "total_is_complete": not incomplete and all(p["coverage"] != "NOT_REGISTERED" for p in projects),
+        "total_is_complete": not incomplete and all(p["coverage"] == "COMPLETE" for p in projects),
         "alerts": alerts, "projects": projects,
         "limitations": config.get("notes", []) + [
             "This report measures only configured and accessible sources.",
