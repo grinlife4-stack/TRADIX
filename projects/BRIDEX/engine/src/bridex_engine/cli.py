@@ -7,7 +7,8 @@ import json
 import sys
 
 from .manifest import BridgeManifestError, load_manifest, resolve_package_files
-from .package import build_package, verify_package\nfrom .scaffold import create_bridge_project
+from .package import build_package, verify_package
+from .scaffold import create_bridge_project
 
 
 def _parser() -> argparse.ArgumentParser:
