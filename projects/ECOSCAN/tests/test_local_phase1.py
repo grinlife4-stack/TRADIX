@@ -19,7 +19,7 @@ def source(path, source_id="fs-local", subsystem_id="storage", project_owner="ow
     return {
         "source_id": source_id, "owner_id": project_owner, "operator_id": operator,
         "subsystem_id": subsystem_id, "source_type": "filesystem", "locator": str(path),
-        "adapter_id": "filesystem", "adapter_version": "0.1.0", "credential_ref": None,
+        "adapter_id": "filesystem", "adapter_version": "0.1.0",
         "enabled": True, "scope_tags": ["local"],
         "budget": {"max_pages": 100, "max_items": 1000, "timeout_seconds": 20, "max_duration_seconds": 30},
         "expected_measurements": ["logical_bytes", "file_count"],
@@ -624,10 +624,16 @@ def obis_source(root=None):
         "locator": "peer:inventory-bridge",
         "adapter_id": "obis_bridge",
         "adapter_version": "0.1.0",
-        "credential_ref": "external-secret-ref:inventory-bridge",
     })
     return raw
 
+
+
+def test_registry_rejects_credential_references():
+    raw = obis_source()
+    raw["credential_ref"] = "external-secret-ref:must-not-exist"
+    with pytest.raises(ValueError, match="unknown fields"):
+        parse_registry({"schema_version": "0.1", "project_id": "project-a", "sources": [raw]})
 
 def test_obis_bridge_adapter_runs_authenticated_read_only_peer_and_records_measurements(tmp_path):
     client = FakeOBISClient()
