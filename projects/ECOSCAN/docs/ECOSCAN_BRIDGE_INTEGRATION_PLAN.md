@@ -150,3 +150,26 @@ The two sides now share these exact values:
 - Measurement kinds: `logical_bytes`, `file_count`
 
 This establishes a development integration contract only. It does not claim that a source-project-owned Bridge, live endpoint, credentials, production transport, or end-to-end integration is configured or accepted.
+
+## Absolute scan deadline enforcement
+
+The local BudgetGuard establishes one monotonic deadline from the smaller of
+timeout_seconds and max_duration_seconds. The OBIS adapter passes that absolute
+deadline into the injected client's invoke contract and checks it again
+immediately after the call returns. ScanRunner performs a final deadline check
+before validating or committing any adapter result, including an empty result
+with zero reported items.
+
+The BRIDEX Python reference client enforces the deadline across the complete
+loopback HTTP exchange, including slow-drip response bodies, and shuts down
+the active socket when the deadline expires. A transport timeout that coincides
+with the scan deadline is recorded as FAILED / budget_exhausted; a shorter
+client-specific transport timeout remains a distinct adapter execution failure.
+Failure coverage is committed with no measurements.
+
+A timeout does not prove the remote provider did not execute. The peer may
+have completed the operation before the response was cut off. No automatic
+retry is authorized by this contract; retry/idempotency and unknown-outcome
+reconciliation remain separate future work. The current OBIS reference remains
+loopback-only and development/conformance-only, not a production transport.
+
