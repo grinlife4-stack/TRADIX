@@ -89,9 +89,10 @@ func validateV02Message(m map[string]any, now time.Time) *Error {
 		operationID, ok := str(m,"operation_id"); if !ok || operationID == "" { return &Error{"protocol.invalid_message","invalid operation_id",400} }
 		if raw, exists := m["resource"]; exists {
 			resource, ok := raw.(map[string]any)
-			if !ok || !exactKeys(resource,"project_id","source_id") { return &Error{"protocol.invalid_message","invalid resource identity",400} }
+			if !ok { return &Error{"protocol.invalid_message","resource identity must be an object",400} }
+			if !exactKeys(resource,"project_id","source_id") { return &Error{"protocol.invalid_message","resource identity must contain exactly project_id and source_id",400} }
 			projectID, ok1 := str(resource,"project_id"); sourceID, ok2 := str(resource,"source_id")
-			if !ok1 || !ok2 || projectID == "" || sourceID == "" { return &Error{"protocol.invalid_message","invalid resource identity",400} }
+			if !ok1 || !ok2 || projectID == "" || sourceID == "" { return &Error{"protocol.invalid_message","resource identity values must be non-empty strings",400} }
 		}
 	}
 	raw, err := CanonicalJSON(m); if err != nil || len(raw) > MaxMessageBytes { return &Error{"payload.too_large","message exceeds size limit",413} }
