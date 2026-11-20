@@ -222,7 +222,12 @@ func (p *Peer) Handle(m map[string]any,keyID,sig string)(map[string]any,string,*
 	requested:=map[string]bool{};rawScopes,_:=auth["scopes"].([]any);for _,s:=range rawScopes{requested[s.(string)]=true}
 	for scope:=range cap.RequiredScopes{if !requested[scope]||!cred.AllowedScopes[scope]{return nil,"",&Error{"authorization.denied","required scope is not granted",403}}}
 	for scope:=range requested{if !cred.AllowedScopes[scope]{return nil,"",&Error{"authorization.denied","requested scope exceeds grant",403}}}
-	payload,_:=obj(m,"payload");result,err:=cap.Handler(payload);if err!=nil{return nil,"",&Error{"operation.failed","capability execution failed",500}}
+	payload,_:=obj(m,"payload")
+	if len(cred.AllowedResources)>0 {
+		projectID,ok1:=str(payload,"project_id"); sourceID,ok2:=str(payload,"source_id")
+		if !ok1||!ok2||!cred.AllowedResources[projectID+"/"+sourceID] { return nil,"",&Error{"authorization.denied","resource is outside credential grant",403} }
+	}
+	result,err:=cap.Handler(payload);if err!=nil{return nil,"",&Error{"operation.failed","capability execution failed",500}}
 	response:=map[string]any{"protocol":Protocol,"version":Version,"message_type":"response","message_id":fmt.Sprintf("go-%d",time.Now().UnixNano()),"correlation_id":m["message_id"],"sender":map[string]any{"peer_id":p.ID},"recipient":map[string]any{"peer_id":senderID},"issued_at":float64(time.Now().Unix()),"outcome":"succeeded","result":result}
 	return response,hex.EncodeToString(cred.Secret),nil
 }
