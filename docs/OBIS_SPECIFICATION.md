@@ -363,3 +363,8 @@ These decisions require threat modeling and interoperability prototypes. They MU
 ## 21. Normative independence statement
 
 **OBIS belongs to no mandatory runtime ecosystem. Every Bridge owner must be able to retain, implement, test, operate, and adapt OBIS independently. BRIDEX may help create compliant Bridges; it must never be required to keep them communicating.**
+
+
+## 22. OBIS 0.2 operation lifecycle extension
+
+The versioned operation identity, idempotency, durable ledger, status-query, and unknown-outcome rules are specified separately in [OBIS 0.2 Operation Lifecycle](OBIS_0.2_OPERATION_LIFECYCLE.md). OBIS 0.1 remains unchanged. The 0.2 JSON Schema is published at `standards/obis/0.2/message.schema.json`; its implementation and cross-language conformance remain subject to explicit test evidence. The 0.2 draft does not authorize production deployment.

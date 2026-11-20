@@ -90,20 +90,9 @@ Independent implementations must produce identical canonical bytes for the same 
 
 ## 6. Asynchronous operation lifecycle
 
-**Recommended common lifecycle**
+The 0.1 decision baseline is superseded for new operations by the versioned [OBIS 0.2 Operation Lifecycle](OBIS_0.2_OPERATION_LIFECYCLE.md). Its normative draft separates transport outcome from operation state, defines stable operation and idempotency identities, requires a durable owner-local Operation Ledger, and specifies authenticated status/result recovery. OBIS 0.1 remains unchanged.
 
-`accepted → running → completed | failed | cancelled | expired`
-
-Each asynchronous operation should expose:
-
-- A unique operation reference scoped to the receiving peer and caller.
-- An explicit expiry/deadline.
-- A status capability and, where supported, a cancellation capability.
-- A stable terminal outcome and structured error.
-- An idempotency key for every retryable operation that can cause side effects.
-- Owner-defined retention and reconciliation behavior.
-
-A cancellation request is not proof that an external side effect was rolled back. The operation contract must state whether cancellation is best-effort, transactional, or unsupported.
+A cancellation request is not proof that an external side effect was rolled back. The capability contract must state whether cancellation is best-effort, transactional, or unsupported.
 
 ## 7. Compatibility and deprecation
 

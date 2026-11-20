@@ -1,7 +1,7 @@
 # OBIS Reference Implementation — Execution Status
 
 **Status:** Executable development/conformance prototypes; bidirectional success, capability-error, and scope-denial paths verified  
-**OBIS target:** Draft 0.1.0  
+**OBIS target:** Draft 0.1.0; 0.2 operation lifecycle contract drafted, implementation pending  
 **Implementations:** Standalone Python reference peer + independent Go peer  
 **Production approval:** Not approved
 
@@ -41,7 +41,7 @@ The canonical draft JSON Schema 2020-12 artifact is published at `standards/obis
 - Production identity issuance, asymmetric signing, trust-anchor management, key rotation, or revocation service.
 - A frozen, language-neutral production canonicalization/signature profile. The current HMAC implementation is a development/conformance binding, not a normative production profile.
 - Distributed replay protection and a durable business-operation idempotency/outcome ledger. The Python SQLite and Go file-backed guards persist nonce replay state for one owner-operated Bridge instance; neither reconciles unknown side-effect outcomes.
-- Asynchronous operation lifecycle.
+- Asynchronous operation lifecycle execution and durable Operation Ledger integration. The versioned 0.2 contract and schema are drafted separately; neither Python nor Go peer is yet certified as 0.2-conformant.
 - Production audit persistence and tamper-evident evidence.
 - Non-loopback transport binding.
 - Full cross-language positive/negative conformance matrix and combined ECOSCAN-to-Go-peer integration.

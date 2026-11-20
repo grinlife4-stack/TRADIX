@@ -1,0 +1,479 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:obis:schemas:0.2:message",
+  "title": "OBIS 0.2 Operation Message",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/operationRequest"
+    },
+    {
+      "$ref": "#/$defs/operationStatusRequest"
+    },
+    {
+      "$ref": "#/$defs/operationResponse"
+    },
+    {
+      "$ref": "#/$defs/errorResponse"
+    }
+  ],
+  "$defs": {
+    "peerRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "peer_id"
+      ],
+      "properties": {
+        "peer_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_ref",
+        "scopes"
+      ],
+      "properties": {
+        "principal_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "scopes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "envelopeProperties": {
+      "protocol": {
+        "const": "obis"
+      },
+      "version": {
+        "const": "0.2"
+      },
+      "message_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "nonce": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "attempt_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "sender": {
+        "$ref": "#/$defs/peerRef"
+      },
+      "recipient": {
+        "$ref": "#/$defs/peerRef"
+      },
+      "issued_at": {
+        "type": "number",
+        "minimum": 0
+      },
+      "expires_at": {
+        "type": "number",
+        "minimum": 0
+      },
+      "capability": {
+        "$ref": "#/$defs/capability"
+      },
+      "authorization": {
+        "$ref": "#/$defs/authorization"
+      }
+    },
+    "operationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "version",
+        "message_type",
+        "message_id",
+        "nonce",
+        "attempt_id",
+        "sender",
+        "recipient",
+        "issued_at",
+        "expires_at",
+        "capability",
+        "authorization",
+        "operation",
+        "payload"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "obis"
+        },
+        "version": {
+          "const": "0.2"
+        },
+        "message_type": {
+          "const": "request"
+        },
+        "message_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "nonce": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "attempt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "sender": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "recipient": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "issued_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "expires_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "capability": {
+          "$ref": "#/$defs/capability"
+        },
+        "authorization": {
+          "$ref": "#/$defs/authorization"
+        },
+        "operation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation_id",
+            "idempotency_key",
+            "request_hash",
+            "expires_at"
+          ],
+          "properties": {
+            "operation_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "request_hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "expires_at": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "payload": {
+          "type": "object"
+        }
+      }
+    },
+    "operationStatusRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "version",
+        "message_type",
+        "message_id",
+        "nonce",
+        "attempt_id",
+        "sender",
+        "recipient",
+        "issued_at",
+        "expires_at",
+        "capability",
+        "authorization",
+        "operation_id"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "obis"
+        },
+        "version": {
+          "const": "0.2"
+        },
+        "message_type": {
+          "const": "operation_status_request"
+        },
+        "message_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "nonce": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "attempt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "sender": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "recipient": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "issued_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "expires_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "capability": {
+          "$ref": "#/$defs/capability"
+        },
+        "authorization": {
+          "$ref": "#/$defs/authorization"
+        },
+        "operation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    },
+    "operationRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "request_hash",
+        "state",
+        "result",
+        "result_ref",
+        "failure_code",
+        "created_at",
+        "updated_at",
+        "expires_at"
+      ],
+      "properties": {
+        "operation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "request_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "state": {
+          "enum": [
+            "ACCEPTED",
+            "RUNNING",
+            "SUCCEEDED",
+            "FAILED",
+            "REJECTED",
+            "UNKNOWN",
+            "CANCELLED",
+            "EXPIRED"
+          ]
+        },
+        "result": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "result_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "failure_code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "created_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "updated_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "expires_at": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "operationResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "version",
+        "message_type",
+        "message_id",
+        "correlation_id",
+        "sender",
+        "recipient",
+        "issued_at",
+        "operation"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "obis"
+        },
+        "version": {
+          "const": "0.2"
+        },
+        "message_type": {
+          "const": "operation_response"
+        },
+        "message_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "correlation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "sender": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "recipient": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "issued_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "operation": {
+          "$ref": "#/$defs/operationRecord"
+        }
+      }
+    },
+    "errorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "version",
+        "message_type",
+        "message_id",
+        "correlation_id",
+        "sender",
+        "recipient",
+        "issued_at",
+        "outcome",
+        "error"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "obis"
+        },
+        "version": {
+          "const": "0.2"
+        },
+        "message_type": {
+          "const": "response"
+        },
+        "message_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "correlation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "sender": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "recipient": {
+          "$ref": "#/$defs/peerRef"
+        },
+        "issued_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "outcome": {
+          "const": "failed"
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "minLength": 1
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}
