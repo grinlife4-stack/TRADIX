@@ -77,3 +77,111 @@ func TestPublishedMessageVectorsAcrossEnvelopeTypes(t *testing.T) {
 		if actual != vector.Expected { t.Errorf("%s: expected %s, got %s (%v)", vector.ID, vector.Expected, actual, validationErr) }
 	}
 }
+
+
+func validNegativeTestRequest(now time.Time) map[string]any {
+	return map[string]any{
+		"protocol": Protocol,
+		"version": Version,
+		"message_type": "request",
+		"message_id": "negative-test-request",
+		"nonce": "negative-test-nonce",
+		"sender": map[string]any{"peer_id": "peer:python"},
+		"recipient": map[string]any{"peer_id": "peer:go"},
+		"issued_at": json.Number(strconv.FormatInt(now.Unix(), 10)),
+		"expires_at": json.Number(strconv.FormatInt(now.Add(30*time.Second).Unix(), 10)),
+		"capability": map[string]any{"id": "records.read", "version": "1.0"},
+		"authorization": map[string]any{"principal_ref": "principal:python", "scopes": []any{"records:read"}},
+		"payload": map[string]any{"record_id": "negative-case"},
+	}
+}
+
+func newNegativeTestPeer(t *testing.T, handlerCalls *int) (*Peer, []byte) {
+	t.Helper()
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	peer, err := NewPeer("peer:go")
+	if err != nil { t.Fatal(err) }
+	err = peer.AddCredential(Credential{
+		KeyID: "python-key", PeerID: "peer:python", PrincipalRef: "principal:python",
+		Secret: secret, AllowedScopes: map[string]bool{"records:read": true},
+	})
+	if err != nil { t.Fatal(err) }
+	err = peer.RegisterCapability(Capability{
+		ID: "records.read", Version: "1.0",
+		RequiredScopes: map[string]bool{"records:read": true},
+		Handler: func(payload map[string]any) (map[string]any, error) {
+			*handlerCalls++
+			return map[string]any{"record_id": payload["record_id"]}, nil
+		},
+	})
+	if err != nil { t.Fatal(err) }
+	return peer, secret
+}
+
+func TestValidateRequestRejectsMalformedNegativeMatrix(t *testing.T) {
+	now := time.Unix(1795168810, 0)
+	cases := []struct {
+		name string
+		mutate func(map[string]any)
+	}{
+		{"unknown top-level field", func(m map[string]any) { m["unexpected"] = true }},
+		{"unsupported version", func(m map[string]any) { m["version"] = "0.2" }},
+		{"wrong message type", func(m map[string]any) { m["message_type"] = "response" }},
+		{"string timestamp", func(m map[string]any) { m["issued_at"] = "1795168810" }},
+		{"excessive ttl", func(m map[string]any) { m["expires_at"] = json.Number("1795169000") }},
+		{"duplicate scopes", func(m map[string]any) { m["authorization"].(map[string]any)["scopes"] = []any{"records:read", "records:read"} }},
+		{"unknown nested field", func(m map[string]any) { m["sender"].(map[string]any)["extra"] = "x" }},
+		{"non-object payload", func(m map[string]any) { m["payload"] = []any{"not", "an", "object"} }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			request := validNegativeTestRequest(now)
+			tc.mutate(request)
+			if err := ValidateRequest(request, now); err == nil {
+				t.Fatal("malformed request was accepted")
+			}
+		})
+	}
+}
+
+func TestHandleRejectsAuthenticationFailuresBeforeCapabilityExecution(t *testing.T) {
+	cases := []struct {
+		name string
+		keyID string
+		signature func(map[string]any, []byte) string
+		mutate func(map[string]any)
+	}{
+		{"unknown key", "missing-key", func(_ map[string]any, _ []byte) string { return "00" }, nil},
+		{"invalid signature", "python-key", func(_ map[string]any, _ []byte) string { return "00" }, nil},
+		{"principal mismatch", "python-key", func(m map[string]any, secret []byte) string { sig, _ := Sign(m, secret); return sig }, func(m map[string]any) { m["authorization"].(map[string]any)["principal_ref"] = "principal:other" }},
+		{"sender mismatch", "python-key", func(m map[string]any, secret []byte) string { sig, _ := Sign(m, secret); return sig }, func(m map[string]any) { m["sender"].(map[string]any)["peer_id"] = "peer:other" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			peer, secret := newNegativeTestPeer(t, &calls)
+			request := validNegativeTestRequest(time.Now())
+			if tc.mutate != nil { tc.mutate(request) }
+			signature := tc.signature(request, secret)
+			_, _, protocolErr := peer.Handle(request, tc.keyID, signature)
+			if protocolErr == nil || protocolErr.Code != "identity.authentication_failed" && protocolErr.Code != "identity.unknown_peer" {
+				t.Fatalf("expected authentication rejection, got %#v", protocolErr)
+			}
+			if calls != 0 { t.Fatalf("capability handler ran %d times after authentication failure", calls) }
+		})
+	}
+}
+
+func TestHandleRejectsUnauthorizedScopeBeforeCapabilityExecution(t *testing.T) {
+	calls := 0
+	peer, secret := newNegativeTestPeer(t, &calls)
+	request := validNegativeTestRequest(time.Now())
+	request["authorization"].(map[string]any)["scopes"] = []any{"records:write"}
+	signature, err := Sign(request, secret)
+	if err != nil { t.Fatal(err) }
+	_, _, protocolErr := peer.Handle(request, "python-key", signature)
+	if protocolErr == nil || protocolErr.Code != "authorization.denied" {
+		t.Fatalf("expected authorization.denied, got %#v", protocolErr)
+	}
+	if calls != 0 { t.Fatalf("capability handler ran %d times after authorization denial", calls) }
+}
