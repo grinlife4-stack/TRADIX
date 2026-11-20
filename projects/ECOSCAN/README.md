@@ -4,7 +4,7 @@ ECOSCAN is an independent project-level inventory system. Its runtime, source re
 
 ## Phase 1: local-only
 
-Phase 1 supports local filesystem metadata inventory only. It does not read file contents, modify source files, execute files, follow symbolic links, or initialize network clients. GitHub, Backblaze, S3/R2, Railway, external databases, scheduled scans, remote reporting, and cloud backups are deferred.
+Phase 1 CLI supports local filesystem metadata inventory only. It does not read file contents, modify source files, execute files, follow symbolic links, or initialize network clients. The package also includes an opt-in OBIS adapter contract that accepts an externally injected authenticated client; the CLI does not register or invoke it. GitHub, Backblaze, S3/R2, Railway, external databases, scheduled scans, remote reporting, and cloud backups remain deferred.
 
 Install from this project directory:
 
@@ -53,6 +53,6 @@ The package can be installed and tested from this directory without installing T
 
 The external integration path is deliberately preserved as a separate, independently deployable ECOSCAN Bridge using OBIS. Provider-specific clients and credentials must live in that Bridge, not in the ECOSCAN core. ECOSCAN accepts only bounded, typed, project/source-authorized inventory records through its own validation boundary.
 
-The connection is staged: local Phase 1 acceptance first; synthetic OBIS conformance second; production transport/security review third; and only then an explicitly approved, read-only provider pilot. The current BRIDEX OBIS peer is a loopback-only development prototype, not production-ready. No live Bridge, GitHub, Backblaze, S3/R2, Railway, or other remote connection is enabled in Phase 1.
+The ECOSCAN OBIS adapter now exists and is covered by synthetic peer tests. It accepts an injected OBIS client, calls the versioned read-only capability `ecoscan.inventory.read`, and checks peer identity, recipient identity, project/source binding, measurement kinds, and local page/item budgets. The Bridge owns provider credentials; ECOSCAN receives only an external credential reference and never loads the secret itself. The CLI intentionally does not register this adapter, and no remote peer or endpoint is configured. The current BRIDEX OBIS reference client/server is loopback-only and development-only, not production-ready. The connection is staged: local acceptance first; loopback OBIS conformance second; production transport/security review third; then an explicitly approved read-only provider pilot.
 
-See [ECOSCAN Bridge Integration Plan](docs/ECOSCAN_BRIDGE_INTEGRATION_PLAN.md) for the topology, proposed capabilities, trust boundaries, staged gates, and independence tests.
+See [ECOSCAN Bridge Integration Plan](docs/ECOSCAN_BRIDGE_INTEGRATION_PLAN.md) for the topology, implemented adapter contract, capability payload, trust boundaries, staged gates, and independence tests.
