@@ -1,7 +1,7 @@
 # BRIDEX — Architecture and Engineering Boundaries
 
 **Document ID:** BRIDEX-ARCH-001  
-**Status:** Architecture baseline / implementation pending  
+**Status:** Architecture baseline; BRIDEX Engine 0.1 implemented; OBIS production security and Bridge runtime conformance pending  
 **Version:** 0.1.0  
 **Authority:** Project owner  
 **Scope:** BRIDEX project and every Bridge tool generated or maintained under its method
@@ -26,6 +26,8 @@ This plane is used to design and produce Bridge tools. It may contain:
 - Packaging, release, migration, and documentation tooling.
 
 The engineering plane is not in the runtime path of released Bridges.
+
+**Implemented engineering-plane baseline:** `projects/BRIDEX/engine` provides `bridex init`, `validate`, `package`, and `verify`. It creates draft-only Bridge skeletons with explicit owner/operator assignment evidence, no trusted peers, no enabled capabilities, and no configured OBIS transport. It validates a canonical manifest, packages an explicit file allowlist into a deterministic integrity-manifested ZIP, and verifies packages without extracting or executing content. It has no network access or runtime dependency on TRADIX.
 
 ### B. Generated Bridge tool
 
@@ -172,13 +174,14 @@ Passing unit tests alone is not proof of external interoperability or production
 
 ## 10. Delivery sequence
 
-- **Phase 0 — Architecture freeze:** approve project boundary, ownership rules, protocol separation, and threat model.
-- **Phase 1 — Specifications:** define OBIS message envelope, schemas, handshake, auth model, error model, versioning, and compatibility policy.
-- **Phase 2 — Core prototype:** implement a minimal OBIS peer and test two independent implementations.
-- **Phase 3 — Generation pipeline:** produce a standalone Bridge package from a generic template plus isolated destination configuration.
-- **Phase 4 — Conformance and portability:** automate security, fault, no-TRADIX/no-BRIDEX, export, and replacement tests.
-- **Phase 5 — First pilot:** select one low-risk project integration and prove the full lifecycle before expanding.
-- **Phase 6 — Portfolio rollout:** generate additional Bridge instances only after the first pilot passes and each project's scope/permissions are approved.
+- **Phase 0 — Architecture and ownership baseline:** established in the BRIDEX dossier, architecture, threat model, and ownership/portability policy.
+- **Phase 1 — Protocol specifications:** OBIS 0.1 and TIIS 0.1 draft specifications and schemas exist. TIIS is internal-only; OBIS is the external Bridge protocol. Neither is a production 1.0 release.
+- **Phase 2 — BRIDEX engineering plane:** implemented as Engine 0.1: scaffold, manifest validation, deterministic package generation, and package verification. New Bridge projects remain draft-only and inert.
+- **Phase 3 — OBIS reference and security:** complete the standalone peer, transport/security profile, credential lifecycle, replay/idempotency, revocation, and independent negative tests. This phase is not accepted yet.
+- **Phase 4 — Cross-language conformance:** run shared positive/negative vectors and bidirectional interoperability against independently built implementations; prove Bridge operation without TRADIX/BRIDEX.
+- **Phase 5 — Generated Bridge acceptance:** add destination-specific capability contracts, owner-approved peers, scoped authorization, operational audit, failure isolation, export/restore, and replacement tests.
+- **Phase 6 — First pilot:** select one low-risk integration only after all preceding gates pass and the owner explicitly approves the scope.
+- **Phase 7 — Portfolio rollout:** generate additional Bridge instances only after the first pilot passes and each project's scope/permissions are approved.
 
 No production Bridge, live credential, external account, secret, deployment, or network connection is authorized by this architecture document alone.
 
