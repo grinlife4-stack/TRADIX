@@ -56,7 +56,7 @@ A Bridge package lifecycle may use existing components as optional helpers:
 - PR #45's PR record states that GitHub/S3 destination credentials are not configured in its staging service; live remote transfer remains unverified.
 - PR #46 explicitly limits its catalog to metadata and lifecycle assertions.
 - PR #47 has fake-adapter contract tests only; no real runner, sandbox, scheduler, or provider integration is implemented.
-- The OBIS Python reference is a loopback-only development prototype. Its candidate production TLS/mTLS profile and cross-language interoperability remain unimplemented.
+- The OBIS Python reference remains a loopback-only development prototype. Draft PR #76 contains a TLS 1.3 mTLS candidate and bidirectional Go/Python client/server tests, but its latest recorded CI run (44737370885) failed at Go compilation because of an unused import. The candidate is not accepted, is not part of this BRIDEX Engine phase, and is not production-approved.
 
 These boundaries must be preserved when the PR chain is integrated. No existing component should be relabeled as a completed Bridge or a production execution/security layer.
 
