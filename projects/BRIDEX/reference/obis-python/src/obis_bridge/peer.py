@@ -53,10 +53,10 @@ class Credential:
     def __post_init__(self) -> None:
         if not self.key_id or not self.peer_id or not self.principal_ref:
             raise ValueError("credential identifiers must be non-empty")
-        if len(self.secret) < 32:
-            raise ValueError("reference-profile secrets must be at least 32 bytes")
-        if not self.allowed_scopes:
-            raise ValueError("credential must have at least one explicit scope")
+        if not isinstance(self.secret, bytes) or len(self.secret) < 32:
+            raise ValueError("reference-profile secret must be bytes of at least 32 bytes")
+        if not self.allowed_scopes or not all(isinstance(s, str) and s for s in self.allowed_scopes):
+            raise ValueError("credential must have explicit non-empty string scopes")
 
 
 @dataclass(frozen=True)
@@ -168,7 +168,10 @@ class OBISPeer:
         if not peer_id:
             raise ValueError("peer_id must be non-empty")
         self.peer_id = peer_id
-        self.credentials = {c.key_id: c for c in (credentials or [])}
+        supplied_credentials = credentials or []
+        if len({c.key_id for c in supplied_credentials}) != len(supplied_credentials):
+            raise ValueError("duplicate credential key_id")
+        self.credentials = {c.key_id: c for c in supplied_credentials}
         self.capabilities: dict[tuple[str, str], Capability] = {}
         self.replay_guard = ReplayGuard()
         self._lock = threading.RLock()
@@ -267,11 +270,11 @@ class OBISServer:
                 if urlparse(self.path).path != MESSAGE_PATH:
                     self.send_error(404)
                     return
-                length = int(self.headers.get("Content-Length", "0"))
-                if length <= 0 or length > MAX_MESSAGE_BYTES:
-                    self.send_error(413)
-                    return
                 try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                    if length <= 0 or length > MAX_MESSAGE_BYTES:
+                        self.send_error(413)
+                        return
                     raw = self.rfile.read(length)
                     message = json.loads(raw.decode("utf-8"))
                     if not isinstance(message, dict):
@@ -343,6 +346,12 @@ class OBISClient:
         scopes: set[str] | frozenset[str],
         timeout: float = 3.0,
     ):
+        if not local_peer_id or not remote_peer_id or not key_id or not principal_ref:
+            raise ValueError("peer, key, and principal identifiers must be non-empty")
+        if not isinstance(secret, bytes) or len(secret) < 32:
+            raise ValueError("reference-profile secret must be bytes of at least 32 bytes")
+        if not scopes or not all(isinstance(scope, str) and scope for scope in scopes):
+            raise ValueError("client must have explicit non-empty string scopes")
         self.local_peer_id = local_peer_id
         self.remote_peer_id = remote_peer_id
         self.key_id = key_id
