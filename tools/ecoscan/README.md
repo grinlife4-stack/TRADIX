@@ -41,3 +41,23 @@ The initial registry contains the five repositories visible in the connected Git
 - The workflow updates one GitHub issue titled `ECOSCAN — Latest Report`; incomplete sources are surfaced as warnings.
 - No product runtime, Gateway, EventStore, Railway service, or production infrastructure depends on this tool.
 - Disable scheduled runs by disabling the workflow. Remove the tool by removing this directory and its optional workflow/configuration; no source data is modified.
+
+
+## Manual scan scopes and controls
+
+Set `enabled: false` on a project entry to skip all of its sources, or on an individual source to skip only that source. Disabled entries are reported as `DISABLED` with unknown size, never as zero.
+
+Examples:
+
+```bash
+# Entire configured registry
+python -m tools.ecoscan --scope ecosystem
+
+# One project
+python -m tools.ecoscan --scope project --project NEXORA
+
+# One source only
+python -m tools.ecoscan --scope source --source nexora-github
+```
+
+Selectors are validated before scanning. Unknown IDs and invalid selector combinations stop the run.
