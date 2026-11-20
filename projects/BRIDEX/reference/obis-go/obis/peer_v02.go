@@ -155,6 +155,15 @@ func operationResponse(m map[string]any, peerID string, record OperationRecord) 
 }
 func nullableString(s string) any { if s == "" { return nil }; return s }
 
+func operationResourceRef(m map[string]any, capability OperationCapabilityV02) string {
+	if !capability.ResourceBinding { return "" }
+	resource,ok:=obj(m,"payload")
+	if !ok { resource,_=obj(m,"resource") }
+	projectID,_:=str(resource,"project_id")
+	sourceID,_:=str(resource,"source_id")
+	return projectID+"/"+sourceID
+}
+
 func (p *PeerV02) Handle(m map[string]any, keyID, signature string) (map[string]any, []byte, *Error) {
 	if e := validateV02Message(m,time.Now()); e != nil { return nil,nil,e }
 	credential,e := p.authenticate(m,keyID,signature); if e != nil { return nil,nil,e }
@@ -162,7 +171,8 @@ func (p *PeerV02) Handle(m map[string]any, keyID, signature string) (map[string]
 	messageType,_ := str(m,"message_type")
 	if messageType == "operation_status_request" {
 		operationID,_ := str(m,"operation_id")
-		record,err := p.Ledger.Get(operationID,credential.PeerID,credential.PrincipalRef,capability.ID,capability.Version)
+		resourceRef:=operationResourceRef(m,capability)
+		record,err := p.Ledger.GetForResource(operationID,credential.PeerID,credential.PrincipalRef,capability.ID,capability.Version,resourceRef)
 		if err != nil { return nil,nil,&Error{"operation.not_found","operation not found",404} }
 		return operationResponse(m,p.Peer.ID,record),credential.Secret,nil
 	}
@@ -176,7 +186,7 @@ func (p *PeerV02) Handle(m map[string]any, keyID, signature string) (map[string]
 	record,created,err := p.Ledger.Reserve(OperationRecord{
 		OperationID:opID,PeerID:credential.PeerID,PrincipalRef:credential.PrincipalRef,
 		CapabilityID:capability.ID,CapabilityVersion:capability.Version,
-		IdempotencyKeyHash:idemHash,RequestHash:expectedHash,ExpiresAt:opExpiry,
+		IdempotencyKeyHash:idemHash,RequestHash:expectedHash,ResourceRef:operationResourceRef(m,capability),ExpiresAt:opExpiry,
 	},float64(time.Now().Unix()))
 	if errors.Is(err,ErrIdempotencyConflict) { return nil,nil,&Error{"operation.idempotency_conflict","idempotency identity conflicts with an existing operation",409} }
 	if err != nil { return nil,nil,&Error{"operation.ledger_unavailable","operation ledger unavailable",503} }
