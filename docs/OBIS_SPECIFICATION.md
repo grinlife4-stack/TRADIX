@@ -350,7 +350,7 @@ The security design baseline is documented separately in [OBIS Threat Model](OBI
 
 The following are intentionally not frozen in version 0.1.0:
 - Exact identifier URI/namespace scheme.
-- Final JSON Schema dialect and canonical schema repository layout.
+- Normative schema package completeness, payload-schema registration, and runtime schema negotiation. The draft 0.1 artifact uses JSON Schema Draft 2020-12 at `standards/obis/0.1/message.schema.json`; see the decision register.
 - First production security profile and cryptographic suite.
 - First transport binding and its conformance suite.
 - Formal asynchronous operation lifecycle schema.
