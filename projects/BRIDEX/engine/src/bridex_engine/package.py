@@ -54,8 +54,8 @@ def build_package(root: str | Path, output: str | Path, *, max_package_bytes: in
         raise BridgeManifestError("package_output_must_be_outside_bridge_root")
     if output_path.exists() or output_path.is_symlink():
         raise BridgeManifestError("package_output_already_exists")
-    if not isinstance(max_package_bytes, int) or max_package_bytes < 1:
-        raise ValueError("max_package_bytes_must_be_positive")
+    if not isinstance(max_package_bytes, int) or not 1 <= max_package_bytes <= MAX_PACKAGE_BYTES:
+        raise ValueError("max_package_bytes_must_be_between_1_and_default_limit")
 
     source_files = [("bridge.json", root_path / "bridge.json")] + resolve_package_files(root_path, manifest)
     entries: list[tuple[str, bytes]] = []
@@ -114,6 +114,14 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
     path = Path(package_path)
     if not path.is_file() or path.is_symlink():
         raise BridgeManifestError("package_file_unavailable")
+    if not isinstance(max_package_bytes, int) or not 1 <= max_package_bytes <= MAX_PACKAGE_BYTES:
+        raise ValueError("max_package_bytes_must_be_between_1_and_default_limit")
+    try:
+        archive_size = path.stat().st_size
+    except OSError as exc:
+        raise BridgeManifestError("package_file_unavailable") from exc
+    if archive_size > max_package_bytes + 4 * 1024 * 1024:
+        raise BridgeManifestError("package_archive_size_limit_exceeded")
     try:
         archive = zipfile.ZipFile(path, "r")
     except (OSError, zipfile.BadZipFile) as exc:
@@ -143,6 +151,8 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
                 raise BridgeManifestError("package_non_regular_entry_rejected")
             if info.file_size > MAX_FILE_BYTES:
                 raise BridgeManifestError("package_file_size_limit_exceeded")
+            if info.filename in {"bridge.json", PACKAGE_MANIFEST} and info.file_size > 1_048_576:
+                raise BridgeManifestError("package_metadata_size_limit_exceeded")
             if info.file_size < 0:
                 raise BridgeManifestError("package_file_size_invalid")
         if PACKAGE_MANIFEST not in names or "bridge.json" not in names:
