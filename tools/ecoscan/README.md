@@ -65,7 +65,9 @@ Selectors are validated before scanning. Unknown IDs and invalid selector combin
 
 ### Railway volume metadata
 
-Set `provider` to `railway_volume`, supply a verified `volume_instance_id`, and provide `RAILWAY_API_TOKEN` at runtime. The adapter reports provisioned capacity and backup inventory metadata without reading volume contents. It does not report used filesystem bytes. Do not substitute a project-level volume ID for a volume-instance ID.
+Set `provider` to `railway_volume` and configure either a verified `volume_instance_id`, or `volume_id` plus `environment_id` for environment-scoped discovery. Prefer a Railway Project Token scoped to the exact environment and expose it to the ECOSCAN runner as `RAILWAY_PROJECT_TOKEN`; the adapter sends it using Railway's `Project-Access-Token` header. Account/workspace tokens can instead be supplied as `RAILWAY_API_TOKEN` and are sent as Bearer tokens. Set these in the local runner environment or GitHub Actions secrets, not in the monitored `artifact-gateway` service. Never commit them.
+
+The adapter reports provisioned capacity and backup inventory metadata without reading volume contents. It does not report used filesystem bytes. Environment-level `volumeInstances` discovery is mocked-tested but still requires live schema validation.
 
 
 ### S3-compatible object storage (B2 / R2 / S3 / Railway buckets)
