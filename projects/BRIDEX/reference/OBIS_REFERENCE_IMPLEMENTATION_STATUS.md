@@ -1,7 +1,7 @@
 # OBIS Reference Implementation — Execution Status
 
-**Status:** Executable development/conformance prototypes; bidirectional success, capability-error, and scope-denial paths verified  
-**OBIS target:** Draft 0.1.0; 0.2 operation lifecycle contract drafted, implementation pending  
+**Status:** Executable development/conformance prototypes; OBIS 0.2 operation lifecycle implemented in Python and Go reference peers; cross-language CI passing  
+**OBIS target:** Draft 0.2 development/conformance implementation; not a frozen production interoperability profile  
 **Implementations:** Standalone Python reference peer + independent Go peer  
 **Production approval:** Not approved
 
@@ -41,10 +41,10 @@ The canonical draft JSON Schema 2020-12 artifact is published at `standards/obis
 - Production identity issuance, asymmetric signing, trust-anchor management, key rotation, or revocation service.
 - A frozen, language-neutral production canonicalization/signature profile. The current HMAC implementation is a development/conformance binding, not a normative production profile.
 - Distributed replay protection and a durable business-operation idempotency/outcome ledger. The Python SQLite and Go file-backed guards persist nonce replay state for one owner-operated Bridge instance; neither reconciles unknown side-effect outcomes.
-- Asynchronous operation lifecycle execution and durable Operation Ledger integration. The versioned 0.2 contract and schema are drafted separately; neither Python nor Go peer is yet certified as 0.2-conformant.
+- Production worker orchestration and provider-specific reconciliation of unknown external side-effect outcomes. The 0.2 reference peers implement persistent operation reservation, idempotency-key conflict detection, status lookup, and conservative RUNNING-to-UNKNOWN recovery, but do not prove exactly-once execution at an external provider.
 - Production audit persistence and tamper-evident evidence.
 - Non-loopback transport binding.
-- Full cross-language positive/negative conformance matrix and combined ECOSCAN-to-Go-peer integration.
+- Full cross-language positive/negative conformance matrix across every malformed, replay, timeout, crash, and transport-failure combination. ECOSCAN-to-independent-Go-peer Loopback tests now exist in PR #67 for both the 0.1 adapter path and a test-only 0.2 invoker wrapper; ECOSCAN does not yet use the 0.2 client natively.
 
 ## Release gates before OBIS 1.0.0
 
@@ -57,7 +57,7 @@ The canonical draft JSON Schema 2020-12 artifact is published at `standards/obis
 7. Pass the full cross-implementation positive and negative conformance suite.
 8. Verify portable operation from a clean environment with TRADIX and BRIDEX unavailable.
 9. Complete threat-model review and security testing.
-10. Run the ECOSCAN adapter against both independently implemented peers in combined cross-project integration tests.
+10. Replace the test-only ECOSCAN 0.2 invoker wrapper with a native, deadline-aware OBIS 0.2 adapter contract; then verify real registered BRIDEX/TRADIX capabilities rather than synthetic owner-isolation fixtures.
 
 A passing local test suite proves only the implemented reference behavior. It does not establish production security or universal interoperability.
 
@@ -242,3 +242,25 @@ only. HMAC remains non-production. TLS/mTLS, production credential lifecycle,
 distributed replay, business-operation idempotency, durable audit, full
 cross-language conformance, and independent security review remain open.
 
+
+## OBIS 0.2 Python/Go operation lifecycle and owner isolation — 2026-11-20
+
+The Python and Go reference implementations now include the 0.2 operation lifecycle:
+
+- Python: OBISPeerV02, OBISV02Server, OBISV02Client, and SQLite-backed OperationLedger.
+- Go: PeerV02, loopback /obis/v0.2/messages handler, InvokeV02, GetOperationStatusV02, and a persistent file-backed operation ledger.
+- Both implementations use RFC 8785 JCS for the operation request-hash projection. Cross-language invoke tests exercise Python client → Go peer and Go client → Python peer; status lookup is exercised against the Go peer and the Go CLI can query a Python peer.
+- Operation records persist the resource identity. Resource-bound status lookups are scoped to the original project/source pair; a valid credential grant for another resource cannot retrieve the prior operation result.
+- Capability grants are explicit at peer, principal, scope, and resource levels. The Go tests use separate BRIDEX and TRADIX peer instances, credentials, resource grants, and ledger files to prove that credentials, results, and ledger entries do not cross owner boundaries. These are synthetic protocol fixtures only; they do not claim that BRIDEX Core or TRADIX currently exposes those business capabilities as live OBIS services.
+
+CI run 44806910217 completed successfully on PR #42 head 5bdd9dce0aa6cf918491e6e23875b70bf2b90661, including Go unit tests, Go binary build, and the full Python, BRIDEX Core, OBIS, and ECOSCAN test suite.
+
+## ECOSCAN independent Go-peer Loopback integration — 2026-11-20
+
+PR #67 now runs a separate Go peer process on loopback and tests the ECOSCAN inventory request against it:
+
+- OBIS 0.1 path: successful inventory response and denial of an ungranted project/source.
+- OBIS 0.2 path: a test-only adapter invoker wraps OBISV02Client, checks the operation state, and maps the authenticated operation result into ECOSCAN's current adapter contract. This is a conformance bridge for testing only, not an ECOSCAN runtime dependency.
+- The standalone workflow pins the BRIDEX Go/Python reference implementation to commit 698f369f2910a0180f9359c8e0c49b3d082f9315, builds the Go binary, and runs the tests without deploying or contacting an external provider.
+
+PR #67 standalone CI run 44806912276 completed successfully with 74 passed; its companion test workflow 44806912157 also completed successfully. PR #67 remains Draft and unmerged.
