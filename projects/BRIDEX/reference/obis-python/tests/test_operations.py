@@ -125,3 +125,11 @@ def test_operation_result_must_be_json_and_exactly_one_result_form(tmp_path):
         store.transition("op-1", "SUCCEEDED", result={"ok": True}, result_ref="ref")
     with pytest.raises(ValueError):
         store.transition("op-1", "SUCCEEDED", result={"bad": float("nan")})
+
+
+def test_running_operation_cannot_be_marked_expired_without_reconciliation(tmp_path):
+    store = ledger(tmp_path)
+    reserve(store)
+    store.transition("op-1", "RUNNING", now=1001)
+    with pytest.raises(InvalidOperationTransition):
+        store.transition("op-1", "EXPIRED", now=1002)

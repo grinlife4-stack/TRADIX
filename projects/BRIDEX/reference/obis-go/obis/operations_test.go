@@ -94,3 +94,16 @@ func TestFileOperationLedgerStatusIsIdentityScoped(t *testing.T) {
 		t.Fatalf("expected scoped not-found, got %v",err)
 	}
 }
+
+
+func TestFileOperationLedgerRejectsInvalidIdempotencyHash(t *testing.T) {
+	ledger := newTestOperationLedger(t)
+	_, _, err := ledger.Reserve(OperationRecord{
+		OperationID:"op-bad", PeerID:"peer:caller", PrincipalRef:"principal:caller",
+		CapabilityID:"records.write", CapabilityVersion:"1.0",
+		IdempotencyKeyHash:"not-a-hash",
+		RequestHash:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		ExpiresAt:float64(time.Now().Add(time.Minute).Unix()),
+	}, float64(time.Now().Unix()))
+	if err == nil { t.Fatal("expected invalid idempotency hash to be rejected") }
+}
