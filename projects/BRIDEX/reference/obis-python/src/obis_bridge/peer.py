@@ -11,11 +11,15 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import http.client
 import json
 import math
 import secrets
+import socket
+import ssl
 import threading
 import time
+import uuid
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -30,6 +34,52 @@ MESSAGE_PATH = "/obis/v0.1/messages"
 MAX_MESSAGE_BYTES = 64 * 1024
 MAX_TTL_SECONDS = 60
 CLOCK_SKEW_SECONDS = 30
+TLS_PROFILE_ID = "OBIS-TLS-MTLS-1"
+_OBIS_PEER_URI_PREFIX = "urn:obis:peer:"
+
+def _validate_obis_peer_uri(value: str) -> str:
+    if not isinstance(value, str) or not value.startswith(_OBIS_PEER_URI_PREFIX):
+        raise ValueError("OBIS TLS peer identity must use urn:obis:peer:<UUID>")
+    suffix = value[len(_OBIS_PEER_URI_PREFIX):]
+    try:
+        parsed = uuid.UUID(suffix)
+    except (ValueError, AttributeError) as exc:
+        raise ValueError("OBIS TLS peer identity must contain a UUID") from exc
+    if str(parsed) != suffix.lower():
+        raise ValueError("OBIS TLS peer UUID must use canonical lowercase form")
+    return value
+
+
+def _certificate_peer_uri(certificate: dict[str, Any]) -> str:
+    if not isinstance(certificate, dict):
+        raise OBISRequestError("identity.certificate_invalid", "peer certificate is unavailable", 401)
+    subject_alt_name = certificate.get("subjectAltName", ())
+    uris = [value for kind, value in subject_alt_name if kind == "URI"]
+    if len(uris) != 1:
+        raise OBISRequestError("identity.certificate_invalid", "certificate must contain exactly one OBIS peer URI SAN", 401)
+    try:
+        return _validate_obis_peer_uri(uris[0])
+    except ValueError as exc:
+        raise OBISRequestError("identity.certificate_invalid", "certificate OBIS peer URI SAN is invalid", 401) from exc
+
+
+def _validate_tls_client_context(context: ssl.SSLContext) -> None:
+    if not isinstance(context, ssl.SSLContext):
+        raise ValueError("TLS client requires an ssl.SSLContext")
+    if context.verify_mode != ssl.CERT_REQUIRED or context.check_hostname is not True:
+        raise ValueError("OBIS TLS client must verify certificate chains and endpoint hostnames")
+    if context.minimum_version != ssl.TLSVersion.TLSv1_3 or context.maximum_version != ssl.TLSVersion.TLSv1_3:
+        raise ValueError("OBIS TLS profile requires TLS 1.3 only")
+
+
+def _validate_tls_server_context(context: ssl.SSLContext) -> None:
+    if not isinstance(context, ssl.SSLContext):
+        raise ValueError("TLS server requires an ssl.SSLContext")
+    if context.verify_mode != ssl.CERT_REQUIRED:
+        raise ValueError("OBIS mTLS server must require client certificates")
+    if context.minimum_version != ssl.TLSVersion.TLSv1_3 or context.maximum_version != ssl.TLSVersion.TLSv1_3:
+        raise ValueError("OBIS TLS profile requires TLS 1.3 only")
+
 
 
 class OBISRequestError(Exception):
@@ -53,15 +103,30 @@ class Credential:
     key_id: str
     peer_id: str
     principal_ref: str
-    secret: bytes = field(repr=False)
+    secret: bytes | None = field(repr=False)
     allowed_scopes: frozenset[str]
     allowed_resources: frozenset[tuple[str, str]] = field(default_factory=frozenset)
+    certificate_uri: str | None = None
+    certificate_sha256: str | None = None
 
     def __post_init__(self) -> None:
         if not self.key_id or not self.peer_id or not self.principal_ref:
             raise ValueError("credential identifiers must be non-empty")
-        if not isinstance(self.secret, bytes) or len(self.secret) < 32:
-            raise ValueError("reference-profile secret must be bytes of at least 32 bytes")
+        if self.certificate_uri is None:
+            if self.certificate_sha256 is not None:
+                raise ValueError("certificate fingerprint requires a certificate URI")
+            if not isinstance(self.secret, bytes) or len(self.secret) < 32:
+                raise ValueError("HMAC development credential secret must be bytes of at least 32 bytes")
+        else:
+            _validate_obis_peer_uri(self.certificate_uri)
+            if self.secret is not None:
+                raise ValueError("mTLS credentials must not carry an HMAC shared secret")
+            if (
+                not isinstance(self.certificate_sha256, str)
+                or len(self.certificate_sha256) != 64
+                or any(ch not in "0123456789abcdef" for ch in self.certificate_sha256)
+            ):
+                raise ValueError("mTLS credential requires a lowercase SHA-256 certificate fingerprint")
         if not self.allowed_scopes or not all(isinstance(s, str) and s for s in self.allowed_scopes):
             raise ValueError("credential must have explicit non-empty string scopes")
         object.__setattr__(self, "allowed_scopes", frozenset(self.allowed_scopes))
