@@ -331,6 +331,27 @@ def test_railway_volume_requires_instance_or_volume_environment_and_token():
     assert missing_token["logical_bytes"] is None
 
 
+def test_railway_graphql_uses_project_access_token_header(monkeypatch):
+    monkeypatch.setenv("RAILWAY_PROJECT_TOKEN", "project-token")
+    captured = {}
+    class FakeResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self):
+            return b'{"data":{"projectToken":{"projectId":"project-1","environmentId":"env-1"}}}'
+    def fake_urlopen(request, timeout):
+        captured["request"] = request
+        return FakeResponse()
+    monkeypatch.setattr(monitor.urllib.request, "urlopen", fake_urlopen)
+    data = monitor._railway_graphql("query { projectToken { projectId environmentId } }", {}, "project-token")
+    request = captured["request"]
+    assert request.get_header("Project-access-token") == "project-token"
+    assert request.get_header("Authorization") is None
+    assert data["projectToken"]["environmentId"] == "env-1"
+
+
 def test_railway_graphql_errors_fail_closed(monkeypatch):
     class FakeResponse:
         def __enter__(self):
