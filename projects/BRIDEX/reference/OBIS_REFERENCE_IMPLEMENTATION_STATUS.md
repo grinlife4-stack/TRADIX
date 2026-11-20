@@ -83,7 +83,7 @@ A second-language peer has been added at `projects/BRIDEX/reference/obis-go`. It
 
 - Go unit tests consume the shared OBIS request vectors.
 - CI run #1100 completed successfully for commit `1848b42dc9dd209ebe71bea8562185d5507f6533`, including Go tests/build and a Python reference client calling the Go peer and validating its signed response.
-- A reverse-direction Go client → Python peer integration test is now included; CI run #1108 is pending at the time of this note.
+- A reverse-direction Go client → Python peer integration test is included. CI run #1119 completed successfully on commit `2e06ad11b54e71298d006edbd28168b5fadb4b82`, covering both directions, Go unit tests/build, the Python suite, and package wheel/install checks.
 
 This is early cross-implementation evidence, not full OBIS Interoperability Conformance. The Go implementation does not yet provide production TLS/mTLS, authenticated error-response parity, durable replay, business-operation idempotency/outcome reconciliation, audit persistence, or complete security-profile conformance. HMAC remains development-only.
 
