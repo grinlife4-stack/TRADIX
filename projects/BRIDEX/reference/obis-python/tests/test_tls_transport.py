@@ -252,3 +252,19 @@ def test_mtls_credential_revocation_blocks_subsequent_requests(tmp_path: Path) -
     with OBISServer(peer, tls_context=server_tls) as server:
         with pytest.raises(OBISRequestError):
             client.invoke(server.address, ECHO_CAPABILITY, ECHO_VERSION, {"value": "blocked"})
+
+
+
+def test_mtls_rejects_connection_without_obis_alpn(tmp_path: Path) -> None:
+    peer, server_tls, _, _, _, ca_path, client_cert, client_key = make_pair(tmp_path)
+    context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=str(ca_path))
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+    context.maximum_version = ssl.TLSVersion.TLSv1_3
+    context.load_cert_chain(str(client_cert), str(client_key))
+    client = OBISClient(
+        CLIENT_URI, SERVER_URI, "client-certificate-1", "principal:client", None,
+        {"echo:read"}, tls_context=context
+    )
+    with OBISServer(peer, tls_context=server_tls) as server:
+        with pytest.raises(OBISRequestError, match="ALPN protocol"):
+            client.invoke(server.address, ECHO_CAPABILITY, ECHO_VERSION, {"value": "blocked"})
