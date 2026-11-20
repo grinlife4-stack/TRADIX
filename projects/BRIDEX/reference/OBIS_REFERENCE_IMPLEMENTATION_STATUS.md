@@ -10,7 +10,8 @@
 - [x] Standalone installable package with no TRADIX/BRIDEX runtime imports.
 - [x] CI wheel-build and isolated-target install smoke test, including packaged schema presence.
 - [x] Direct peer-to-peer request/response over loopback HTTP.
-- [x] Protocol/version, strict envelope-field, payload-size, and TTL validation.
+- [x] Protocol/version, strict request and response envelope-field, payload-size, and TTL validation.
+- [x] Authenticated response object/type, peer-reference, correlation, timestamp, and structured-error validation.
 - [x] Explicit credential-to-peer and credential-to-principal binding.
 - [x] HMAC-SHA256 request and response integrity for local tests.
 - [x] Capability registration and receiver-side scope authorization.
