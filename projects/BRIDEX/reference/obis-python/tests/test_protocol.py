@@ -623,3 +623,36 @@ def test_replay_storage_failure_fails_closed_before_capability_execution():
     assert exc.value.code == "replay.storage_unavailable"
     assert exc.value.http_status == 503
     assert executed == []
+
+
+def test_independent_go_peer_accepts_python_reference_client():
+    import os
+    import subprocess
+    binary = os.environ.get("OBIS_GO_PEER_BINARY")
+    if not binary:
+        pytest.skip("Go peer integration binary is not configured in this environment")
+    process = subprocess.Popen(
+        [binary, "--peer-id=peer:go", "--listen=127.0.0.1:0", "--key-id=go-key",
+         "--remote-peer=peer:python", "--principal=principal:python",
+         "--secret-hex=" + SECRET.hex(), "--scopes=records:read"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    try:
+        assert process.stdout is not None
+        address = process.stdout.readline().strip()
+        if not address:
+            stderr = process.stderr.read() if process.stderr else ""
+            pytest.fail(f"Go peer did not start: {stderr}")
+        client = OBISClient(
+            local_peer_id="peer:python", remote_peer_id="peer:go", key_id="go-key",
+            principal_ref="principal:python", secret=SECRET, scopes={"records:read"},
+        )
+        response = client.invoke(
+            "http://" + address, "records.read", "1.0", {"record_id": "record-123"},
+        )
+        assert response["sender"]["peer_id"] == "peer:go"
+        assert response["recipient"]["peer_id"] == "peer:python"
+        assert response["result"] == {"record_id": "record-123", "served_by": "go-peer"}
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
