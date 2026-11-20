@@ -115,7 +115,6 @@ func serveV02(args []string) {
 	fmt.Println(listener.Addr().String())
 	server:=&http.Server{Handler:p02.HandlerV02(),ReadHeaderTimeout:2*time.Second,ReadTimeout:5*time.Second,WriteTimeout:5*time.Second,IdleTimeout:15*time.Second,MaxHeaderBytes:16*1024}
 	if err=server.Serve(listener);err!=nil{log.Fatal(err)}
-	_ = filepath.Separator
 }
 
 func invokeV02(args []string) {
