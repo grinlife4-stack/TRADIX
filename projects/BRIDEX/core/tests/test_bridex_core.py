@@ -83,6 +83,9 @@ def test_generator_creates_independent_draft_project(tmp_path: Path) -> None:
     assert data["capabilities"] == []
     assert not (root / ".env").exists()
     assert (root / "src" / "nexora_catalog_bridge" / "__init__.py").is_file()
+    assert (root / "src" / "obis_bridge" / "peer.py").is_file()
+    assert (root / "src" / "obis_bridge" / "schemas" / "message.schema.json").is_file()
+    assert (root / "pyproject.toml").is_file()
 
 
 def test_generator_refuses_to_overwrite_existing_destination(tmp_path: Path) -> None:
@@ -155,3 +158,14 @@ def test_package_rejects_symlink_output_path(tmp_path: Path) -> None:
     with pytest.raises(PackageError, match="package_output_symlink_not_allowed"):
         package_bridge(root, link)
     assert actual.read_bytes() == b"do-not-overwrite"
+
+
+def test_vendored_obis_template_matches_standalone_reference() -> None:
+    repository = Path(__file__).parents[4]
+    core = Path(__file__).parents[1]
+    reference = repository / "projects" / "BRIDEX" / "reference" / "obis-python" / "src" / "obis_bridge"
+    template = core / "src" / "bridex_core" / "templates" / "obis_bridge"
+    assert (template / "peer.py").read_bytes() == (reference / "peer.py").read_bytes()
+    assert (template / "schemas" / "message.schema.json").read_bytes() == (
+        reference / "schemas" / "message.schema.json"
+    ).read_bytes()
