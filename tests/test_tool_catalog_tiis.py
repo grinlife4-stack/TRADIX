@@ -54,7 +54,7 @@ def policy(sender, recipient, interface_id, action, message_type):
         and dict(recipient) == CATALOG
         and interface_id == "tool.catalog"
         and message_type == "request"
-        and action in {"tool.get", "tool.list", "tool.delete"}
+        and action in {"tool.get", "tool.list"}
     )
 
 
