@@ -54,7 +54,7 @@ A production candidate must provide:
 
 - A standalone Go OBIS 0.1 peer exists at `projects/BRIDEX/reference/obis-go`, using the Go standard library and its own Go module/tests.
 - The Go peer has an opt-in TLS 1.3 mTLS candidate using `crypto/tls` and `crypto/x509`, requiring client certificates, ALPN http/1.1, and a single URI SAN mapped to the OBIS sender identity.
-- Python client ↔ Go server mTLS request/response and Python server mTLS tests pass with ephemeral certificates; both implementations also pass the shared HMAC development-profile vector.
+- Python client ↔ Go server and Go client ↔ Python server mTLS request/response and Python server mTLS tests pass with ephemeral certificates; both implementations also pass the shared HMAC development-profile vector.
 - The Go peer does not import or execute the Python reference.
 - Separate maintainer assignment, independent CI ownership, certificate lifecycle/revocation, trust-bundle freshness, and the full shared negative/security suite remain open.
 - The HMAC profile remains development-only. TLS 1.3 mTLS is a candidate implementation pending owner approval and independent security review.
