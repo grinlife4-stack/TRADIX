@@ -15,6 +15,9 @@
 - [x] Explicit credential-to-peer and credential-to-principal binding.
 - [x] HMAC-SHA256 request and response integrity for local tests.
 - [x] Capability registration and receiver-side scope authorization.
+- [x] Optional resource-bound capabilities with per-credential project/source allowlists, checked before the capability handler runs.
+- [x] ECOSCAN read-only inventory capability `ecoscan.inventory.read@1.0` with strict payload/result validation.
+- [x] Loopback HTTP integration tests for a successful ECOSCAN inventory request and denial of an ungranted project/source before provider invocation.
 - [x] Client-side scope narrowing prevents requests beyond the configured local grant.
 - [x] Capability result JSON serializability and response-size bounds.
 - [x] Loopback URL restrictions and finite positive client timeout.
@@ -49,5 +52,20 @@ The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/messa
 7. Pass cross-implementation positive and negative conformance suites.
 8. Verify portable operation from a clean environment with TRADIX and BRIDEX unavailable.
 9. Complete threat-model review and security testing.
+10. Run the ECOSCAN adapter against this BRIDEX loopback peer in a combined cross-project integration test; the current two projects test their adapter and peer halves independently.
 
 A passing local test suite proves only the implemented reference behavior. It does not establish production security or universal interoperability.
+
+
+## Latest combined branch verification
+
+The current combined BRIDEX/TIIS/OBIS work is in Draft PR #72 at head `3c3168f0448fb6ab126f4c3aac2faa6b2d8f2779`.
+
+- GitHub Actions run `44734649269` completed successfully.
+- 118 Python tests passed, including the credential-bound ECOSCAN inventory capability and its resource-grant checks.
+- Go OBIS reference unit tests passed.
+- Python OBIS client ↔ Go OBIS peer loopback HTTP request/response passed.
+- BRIDEX Core generated an independent Bridge project; manifest validation, vendored OBIS schema presence, and generated-project wheel build passed.
+- TRADIX, OBIS Python, ECOSCAN, and BRIDEX Core wheels built and were installed into isolated targets; packaged schema checks passed.
+
+The combined ECOSCAN adapter-to-BRIDEX OBIS wire test remains intentionally deferred. The ECOSCAN adapter and BRIDEX provider capability are not yet joined into a live cross-project integration. No production endpoint, non-loopback listener, production credential, deployment, or production security profile has been used.

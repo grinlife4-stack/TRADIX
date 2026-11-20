@@ -11,6 +11,9 @@ The canonical draft schema is published independently at [standards/obis/0.1/mes
 - Peer/principal binding to an explicitly configured credential.
 - HMAC-SHA256 message and response integrity for the local conformance profile.
 - Explicit capability registration and least-privilege scope checks.
+- Optional credential-bound resource grants for capabilities that must be restricted to explicit project/source pairs.
+- ECOSCAN read-only inventory capability registration with strict schema and measurement bounds.
+- Loopback HTTP tests for a valid ECOSCAN inventory request and rejection of a project/source outside the credential grant before the provider handler runs.
 - Expiry, maximum TTL, payload-size limits, and in-memory nonce replay rejection.
 - Correlated and signed responses.
 - Negative tests for spoofing, unknown credentials, excess scopes, replay, expiry, unsupported versions, unknown capabilities, and oversized payloads.
@@ -24,6 +27,10 @@ cd projects/BRIDEX/reference/obis-python
 python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
+
+## ECOSCAN inventory capability
+
+The optional `register_ecoscan_inventory_capability` helper registers `ecoscan.inventory.read@1.0`. Each credential must carry an explicit `allowed_resources=frozenset({(project_id, source_id)})` grant. The OBIS peer checks this binding after authentication and scope authorization but before invoking the provider handler. The provider callback is responsible for metadata-only reads and must not modify the connected project.
 
 ## Minimal two-peer example
 

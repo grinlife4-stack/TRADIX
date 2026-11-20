@@ -1,7 +1,7 @@
 # BRIDEX — Architecture and Engineering Boundaries
 
 **Document ID:** BRIDEX-ARCH-001  
-**Status:** Architecture baseline / implementation pending  
+**Status:** Architecture baseline / partial implementation (BRIDEX Core generator 0.1 and OBIS Python reference peer)  
 **Version:** 0.1.0  
 **Authority:** Project owner  
 **Scope:** BRIDEX project and every Bridge tool generated or maintained under its method
@@ -43,6 +43,10 @@ Each generated instance is an independently deployable product containing:
 - Exportable configuration and operational documentation.
 
 A Bridge may expose approved capabilities and consume approved capabilities from peers. It must not assume a single direction or a central hub.
+
+### B1. Implemented BRIDEX Core generator 0.1
+
+The first engineering-plane package is implemented as an independent, dependency-free Python distribution under `projects/BRIDEX/core`. It generates a draft Bridge project with explicit owner/operator assignment references, strict OBIS/version metadata, disabled-by-default peers and capabilities, manifest validation, a vendored standalone OBIS 0.1 development peer, and deterministic allowlisted ZIP packaging. The generated source includes its own build metadata and schema. The vendored peer remains loopback/HMAC development-only; the generator does not execute generated code, provision credentials, or establish peer trust.
 
 ### C. Connected peer
 

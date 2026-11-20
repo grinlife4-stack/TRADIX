@@ -20,12 +20,26 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
+      - run: python -m pip install -e "projects/BRIDEX/core"
       - run: python -m pip install -e "projects/BRIDEX/reference/obis-python[dev]"
       - run: python -m pip install -e "projects/ECOSCAN[dev]"
-      - run: python -m pytest -q tests projects/BRIDEX/reference/obis-python/tests projects/ECOSCAN/tests
+      - run: go test ./...
+        working-directory: projects/BRIDEX/reference/obis-go
+      - run: python -m pytest -q tests projects/BRIDEX/core/tests projects/BRIDEX/reference/obis-python/tests projects/ECOSCAN/tests
+      - run: python -m pip wheel --no-deps --wheel-dir /tmp/tradix-wheel .
+      - run: python -m pip install --no-deps --target /tmp/tradix-install /tmp/tradix-wheel/*.whl
+      - run: PYTHONPATH=/tmp/tradix-install python -c "from importlib.resources import files; assert files('tradix.tiis').joinpath('schemas/message.schema.json').is_file()"
       - run: python -m pip wheel --no-deps --wheel-dir /tmp/obis-wheel projects/BRIDEX/reference/obis-python
       - run: python -m pip install --no-deps --target /tmp/obis-install /tmp/obis-wheel/*.whl
       - run: PYTHONPATH=/tmp/obis-install python -c "from importlib.resources import files; assert files('obis_bridge').joinpath('schemas/message.schema.json').is_file()"
       - run: python -m pip wheel --no-deps --wheel-dir /tmp/ecoscan-wheel projects/ECOSCAN
       - run: python -m pip install --no-deps --target /tmp/ecoscan-install /tmp/ecoscan-wheel/*.whl
       - run: PYTHONPATH=/tmp/ecoscan-install python -c "from importlib.resources import files; assert files('ecoscan').joinpath('schemas/source-registry.schema.json').is_file()"
+
+      - run: python -m pip wheel --no-deps --wheel-dir /tmp/bridex-wheel projects/BRIDEX/core
+      - run: python -m pip install --no-deps --target /tmp/bridex-install /tmp/bridex-wheel/*.whl
+      - run: PYTHONPATH=/tmp/bridex-install python -c "from bridex_core import __version__; assert __version__ == '0.1.0'"
+      - run: PYTHONPATH=/tmp/bridex-install python -c "from importlib.resources import files; assert files('bridex_core.templates.obis_bridge').joinpath('schemas/message.schema.json').is_file()"
+      - run: bridex init --path /tmp/generated-bridge --bridge-id ci-example-bridge --name "CI Example Bridge" --owner-id ci-owner --owner-assignment-ref decision:ci-owner --operator-id ci-operator --operator-assignment-ref decision:ci-operator
+      - run: bridex validate /tmp/generated-bridge
+      - run: python -m pip wheel --no-deps --wheel-dir /tmp/generated-bridge-wheel /tmp/generated-bridge

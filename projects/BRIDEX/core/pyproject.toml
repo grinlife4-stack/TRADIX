@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bridex-core"
+version = "0.1.0"
+description = "Standalone BRIDEX Bridge project generator and package validator"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+bridex = "bridex_core.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"bridex_core.templates.obis_bridge" = ["schemas/*.json"]
