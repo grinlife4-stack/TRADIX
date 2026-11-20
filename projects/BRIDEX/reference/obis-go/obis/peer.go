@@ -5,6 +5,7 @@ package obis
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -14,6 +15,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -179,6 +181,66 @@ func (p *Peer) Handler() http.Handler {
 		sig,_:=Sign(response,secret);w.Header().Set("Content-Type","application/obis+json");w.Header().Set("X-OBIS-Signature",sig);w.WriteHeader(200);_,_=w.Write(body)
 	})
 }
+
+func ValidateSuccessResponse(m map[string]any, requestID, localPeerID, remotePeerID string) error {
+	if !exactKeys(m,"protocol","version","message_type","message_id","correlation_id","sender","recipient","issued_at","outcome","result") {
+		return errors.New("response has unknown or missing fields")
+	}
+	for k,want:=range map[string]string{"protocol":Protocol,"version":Version,"message_type":"response","outcome":"succeeded"} {
+		got,_:=str(m,k); if got!=want{return errors.New("unexpected response protocol, type, or outcome")}
+	}
+	messageID,_:=str(m,"message_id"); correlation,_:=str(m,"correlation_id")
+	if messageID==""||correlation!=requestID{return errors.New("response correlation mismatch")}
+	sender,ok1:=obj(m,"sender");recipient,ok2:=obj(m,"recipient")
+	if !ok1||!ok2||!exactKeys(sender,"peer_id")||!exactKeys(recipient,"peer_id"){return errors.New("invalid response peer references")}
+	senderID,_:=str(sender,"peer_id");recipientID,_:=str(recipient,"peer_id")
+	if senderID!=remotePeerID||recipientID!=localPeerID{return errors.New("response peer identity mismatch")}
+	if _,ok:=number(m,"issued_at");!ok{return errors.New("invalid response timestamp")}
+	if _,ok:=obj(m,"result");!ok{return errors.New("response result must be an object")}
+	return nil
+}
+
+// Invoke sends a request directly to one explicitly configured loopback peer.
+// It implements only the local development HMAC binding.
+func Invoke(endpoint, localPeerID, remotePeerID, keyID, principal string, secret []byte, scopes []string, capabilityID, capabilityVersion string, payload map[string]any) (map[string]any,error) {
+	if localPeerID==""||remotePeerID==""||keyID==""||principal==""||len(secret)<32||len(scopes)==0||capabilityID==""||capabilityVersion==""||payload==nil {
+		return nil,errors.New("peer, principal, key, secret, scopes, capability, and payload are required")
+	}
+	u,err:=url.Parse(endpoint);if err!=nil{return nil,err}
+	ip:=net.ParseIP(u.Hostname())
+	if u.Scheme!="http"||u.User!=nil||u.RawQuery!=""||u.Fragment!=""||(u.Path!=""&&u.Path!="/")||(u.Hostname()!="localhost"&&(ip==nil||!ip.IsLoopback())) {
+		return nil,errors.New("development client accepts only a bare loopback HTTP endpoint")
+	}
+	scopeSet:=map[string]bool{}
+	for _,scope:=range scopes{if scope==""||scopeSet[scope]{return nil,errors.New("scopes must be unique non-empty strings")};scopeSet[scope]=true}
+	sort.Strings(scopes)
+	idBytes:=make([]byte,18);nonceBytes:=make([]byte,24)
+	if _,err=rand.Read(idBytes);err!=nil{return nil,err};if _,err=rand.Read(nonceBytes);err!=nil{return nil,err}
+	issued:=float64(time.Now().UnixNano())/1e9
+	message:=map[string]any{
+		"protocol":Protocol,"version":Version,"message_type":"request",
+		"message_id":hex.EncodeToString(idBytes),"nonce":hex.EncodeToString(nonceBytes),
+		"sender":map[string]any{"peer_id":localPeerID},"recipient":map[string]any{"peer_id":remotePeerID},
+		"issued_at":issued,"expires_at":issued+MaxTTLSeconds,
+		"capability":map[string]any{"id":capabilityID,"version":capabilityVersion},
+		"authorization":map[string]any{"principal_ref":principal,"scopes":scopes},"payload":payload,
+	}
+	body,err:=CanonicalJSON(message);if err!=nil{return nil,err}
+	signature,err:=Sign(message,secret);if err!=nil{return nil,err}
+	req,err:=http.NewRequest(http.MethodPost,strings.TrimRight(endpoint,"/")+MessagePath,bytes.NewReader(body));if err!=nil{return nil,err}
+	req.Header.Set("Content-Type","application/obis+json");req.Header.Set("X-OBIS-Key-Id",keyID);req.Header.Set("X-OBIS-Signature",signature)
+	client:=&http.Client{Timeout:3*time.Second}
+	resp,err:=client.Do(req);if err!=nil{return nil,err};defer resp.Body.Close()
+	responseBody,err:=io.ReadAll(io.LimitReader(resp.Body,MaxMessageBytes+1));if err!=nil{return nil,err}
+	if len(responseBody)>MaxMessageBytes{return nil,errors.New("response exceeds message size limit")}
+	if resp.StatusCode!=http.StatusOK{return nil,fmt.Errorf("peer returned HTTP %d",resp.StatusCode)}
+	if resp.Header.Get("Content-Type")!="application/obis+json"{return nil,errors.New("unexpected response content type")}
+	response,err:=DecodeStrict(responseBody);if err!=nil{return nil,err}
+	if !Verify(response,secret,resp.Header.Get("X-OBIS-Signature")){return nil,errors.New("response signature verification failed")}
+	if err=ValidateSuccessResponse(response,message["message_id"].(string),localPeerID,remotePeerID);err!=nil{return nil,err}
+	return response,nil
+}
+
 func ListenLoopback(addr string,h http.Handler)(net.Listener,error){
 	host,_,err:=net.SplitHostPort(addr);if err!=nil{return nil,err}
 	ip:=net.ParseIP(host);if host!="localhost"&&(ip==nil||!ip.IsLoopback()){return nil,errors.New("development peer is loopback-only")}
