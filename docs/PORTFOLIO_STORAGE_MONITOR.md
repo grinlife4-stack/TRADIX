@@ -23,9 +23,11 @@ The project registry is extensible and must not be hard-coded to a fixed list. I
 - EXVARLI
 - AAECN
 - Trading Intelligence Platform
+- X Financial System
+- XENORA AI
 - Other projects added through an explicit registry entry
 
-Each project is a separate measurement boundary. A project may contain multiple systems, repositories, document stores, object-storage buckets, local disks, archives, and backup locations. Each source must be separately identified and authorized.
+Each project is a separate measurement boundary. A project may contain multiple systems, repositories, document stores, object-storage buckets, local disks, archives, and backup locations. Each source must be separately identified and authorized. Where multiple projects share one repository, path-scoped sources must split the project folders and exclude those same paths from the repository-level source so the same blob is not counted twice.
 
 The registry stores references and measurement rules only. It must not copy project secrets, credentials, private files, financial records, or business data into a shared central store.
 
@@ -150,6 +152,7 @@ Until these gates pass, status must remain PROPOSED or IMPLEMENTATION-IN-PROGRES
 
 The first implementation now includes:
 - GitHub repository metadata and recursive Git-tree inventory.
+- Path-scoped GitHub scans so embedded NEXORA, MegaMarket, and EXVARLI folders are attributed to their own project records and excluded from the TRADIX core subtotal.
 - Read-only local-directory metadata scanning for explicitly configured paths.
 - Independent per-source results and project-level aggregation.
 - COMPLETE, EMPTY, PARTIAL, NOT_CONFIGURED, NOT_AUTHORIZED_OR_NOT_FOUND, RATE_LIMITED, and FAILED source states.
@@ -177,4 +180,4 @@ These are current checked-out Git tree blob sizes, not total repository history,
 
 The connected Railway account exposed one workspace, one project (`TRADIX Artifact Gateway Staging`), one service (`artifact-gateway`), one 500 MB volume mounted at `/data`, and no buckets. The latest known deployment was SUCCESS. Railway's service-level disk metric reported approximately 0.0322 GB at the latest sample, but this is not verified as volume consumption and must not be used as such. No Railway volume-content inventory adapter is implemented.
 
-The current registry also lists MegaMarket, EXVARLI, AAECN, XENORA AI, and the Trading Intelligence Platform as portfolio projects. Only the sources explicitly mapped in the registry are measured; projects without configured sources remain NOT_REGISTERED, so the portfolio total is deliberately marked INCOMPLETE.
+The current registry also lists MegaMarket, EXVARLI, AAECN, X Financial System, XENORA AI, and the Trading Intelligence Platform as portfolio projects. Only the sources explicitly mapped in the registry are measured; projects without configured sources remain NOT_REGISTERED, so the portfolio total is deliberately marked INCOMPLETE.
