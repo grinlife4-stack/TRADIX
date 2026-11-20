@@ -40,13 +40,12 @@ def test_all_ecoscan_01_schemas_are_valid_json_schema_documents() -> None:
         load_schema(name)
 
 
-def test_source_registry_accepts_opaque_credential_reference_and_rejects_unknown_secret_fields() -> None:
+def test_project_registry_accepts_multiple_sources_and_opaque_credential_references() -> None:
     source = {
-        "schema_version": "0.1",
-        "project_id": "project-a",
         "source_id": "b2-main",
         "owner_id": "owner-a",
         "operator_id": "operator-a",
+        "subsystem_id": "storage",
         "source_type": "s3-compatible",
         "locator": "b2://project-a/main",
         "adapter_id": "backblaze-b2",
@@ -65,12 +64,29 @@ def test_source_registry_accepts_opaque_credential_reference_and_rejects_unknown
         "created_at": "2026-11-20T09:00:00Z",
         "updated_at": "2026-11-20T09:00:00Z",
     }
-    assert_valid("source-registry.schema.json", source)
+    registry = {"schema_version": "0.1", "project_id": "project-a", "sources": [source]}
+    assert_valid("source-registry.schema.json", registry)
+    second = {**source, "source_id": "b2-archive", "subsystem_id": "backups"}
+    assert_valid(
+        "source-registry.schema.json",
+        {**registry, "sources": [source, second]},
+    )
+    assert_valid(
+        "source-registry.schema.json",
+        {"schema_version": "0.1", "project_id": "project-a", "sources": []},
+    )
     assert_invalid(
         "source-registry.schema.json",
-        {**source, "application_key": "must-never-be-stored"},
+        {**registry, "sources": [{**source, "application_key": "must-never-be-stored"}]},
     )
-    assert_invalid("source-registry.schema.json", {**source, "credential_ref": ""})
+    assert_invalid(
+        "source-registry.schema.json",
+        {**registry, "sources": [{**source, "credential_ref": ""}]},
+    )
+    assert_invalid(
+        "source-registry.schema.json",
+        {**registry, "sources": [{**source, "subsystem_id": "../other-project"}]},
+    )
 
 
 def test_measurement_schema_preserves_semantics_and_rejects_negative_values() -> None:
