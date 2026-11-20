@@ -6,6 +6,7 @@
 **System type:** Independent portfolio-wide monitoring tool built by TRADIX  
 **Canonical location:** `grinlife4-stack/TRADIX/docs/tools/ECOSCAN_SPEC.md`
 **Ready-made capability audit:** [ECOSCAN Ready-Made Capability Audit](ECOSCAN_READY_MADE_CAPABILITY_AUDIT.md) (2026-11-20)
+**Implementation plan:** [ECOSCAN Implementation Plan and MVP Boundary](ECOSCAN_IMPLEMENTATION_PLAN.md) (proposed; no implementation or runtime authorization implied)
 
 ## 1. Purpose and identity
 
