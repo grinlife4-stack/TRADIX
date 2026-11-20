@@ -46,7 +46,7 @@ The candidate profile should require:
 
 - HTTPS with TLS 1.3; plaintext HTTP is prohibited outside loopback development tests.
 - Mutual TLS with X.509 certificates for peer authentication.
-- A URI identity in the certificate Subject Alternative Name, explicitly mapped to the configured OBIS peer identifier.
+- A profile-defined peer identity in the certificate Subject Alternative Name, explicitly mapped to the configured OBIS peer identifier. URI SAN is a candidate, but its exact scheme, canonicalization, and one-certificate-to-one-peer rules must be defined by OBIS.
 - Owner-controlled trust anchors and peer authorization configuration. A central certificate authority or identity provider is not mandatory.
 - Separate authentication and authorization checks. A valid certificate never grants capability access by itself.
 - Documented certificate issuance, expiry, rotation, revocation, trust-bundle replacement, and incident response.
@@ -57,6 +57,14 @@ The candidate profile should require:
 TLS 1.3 and X.509 are mature standards, but selecting them does not by itself settle trust-anchor operations, certificate-to-peer mapping, revocation behavior, deployment profiles, or implementation security. These must be reviewed against the threat model and tested across at least two independent implementations before production approval.
 
 The development HMAC profile in the Python prototype is not an alternative production profile and must never be used for real network deployments.
+
+## 3A. Certificate identity scope correction
+
+RFC 9525 specifies service identity verification for TLS and explicitly places client/end-user identity outside its scope. It must not be treated as the normative definition of OBIS client-certificate identity. RFC 5280 defines the X.509 URI SAN field, but OBIS must define the application-specific mapping from that field to a peer identity, principal, and local authorization record.
+
+The server endpoint identity and the authenticated client/peer identity are separate checks. A valid client certificate authenticates a certificate holder only under the selected trust model; it does not authorize any OBIS capability.
+
+The implementation choices, certificate-profile requirements, revocation candidates, and test gates are recorded in [OBIS Production Security Profile Implementation Audit](OBIS_SECURITY_PROFILE_IMPLEMENTATION_AUDIT.md). The audit is a recommendation, not production approval.
 
 ## 4. Transport binding
 
