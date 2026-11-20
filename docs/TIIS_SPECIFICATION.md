@@ -202,9 +202,9 @@ A component may claim TIIS conformance only after tests demonstrate:
 - Error normalization and audit evidence.
 - Independent failure boundaries and documented recovery.
 
-Conformance is assessed per interface and version. The repository-level baseline validates the canonical JSON Schema and positive/negative envelope fixtures in tests/test_tiis_schemas.py; this is schema conformance only. A runtime or interface may claim TIIS conformance only after its own authentication, authorization, data-scope, replay/freshness, reliability, audit, and failure-isolation tests pass.
+Conformance is assessed per interface and version. TRADIX provides an optional SDK under src/tradix/tiis, installable with the tiis extra. TIISValidator checks the canonical envelope schema, message-size bound, freshness/expiry, authenticated-sender binding, recipient binding, and a caller-supplied authorization policy. The SDK does not authenticate peers, implement a transport, persist events, or execute business operations. Canonical schema and SDK package copies are checked for byte equality; schema and runtime tests are included in the root test suite.
 
-Passing schema tests does not prove runtime conformance, OBIS interoperability, product readiness, or production security.
+A component or interface may claim TIIS conformance only after its own authentication profile, authorization policy, data-scope enforcement, replay/freshness, reliability, audit, and failure-isolation tests pass. Passing SDK tests does not prove component runtime conformance, OBIS interoperability, product readiness, or production security.
 
 ## 15. Governance
 
