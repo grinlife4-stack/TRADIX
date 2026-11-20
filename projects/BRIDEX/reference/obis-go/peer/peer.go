@@ -310,7 +310,7 @@ func (p *Peer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	if request.TLS != nil {
-		if request.TLS.Version != tls.VersionTLS13 || request.TLS.NegotiatedProtocol != "obis/1" || len(request.TLS.PeerCertificates) == 0 {
+		if request.TLS.Version != tls.VersionTLS13 || request.TLS.NegotiatedProtocol != "http/1.1" || len(request.TLS.PeerCertificates) == 0 {
 			http.Error(writer, "OBIS requires TLS 1.3 mTLS and ALPN obis/1", http.StatusForbidden)
 			return
 		}
