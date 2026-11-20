@@ -110,13 +110,10 @@ def test_missing_tool_returns_normalized_rejection(adapter) -> None:
     assert response["error"]["retryable"] is False
 
 
-def test_unsupported_operation_is_rejected_without_catalog_mutation(adapter) -> None:
+def test_unauthorized_operation_is_denied_without_catalog_mutation(adapter) -> None:
     request = make_request("tool.delete", {"tool_id": "sample.reader"})
-    response = adapter.handle(request, authenticated_sender=CLIENT, now=NOW)
-
-    assert_valid_response(response)
-    assert response["outcome"] == "rejected"
-    assert response["error"]["code"] == "operation.unsupported"
+    with pytest.raises(TIISAuthorizationError, match="operation_not_authorized"):
+        adapter.handle(request, authenticated_sender=CLIENT, now=NOW)
     assert adapter._catalog.get("sample.reader", "1.2.0")["status"] == "discovered"
 
 
