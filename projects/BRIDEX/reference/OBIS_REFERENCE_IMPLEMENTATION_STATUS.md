@@ -9,12 +9,14 @@
 
 - [x] Standalone installable package with no TRADIX/BRIDEX runtime imports.
 - [x] Direct peer-to-peer request/response over loopback HTTP.
-- [x] Protocol/version, required-field, payload-size, and TTL validation.
+- [x] Protocol/version, strict envelope-field, payload-size, and TTL validation.
 - [x] Explicit credential-to-peer and credential-to-principal binding.
 - [x] HMAC-SHA256 request and response integrity for local tests.
 - [x] Capability registration and receiver-side scope authorization.
 - [x] Nonce replay rejection within one running process.
 - [x] Correlation ID verification.
+- [x] Signed, correlated error envelopes for authenticated request failures.
+- [x] Draft JSON Schema 2020-12 artifact and schema-validation tests.
 - [x] Positive integration test and negative security/validation tests.
 
 ## Deliberately not implemented
@@ -22,7 +24,7 @@
 - Production TLS or mutual TLS.
 - Production identity issuance, asymmetric signing, trust-anchor management, key rotation, or revocation service.
 - Durable/distributed replay protection and idempotency ledger.
-- Formal JSON Schema artifacts and schema negotiation.
+- Runtime schema negotiation and automatic schema-driven payload validation.
 - Asynchronous operation lifecycle.
 - Production audit persistence and tamper-evident evidence.
 - Non-loopback transport binding.
