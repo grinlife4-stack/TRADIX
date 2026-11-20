@@ -224,3 +224,21 @@ def test_manual_source_scope_scans_only_selected_source(tmp_path, monkeypatch):
     assert scanned == ["s2"]
     assert report["scan_scope"]["type"] == "source"
     assert report["source_count"] == 1
+
+
+def test_disabled_project_is_reported_as_disabled_not_unregistered_or_zero(tmp_path, monkeypatch):
+    config = {
+        "mode": "MANUAL",
+        "projects": [{"project_id": "p1", "name": "One", "enabled": False, "sources": ["s1"]}],
+        "sources": [{"source_id": "s1", "project_id": "p1", "provider": "fixture", "enabled": True}],
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(monitor, "scan_source", lambda *args: (_ for _ in ()).throw(AssertionError("disabled project must not be scanned")))
+    assert monitor.main(["--config", str(config_path), "--output", str(tmp_path / "out.json")]) == 0
+    report = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
+    project = report["projects"][0]
+    assert project["coverage"] == "DISABLED"
+    assert project["known_logical_bytes"] == 0
+    assert project["sources"][0]["status"] == "DISABLED"
+    assert any(alert["code"] == "PROJECT_DISABLED" for alert in report["alerts"])
