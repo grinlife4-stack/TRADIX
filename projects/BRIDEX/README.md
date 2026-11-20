@@ -82,7 +82,20 @@ bridex package ../generated/example-bridge --output ../generated/example-bridge.
 
 This is a scaffolding foundation that includes the standalone OBIS development peer, not a production Bridge runtime or production security profile. The generated package is independently buildable and does not call BRIDEX or TRADIX at runtime. The generated project deliberately has no enabled peer or capability.
 
-## 3D. Relationship to existing TRADIX infrastructure
+## 3D. Independent Go OBIS peer
+
+A second, independent-language OBIS 0.1 reference peer is maintained at [OBIS Go Reference](reference/obis-go/). It uses only the Go standard library and implements the same loopback/HMAC development profile. The Python reference test suite starts the Go peer and sends a real OBIS request from the Python client; the Go test suite also checks the shared canonical JSON/HMAC test vector and scope/replay rejection.
+
+Run the Go reference tests independently:
+
+```bash
+cd projects/BRIDEX/reference/obis-go
+go test ./...
+```
+
+This establishes one cross-language development-profile interoperability path, not production security approval. The profile's canonicalization and HMAC behavior remain a development reference until the OBIS production security profile is approved.
+
+## 3E. Relationship to existing TRADIX infrastructure
 
 BRIDEX may reuse the Artifact Gateway, Tool Catalog, and Tool Adapter Contract as optional supporting capabilities, but none is a substitute for an independent Bridge or the OBIS protocol. Their exact boundaries, PR dependency order, and separation tests are recorded in [BRIDEX Existing Component Integration Map](../../docs/BRIDEX_EXISTING_COMPONENT_INTEGRATION_MAP.md). These components must not become mandatory runtime dependencies for released Bridges.
 
