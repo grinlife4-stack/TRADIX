@@ -323,9 +323,12 @@ func TestInvokeRejectsSignedDowngradedAndMismatchedResponses(t *testing.T) {
 
 func TestInvokeDoesNotFollowRedirects(t *testing.T) {
 	secret := []byte("0123456789abcdef0123456789abcdef")
-	var redirectedRequests int
+	redirectedRequests := make(chan struct{}, 1)
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		redirectedRequests++
+		select {
+		case redirectedRequests <- struct{}{}:
+		default:
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer target.Close()
@@ -343,8 +346,10 @@ func TestInvokeDoesNotFollowRedirects(t *testing.T) {
 	if err == nil {
 		t.Fatal("client accepted an unsigned redirect response")
 	}
-	if redirectedRequests != 0 {
-		t.Fatalf("client followed redirect and contacted another endpoint %d times", redirectedRequests)
+	select {
+	case <-redirectedRequests:
+		t.Fatal("client followed redirect and contacted another endpoint")
+	default:
 	}
 }
 
