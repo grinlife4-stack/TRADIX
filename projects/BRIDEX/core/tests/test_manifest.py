@@ -311,3 +311,23 @@ def test_cli_generates_bridge_scaffold(tmp_path, capsys):
     ]) == 0
     assert "scaffold only" in capsys.readouterr().out
     assert (destination / "bridge-manifest.json").is_file()
+
+
+def test_generator_rejects_explicit_empty_obis_version_list(tmp_path):
+    from bridex_core import create_bridge_scaffold
+    with pytest.raises(ManifestValidationError, match="OBIS versions"):
+        create_bridge_scaffold(
+            tmp_path / "generated", bridge_id="bridge:one", name="Bridge", implementation_version="0.1",
+            owner_id="project:one", owner_name="Owner", operator_id="operator:one", operator_name="Operator",
+            obis_versions=[],
+        )
+
+
+def test_generator_rejects_invalid_configuration_schema(tmp_path):
+    from bridex_core import create_bridge_scaffold
+    with pytest.raises(ManifestValidationError, match="configuration schema"):
+        create_bridge_scaffold(
+            tmp_path / "generated", bridge_id="bridge:one", name="Bridge", implementation_version="0.1",
+            owner_id="project:one", owner_name="Owner", operator_id="operator:one", operator_name="Operator",
+            configuration_schema={"type": "not-a-json-schema-type"},
+        )
