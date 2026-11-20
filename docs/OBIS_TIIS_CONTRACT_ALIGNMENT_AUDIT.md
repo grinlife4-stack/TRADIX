@@ -151,3 +151,16 @@ The independent Go client was extended to reject correctly signed but contract-i
 CI run #1154 passed on commit `0a58ebe18cabb58feab1a9eb8c512186aeb2c1ee`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
 
 This is a selected Go client response-validation matrix. It is not protocol version negotiation, a complete cross-language downgrade suite, or production security approval. Unsupported versions remain rejected; no negotiation semantics or normative wire contract were added.
+
+
+## 15. Go durable replay and Python client response validation — 2026-11-20
+
+The Go reference peer now offers an optional owner-local file-backed replay guard implemented using only the Go standard library. It atomically claims each credential-scoped nonce with exclusive file creation, syncs the marker and containing directory before allowing capability execution, and rejects duplicate claims across independently constructed guard instances/processes. Storage and durability errors fail closed with a normalized HTTP 503 before the capability handler runs. The in-memory guard remains the default for development; the file-backed guard is opt-in and must be configured before serving.
+
+Marker files are deliberately retained permanently. No automatic expiry cleanup is implemented because deletion introduces concurrency and clock-related replay-window risks. Consequently, storage consumption grows without bound and must be monitored by the Bridge owner. This is local durable nonce replay protection, not distributed replay coordination, business-operation idempotency, or unknown-outcome reconciliation.
+
+Tests cover persistence across guard recreation, concurrent duplicate claims across guard instances, and fail-closed behavior when storage disappears. CI run #1161 passed on commit `e75432a3dfac92bca93fd4a9bb1dd3d497b8fef4`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated package wheel/install/schema checks.
+
+Separately, the Python reference client now rejects selected correctly signed but contract-invalid responses: unsupported/downgraded version, mismatched correlation, wrong sender peer, unexpected fields, and malformed signed error objects. CI run #1157 passed on commit `36bdf84ad248367dd17b455544af1217a9ffab2b`.
+
+No normative OBIS schema, wire envelope, TIIS contract, version negotiation semantics, or production security profile was changed. Remaining gates include complete cross-language negative parity, distributed replay policy where needed, business-operation idempotency/outcome reconciliation, production audit persistence, TLS/mTLS, credential lifecycle, and independent security review. HMAC remains development/conformance-only.
