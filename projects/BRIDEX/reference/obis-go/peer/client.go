@@ -31,8 +31,8 @@ type Client struct {
 	config ClientConfig
 }
 
-func NewTLS13HTTPClient(caPEM, certificatePEM, privateKeyPEM []byte, serverName, expectedPeerID string) (*http.Client, error) {
-	if len(caPEM) == 0 || len(certificatePEM) == 0 || len(privateKeyPEM) == 0 || serverName == "" || expectedPeerID == "" {
+func NewTLS13HTTPClient(caPEM, certificatePEM, privateKeyPEM []byte, serverName, expectedLocalPeerID, expectedRemotePeerID string) (*http.Client, error) {
+	if len(caPEM) == 0 || len(certificatePEM) == 0 || len(privateKeyPEM) == 0 || serverName == "" || expectedLocalPeerID == "" || expectedRemotePeerID == "" {
 		return nil, errors.New("TLS CA, client certificate, private key, and server name are required")
 	}
 	roots := x509.NewCertPool()
@@ -42,6 +42,14 @@ func NewTLS13HTTPClient(caPEM, certificatePEM, privateKeyPEM []byte, serverName,
 	certificate, err := tls.X509KeyPair(certificatePEM, privateKeyPEM)
 	if err != nil {
 		return nil, err
+	}
+	localCertificate, err := x509.ParseCertificate(certificate.Certificate[0])
+	if err != nil {
+		return nil, err
+	}
+	localPeerID, err := PeerIDFromCertificate(localCertificate)
+	if err != nil || localPeerID != expectedLocalPeerID {
+		return nil, errors.New("OBIS client certificate peer identity mismatch")
 	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
@@ -56,7 +64,7 @@ func NewTLS13HTTPClient(caPEM, certificatePEM, privateKeyPEM []byte, serverName,
 					return errors.New("OBIS server certificate is missing")
 				}
 				peerID, err := PeerIDFromCertificate(state.PeerCertificates[0])
-				if err != nil || peerID != expectedPeerID {
+				if err != nil || peerID != expectedRemotePeerID {
 					return errors.New("OBIS server certificate peer identity mismatch")
 				}
 				return nil
