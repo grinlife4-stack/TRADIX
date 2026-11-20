@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from .contracts import Adapter, AdapterContractError, AdapterResult, BudgetExceeded, BudgetGuard, ScanContext
+from .contracts import Adapter, AdapterContractError, AdapterResult, AuthorizationRevoked, BudgetExceeded, BudgetGuard, ScanContext
 from .controls import ExecutionGate
 from .models import ProjectRegistry, SourceDescriptor
 from .store import ProjectStore
@@ -210,7 +210,10 @@ class ScanRunner:
                 source, actor_id, scan_id, started_at, "FAILED", "adapter_version_mismatch"
             )
 
-        guard = BudgetGuard(source.budget)
+        guard = BudgetGuard(
+            source.budget,
+            authorization_check=lambda: self.gate.evaluate(self.registry, source, actor_id).allowed,
+        )
         context = ScanContext(self.registry.project_id, actor_id, source, source.budget, guard, checkpoint)
         result: AdapterResult | None = None
         measurements: list[dict[str, Any]] = []
@@ -219,6 +222,7 @@ class ScanRunner:
         try:
             adapter.validate_config(source)
             result = adapter.scan(context)
+            guard.check_time()
             if not isinstance(result, AdapterResult):
                 raise AdapterContractError("adapter must return AdapterResult")
             if result.coverage_state not in {"COMPLETE", "PARTIAL", "FAILED"}:
@@ -252,6 +256,8 @@ class ScanRunner:
                 raise AdapterContractError("measurement IDs must be unique within a scan")
             if result.checkpoint is not None and not isinstance(result.checkpoint, Mapping):
                 raise AdapterContractError("checkpoint must be an object")
+        except AuthorizationRevoked:
+            failure_state, failure_reason = "NOT_AUTHORIZED", "authorization_revoked"
         except BudgetExceeded:
             failure_state, failure_reason = "FAILED", "budget_exhausted"
         except AdapterContractError:

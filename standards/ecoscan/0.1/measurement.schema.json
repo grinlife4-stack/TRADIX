@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tradix.example/standards/ecoscan/0.1/measurement.schema.json",
+  "title": "ECOSCAN 0.1 Measurement",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "measurement_id",
+    "project_id",
+    "source_id",
+    "kind",
+    "value",
+    "unit",
+    "measured_at",
+    "source_timestamp",
+    "method",
+    "adapter_id",
+    "adapter_version",
+    "coverage_state",
+    "confidence",
+    "limitations",
+    "evidence_ref",
+    "checkpoint_ref"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "measurement_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+    },
+    "project_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "source_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "kind": {
+      "enum": [
+        "logical_bytes",
+        "allocated_bytes",
+        "physical_bytes",
+        "capacity_bytes",
+        "object_count",
+        "file_count",
+        "provider_reported_usage"
+      ]
+    },
+    "value": {
+      "type": "number",
+      "minimum": 0
+    },
+    "unit": {
+      "enum": [
+        "byte",
+        "object",
+        "file",
+        "provider_unit"
+      ]
+    },
+    "measured_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_timestamp": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "method": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "adapter_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "adapter_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "coverage_state": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL"
+      ]
+    },
+    "confidence": {
+      "enum": [
+        "HIGH",
+        "MEDIUM",
+        "LOW",
+        "UNKNOWN"
+      ]
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 2048
+      },
+      "maxItems": 100
+    },
+    "evidence_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 1024
+    },
+    "checkpoint_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 1024
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "logical_bytes",
+              "allocated_bytes",
+              "physical_bytes",
+              "capacity_bytes"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "unit": {
+            "const": "byte"
+          },
+          "value": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "object_count"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "unit": {
+            "const": "object"
+          },
+          "value": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "file_count"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "unit": {
+            "const": "file"
+          },
+          "value": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "provider_reported_usage"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "unit": {
+            "const": "provider_unit"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+    }
+  }
+}

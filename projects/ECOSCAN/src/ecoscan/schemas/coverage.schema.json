@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tradix.example/standards/ecoscan/0.1/coverage.schema.json",
+  "title": "ECOSCAN 0.1 Coverage Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scan_id",
+    "project_id",
+    "source_id",
+    "requested_scope",
+    "coverage_state",
+    "started_at",
+    "finished_at",
+    "actor_id",
+    "adapter_id",
+    "adapter_version",
+    "items_seen",
+    "pages_seen",
+    "reason_code",
+    "limitations",
+    "checkpoint_ref"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "scan_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+    },
+    "project_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "source_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "requested_scope": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "coverage_state": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL",
+        "FAILED",
+        "NOT_CONFIGURED",
+        "NOT_AUTHORIZED",
+        "DISABLED"
+      ]
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "actor_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "adapter_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "adapter_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "items_seen": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pages_seen": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reason_code": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 128
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 2048
+      },
+      "maxItems": 100
+    },
+    "checkpoint_ref": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 1024
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$"
+    }
+  }
+}
