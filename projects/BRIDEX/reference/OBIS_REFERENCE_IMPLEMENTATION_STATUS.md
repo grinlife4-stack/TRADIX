@@ -20,6 +20,8 @@
 - [x] Positive integration test and negative security/validation tests.
 
 ## Deliberately not implemented
+The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/message.schema.json` and packaged with the reference peer. CI validates the schema and checks the packaged copy against the canonical artifact. Runtime schema negotiation and automatic schema-driven validation are not implemented.
+
 
 - Production TLS or mutual TLS.
 - Production identity issuance, asymmetric signing, trust-anchor management, key rotation, or revocation service.
