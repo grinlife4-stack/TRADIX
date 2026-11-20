@@ -98,3 +98,15 @@ The Go client tests were then extended on commit `7da228cfe799e6b1cef4b87dac8301
 CI run #1148 completed successfully on that exact commit. The run completed Go tests, Go binary build, the full Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated wheel/install/schema checks.
 
 These are local development transport tests, not a production network resilience or security certification. The Go peer still lacks durable replay, business-operation idempotency/outcome reconciliation, production TLS/mTLS, credential lifecycle, persistent audit, full cross-language negative parity, and clean-environment independence evidence.
+
+
+## Cross-peer malformed and authentication rejection — 2026-11-20
+
+The Python integration harness now sends raw OBIS envelopes to both independently implemented loopback server endpoints and verifies that:
+- A structurally invalid/unsupported-version envelope with a valid development HMAC is rejected with HTTP 426.
+- A valid request envelope with an invalid HMAC is rejected with HTTP 401.
+- The Python peer's registered capability handler is not invoked for either rejected request.
+
+The Go server rejection cases and Python server no-execution cases passed in CI run #1151 on commit `e65da4841226d25ac93feb98487d11323b11de63`. The same run completed Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated package wheel/install/schema checks.
+
+This adds server-side negative coverage across the two implementations. It does not yet prove every negative case in both client/server directions, nor does it cover production TLS/mTLS, downgrade negotiation, durable replay across Go restarts, business-operation idempotency/outcome reconciliation, persistent audit, or production readiness.
