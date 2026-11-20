@@ -552,3 +552,21 @@ def test_ecoscan_inventory_capability_rejects_unsupported_measurement_kind():
                 },
             )
     assert provider_calls == []
+
+
+def test_documented_obis_request_example_validates_against_canonical_schema():
+    """Keep the normative Section 9 request example aligned with the 0.1 wire schema."""
+    import re
+    from jsonschema import Draft202012Validator
+
+    repo_root = Path(__file__).resolve().parents[5]
+    specification = (repo_root / "docs" / "OBIS_SPECIFICATION.md").read_text(encoding="utf-8")
+    section = specification.split("## 9. Message envelope", 1)[1].split("\n## ", 1)[0]
+    match = re.search(r"```json\s*(\{.*?\})\s*```", section, re.DOTALL)
+    assert match is not None, "Section 9 must contain a JSON request example"
+    example = json.loads(match.group(1))
+
+    canonical_schema = json.loads(
+        (repo_root / "standards" / "obis" / "0.1" / "message.schema.json").read_text(encoding="utf-8")
+    )
+    Draft202012Validator(canonical_schema).validate(example)
