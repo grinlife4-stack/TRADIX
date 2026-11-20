@@ -17,7 +17,7 @@ Before changing ECOSCAN, read:
 - Default deny: global, project, subsystem, source, and owner/operator authorization gates must all pass before an adapter is invoked.
 - Never represent missing, disabled, failed, or unauthorized sources as zero.
 - Keep every project's registry, database, exports, checkpoints, and retention separate.
-- Do not store secret values. Store only opaque credential references.
+- Never place secret values in the registry. The current parser treats `credential_ref` as opaque but cannot prove it is a safe reference; any future resolver must enforce an allowlisted reference scheme. No credential resolver exists yet.
 - Local filesystem scans require explicit allowlisted roots, no-follow behavior, mount boundaries, resource budgets, and negative tests.
 - Reuse existing provider APIs/adapters only behind an independent ECOSCAN interface; never import TRADIX runtime code.
 - Keep the canonical schemas under `standards/ecoscan/0.1/` synchronized byte-for-byte with packaged copies.
