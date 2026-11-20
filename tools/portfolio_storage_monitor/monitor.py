@@ -67,6 +67,15 @@ def scan_github(source: dict[str, Any], token: str | None) -> dict[str, Any]:
         tree, _ = _json_request(f"{base}/git/trees/{encoded_ref}?recursive=1", token)
         entries = tree.get("tree", [])
         blobs = [entry for entry in entries if entry.get("type") == "blob"]
+        include_paths = source.get("include_paths") or []
+        exclude_paths = source.get("exclude_paths") or []
+        def matches_scope(path: str, scope: str) -> bool:
+            normalized = scope.strip("/")
+            return path == normalized or path.startswith(normalized + "/")
+        if include_paths:
+            blobs = [entry for entry in blobs if any(matches_scope(entry.get("path", ""), scope) for scope in include_paths)]
+        if exclude_paths:
+            blobs = [entry for entry in blobs if not any(matches_scope(entry.get("path", ""), scope) for scope in exclude_paths)]
         blob_bytes = sum(int(entry.get("size", 0) or 0) for entry in blobs)
         truncated = bool(tree.get("truncated", False))
         return {
@@ -74,8 +83,9 @@ def scan_github(source: dict[str, Any], token: str | None) -> dict[str, Any]:
             "provider": "github", "reference": repo, "ref": branch,
             "measured_at": measured_at, "status": "PARTIAL" if truncated else "COMPLETE",
             "file_count": len(blobs), "logical_bytes": blob_bytes,
-            "repository_size_bytes": int(metadata.get("size", 0) or 0) * 1024,
-            "capacity_bytes": None, "method": "GitHub repository metadata + recursive Git tree blob sizes",
+            "repository_size_bytes": int(metadata.get("size", 0) or 0) * 1024 if not include_paths and not exclude_paths else None,
+            "path_scope": {"include_paths": include_paths, "exclude_paths": exclude_paths},
+            "capacity_bytes": None, "method": "GitHub repository metadata + recursive Git tree blob sizes with optional path scoping",
             "error": None,
             "limitations": [
                 "Tree blob bytes represent the checked-out tree, not the complete .git history or remote object storage.",
