@@ -56,19 +56,35 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
     }
     if any(manifest.get(key) != value for key, value in counts.items()):
         raise TransferError("export manifest record counts do not match")
-    scan_ids = set()
+    scan_sources = {}
     for record in bundle["coverage"]:
-        if record.get("project_id") != project_id:
+        if not isinstance(record, dict) or record.get("project_id") != project_id:
             raise TransferError("coverage crosses project boundary")
-        scan_ids.add(record.get("scan_id"))
+        scan_id, source_id = record.get("scan_id"), record.get("source_id")
+        if not isinstance(scan_id, str) or not scan_id or not isinstance(source_id, str) or not source_id:
+            raise TransferError("coverage identifiers are invalid")
+        if scan_id in scan_sources:
+            raise TransferError("duplicate scan_id in export")
+        scan_sources[scan_id] = source_id
+    measurement_ids = set()
     for record in bundle["measurements"]:
-        if record.get("project_id") != project_id:
+        if not isinstance(record, dict) or record.get("project_id") != project_id:
             raise TransferError("measurement crosses project boundary")
-        if record.get("scan_id") not in scan_ids:
-            raise TransferError("measurement references missing scan")
+        if scan_sources.get(record.get("scan_id")) != record.get("source_id"):
+            raise TransferError("measurement source does not match its coverage record")
+        measurement_id = record.get("measurement_id")
+        if not isinstance(measurement_id, str) or not measurement_id or measurement_id in measurement_ids:
+            raise TransferError("measurement IDs must be present and unique")
+        measurement_ids.add(measurement_id)
+        value = record.get("value")
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            raise TransferError("measurement value must be non-negative numeric data")
     for record in bundle["checkpoints"]:
         if not isinstance(record, dict) or not isinstance(record.get("checkpoint"), dict):
             raise TransferError("invalid checkpoint record")
+        if scan_sources.get(record.get("scan_id")) != record.get("source_id"):
+            raise TransferError("checkpoint source does not match its coverage record")
+
 
 def import_store(path: str | Path, store: ProjectStore) -> int:
     source = Path(path)
