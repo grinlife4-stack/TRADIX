@@ -144,3 +144,83 @@ def test_scheduled_mode_can_be_disabled_without_scanning(tmp_path, monkeypatch):
     monkeypatch.setattr(monitor, "scan_source", lambda *args: (_ for _ in ()).throw(AssertionError("scan must not run")))
     assert monitor.main(["--config", str(config_path), "--output", str(tmp_path / "out.json")]) == 0
     assert not (tmp_path / "out.json").exists()
+
+
+def test_select_project_scope_includes_only_project_sources():
+    config = {
+        "projects": [
+            {"project_id": "p1", "name": "One", "sources": ["s1", "s2"]},
+            {"project_id": "p2", "name": "Two", "sources": ["s3"]},
+        ],
+        "sources": [
+            {"source_id": "s1", "project_id": "p1"},
+            {"source_id": "s2", "project_id": "p1"},
+            {"source_id": "s3", "project_id": "p2"},
+        ],
+    }
+    selected = monitor.select_scope(config, "project", ["p2"])
+    assert [p["project_id"] for p in selected["projects"]] == ["p2"]
+    assert [s["source_id"] for s in selected["sources"]] == ["s3"]
+
+
+def test_select_source_scope_does_not_expand_to_sibling_sources():
+    config = {
+        "projects": [{"project_id": "p1", "name": "One", "sources": ["s1", "s2"]}],
+        "sources": [
+            {"source_id": "s1", "project_id": "p1"},
+            {"source_id": "s2", "project_id": "p1"},
+        ],
+    }
+    selected = monitor.select_scope(config, "source", source_ids=["s2"])
+    assert selected["projects"][0]["sources"] == ["s2"]
+    assert [s["source_id"] for s in selected["sources"]] == ["s2"]
+
+
+def test_scope_selection_rejects_unknown_ids_and_ambiguous_arguments():
+    config = {"projects": [{"project_id": "p1", "sources": ["s1"]}], "sources": [{"source_id": "s1", "project_id": "p1"}]}
+    import pytest
+    with pytest.raises(ValueError):
+        monitor.select_scope(config, "project", ["missing"])
+    with pytest.raises(ValueError):
+        monitor.select_scope(config, "ecosystem", project_ids=["p1"])
+    with pytest.raises(ValueError):
+        monitor.select_scope(config, "source")
+
+
+def test_disabled_source_is_not_scanned_and_marks_coverage_incomplete(tmp_path, monkeypatch):
+    config = {
+        "mode": "MANUAL",
+        "projects": [{"project_id": "p1", "name": "One", "enabled": True, "sources": ["s1"]}],
+        "sources": [{"source_id": "s1", "project_id": "p1", "provider": "github", "repository": "owner/repo", "enabled": False}],
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(monitor, "scan_source", lambda *args: (_ for _ in ()).throw(AssertionError("disabled source must not be scanned")))
+    assert monitor.main(["--config", str(config_path), "--output", str(tmp_path / "out.json")]) == 0
+    report = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
+    assert report["projects"][0]["coverage"] == "INCOMPLETE"
+    assert report["projects"][0]["sources"][0]["status"] == "DISABLED"
+    assert report["projects"][0]["sources"][0]["logical_bytes"] is None
+
+
+def test_manual_source_scope_scans_only_selected_source(tmp_path, monkeypatch):
+    config = {
+        "mode": "MANUAL",
+        "projects": [{"project_id": "p1", "name": "One", "sources": ["s1", "s2"]}],
+        "sources": [
+            {"source_id": "s1", "project_id": "p1", "provider": "fixture", "enabled": True},
+            {"source_id": "s2", "project_id": "p1", "provider": "fixture", "enabled": True},
+        ],
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    scanned = []
+    def fake_scan(source, token):
+        scanned.append(source["source_id"])
+        return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "fixture", "status": "COMPLETE", "logical_bytes": 5, "file_count": 1}
+    monkeypatch.setattr(monitor, "scan_source", fake_scan)
+    assert monitor.main(["--config", str(config_path), "--scope", "source", "--source", "s2", "--output", str(tmp_path / "out.json")]) == 0
+    report = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
+    assert scanned == ["s2"]
+    assert report["scan_scope"]["type"] == "source"
+    assert report["source_count"] == 1
