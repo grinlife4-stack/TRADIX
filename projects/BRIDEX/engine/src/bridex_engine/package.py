@@ -168,7 +168,7 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
             if len(data) != record["size_bytes"] or _sha256(data) != record["sha256"]:
                 raise BridgeManifestError("package_file_integrity_failed")
             total_bytes += len(data)
-        if seen != declared_names - {"bridge.json"} or expected_names != declared_names:
+        if seen != declared_names or expected_names != declared_names:
             raise BridgeManifestError("package_manifest_file_set_mismatch")
         if expected_names | {PACKAGE_MANIFEST} != set(names):
             raise BridgeManifestError("package_unlisted_entry_rejected")
