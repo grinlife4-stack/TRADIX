@@ -223,6 +223,14 @@ class OBISPeerV02:
     def handle(self, message: dict[str, Any], key_id: str, signature: str) -> tuple[dict[str, Any], bytes]:
         validate_v02_message(message)
         credential = self._authenticate(message, key_id, signature)
+        try:
+            return self._handle_authenticated(message, credential)
+        except OBISRequestError as exc:
+            exc.authenticated_credential = credential
+            exc.request_message = message
+            raise
+
+    def _handle_authenticated(self, message: dict[str, Any], credential: Any) -> tuple[dict[str, Any], bytes]:
         capability = self._authorize(message, credential)
         capability_id, capability_version = capability.capability_id, capability.version
         principal_ref = credential.principal_ref
@@ -270,18 +278,14 @@ class OBISPeerV02:
             result = capability.handler(message["payload"])
             if not isinstance(result, dict):
                 raise TypeError("capability result must be an object")
-            # Ensure result can be represented by the wire format before committing it.
             canonical_json(result)
             record = self.ledger.transition(operation["operation_id"], "SUCCEEDED", result=result)
         except Exception:
-            # A handler may have committed an external side effect before raising.
-            # Never report definite failure or retry automatically in this case.
             record = self.ledger.transition(
                 operation["operation_id"], "UNKNOWN",
                 failure_code="operation.outcome_unknown",
             )
         return self._response(message, record), credential.secret
-
 
 
 class OBISV02Server:
@@ -337,12 +341,33 @@ class OBISV02Server:
                     self.end_headers()
                     self.wfile.write(body)
                 except OBISRequestError as exc:
-                    body = canonical_json({"error": {"code": exc.code, "message": str(exc)}})
-                    self.send_response(exc.http_status)
-                    self.send_header("Content-Type", "application/obis+json")
-                    self.send_header("Content-Length", str(len(body)))
-                    self.end_headers()
-                    self.wfile.write(body)
+                    credential = exc.authenticated_credential
+                    request_message = exc.request_message
+                    if credential is not None and request_message is not None:
+                        sender = request_message["sender"]["peer_id"]
+                        error_response = {
+                            "protocol": "obis", "version": "0.2", "message_type": "error_response",
+                            "message_id": str(uuid.uuid4()), "correlation_id": request_message["message_id"],
+                            "sender": {"peer_id": peer.peer.peer_id},
+                            "recipient": {"peer_id": sender},
+                            "issued_at": time.time(),
+                            "error": {"code": exc.code, "message": str(exc)},
+                        }
+                        body = canonical_json(error_response)
+                        response_signature = hmac.new(credential.secret, body, hashlib.sha256).hexdigest()
+                        self.send_response(exc.http_status)
+                        self.send_header("Content-Type", "application/obis+json")
+                        self.send_header("Content-Length", str(len(body)))
+                        self.send_header("X-OBIS-Signature", response_signature)
+                        self.end_headers()
+                        self.wfile.write(body)
+                    else:
+                        body = canonical_json({"error": {"code": exc.code, "message": str(exc)}})
+                        self.send_response(exc.http_status)
+                        self.send_header("Content-Type", "application/obis+json")
+                        self.send_header("Content-Length", str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
                 except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
                     self.send_error(400, "invalid JSON message")
 
@@ -434,6 +459,32 @@ class OBISV02Client:
         except (OSError, http.client.HTTPException) as exc:
             raise OBISRequestError("peer.unavailable", "OBIS 0.2 peer is unavailable", 503) from exc
         if status != 200:
+            signature = response_headers.get("X-OBIS-Signature", "")
+            if signature:
+                try:
+                    error_response = strict_json_loads(response_body.decode("utf-8"))
+                    if not isinstance(error_response, dict) or not verify_signature(error_response, self.secret, signature):
+                        raise OBISRequestError("identity.authentication_failed", "signed error response verification failed", 502)
+                    required_error = {
+                        "protocol", "version", "message_type", "message_id", "correlation_id",
+                        "sender", "recipient", "issued_at", "error",
+                    }
+                    if set(error_response) != required_error or error_response.get("protocol") != "obis" or error_response.get("version") != VERSION or error_response.get("message_type") != "error_response":
+                        raise OBISRequestError("protocol.invalid_message", "invalid signed error response", 502)
+                    if error_response.get("correlation_id") != message["message_id"]:
+                        raise OBISRequestError("protocol.invalid_message", "signed error correlation mismatch", 502)
+                    sender = error_response.get("sender")
+                    recipient = error_response.get("recipient")
+                    if not isinstance(sender, dict) or sender.get("peer_id") != self.remote_peer_id or not isinstance(recipient, dict) or recipient.get("peer_id") != self.local_peer_id:
+                        raise OBISRequestError("identity.authentication_failed", "signed error peer identity mismatch", 502)
+                    error = error_response.get("error")
+                    if not isinstance(error, dict) or set(error) != {"code", "message"} or not all(isinstance(error.get(k), str) and error[k] for k in ("code", "message")):
+                        raise OBISRequestError("protocol.invalid_message", "invalid signed error details", 502)
+                    raise OBISRequestError(error["code"], error["message"], status)
+                except OBISRequestError:
+                    raise
+                except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError, RecursionError) as exc:
+                    raise OBISRequestError("protocol.invalid_message", "invalid signed error response", 502) from exc
             detail = response_body.decode("utf-8", errors="replace")[:512]
             raise OBISRequestError("peer.request_rejected", f"OBIS 0.2 peer returned HTTP {status}: {detail}", status)
         if len(response_body) > MAX_MESSAGE_BYTES:
