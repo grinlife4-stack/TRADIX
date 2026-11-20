@@ -131,7 +131,7 @@ The designated owner must have access to the complete source or independently bu
 
 Portability means the released Bridge can be built, deployed, operated, and maintained without BRIDEX/TRADIX runtime services, repositories, registries, credentials, or license checks. Its release package includes reproducible build/deployment instructions, OBIS specifications, configuration schemas, replaceable adapter contracts, dependency/license inventory, conformance evidence, and migration/export procedures.
 
-The owner can adapt the Bridge to other ecosystems through documented interfaces and replaceable adapters. This does not imply automatic compatibility with every target; it means a new adapter or mapping can be added without surrendering ownership or rebuilding the entire Bridge. The binding detail is in [BRIDEX Ownership, Control, and Portability Policy](BRIDEX_OWNERSHIP_AND_PORTABILITY_POLICY.md).
+The owner can adapt the Bridge to other ecosystems through documented interfaces and replaceable adapters. This does not imply automatic compatibility with every target; it means a new adapter or mapping can be added without surrendering ownership or rebuilding the entire Bridge. The Bridge must remain useful after its owner separates from the originating ecosystem and must be installable and operable in an independent environment using owner-held deliverables. Each new target still requires explicit peer trust, scopes, protocol mapping, and conformance evidence. The binding detail is in [BRIDEX Ownership, Control, and Portability Policy](BRIDEX_OWNERSHIP_AND_PORTABILITY_POLICY.md) and [Bridge Installation, Operation, Separation, and External Interoperability Standard](BRIDGE_INSTALLATION_OPERATION_AND_EXTERNAL_INTEROPERABILITY_STANDARD.md).
 
 Every Bridge instance must record:
 - Bridge ID and implementation version.
@@ -164,7 +164,7 @@ The existing PRs are open/draft and unmerged in the current review baseline. The
 2. **Security conformance:** authentication, authorization scopes, deny-by-default, revocation, replay protection, data isolation.
 3. **Reliability conformance:** timeouts, bounded retries, idempotency, cancellation, partial failure, backpressure.
 4. **Interoperability conformance:** independently implemented Bridge-to-Bridge and Bridge-to-non-TRADIX endpoint communication without TRADIX.
-5. **Independence conformance:** runtime tests with BRIDEX and TRADIX unavailable; no hidden registry, relay, credentials, or online license dependency.
+5. **Independence and separation conformance:** clean-environment installation and runtime tests with BRIDEX and TRADIX unavailable; external peer reconnection outside the originating ecosystem; no hidden registry, relay, credentials, or online license dependency.
 6. **Lifecycle conformance:** export, restore, upgrade, rollback, replacement, and decommissioning.
 7. **Isolation conformance:** destination-specific changes do not affect the shared core or other Bridge instances.
 
