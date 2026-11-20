@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 from obis_bridge.operations import OperationLedger
-from obis_bridge.peer import Credential, OBISPeer, ReplayGuard, sign_message
-from obis_bridge.v02 import OBISPeerV02, operation_request_hash
+from obis_bridge.peer import Credential, OBISPeer, OBISRequestError, ReplayGuard, sign_message
+from obis_bridge.v02 import OBISPeerV02, OBISV02Client, OBISV02Server, operation_request_hash
 
 
 SECRET = b"0123456789abcdef0123456789abcdef"
@@ -186,3 +186,34 @@ def test_operation_request_hash_uses_shared_contract_vectors():
     assert fixture["vectors"]
     for vector in fixture["vectors"]:
         assert operation_request_hash(vector["message"]) == vector["sha256"], vector["name"]
+
+
+
+def test_v02_authenticated_authorization_error_is_signed_and_correlated(tmp_path):
+    credential = Credential(
+        key_id="caller-key", peer_id="peer:caller", principal_ref="principal:caller",
+        secret=SECRET, allowed_scopes=frozenset({"records:write"}),
+        allowed_resources=frozenset({("project-a", "source-a")}),
+    )
+    base = OBISPeer("peer:owner", [credential], replay_guard=ReplayGuard())
+    peer = OBISPeerV02(base, OperationLedger(tmp_path / "signed-errors.sqlite3"))
+    calls = []
+    peer.register_capability(
+        "records.write", "1.0", {"records:write"},
+        lambda payload: calls.append(payload) or {"accepted": True},
+        recovery_class="IDEMPOTENT", resource_binding=True,
+    )
+    client = OBISV02Client(
+        "peer:caller", "peer:owner", "caller-key", "principal:caller",
+        SECRET, {"records:write"},
+    )
+    with OBISV02Server(peer) as server:
+        with pytest.raises(OBISRequestError) as raised:
+            client.invoke(
+                server.address, "records.write", "1.0",
+                {"project_id": "project-b", "source_id": "source-b"},
+                operation_id="signed-error-op", idempotency_key="signed-error-idem",
+            )
+    assert raised.value.code == "authorization.denied"
+    assert raised.value.http_status == 403
+    assert calls == []
