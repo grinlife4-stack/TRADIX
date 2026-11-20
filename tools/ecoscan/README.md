@@ -75,7 +75,3 @@ The adapter reports provisioned capacity and backup inventory metadata without r
 ### S3-compatible object storage (B2 / R2 / S3 / Railway buckets)
 
 Use `provider: "s3_compatible"` with an explicit `endpoint`, `bucket`, `region`, `url_style`, and names of environment variables holding read-only access and secret keys. The adapter paginates `ListObjectsV2` and sums current object sizes without downloading object bodies. Historical versions, incomplete multipart uploads, and provider billing bytes are outside this measurement.
-
-### Railway OAuth refresh-token safety boundary
-
-Unattended refresh is intentionally disabled. Railway rotates refresh tokens, so the latest returned token must be durably persisted as part of the refresh operation. Do not store refresh-token state in Git, Actions caches/artifacts, workflow inputs, logs, or reports. The current workflow exposes only the short-lived `RAILWAY_OAUTH_ACCESS_TOKEN` repository secret during manual dispatch; scheduled Railway scans remain `NOT_CONFIGURED`. Enabling scheduled Railway access requires an explicitly approved durable encrypted store with atomic replacement, single-writer protection, narrowly scoped access, and a recovery path for failed persistence. No GitHub write permission or external token broker is enabled for this purpose.
