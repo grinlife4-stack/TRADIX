@@ -178,3 +178,44 @@ func TestIndependentBridexAndTradixOwnerIsolation(t *testing.T) {
 	if _,ledgerErr:=tradixLedger.Get("shared-op","caller","principal:caller","tradix.tools.read","1.0");ledgerErr!=nil{t.Fatalf("TRADIX ledger missing own operation: %v",ledgerErr)}
 	if _,ledgerErr:=bridexLedger.Get("shared-op","caller","principal:caller","tradix.tools.read","1.0");ledgerErr==nil{t.Fatal("BRIDEX ledger exposed TRADIX operation")}
 }
+
+
+func TestPeerV02StatusLookupIsBoundToOriginalResource(t *testing.T) {
+	dir:=t.TempDir()
+	ledger,err:=NewFileOperationLedger(filepath.Join(dir,"operations.json"));if err!=nil{t.Fatal(err)}
+	peer,err:=NewPeer("provider");if err!=nil{t.Fatal(err)}
+	secret:=[]byte("0123456789abcdef0123456789abcdef")
+	if err:=peer.AddCredential(Credential{
+		KeyID:"caller-key",PeerID:"caller",PrincipalRef:"principal-a",Secret:secret,
+		AllowedScopes:map[string]bool{"inventory.read":true},
+		AllowedResources:map[string]bool{"project-a/source-a":true,"project-b/source-b":true},
+	});err!=nil{t.Fatal(err)}
+	p02,err:=NewPeerV02(peer,ledger);if err!=nil{t.Fatal(err)}
+	if err:=p02.RegisterCapabilityWithResourceBinding("ecoscan.inventory.read","1.0",
+		map[string]bool{"inventory.read":true},func(payload map[string]any)(map[string]any,error){
+			return map[string]any{"project_id":payload["project_id"],"source_id":payload["source_id"]},nil
+		},"IDEMPOTENT",true);err!=nil{t.Fatal(err)}
+	request,signature:=testV02Message(t,secret,"resource-status-nonce","resource-status-attempt","resource-status-op","resource-status-idem","")
+	request["capability"]=map[string]any{"id":"ecoscan.inventory.read","version":"1.0"}
+	request["payload"]=map[string]any{"project_id":"project-a","source_id":"source-a"}
+	hash,err:=OperationRequestHash(request);if err!=nil{t.Fatal(err)}
+	request["operation"].(map[string]any)["request_hash"]=hash
+	signature,err=Sign(request,secret);if err!=nil{t.Fatal(err)}
+	response,_,protocolErr:=p02.Handle(request,"caller-key",signature)
+	if protocolErr!=nil{t.Fatal(protocolErr)}
+	if response["operation"].(map[string]any)["state"]!="SUCCEEDED"{t.Fatal("operation did not succeed")}
+
+	status:=map[string]any{
+		"protocol":"obis","version":"0.2","message_type":"operation_status_request",
+		"message_id":"status-resource-mismatch","nonce":"status-resource-nonce-2","attempt_id":"status-resource-attempt-2",
+		"sender":map[string]any{"peer_id":"caller"},"recipient":map[string]any{"peer_id":"provider"},
+		"issued_at":json.Number(fmtInt(time.Now().Unix())),"expires_at":json.Number(fmtInt(time.Now().Unix()+45)),
+		"capability":map[string]any{"id":"ecoscan.inventory.read","version":"1.0"},
+		"authorization":map[string]any{"principal_ref":"principal-a","scopes":[]any{"inventory.read"}},
+		"operation_id":"resource-status-op",
+		"resource":map[string]any{"project_id":"project-b","source_id":"source-b"},
+	}
+	statusSignature,err:=Sign(status,secret);if err!=nil{t.Fatal(err)}
+	_,_,protocolErr=p02.Handle(status,"caller-key",statusSignature)
+	if protocolErr==nil||protocolErr.Code!="operation.not_found"{t.Fatalf("expected resource-scoped not found, got %v",protocolErr)}
+}
