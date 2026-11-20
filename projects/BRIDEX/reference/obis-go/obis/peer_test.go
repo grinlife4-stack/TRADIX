@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"encoding/json"
+	"io"
 	"bytes"
 	"os"
 	"path/filepath"
@@ -250,4 +251,80 @@ func TestInvokeReturnsConnectionErrorWhenPeerIsUnavailable(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected connection error for unavailable peer")
 	}
+}
+
+
+func signedResponseTestServer(t *testing.T, secret []byte, status int, mutate func(map[string]any)) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		if err != nil { t.Errorf("read request: %v", err); return }
+		request, err := DecodeStrict(raw)
+		if err != nil { t.Errorf("decode request: %v", err); return }
+		response := map[string]any{
+			"protocol": Protocol,
+			"version": Version,
+			"message_type": "response",
+			"message_id": "response-test-id",
+			"correlation_id": request["message_id"],
+			"sender": map[string]any{"peer_id": "peer:python"},
+			"recipient": map[string]any{"peer_id": "peer:go"},
+			"issued_at": float64(time.Now().Unix()),
+			"outcome": "succeeded",
+			"result": map[string]any{"record_id": "response-test"},
+		}
+		if status != http.StatusOK {
+			response["outcome"] = "failed"
+			delete(response, "result")
+			response["error"] = map[string]any{"code": "authorization.denied", "message": "denied"}
+		}
+		if mutate != nil { mutate(response) }
+		body, err := CanonicalJSON(response)
+		if err != nil { t.Errorf("encode response: %v", err); return }
+		signature, err := Sign(response, secret)
+		if err != nil { t.Errorf("sign response: %v", err); return }
+		w.Header().Set("Content-Type", "application/obis+json")
+		w.Header().Set("X-OBIS-Signature", signature)
+		w.WriteHeader(status)
+		_, _ = w.Write(body)
+	}))
+}
+
+func TestInvokeRejectsSignedDowngradedAndMismatchedResponses(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	cases := []struct {
+		name string
+		mutate func(map[string]any)
+	}{
+		{"downgraded protocol version", func(m map[string]any) { m["version"] = "0.0" }},
+		{"wrong correlation id", func(m map[string]any) { m["correlation_id"] = "another-request" }},
+		{"wrong sender peer", func(m map[string]any) { m["sender"] = map[string]any{"peer_id": "peer:attacker"} }},
+		{"unexpected response field", func(m map[string]any) { m["extra"] = "not-in-contract" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := signedResponseTestServer(t, secret, http.StatusOK, tc.mutate)
+			defer server.Close()
+			_, err := Invoke(
+				server.URL, "peer:go", "peer:python", "go-key", "principal:go",
+				secret, []string{"records:read"}, "records.read", "1.0",
+				map[string]any{"record_id": "response-validation"},
+			)
+			if err == nil { t.Fatal("client accepted an invalid signed response") }
+		})
+	}
+}
+
+func TestInvokeRejectsMalformedSignedErrorResponse(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	server := signedResponseTestServer(t, secret, http.StatusForbidden, func(response map[string]any) {
+		response["error"].(map[string]any)["unexpected"] = "not-allowed"
+	})
+	defer server.Close()
+	_, err := Invoke(
+		server.URL, "peer:go", "peer:python", "go-key", "principal:go",
+		secret, []string{"records:read"}, "records.read", "1.0",
+		map[string]any{"record_id": "malformed-error"},
+	)
+	if err == nil { t.Fatal("client accepted a malformed signed error response") }
 }
