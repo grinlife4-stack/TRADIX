@@ -185,3 +185,23 @@ func TestHandleRejectsUnauthorizedScopeBeforeCapabilityExecution(t *testing.T) {
 	}
 	if calls != 0 { t.Fatalf("capability handler ran %d times after authorization denial", calls) }
 }
+
+
+func TestReplayDoesNotExecuteCapabilityTwice(t *testing.T) {
+	calls := 0
+	peer, secret := newNegativeTestPeer(t, &calls)
+	request := validNegativeTestRequest(time.Now())
+	signature, err := Sign(request, secret)
+	if err != nil { t.Fatal(err) }
+
+	if _, _, protocolErr := peer.Handle(request, "python-key", signature); protocolErr != nil {
+		t.Fatalf("first request failed: %v", protocolErr)
+	}
+	if calls != 1 { t.Fatalf("expected one execution, got %d", calls) }
+
+	_, _, protocolErr := peer.Handle(request, "python-key", signature)
+	if protocolErr == nil || protocolErr.Code != "request.replay_detected" {
+		t.Fatalf("expected replay rejection, got %#v", protocolErr)
+	}
+	if calls != 1 { t.Fatalf("replayed request executed capability again; calls=%d", calls) }
+}
