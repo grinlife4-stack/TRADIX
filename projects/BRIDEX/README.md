@@ -2,7 +2,7 @@
 
 **Project ID:** BRIDEX-PROJECT-001  
 **Project type:** Independent specialist software/tooling project  
-**Status:** Architecture established; OBIS 0.1 standalone Python reference prototype implemented; production security and full conformance remain pending  
+**Status:** Architecture established; BRIDEX Core generator 0.1 and OBIS 0.1 standalone Python reference implemented; production security, complete conformance, and independent runtime pilots remain pending  
 **Parent portfolio:** TRADIX portfolio  
 **Operating rule:** Independent identity, source, configuration, data, lifecycle, and runtime boundary
 
@@ -58,6 +58,29 @@ python -m pytest -q
 ```
 
 The root CI also runs these reference tests. The reference now includes `ecoscan.inventory.read@1.0` and an explicit per-credential `allowed_resources` grant. Its provider handler is called only after the OBIS peer validates the authenticated credential's project/source grant. This is a development/conformance prototype only: loopback transport and the shared-secret HMAC profile are not approved for production or sensitive workloads. See [implementation status and release gates](reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
+
+## 3C. BRIDEX Core generator 0.1
+
+The first executable BRIDEX engineering-plane component is available as a separate, dependency-free Python package at `core/`. It can:
+
+- Generate a standalone Bridge project skeleton with a machine-readable ownership/operator record.
+- Require explicit owner and operator assignment evidence.
+- Require an OBIS protocol declaration and strict semantic versions.
+- Start every generated peer and capability disabled and the lifecycle in draft.
+- Validate the manifest and reject unknown fields or missing ownership evidence.
+- Produce a deterministic ZIP package from an explicit project structure, with symlink and secret-named-file rejection.
+
+Install and use it independently:
+
+```bash
+cd projects/BRIDEX/core
+python -m pip install .
+bridex init --path ../generated/example-bridge --bridge-id example-bridge --name "Example Bridge" --owner-id owner-team --owner-assignment-ref decision:owner-001 --operator-id ops-team --operator-assignment-ref decision:operator-001
+bridex validate ../generated/example-bridge
+bridex package ../generated/example-bridge --output ../generated/example-bridge.zip
+```
+
+This is a scaffolding and packaging foundation, not a complete Bridge runtime, OBIS transport, credential manager, or production release system. The generated project deliberately has no enabled peer or capability.
 
 ## 3C. Relationship to existing TRADIX infrastructure
 
@@ -135,7 +158,7 @@ Any reuse must preserve Bridge independence and must not make a released Bridge 
 
 ## 8. Initial delivery boundary
 
-The first BRIDEX delivery is specification and test architecture, not a production connector. It must establish the Bridge Core boundary, OBIS implementation requirements, generation contract, security model, conformance suite, package format, and independence test harness before generating production Bridges for NEXORA, EXVARLI, ECOSCAN, or other projects.
+The first executable delivery now includes the BRIDEX Core generator 0.1 and a standalone OBIS Python reference peer. Remaining work includes hardening the generator's package-content policy, adding a portable runtime/transport adapter contract, completing the production OBIS security profile and cross-language conformance harness, and proving a generated Bridge can operate independently with BRIDEX and TRADIX unavailable. No production Bridge should be generated for NEXORA, EXVARLI, ECOSCAN, or another project until those gates and the destination project's explicit permissions pass.
 
 No production deployment, credential creation, external account setup, secret provisioning, or live connection is authorized by this dossier.
 
