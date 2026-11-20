@@ -260,10 +260,10 @@ CI run 44808374243 completed successfully on PR #42 head ab6cf9ba108d5368844428e
 PR #67 now runs a separate Go peer process on loopback and tests the ECOSCAN inventory request against it:
 
 - OBIS 0.1 path: successful inventory response and denial of an ungranted project/source.
-- OBIS 0.2 path: a test-only adapter invoker wraps OBISV02Client, checks the operation state, and maps the authenticated operation result into ECOSCAN's current adapter contract. This is a conformance bridge for testing only, not an ECOSCAN runtime dependency.
+- OBIS 0.2 path: ECOSCAN now includes a native OBISV02Invoker. It clones the injected client with per-call scope narrowing and deadline-derived timeout, generates operation/idempotency identities, and maps only a verified SUCCEEDED operation into the existing ECOSCAN result contract. ACCEPTED, RUNNING, and UNKNOWN fail closed as TransportOutcomeUnknown; known terminal failures remain failures.
 - The standalone workflow pins the BRIDEX Go/Python reference implementation to commit ab6cf9ba108d5368844428eabbd5c492ad2e6069, builds the Go binary, and runs the tests without deploying or contacting an external provider.
 
-PR #67 standalone CI run 44808610978 completed successfully against the updated pin, with 74 passed including the OBIS 0.2 Go-peer integration; registry validation and the local-only synthetic scan also passed. The companion test workflow against the same pinned OBIS 0.2 reference peer, run 44808609957, also completed successfully with 181 tests passed. PR #67 remains Draft and unmerged.
+PR #67 CI on head 29da6f6e689d97a328339145dbad6343e8201cae passed: standalone run 44809260481 completed with 79 tests passed, registry validation, and a local-only synthetic scan; companion cross-project run 44809273940 completed with 186 tests passed. Both workflows used the native OBISV02Invoker and pinned the OBIS reference to the CI-validated PR #42 commit ab6cf9ba108d5368844428eabbd5c492ad2e6069. PR #67 remains Draft and unmerged.
 
 ## Shared request-hash vectors and authenticated error parity — 2026-11-20
 
