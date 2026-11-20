@@ -133,3 +133,48 @@ func TestValidateV02StatusRequestWithResourceIdentity(t *testing.T) {
 	message,err:=DecodeStrict(raw);if err!=nil{t.Fatal(err)}
 	if protocolErr:=validateV02Message(message,time.Now());protocolErr!=nil{t.Fatalf("valid resource-scoped status request rejected: %+v",protocolErr)}
 }
+
+
+func TestIndependentBridexAndTradixOwnerIsolation(t *testing.T) {
+	dir:=t.TempDir()
+	bridexSecret:=[]byte("bridex-development-secret-32bytes")
+	tradixSecret:=[]byte("tradix-development-secret-32bytes")
+	bridexLedger,err:=NewFileOperationLedger(filepath.Join(dir,"bridex-operations.json"));if err!=nil{t.Fatal(err)}
+	tradixLedger,err:=NewFileOperationLedger(filepath.Join(dir,"tradix-operations.json"));if err!=nil{t.Fatal(err)}
+	bridexPeer,err:=NewPeer("peer:bridex");if err!=nil{t.Fatal(err)}
+	tradixPeer,err:=NewPeer("peer:tradix");if err!=nil{t.Fatal(err)}
+	if err=bridexPeer.AddCredential(Credential{KeyID:"bridex-key",PeerID:"caller",PrincipalRef:"principal:caller",Secret:bridexSecret,AllowedScopes:map[string]bool{"bridex:inventory:read":true},AllowedResources:map[string]bool{"project-a/source-a":true}});err!=nil{t.Fatal(err)}
+	if err=tradixPeer.AddCredential(Credential{KeyID:"tradix-key",PeerID:"caller",PrincipalRef:"principal:caller",Secret:tradixSecret,AllowedScopes:map[string]bool{"tradix:tools:read":true},AllowedResources:map[string]bool{"project-b/source-b":true}});err!=nil{t.Fatal(err)}
+	bridexCalls,tradixCalls:=0,0
+	bridexV02,err:=NewPeerV02(bridexPeer,bridexLedger);if err!=nil{t.Fatal(err)}
+	tradixV02,err:=NewPeerV02(tradixPeer,tradixLedger);if err!=nil{t.Fatal(err)}
+	if err=bridexV02.RegisterCapabilityWithResourceBinding("bridex.inventory.read","1.0",map[string]bool{"bridex:inventory:read":true},func(map[string]any)(map[string]any,error){bridexCalls++;return map[string]any{"owner":"BRIDEX"},nil},"IDEMPOTENT",true);err!=nil{t.Fatal(err)}
+	if err=tradixV02.RegisterCapabilityWithResourceBinding("tradix.tools.read","1.0",map[string]bool{"tradix:tools:read":true},func(map[string]any)(map[string]any,error){tradixCalls++;return map[string]any{"owner":"TRADIX"},nil},"IDEMPOTENT",true);err!=nil{t.Fatal(err)}
+
+	build:=func(peerID,capability,scope,operationID,key string,secret []byte,projectID,sourceID,nonce string)(map[string]any,string){
+		message,_:=testV02Message(t,secret,nonce,"attempt-"+nonce,operationID,"idem-"+operationID,"")
+		message["recipient"]=map[string]any{"peer_id":peerID}
+		message["capability"]=map[string]any{"id":capability,"version":"1.0"}
+		message["authorization"]=map[string]any{"principal_ref":"principal:caller","scopes":[]any{scope}}
+		message["payload"]=map[string]any{"project_id":projectID,"source_id":sourceID}
+		hash,e:=OperationRequestHash(message);if e!=nil{t.Fatal(e)}
+		message["operation"].(map[string]any)["request_hash"]=hash
+		signature,e:=Sign(message,secret);if e!=nil{t.Fatal(e)}
+		return message,signature
+	}
+	bridexMessage,bridexSignature:=build("peer:bridex","bridex.inventory.read","bridex:inventory:read","shared-op","bridex-key",bridexSecret,"project-a","source-a","bridex-nonce")
+	tradixMessage,tradixSignature:=build("peer:tradix","tradix.tools.read","tradix:tools:read","shared-op","tradix-key",tradixSecret,"project-b","source-b","tradix-nonce")
+	bridexResponse,_,e:=bridexV02.Handle(bridexMessage,"bridex-key",bridexSignature);if e!=nil{t.Fatalf("BRIDEX request rejected: %+v",e)}
+	tradixResponse,_,e:=tradixV02.Handle(tradixMessage,"tradix-key",tradixSignature);if e!=nil{t.Fatalf("TRADIX request rejected: %+v",e)}
+	if bridexResponse["operation"].(map[string]any)["result"].(map[string]any)["owner"]!="BRIDEX"{t.Fatal("BRIDEX returned another owner's result")}
+	if tradixResponse["operation"].(map[string]any)["result"].(map[string]any)["owner"]!="TRADIX"{t.Fatal("TRADIX returned another owner's result")}
+	if bridexCalls!=1||tradixCalls!=1{t.Fatalf("unexpected handler counts: BRIDEX=%d TRADIX=%d",bridexCalls,tradixCalls)}
+
+	if _,_,e=bridexV02.Handle(tradixMessage,"tradix-key",tradixSignature);e==nil||e.Code!="identity.unknown_peer"{t.Fatalf("cross-owner credential accepted by BRIDEX: %+v",e)}
+	deniedMessage,deniedSignature:=build("peer:bridex","bridex.inventory.read","bridex:inventory:read","denied-op","bridex-key",bridexSecret,"project-b","source-b","bridex-denied")
+	if _,_,e=bridexV02.Handle(deniedMessage,"bridex-key",deniedSignature);e==nil||e.Code!="authorization.denied"{t.Fatalf("cross-project resource accepted by BRIDEX: %+v",e)}
+	if bridexCalls!=1||tradixCalls!=1{t.Fatal("denied cross-owner/resource request executed a handler")}
+	if _,e=bridexLedger.Get("shared-op","caller","principal:caller","bridex.inventory.read","1.0");e!=nil{t.Fatalf("BRIDEX ledger missing own operation: %v",e)}
+	if _,e=tradixLedger.Get("shared-op","caller","principal:caller","tradix.tools.read","1.0");e!=nil{t.Fatalf("TRADIX ledger missing own operation: %v",e)}
+	if _,e=bridexLedger.Get("shared-op","caller","principal:caller","tradix.tools.read","1.0");e==nil{t.Fatal("BRIDEX ledger exposed TRADIX operation")}
+}
