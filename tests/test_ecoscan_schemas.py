@@ -143,5 +143,6 @@ def test_export_manifest_requires_hashes_and_excludes_secret_values() -> None:
     }
     assert_valid("export-manifest.schema.json", manifest)
     assert_invalid("export-manifest.schema.json", {**manifest, "api_key": "secret"})
-    unsafe = {**manifest, "files": [{**manifest["files"][0], "path": "../private/secret.txt"}]}
-    assert_invalid("export-manifest.schema.json", unsafe)
+    for unsafe_path in ("../private/secret.txt", "a/../private.txt", "a/./b.txt", ".", "a//b.txt", "/etc/passwd", "C:/private.txt", "a\\\\b.txt"):
+        unsafe = {**manifest, "files": [{**manifest["files"][0], "path": unsafe_path}]}
+        assert_invalid("export-manifest.schema.json", unsafe)
