@@ -274,3 +274,140 @@ def test_filesystem_adapter_rejects_symlink_in_parent_path(tmp_path):
     assert outcome.coverage_state == "FAILED"
     assert outcome.reason_code == "adapter_contract_violation"
     assert store.list_measurements() == []
+
+
+
+@pytest.mark.parametrize(
+    "controls",
+    [
+        ControlState(False, frozenset({"project-a"}), frozenset({("project-a", "storage")}), frozenset({("project-a", "fs-local")})),
+        ControlState(True, frozenset(), frozenset({("project-a", "storage")}), frozenset({("project-a", "fs-local")})),
+        ControlState(True, frozenset({"project-a"}), frozenset(), frozenset({("project-a", "fs-local")})),
+        ControlState(True, frozenset({"project-a"}), frozenset({("project-a", "storage")}), frozenset()),
+    ],
+    ids=["global-off", "project-off", "subsystem-off", "source-off"],
+)
+def test_each_disabled_control_blocks_adapter_execution(tmp_path, controls):
+    root = tmp_path / "source"
+    root.mkdir()
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [source(root)],
+    })
+
+    class CountingAdapter:
+        adapter_id = "filesystem"
+        version = "0.1.0"
+
+        def __init__(self):
+            self.calls = 0
+
+        def validate_config(self, descriptor):
+            self.calls += 1
+
+        def scan(self, context):
+            self.calls += 1
+            raise AssertionError("disabled source must never reach adapter execution")
+
+    adapter = CountingAdapter()
+    disabled_gate = ExecutionGate(controls, lambda *args: True)
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(registry, disabled_gate, {"filesystem": adapter}, store).run(
+        "fs-local", "operator-a"
+    )
+    assert outcome.coverage_state == "DISABLED"
+    assert adapter.calls == 0
+    assert store.list_measurements() == []
+
+
+@pytest.mark.parametrize("budget_key,budget_value", [("max_items", 1), ("max_pages", 1)])
+def test_filesystem_budget_exhaustion_fails_without_measurements(tmp_path, budget_key, budget_value):
+    root = tmp_path / "source"
+    (root / "nested").mkdir(parents=True)
+    (root / "one.bin").write_bytes(b"1")
+    (root / "two.bin").write_bytes(b"22")
+    (root / "nested" / "three.bin").write_bytes(b"333")
+    raw = source(root)
+    raw["budget"][budget_key] = budget_value
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [raw],
+    })
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(
+        registry,
+        gate(),
+        {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)},
+        store,
+    ).run("fs-local", "operator-a")
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "budget_exhausted"
+    assert store.list_measurements() == []
+
+
+@pytest.mark.parametrize("suffix,raw", [(".json", "{broken"), (".jsonl", '{"type":"manifest"}\n{broken\n')])
+def test_transfer_rejects_corrupted_json_and_jsonl_without_partial_import(tmp_path, suffix, raw):
+    destination = ProjectStore(tmp_path / "destination", "project-a")
+    corrupted = tmp_path / f"corrupted{suffix}"
+    corrupted.write_text(raw, encoding="utf-8")
+    with pytest.raises(TransferError):
+        import_store(corrupted, destination)
+    assert destination.list_coverage() == []
+    assert destination.list_measurements() == []
+
+
+def test_transfer_rejects_manifest_count_tampering_without_partial_import(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "x").write_bytes(b"abc")
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [source(root)],
+    })
+    original = ProjectStore(tmp_path / "original", "project-a")
+    ScanRunner(
+        registry,
+        gate(),
+        {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)},
+        original,
+    ).run("fs-local", "operator-a")
+    path = export_store(original, tmp_path / "exports", "json")[0]
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["manifest"]["measurement_count"] += 1
+    tampered = tmp_path / "count-tampered.json"
+    tampered.write_text(json.dumps(payload), encoding="utf-8")
+    destination = ProjectStore(tmp_path / "destination", "project-a")
+    with pytest.raises(TransferError, match="record counts do not match"):
+        import_store(tampered, destination)
+    assert destination.list_coverage() == []
+    assert destination.list_measurements() == []
+
+
+def test_sqlite_database_can_be_copied_and_reopened_independently(tmp_path):
+    import shutil
+
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "file.bin").write_bytes(b"portable")
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [source(root)],
+    })
+    original = ProjectStore(tmp_path / "original-db", "project-a")
+    ScanRunner(
+        registry,
+        gate(),
+        {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)},
+        original,
+    ).run("fs-local", "operator-a")
+
+    destination_root = tmp_path / "independent-environment"
+    destination_root.mkdir()
+    shutil.copy2(original.path, destination_root / "project-a.sqlite3")
+    restored = ProjectStore(destination_root, "project-a")
+    assert restored.list_coverage() == original.list_coverage()
+    assert restored.list_measurements() == original.list_measurements()
