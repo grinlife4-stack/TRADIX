@@ -59,6 +59,13 @@ def create_bridge_project(
         (staging / "bridex.json").write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
+        (staging / "pyproject.toml").write_text(
+            f"[build-system]\\nrequires = [\"setuptools>=68\"]\\nbuild-backend = \"setuptools.build_meta\"\\n\\n"
+            f"[project]\\nname = \"bridge-{module_name}\"\\nversion = \"{version}\"\\n"
+            "requires-python = \">=3.11\"\\n"
+            "[tool.setuptools.packages.find]\\nwhere = [\"src\"]\\n",
+            encoding="utf-8",
+        )
         (staging / "README.md").write_text(
             f"# {name}\n\nIndependent Bridge project {bridge_id}.\n\n"
             "This generated project is draft-only. No peer is trusted and no capability is enabled.\n\n"
