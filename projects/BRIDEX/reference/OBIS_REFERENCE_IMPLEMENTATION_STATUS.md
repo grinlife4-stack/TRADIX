@@ -167,3 +167,12 @@ The cross-language integration harness now verifies durable replay protection in
 The test runs the Go request probe twice against two separate Python peer processes. It verifies response HMAC signatures and correlation IDs on both the initial success and replay rejection. CI run #1185 passed on commit `515079aeb0d4a69494d7dba3b2f6d8cd4d385d1e`, including Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
 
 This closes the specific local durable replay persistence gap for Go→Python across a real Python process restart, using the same SQLite database. It does not provide distributed replay coordination, business-operation idempotency or unknown-outcome reconciliation, persistent audit/evidence records, or production transport security. HMAC remains development/conformance-only; no normative OBIS schema, wire envelope, TIIS contract, or version negotiation semantics changed.
+
+
+## Go-originated malformed and expired request rejection by Python peer — 2026-11-20
+
+The independent Go-originated cross-peer negative test now also exercises the Python server's pre-capability rejection paths. It sends an expired but correctly signed request (HTTP 408), a correctly signed request with an undeclared top-level field (HTTP 400), a correctly signed request with an undeclared nested sender field (HTTP 400), malformed JSON (HTTP 400), and duplicate JSON object keys (HTTP 400). Existing authenticated unsupported-version (HTTP 426) and invalid-signature (HTTP 401) checks remain. The Python harness asserts that none of these rejected requests execute the capability handler.
+
+CI run #1187 passed on commit `5b2a7d6dc7e3c3acf8a0c9c6995d8462d695fb88`, including Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
+
+This extends selected Go→Python server-side negative coverage. It does not complete the full bidirectional negative conformance matrix or production security approval. HMAC remains development/conformance-only; no normative OBIS schema, wire envelope, TIIS contract, or version negotiation semantics changed.
