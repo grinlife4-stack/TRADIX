@@ -10,7 +10,7 @@ from ecoscan.filesystem import FilesystemAdapter
 from ecoscan.registry import parse_registry
 from ecoscan.runner import ScanRunner
 from ecoscan.store import ProjectStore
-from ecoscan.transfer import export_store, import_store
+from ecoscan.transfer import TransferError, export_store, import_store
 
 
 def source(path, source_id="fs-local", subsystem_id="storage", project_owner="owner-a", operator="operator-a"):
@@ -78,6 +78,54 @@ def test_json_and_jsonl_transfer_round_trip_is_idempotent(tmp_path, fmt):
     assert len(second.list_coverage()) == 1
     assert len(second.list_measurements()) == 2
 
+
+
+def test_transfer_rejects_measurement_crossing_source_boundary(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "x").write_bytes(b"abc")
+    registry = parse_registry({"schema_version": "0.1", "project_id": "project-a", "sources": [source(root)]})
+    store = ProjectStore(tmp_path / "db1", "project-a")
+    ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter()}, store).run("fs-local", "operator-a")
+    path = export_store(store, tmp_path / "exports", "json")[0]
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["measurements"][0]["source_id"] = "different-source"
+    tampered = tmp_path / "tampered.json"
+    tampered.write_text(json.dumps(payload), encoding="utf-8")
+    destination = ProjectStore(tmp_path / "db2", "project-a")
+    with pytest.raises(TransferError, match="source does not match"):
+        import_store(tampered, destination)
+
+
+def test_transfer_rejects_conflicting_duplicate_measurement_id(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "x").write_bytes(b"abc")
+    registry = parse_registry({"schema_version": "0.1", "project_id": "project-a", "sources": [source(root)]})
+    original = ProjectStore(tmp_path / "db1", "project-a")
+    ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter()}, original).run("fs-local", "operator-a")
+    path = export_store(original, tmp_path / "exports", "json")[0]
+    destination = ProjectStore(tmp_path / "db2", "project-a")
+    assert import_store(path, destination) == 3
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["measurements"][0]["value"] += 1
+    tampered = tmp_path / "conflict.json"
+    tampered.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(TransferError, match="conflicting duplicate measurement_id"):
+        import_store(tampered, destination)
+
+
+def test_filesystem_adapter_rejects_unsupported_measurement_kind(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    raw = source(root)
+    raw["expected_measurements"] = ["allocated_bytes"]
+    registry = parse_registry({"schema_version": "0.1", "project_id": "project-a", "sources": [raw]})
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(registry, gate(), {"filesystem": FilesystemAdapter()}, store).run("fs-local", "operator-a")
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "adapter_contract_violation"
+    assert store.list_measurements() == []
 
 def test_ecosystem_scope_keeps_each_project_database_separate(tmp_path, capsys):
     first = tmp_path / "first"
