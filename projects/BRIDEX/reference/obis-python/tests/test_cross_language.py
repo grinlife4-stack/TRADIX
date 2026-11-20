@@ -113,7 +113,7 @@ def test_python_client_interoperates_with_go_peer_over_tls13_mtls(tmp_path: Path
         encoding="utf-8",
     )
     for command in commands:
-        completed = subprocess.run(command, capture_output=True, text=True, timeout=20, check=False)
+        completed = subprocess.run(command, cwd=tmp_path, capture_output=True, text=True, timeout=20, check=False)
         assert completed.returncode == 0, completed.stderr
 
     with socket.socket() as listener:
