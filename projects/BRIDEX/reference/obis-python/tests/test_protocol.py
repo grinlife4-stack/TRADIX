@@ -7,7 +7,7 @@ import urllib.request
 
 import pytest
 
-from obis_bridge import Credential, OBISClient, OBISPeer, OBISRequestError, OBISServer
+from obis_bridge import Credential, OBISClient, OBISPeer, OBISRequestError, OBISServer, register_ecoscan_inventory_capability
 from obis_bridge.peer import MAX_MESSAGE_BYTES, MAX_TTL_SECONDS, MESSAGE_PATH, ReplayGuard, canonical_json, sign_message, strict_json_loads, validate_request, validate_response, verify_signature
 
 
@@ -461,3 +461,94 @@ def test_client_rejects_non_bare_loopback_urls():
 def test_client_timeout_must_be_finite_and_positive():
     with pytest.raises(ValueError, match="timeout"):
         OBISClient(PEER_A, PEER_B, KEY_ID, PRINCIPAL_A, SECRET, {"inventory:read"}, timeout=0)
+
+
+
+def make_ecoscan_inventory_pair():
+    credential = Credential(
+        key_id=KEY_ID,
+        peer_id=PEER_A,
+        principal_ref=PRINCIPAL_A,
+        secret=SECRET,
+        allowed_scopes=frozenset({"ecoscan:inventory:read"}),
+        allowed_resources=frozenset({("project-a", "source-a")}),
+    )
+    peer = OBISPeer(PEER_B, [credential])
+    provider_calls = []
+
+    def provider(project_id, source_id, kinds):
+        provider_calls.append((project_id, source_id, kinds))
+        return {
+            "coverage_state": "COMPLETE",
+            "items_seen": 3,
+            "pages_seen": 1,
+            "measurements": {"logical_bytes": 8192, "file_count": 3},
+            "source_timestamp": "2026-11-20T10:00:00Z",
+            "limitations": [],
+            "evidence_ref": "inventory-evidence-01",
+        }
+
+    register_ecoscan_inventory_capability(peer, provider)
+    client = OBISClient(
+        local_peer_id=PEER_A,
+        remote_peer_id=PEER_B,
+        key_id=KEY_ID,
+        principal_ref=PRINCIPAL_A,
+        secret=SECRET,
+        scopes={"ecoscan:inventory:read"},
+    )
+    return peer, client, provider_calls
+
+
+def test_ecoscan_inventory_capability_works_over_real_loopback_obis_http():
+    peer, client, provider_calls = make_ecoscan_inventory_pair()
+    with OBISServer(peer) as server:
+        response = client.invoke(
+            server.address,
+            "ecoscan.inventory.read",
+            "1.0",
+            {
+                "project_id": "project-a",
+                "source_id": "source-a",
+                "measurement_kinds": ["logical_bytes", "file_count"],
+            },
+        )
+    assert response["outcome"] == "succeeded"
+    assert response["result"]["project_id"] == "project-a"
+    assert response["result"]["source_id"] == "source-a"
+    assert response["result"]["measurements"] == {"logical_bytes": 8192, "file_count": 3}
+    assert provider_calls == [("project-a", "source-a", ("logical_bytes", "file_count"))]
+
+
+def test_ecoscan_inventory_capability_denies_ungranted_project_source_before_provider_call():
+    peer, client, provider_calls = make_ecoscan_inventory_pair()
+    with OBISServer(peer) as server:
+        with pytest.raises(OBISRequestError, match="outside credential resource grant"):
+            client.invoke(
+                server.address,
+                "ecoscan.inventory.read",
+                "1.0",
+                {
+                    "project_id": "project-b",
+                    "source_id": "source-b",
+                    "measurement_kinds": ["logical_bytes", "file_count"],
+                },
+            )
+    assert provider_calls == []
+
+
+def test_ecoscan_inventory_capability_rejects_unsupported_measurement_kind():
+    peer, client, provider_calls = make_ecoscan_inventory_pair()
+    with OBISServer(peer) as server:
+        with pytest.raises(OBISRequestError):
+            client.invoke(
+                server.address,
+                "ecoscan.inventory.read",
+                "1.0",
+                {
+                    "project_id": "project-a",
+                    "source_id": "source-a",
+                    "measurement_kinds": ["admin_dump"],
+                },
+            )
+    assert provider_calls == []
