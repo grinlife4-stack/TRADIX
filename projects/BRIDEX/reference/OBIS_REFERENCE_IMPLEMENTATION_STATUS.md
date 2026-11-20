@@ -190,3 +190,18 @@ The Python integration harness now sends authenticated and raw malformed request
 CI run #1189 passed on consolidated PR #42 head `2157d1de0fe60326898615b1b9fd037eac11139e` (run ID `44761677327`). The run completed Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated wheel/install/schema checks for BRIDEX Core, OBIS, and ECOSCAN.
 
 This adds selected Python→Go server-side malformed/expired request coverage. It does not establish full bidirectional negative conformance, full signed-error response parity, production security approval, or release readiness. HMAC remains development/conformance-only. No normative OBIS schema, wire envelope, TIIS contract, or version-negotiation semantics changed.
+
+
+## Go peer authenticated signed-error responses to Python — 2026-11-20
+
+CI run #1194 passed on consolidated PR #42 head `b68cd039cd66b29a4a650a49a46f9420d46d41de` (run ID `44763190803`). The Python integration harness sends correctly signed requests to the independent Go peer and validates the returned error response signature, response envelope, correlation ID, sender/recipient peer identities, HTTP status, and error code for these cases:
+
+- Expired authenticated request: HTTP 408, `request.expired`.
+- Unsupported protocol version: HTTP 426, `protocol.unsupported_version`.
+- Unknown capability: HTTP 404, `capability.unknown`.
+- Unauthorized scope: HTTP 403, `authorization.denied`.
+- Repeated nonce after one successful execution: HTTP 409, `request.replay_detected`.
+
+The correction keeps the original signed request unchanged and normalizes only a shallow validation copy for version/time-window checks after HMAC verification. The normalized timestamp values retain the `json.Number` representation expected by strict JSON validation. The Go unit/build checks, complete configured Python test suite, and isolated wheel/install/schema checks for BRIDEX Core, OBIS, and ECOSCAN all passed in the same run.
+
+This closes the selected Python→Go authenticated signed-error response cases listed above. It does not establish full bidirectional signed-error parity, full OBIS conformance, production security approval, distributed replay protection, business-operation idempotency, or durable audit/evidence storage. HMAC remains development/conformance-only. No normative OBIS/TIIS schema, wire contract, or version-negotiation semantics changed.
