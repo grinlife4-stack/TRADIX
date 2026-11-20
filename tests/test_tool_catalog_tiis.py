@@ -15,11 +15,11 @@ CATALOG = {"project_id": "tradix", "component_id": "tool-catalog"}
 SCHEMA_PATH = Path(__file__).parents[1] / "standards" / "tiis" / "0.1" / "message.schema.json"
 
 
-def descriptor(tool_id: str = "sample.reader") -> ToolDescriptor:
+def descriptor(tool_id: str = "sample.reader", category: str = "document") -> ToolDescriptor:
     return ToolDescriptor(
         tool_id=tool_id,
         version="1.2.0",
-        category="document",
+        category=category,
         source_uri="https://github.com/example/sample-reader",
         license_id="MIT",
         platforms=("linux", "windows"),
@@ -88,7 +88,7 @@ def test_tool_get_uses_tiis_and_returns_schema_valid_response(adapter) -> None:
 
 def test_tool_list_is_read_only_and_supports_bounded_filters(adapter) -> None:
     adapter._catalog.register(
-        descriptor("sample.image"),
+        descriptor("sample.image", category="image"),
         actor="test-fixture",
         reason="seed second metadata record",
     )
@@ -106,7 +106,7 @@ def test_missing_tool_returns_normalized_rejection(adapter) -> None:
 
     assert_valid_response(response)
     assert response["outcome"] == "rejected"
-    assert response["error"]["code"] == "tool.not_found"
+    assert response["error"]["code"] == "tool.not-found"
     assert response["error"]["retryable"] is False
 
 
