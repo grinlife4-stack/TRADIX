@@ -6,6 +6,8 @@ runtime dependency.
 """
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from obis_bridge import (
@@ -17,7 +19,7 @@ from obis_bridge import (
     register_ecoscan_inventory_capability,
 )
 
-from ecoscan.contracts import BudgetGuard, ScanContext
+from ecoscan.contracts import BudgetExceeded, BudgetGuard, ScanContext
 from ecoscan.models import RetentionPolicy, ScanBudget, SourceDescriptor
 from ecoscan.obis_bridge import OBISBridgeAdapter, REQUIRED_SCOPE
 
@@ -29,7 +31,7 @@ OWNER_PEER_ID = "peer:source-owner"
 ECOSCAN_PEER_ID = "peer:ecoscan"
 
 
-def _source(source_id: str = SOURCE_ID) -> SourceDescriptor:
+def _source(source_id: str = SOURCE_ID, timeout_seconds: float = 5) -> SourceDescriptor:
     return SourceDescriptor(
         source_id=source_id,
         owner_id="project-alpha-owner",
@@ -44,8 +46,8 @@ def _source(source_id: str = SOURCE_ID) -> SourceDescriptor:
         budget=ScanBudget(
             max_pages=5,
             max_items=20,
-            timeout_seconds=5,
-            max_duration_seconds=5,
+            timeout_seconds=timeout_seconds,
+            max_duration_seconds=timeout_seconds,
         ),
         expected_measurements=("logical_bytes", "file_count"),
         retention_policy=RetentionPolicy(history_days=30, evidence_days=0),
@@ -122,6 +124,51 @@ def test_ecoscan_adapter_exchanges_real_obis_http_messages_with_independent_peer
     assert all(item["project_id"] == PROJECT_ID for item in result.measurements)
     assert all(item["source_id"] == SOURCE_ID for item in result.measurements)
     assert all(item["adapter_id"] == "obis_bridge" for item in result.measurements)
+
+
+def test_adapter_passes_deadline_and_rejects_late_empty_peer_response():
+    class SlowEmptyClient:
+        local_peer_id = ECOSCAN_PEER_ID
+        remote_peer_id = OWNER_PEER_ID
+        scopes = frozenset({REQUIRED_SCOPE})
+
+        def __init__(self):
+            self.deadline = None
+
+        def invoke(
+            self, endpoint, capability_id, capability_version, payload,
+            scopes=None, deadline=None,
+        ):
+            self.deadline = deadline
+            time.sleep(0.04)
+            return {
+                "sender": {"peer_id": OWNER_PEER_ID},
+                "recipient": {"peer_id": ECOSCAN_PEER_ID},
+                "outcome": "succeeded",
+                "result": {
+                    "project_id": PROJECT_ID,
+                    "source_id": SOURCE_ID,
+                    "coverage_state": "COMPLETE",
+                    "items_seen": 0,
+                    "pages_seen": 1,
+                    "measurements": {"logical_bytes": 0, "file_count": 0},
+                    "source_timestamp": None,
+                    "limitations": [],
+                    "evidence_ref": None,
+                },
+            }
+
+    source = _source(timeout_seconds=0.01)
+    context = _context(source)
+    client = SlowEmptyClient()
+    adapter = OBISBridgeAdapter(client, "http://127.0.0.1:8080")
+    started = time.monotonic()
+
+    with pytest.raises(BudgetExceeded):
+        adapter.scan(context)
+
+    assert client.deadline == context.guard.deadline
+    assert time.monotonic() - started < 0.5
 
 
 def test_independent_peer_denies_ungranted_project_source_before_provider_execution():
