@@ -24,6 +24,7 @@ The manifest is metadata, not authority. Its contents do not authenticate a peer
 - Rejection of path traversal and symlink escapes outside the package root.
 - Deterministic ZIP export with normalized timestamps and file ordering.
 - Safe restore with ZIP-slip, symlink/special-file, duplicate-path, entry-count, and uncompressed-size checks.
+- A language-neutral OBIS 0.1 message-schema vector suite and a standalone runner that validates the suite and declared canonical schema.
 - Post-restore manifest and artifact verification.
 - Positive and negative tests for ownership, unknown fields, duplicate keys, tampering, path traversal, and package verification.
 
@@ -96,6 +97,9 @@ bridex-manifest export ./bridge-package ./bridge-package.zip
 
 # Restore into a new directory and verify it before publishing
 bridex-manifest restore ./bridge-package.zip ./restored-bridge
+
+# Run the published OBIS 0.1 schema vectors
+bridex-manifest conformance schema ./standards/obis/0.1/conformance/vectors.json
 ```
 
 All commands exit with `0` on success and `2` for invalid input. Restore refuses to overwrite an existing destination.
@@ -105,9 +109,8 @@ All commands exit with `0` on success and `2` for invalid input. Restore refuses
 This package is not a Bridge runtime, code generator, transport adapter, OBIS implementation, trust store, credential manager, scheduler, retry engine, audit ledger, or production security profile. Package verification proves only the integrity and presence of the declared local package files. Export produces a deterministic ZIP of those files; restore validates archive paths and file types, restores into a new directory, and re-verifies the package. Neither operation proves that the artifact is safe, executable, interoperable, authorized, or production-ready.
 
 Next generic foundation gates:
-1. Add deterministic build/reproducibility metadata and export/restore tests.
-2. Add an isolated conformance harness that consumes versioned OBIS test vectors without depending on Python peer internals.
+1. Demonstrate clean-environment package install, export, restore, and execution with TRADIX and BRIDEX unavailable.
+2. Extend conformance beyond message-schema vectors to transport-independent peer behavior once the corresponding OBIS semantics and security profile are explicitly specified.
 3. Add lifecycle/health primitives only after their state transitions and failure semantics are specified.
-4. Demonstrate a clean-environment install and execution with TRADIX and BRIDEX unavailable.
 
 A valid package does not by itself satisfy OBIS conformance or production deployment acceptance.
