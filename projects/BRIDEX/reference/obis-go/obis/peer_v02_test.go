@@ -125,3 +125,11 @@ func TestPeerV02ResourceBindingFailsClosed(t *testing.T) {
 	if protocolErr==nil||protocolErr.Code!="authorization.denied"{t.Fatalf("expected resource authorization denial, got %v",protocolErr)}
 	if calls!=0{t.Fatalf("resource-denied request executed handler %d times",calls)}
 }
+
+
+func TestValidateV02StatusRequestWithResourceIdentity(t *testing.T) {
+	now:=time.Now().Unix()
+	raw:=[]byte(`{"protocol":"obis","version":"0.2","message_type":"operation_status_request","message_id":"status-message","nonce":"status-nonce","attempt_id":"status-attempt","sender":{"peer_id":"caller"},"recipient":{"peer_id":"provider"},"issued_at":`+fmtInt(now)+`,"expires_at":`+fmtInt(now+30)+`,"capability":{"id":"ecoscan.inventory.read","version":"1.0"},"authorization":{"principal_ref":"principal-a","scopes":["inventory.read"]},"operation_id":"operation-1","resource":{"project_id":"project-a","source_id":"source-a"}}`)
+	message,err:=DecodeStrict(raw);if err!=nil{t.Fatal(err)}
+	if protocolErr:=validateV02Message(message,time.Now());protocolErr!=nil{t.Fatalf("valid resource-scoped status request rejected: %+v",protocolErr)}
+}
