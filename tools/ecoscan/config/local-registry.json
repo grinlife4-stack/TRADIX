@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "system_enabled": true,
+  "database_dir": ".ecoscan/db",
+  "output_dir": ".ecoscan/exports",
+  "projects": [
+    {
+      "project_id": "ECOSCAN_DEMO",
+      "name": "ECOSCAN local demonstration",
+      "enabled": true,
+      "sources": [
+        {
+          "source_id": "ecoscan-demo-files",
+          "provider": "filesystem_local",
+          "path": "../../../tests/fixtures/ecoscan/sample_project",
+          "enabled": true
+        }
+      ]
+    }
+  ]
+}
