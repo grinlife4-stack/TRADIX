@@ -21,7 +21,7 @@ The purpose is to let every project retain control of its integration capability
 
 BRIDEX is the generator and engineering-method provider. It is **never the owner** of a project Bridge instance.
 
-Ownership of each Bridge instance must be explicitly assigned and recorded before release. The owner must be the portfolio project whose resources, data, or capabilities the Bridge is authorized to expose. For a project-specific Bridge, ownership cannot be assigned to BRIDEX, the generator, the receiving project, a hosting provider, or an unrelated entity.
+For this policy, the source/resource-owning project is the portfolio project that owns, administers, or has delegated authority over the relevant source account, resource, data, or capability and authorizes the Bridge to access or expose it; it is not the external SaaS/cloud provider that hosts the resource. Ownership of each Bridge instance must be explicitly assigned and recorded before release. The owner must be that source/resource-owning project. For a project-specific Bridge, ownership cannot be assigned to BRIDEX, the generator, the receiving project, a hosting provider, or an unrelated entity.
 
 A project may appoint another party as operator or maintainer under its control, but that appointment does not transfer ownership. Where an integration requires Bridges on both sides, each project owns its own boundary Bridge. A shared multi-project Bridge is prohibited unless every affected project owner explicitly approves a written joint-ownership agreement defining governance, project isolation, credentials, data scopes, exit, and replacement rights. BRIDEX is never the default joint owner.
 
