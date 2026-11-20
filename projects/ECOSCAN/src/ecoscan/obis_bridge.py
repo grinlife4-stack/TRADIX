@@ -35,6 +35,7 @@ class OBISInvoker(Protocol):
         capability_version: str,
         payload: dict[str, Any],
         scopes: set[str] | frozenset[str] | None = None,
+        deadline: float | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -93,17 +94,27 @@ class OBISBridgeAdapter:
         # Charge the request page before making a remote call. Every provider
         # page/item reported by the Bridge is charged against the same local budget.
         context.guard.consume_page()
-        response = self.client.invoke(
-            self.endpoint,
-            CAPABILITY_ID,
-            CAPABILITY_VERSION,
-            {
-                "project_id": context.project_id,
-                "source_id": context.source.source_id,
-                "measurement_kinds": list(context.source.expected_measurements),
-            },
-            scopes={REQUIRED_SCOPE},
-        )
+        try:
+            response = self.client.invoke(
+                self.endpoint,
+                CAPABILITY_ID,
+                CAPABILITY_VERSION,
+                {
+                    "project_id": context.project_id,
+                    "source_id": context.source.source_id,
+                    "measurement_kinds": list(context.source.expected_measurements),
+                },
+                scopes={REQUIRED_SCOPE},
+                deadline=context.guard.deadline,
+            )
+        except Exception as exc:
+            # A transport timeout is a scan-budget failure only when the
+            # absolute scan deadline has actually expired. A shorter client
+            # transport timeout remains a distinct adapter execution failure.
+            if getattr(exc, "code", None) == "peer.timeout":
+                context.guard.check_deadline()
+            raise
+        context.guard.check_deadline()
         if not isinstance(response, Mapping):
             raise AdapterContractError("OBIS response must be an object")
         sender = response.get("sender")
