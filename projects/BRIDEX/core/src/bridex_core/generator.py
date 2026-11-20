@@ -54,10 +54,10 @@ def create_bridge_scaffold(
     values = (bridge_id, name, implementation_version, owner_id, owner_name, operator_id, operator_name)
     if not all(isinstance(value, str) and value.strip() for value in values):
         raise ManifestValidationError("Bridge identity, owner, and operator fields must be non-empty strings")
-    versions = obis_versions or ["0.1"]
-    if not versions or not all(isinstance(item, str) and item for item in versions) or len(set(versions)) != len(versions):
+    versions = ["0.1"] if obis_versions is None else obis_versions
+    if not isinstance(versions, list) or not versions or not all(isinstance(item, str) and item for item in versions) or len(set(versions)) != len(versions):
         raise ManifestValidationError("OBIS versions must be a non-empty list of unique strings")
-    config_schema = configuration_schema or {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "additionalProperties": False, "properties": {}}
+    config_schema = {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "additionalProperties": False, "properties": {}} if configuration_schema is None else configuration_schema
     try:
         Draft202012Validator.check_schema(config_schema)
     except Exception as exc:
