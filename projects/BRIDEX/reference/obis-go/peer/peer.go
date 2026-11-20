@@ -54,6 +54,7 @@ type Peer struct {
 	Capabilities map[string]Capability
 	mu           sync.Mutex
 	seen         map[string]time.Time
+	revoked      bool
 }
 
 func NewPeer(id string, credential Credential) (*Peer, error) {
@@ -77,6 +78,16 @@ func NewPeer(id string, credential Credential) (*Peer, error) {
 		}
 	}
 	return &Peer{ID: id, Credential: credential, Capabilities: map[string]Capability{}, seen: map[string]time.Time{}}, nil
+}
+
+func (p *Peer) RevokeCredential(keyID string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if keyID == "" || keyID != p.Credential.KeyID || p.revoked {
+		return false
+	}
+	p.revoked = true
+	return true
 }
 
 func (p *Peer) RegisterCapability(id, version string, required map[string]bool, handler Handler) error {
@@ -218,6 +229,12 @@ func (p *Peer) validate(message map[string]any, keyID, signature, certificateURI
 	}
 	if keyID != p.Credential.KeyID {
 		return nil, Capability{}, errors.New("identity.authentication_failed")
+	}
+	p.mu.Lock()
+	revoked := p.revoked
+	p.mu.Unlock()
+	if revoked {
+		return nil, Capability{}, errors.New("identity.credential_revoked")
 	}
 	if certificateURI == "" {
 		if p.Credential.CertificateURI != "" || !Verify(message, p.Credential.Secret, signature) {
