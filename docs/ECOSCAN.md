@@ -240,3 +240,30 @@ Example source entry:
 No volume content is read. The adapter does not create, resize, attach, detach, restore, or delete volumes/backups. A missing instance ID or token produces `NOT_CONFIGURED`, not a zero-size measurement.
 
 The connected Railway inventory currently exposes one live staging volume named `artifact-data`, provisioned at 500 MB and mounted at `/data` on `artifact-gateway`. This is configured capacity, not actual filesystem usage. Its volume-instance ID has not been independently verified, so the resource is not inserted into the ECOSCAN registry using a guessed identifier.
+
+
+## 16. S3-compatible object-storage adapter
+
+The `s3_compatible` provider uses the standard-library AWS Signature Version 4 implementation and S3 `ListObjectsV2`. It can be configured for S3-compatible endpoints such as Backblaze B2, Cloudflare R2, or an S3-compatible Railway bucket.
+
+Example source:
+
+```json
+{
+  "source_id": "project-object-store",
+  "project_id": "NEXORA",
+  "provider": "s3_compatible",
+  "endpoint": "https://ACCOUNT_ID.r2.cloudflarestorage.com",
+  "bucket": "project-assets",
+  "region": "auto",
+  "url_style": "path",
+  "access_key_env": "ECOSCAN_NEXORA_OBJECT_ACCESS_KEY",
+  "secret_key_env": "ECOSCAN_NEXORA_OBJECT_SECRET_KEY",
+  "max_pages": 1000,
+  "enabled": true
+}
+```
+
+Credentials are read only from the named environment variables and are never included in reports. The adapter lists object keys/sizes and pagination metadata; it does not download object bodies. It counts current objects only. Object versions and incomplete multipart uploads are not included. An interrupted or capped listing is `PARTIAL`, not `COMPLETE`.
+
+The measured logical object total is not provider billing, physical disk consumption, or backup size. Capacity is left unknown unless a separate trusted capacity source is configured. No bucket is added to the live registry until its owner supplies an explicit endpoint, bucket, and read-only credentials.
