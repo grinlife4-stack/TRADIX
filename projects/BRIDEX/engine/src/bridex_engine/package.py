@@ -114,7 +114,7 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
         if len(infos) > MAX_PACKAGE_ENTRIES:
             raise BridgeManifestError("package_entry_count_limit_exceeded")
         for info in infos:
-            _safe_relative_path(info.filename)
+            _safe_relative_path(info.filename, allow_reserved=True)
             mode = (info.external_attr >> 16) & 0xFFFF
             if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
                 raise BridgeManifestError("package_non_regular_entry_rejected")
@@ -145,7 +145,7 @@ def verify_package(package_path: str | Path, *, max_package_bytes: int = MAX_PAC
         for record in records:
             if not isinstance(record, dict) or set(record) != {"path", "size_bytes", "sha256"}:
                 raise BridgeManifestError("package_file_record_invalid")
-            name = _safe_relative_path(record["path"]).as_posix()
+            name = _safe_relative_path(record["path"], allow_reserved=True).as_posix()
             if name in seen:
                 raise BridgeManifestError("package_duplicate_file_record")
             seen.add(name)
