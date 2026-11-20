@@ -152,3 +152,12 @@ The Python reference peer is a local development/conformance prototype. It imple
 It does not implement the candidate production profile, durable replay/idempotency, certificate lifecycle, production audit, asynchronous operations, or cross-language interoperability. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
 
 **No production or 1.0 claim is authorized by this register.**
+
+
+## 12. Current implementation status (2026-11-20)
+
+- OBIS 0.1 specification and schema remain draft baselines.
+- The Python reference and independent Go reference are development/conformance prototypes; their HTTP/HMAC mode is loopback-only and is not a production security profile.
+- Draft PR #76 contains a TLS 1.3 mTLS candidate with bidirectional Go/Python tests. Its latest recorded head `64329f67ecf3430ee504b43b932a22f44b699f1c` failed GitHub Actions run `44737370885` at Go compilation because of an unused import. No success is claimed for that head.
+- Certificate issuance, rotation, revocation, trust-bundle freshness, emergency denylisting, durable replay/idempotency, production audit, and independent security review remain open.
+- No production endpoint, credential, live peer, deployment, or external connection is authorized by this status record.
