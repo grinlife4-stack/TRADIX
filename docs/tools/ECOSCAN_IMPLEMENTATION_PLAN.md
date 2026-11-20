@@ -106,18 +106,17 @@ ECOSCAN_DATA_ROOT/
 
 ## 5. Core contracts
 
-### 5.1 Source descriptor
+### 5.1 Project registry and source descriptor
 
-Required fields:
+Each project's `registry.json` is one versioned project envelope:
 
-- `project_id`, `source_id`, `owner_id`, `operator_id`
-- `source_type`, `locator`, `adapter_id`, `adapter_version`
-- `credential_ref` (nullable for local metadata)
-- `enabled`, `scope_tags`, `budget`
-- `expected_measurements`, `retention_policy`
-- `created_at`, `updated_at`, `registry_schema_version`
+- Registry fields: `schema_version`, `project_id`, and `sources[]`.
+- Each source descriptor requires `source_id`, `owner_id`, `operator_id`, `subsystem_id`, `source_type`, `locator`, `adapter_id`, `adapter_version`, `credential_ref`, `enabled`, `budget`, `expected_measurements`, `retention_policy`, `created_at`, and `updated_at`.
+- Optional source metadata includes `scope_tags`.
+- `credential_ref` is nullable for local metadata; otherwise it is an opaque owner-controlled reference, never a secret value.
+- Source IDs must be unique within the project registry. The JSON Schema validates each descriptor's shape; registry loading must enforce uniqueness and reject descriptors whose owner/operator/subsystem are not authorized for the project.
 
-No secret values, private file contents, access tokens, or unrestricted discovery settings may be stored here.
+An empty `sources[]` is valid and means no sources are configured. No source is discovered or enabled implicitly. No secret values, private file contents, access tokens, or unrestricted discovery settings may be stored here.
 
 ### 5.2 Adapter interface
 
