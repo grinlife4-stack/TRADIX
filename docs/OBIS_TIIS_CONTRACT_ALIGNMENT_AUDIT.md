@@ -133,3 +133,12 @@ Added test coverage includes malformed envelope cases (unknown/missing fields, n
 The Go client also gained tests for request timeout against a non-responsive loopback peer and connection failure against an unavailable loopback endpoint. CI run #1148 passed on commit `7da228cfe799e6b1cef4b87dac83017effd52148`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated package wheel/install/schema checks.
 
 This closes only these specific development-profile test cases. It does not establish production transport security, complete cross-language negative conformance, durable replay/idempotency, audit persistence, or release readiness. No normative contract or security profile was changed.
+
+
+## 13. Cross-peer malformed-envelope and authentication rejection — 2026-11-20
+
+The cross-language integration harness was extended to submit raw OBIS request envelopes to both the independent Go server and the Python reference server. It verifies rejection of a signed unsupported-version envelope (HTTP 426) and a valid-shape request with an invalid HMAC (HTTP 401). For the Python reference peer, the test additionally asserts that the registered capability handler is never invoked for either rejected request.
+
+CI run #1151 passed on commit `e65da4841226d25ac93feb98487d11323b11de63`, including Go tests/build, the complete Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated wheel/install/schema checks.
+
+Scope limitation: this is server-side negative coverage for two independent implementations, not a complete bidirectional negative matrix for every malformed/authentication/replay/transport condition. No normative OBIS schema, wire behavior, TIIS contract, or production security decision was changed. HMAC remains development/conformance-only.
