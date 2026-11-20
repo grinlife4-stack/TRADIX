@@ -47,6 +47,29 @@ def test_filesystem_scan_is_metadata_only_and_per_project(tmp_path, monkeypatch)
     assert (tmp_path / "db" / "project-a.sqlite3").exists()
 
 
+@pytest.mark.parametrize("file_count,total_bytes", [(0, 0), (1, 5)])
+def test_aggregate_measurements_work_for_empty_and_single_file_sources(tmp_path, file_count, total_bytes):
+    root = tmp_path / "source"
+    root.mkdir()
+    for index in range(file_count):
+        (root / f"file-{index}.bin").write_bytes(b"x" * 5)
+    parsed = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [source(root)],
+    })
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(parsed, gate(), {"filesystem": FilesystemAdapter()}, store).run(
+        "fs-local", "operator-a"
+    )
+    assert outcome.coverage_state == "COMPLETE"
+    records = store.list_measurements("fs-local")
+    assert {item["kind"]: item["value"] for item in records} == {
+        "logical_bytes": total_bytes,
+        "file_count": file_count,
+    }
+
+
 def test_symlinks_are_skipped_and_mark_scan_partial(tmp_path):
     root = tmp_path / "source"
     root.mkdir()
