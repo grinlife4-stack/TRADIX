@@ -99,6 +99,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	serverCertificate, err := x509.ParseCertificate(certificate.Certificate[0])
+	if err != nil {
+		log.Fatal(err)
+	}
+	serverCertificatePeerID, err := peer.PeerIDFromCertificate(serverCertificate)
+	if err != nil || serverCertificatePeerID != serverPeer.ID {
+		log.Fatal("server certificate OBIS peer identity does not match configured server peer")
+	}
 	caPEM, err := os.ReadFile(caPath)
 	if err != nil {
 		log.Fatal(err)
