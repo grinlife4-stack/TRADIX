@@ -218,6 +218,20 @@ def test_published_json_schema_validates_request_and_success_response():
     }
     validator.validate(response)
 
+    error_response = {
+        "protocol": "obis",
+        "version": "0.1",
+        "message_type": "response",
+        "message_id": "response-error-1",
+        "correlation_id": request["message_id"],
+        "sender": {"peer_id": PEER_B},
+        "recipient": {"peer_id": PEER_A},
+        "issued_at": time.time(),
+        "outcome": "failed",
+        "error": {"code": "authorization.denied", "message": "scope denied"},
+    }
+    validator.validate(error_response)
+
 
 def test_published_json_schema_rejects_unknown_fields_and_invalid_error_envelope():
     import json
@@ -309,3 +323,17 @@ def test_non_finite_and_negative_timestamps_are_rejected():
     request["issued_at"] = -1
     with pytest.raises(OBISRequestError, match="non-negative"):
         validate_request(request)
+
+
+def test_credential_repr_redacts_secret_and_freezes_scope_grants():
+    mutable_scopes = {"inventory:read"}
+    credential = Credential(
+        key_id="key-redaction",
+        peer_id=PEER_A,
+        principal_ref=PRINCIPAL_A,
+        secret=SECRET,
+        allowed_scopes=mutable_scopes,
+    )
+    mutable_scopes.add("admin:all")
+    assert credential.allowed_scopes == frozenset({"inventory:read"})
+    assert SECRET.decode("utf-8") not in repr(credential)
