@@ -215,7 +215,7 @@ def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> dict[
             "project_id": project["project_id"], "name": project["name"], "enabled": project.get("enabled", True),
             "source_count": len(expected_ids), "measured_source_count": len(known),
             "coverage": "DISABLED" if not project.get("enabled", True) else ("NOT_REGISTERED" if not expected_ids else ("INCOMPLETE" if has_gaps else "COMPLETE")),
-            "known_logical_bytes": None if not project.get("enabled", True) else sum(r["logical_bytes"] for r in known),
+            "known_logical_bytes": sum(r["logical_bytes"] for r in known) if project.get("enabled", True) and known else None,
             "logical_bytes_complete": bool(expected_ids) and not has_gaps,
             "missing_source_ids": missing_ids,
             "sources": selected
