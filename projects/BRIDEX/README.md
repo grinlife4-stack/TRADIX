@@ -59,6 +59,10 @@ python -m pytest -q
 
 The root CI also runs these reference tests. This is a development/conformance prototype only: loopback transport and the shared-secret HMAC profile are not approved for production or sensitive workloads. See [implementation status and release gates](reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
 
+## 3C. Relationship to existing TRADIX infrastructure
+
+BRIDEX may reuse the Artifact Gateway, Tool Catalog, and Tool Adapter Contract as optional supporting capabilities, but none is a substitute for an independent Bridge or the OBIS protocol. Their exact boundaries, PR dependency order, and separation tests are recorded in [BRIDEX Existing Component Integration Map](../../docs/BRIDEX_EXISTING_COMPONENT_INTEGRATION_MAP.md). These components must not become mandatory runtime dependencies for released Bridges.
+
 ## 4. Responsibility boundaries
 
 ### BRIDEX
