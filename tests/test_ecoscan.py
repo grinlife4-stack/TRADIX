@@ -31,7 +31,7 @@ def test_inaccessible_source_is_not_counted_as_zero():
     results = [{"source_id": "s1", "project_id": "p1", "status": "NOT_AUTHORIZED_OR_NOT_FOUND", "logical_bytes": None, "file_count": None}]
     report = monitor.build_report(config, results)
     project = report["projects"][0]
-    assert project["known_logical_bytes"] == 0
+    assert project["known_logical_bytes"] is None
     assert project["logical_bytes_complete"] is False
     assert report["total_is_complete"] is False
     assert report["alerts"][0]["code"] == "SOURCE_INCOMPLETE"
