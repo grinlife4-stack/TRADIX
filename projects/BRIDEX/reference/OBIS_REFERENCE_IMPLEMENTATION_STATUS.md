@@ -74,3 +74,10 @@ The standalone BRIDEX engineering-plane package is now implemented at `projects/
 - Root CI now installs and tests BRIDEX Core and builds its wheel. The generated OBIS peer uses the same loopback/HMAC development profile as the reference package; it is not a production transport or security profile. Verification is pending until CI completes on this branch's latest commit.
 
 This generator is an engineering-plane foundation only. It does not implement a production Bridge runtime, network transport, peer authentication, secret lifecycle, or full security scanning of arbitrary source contents.
+
+
+## Independent Go reference and cross-language development-profile test
+
+A second OBIS 0.1 peer implementation now exists at `projects/BRIDEX/reference/obis-go` using only the Go standard library. It validates the request envelope, credential/principal/peer binding, capability scopes, TTL, replay nonce, and HMAC-SHA256 development profile. The Python OBIS client test starts the Go peer and performs an actual loopback HTTP request/response; the Go suite verifies the shared canonical JSON/HMAC vector and negative authorization/replay cases.
+
+This is cross-language interoperability evidence for the current development profile only. It does not freeze the production canonicalization/signature standard, provide TLS/mTLS, or approve the shared-secret profile for real workloads. CI verification is pending for the latest combined PR head.
