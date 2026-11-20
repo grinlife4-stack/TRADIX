@@ -13,6 +13,8 @@
 
 **TRADIX builds; each product owns itself and operates independently.**
 
+Independence is not a later feature added to the portfolio. It is the original foundational purpose that shaped TRADIX from the beginning. TRADIX exists to create and deliver complete systems while preserving each system's ownership, operational autonomy, data control, and ability to continue, change providers, or replace shared capabilities without being captured by the factory or by another project. The standards and mechanisms added over time make this founding principle measurable and enforceable; they do not change the project's original direction.
+
 TRADIX is the complete product and software factory for the portfolio. It designs, builds, tests, packages, secures, prepares, releases, and continuously develops complete products and systems, not merely shared infrastructure. This includes the financial system X. X follows the same TRADIX production lifecycle as MegaMarket, NEXORA, and every other product.
 
 TRADIX is not the owner or day-to-day operator of the products it creates. A product does not become an operational department of TRADIX merely because TRADIX built it, hosts its source workspace, or supplies reusable engineering capabilities.
