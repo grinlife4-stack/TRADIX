@@ -242,7 +242,7 @@ def _sign_s3_request(method: str, url: str, access_key: str, secret_key: str, re
         for k, v in sorted(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
     )
     host = parsed.netloc
-    canonical_headers = f"host:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
+    canonical_headers = f"host:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}"
     signed_headers = "host;x-amz-content-sha256;x-amz-date"
     canonical_request = "\n".join([method, canonical_uri, canonical_query, canonical_headers, signed_headers, payload_hash])
     scope = f"{date_stamp}/{region}/s3/aws4_request"
@@ -295,6 +295,8 @@ def scan_s3_compatible(source: dict[str, Any]) -> dict[str, Any]:
             with urllib.request.urlopen(request, timeout=30) as response:
                 body = response.read()
             root = ET.fromstring(body)
+            if root.tag.rsplit("}", 1)[-1] == "Error":
+                raise ValueError("S3 endpoint returned an XML error response")
             for node in root.iter():
                 if node.tag.rsplit("}", 1)[-1] == "Contents":
                     size = next((child.text for child in node if child.tag.rsplit("}", 1)[-1] == "Size"), None)
