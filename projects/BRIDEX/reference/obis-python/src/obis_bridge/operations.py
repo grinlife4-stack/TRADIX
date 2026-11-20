@@ -81,6 +81,9 @@ class OperationLedger:
                 CREATE INDEX IF NOT EXISTS obis_operations_state
                 ON obis_operations(state);
             """)
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(obis_operations)")}
+            if "resource_ref" not in columns:
+                connection.execute("ALTER TABLE obis_operations ADD COLUMN resource_ref TEXT NOT NULL DEFAULT ''")
         finally:
             connection.close()
 
