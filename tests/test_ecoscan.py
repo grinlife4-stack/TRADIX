@@ -532,7 +532,7 @@ def test_railway_refresh_persists_rotated_pair_before_return():
     )
     assert token == "new-access"
     assert len(calls) == 1
-    assert store.state.version == 5
+    assert store.state.version == 6
     assert store.state.access_token == "new-access"
     assert store.state.refresh_token == "new-refresh"
     assert store.state.expires_at == 3700
@@ -561,7 +561,8 @@ def test_railway_refresh_fails_closed_when_durable_commit_fails():
             store, _TestRefreshLock(), "id", "secret", now=100, opener=opener,
         )
     assert store.state.refresh_token == "old-refresh"
-    assert not store.saved
+    assert store.state.status == "REFRESHING"
+    assert len(store.saved) == 1
 
 
 def test_railway_refresh_rejects_response_without_rotated_refresh_token():
@@ -633,5 +634,16 @@ def test_railway_refresh_serializes_two_callers_and_rotates_once():
         results = list(pool.map(lambda _: refresh(), range(2)))
     assert results == ["rotated-access", "rotated-access"]
     assert len(calls) == 1
-    assert store.state.version == 2
+    assert store.state.version == 3
     assert store.state.refresh_token == "rotated-refresh"
+
+def test_railway_refresh_never_replays_old_token_after_uncertain_failure():
+    store = _MemoryTokenStore(oauth_refresh.TokenState(
+        2, "last-access", "possibly-rotated-refresh", 0, status="REFRESHING",
+    ))
+    def forbidden(*args, **kwargs):
+        raise AssertionError("an uncertain old refresh token must never be replayed")
+    with pytest.raises(oauth_refresh.RefreshError, match="refusing to replay"):
+        oauth_refresh.get_valid_access_token(
+            store, _TestRefreshLock(), "id", "secret", now=100, opener=forbidden,
+        )
