@@ -247,7 +247,7 @@ class ScanRunner:
             if result.checkpoint is not None and not isinstance(result.checkpoint, Mapping):
                 raise AdapterContractError("checkpoint must be an object")
         except BudgetExceeded:
-            state = "PARTIAL" if guard.items_seen or guard.pages_seen else "FAILED"
+            state = "FAILED"
             reason = "budget_exhausted"
             failed_record = self._coverage(
                 source, actor_id, scan_id, started_at, state, reason,
