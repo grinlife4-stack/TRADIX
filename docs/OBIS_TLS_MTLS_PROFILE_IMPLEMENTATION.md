@@ -3,7 +3,7 @@
 **Status:** Executable reference candidate; not a normative amendment and not production-approved  
 **Implementation:** `projects/BRIDEX/reference/obis-python`  
 **Profile ID:** `OBIS-TLS-MTLS-1`  
-**ALPN:** `obis/0.1`
+**ALPN:** `http/1.1`
 
 ## 1. Purpose and boundary
 
@@ -17,7 +17,7 @@ The implementation reuses Python's `ssl` module and the platform OpenSSL stack. 
 - TLS 1.3 only: client and server contexts must set both minimum and maximum versions to TLS 1.3.
 - The client requires certificate-chain validation and endpoint hostname verification.
 - The server requires a client certificate (`CERT_REQUIRED`).
-- Both sides must negotiate ALPN `obis/0.1`; absence or mismatch is rejected.
+- Both sides must negotiate ALPN `http/1.1`; absence or mismatch is rejected.
 - The server bounds TLS handshake time and HTTP request time.
 - The client has a finite request timeout.
 - No HMAC shared secret is accepted in the mTLS client or credential record.
