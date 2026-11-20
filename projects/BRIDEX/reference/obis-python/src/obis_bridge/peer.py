@@ -63,6 +63,7 @@ class Credential:
             raise ValueError("reference-profile secret must be bytes of at least 32 bytes")
         if not self.allowed_scopes or not all(isinstance(s, str) and s for s in self.allowed_scopes):
             raise ValueError("credential must have explicit non-empty string scopes")
+        object.__setattr__(self, "allowed_scopes", frozenset(self.allowed_scopes))
 
 
 @dataclass(frozen=True)
@@ -174,8 +175,12 @@ def validate_request(message: dict[str, Any], now: float | None = None) -> None:
         raise OBISRequestError("protocol.invalid_message", "timestamps must be numeric, not boolean")
     if issued_at > now + CLOCK_SKEW_SECONDS:
         raise OBISRequestError("request.expired", "issued_at is in the future", 408)
-    if not math.isfinite(issued_at) or not math.isfinite(expires_at):
-        raise OBISRequestError("protocol.invalid_message", "timestamps must be finite numbers")
+    try:
+        finite_timestamps = math.isfinite(issued_at) and math.isfinite(expires_at)
+    except (OverflowError, TypeError):
+        finite_timestamps = False
+    if not finite_timestamps or issued_at < 0 or expires_at < 0:
+        raise OBISRequestError("protocol.invalid_message", "timestamps must be finite non-negative numbers")
     if expires_at <= now or expires_at <= issued_at:
         raise OBISRequestError("request.expired", "request has expired", 408)
     if expires_at - issued_at > MAX_TTL_SECONDS:
@@ -488,6 +493,10 @@ class OBISClient:
                         "sender", "recipient", "issued_at", "outcome", "error",
                     }:
                         raise OBISRequestError("protocol.invalid_message", "error response has unknown or missing fields", 502)
+                    if not all(isinstance(error_message.get(key), dict) for key in ("sender", "recipient", "error")):
+                        raise OBISRequestError("protocol.invalid_message", "invalid error response object fields", 502)
+                    if not all(isinstance(error_message["error"].get(key), str) and error_message["error"][key] for key in ("code", "message")):
+                        raise OBISRequestError("protocol.invalid_message", "invalid structured error fields", 502)
                     issued_at = error_message.get("issued_at")
                     if isinstance(issued_at, bool) or not isinstance(issued_at, (int, float)) or not math.isfinite(issued_at):
                         raise OBISRequestError("protocol.invalid_message", "invalid error response timestamp", 502)
