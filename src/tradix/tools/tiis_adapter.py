@@ -198,6 +198,5 @@ def result_to_tiis_event(
             "output_refs": list(result.output_refs),
             "evidence_refs": list(result.evidence_refs),
             "error_code": result.error_code,
-            "error_message": result.error_message,
         },
     }
