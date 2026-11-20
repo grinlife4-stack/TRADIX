@@ -156,3 +156,15 @@ Portfolio reporting may include all of them, but their detailed financial record
 **EXVARLI is one financial-management core capable of understanding and managing many different economic models. It centralizes financial management, not ownership, funds, or project identity.**
 
 **One core. Distinct project profiles. Independent financial boundaries.**
+
+## 11. EXVARLI as an independent TRADIX-built tool
+
+EXVARLI is an independent financial-management tool built through the TRADIX factory lifecycle and catalogued in the TRADIX toolbox. Its presence in the TRADIX repository or toolbox is for construction history, documentation, version discovery, and maintainability; it does not make EXVARLI a TRADIX submodule or operational department.
+
+- EXVARLI has its own identity, product/system scope, configuration, data stores, access controls, release lifecycle, and operating responsibility.
+- EXVARLI must be deployable and usable without TRADIX running or being reachable.
+- TRADIX may build, test, document, and deliver EXVARLI upgrades, but does not thereby gain access to EXVARLI's financial records, credentials, accounts, funds, or daily decisions.
+- EXVARLI remains independently replaceable, exportable, portable, stoppable, and maintainable.
+- The TRADIX toolbox catalogue may identify EXVARLI and link to its governing specification; it must not become the default runtime store for EXVARLI's financial records or secrets.
+
+This tool relationship does not change EXVARLI's multi-project financial mandate or the independent financial perimeter of every project it serves.
