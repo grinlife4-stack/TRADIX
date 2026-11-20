@@ -108,7 +108,22 @@ func serveV02(args []string) {
 	ledger,err:=obis.NewFileOperationLedger(*ledgerPath);if err!=nil{log.Fatal(err)}
 	p02,err:=obis.NewPeerV02(peer,ledger);if err!=nil{log.Fatal(err)}
 	err=p02.RegisterCapabilityWithResourceBinding(*capabilityID,*capabilityVersion,map[string]bool{"inventory.read":true},func(payload map[string]any)(map[string]any,error){
-		return map[string]any{"items_seen":1,"project_id":payload["project_id"],"source_id":payload["source_id"],"served_by":"go-peer-v02"},nil
+		rawKinds,_:=payload["measurement_kinds"].([]any)
+		measurements:=map[string]any{}
+		for _,raw:=range rawKinds {
+			kind,ok:=raw.(string);if !ok{return nil,fmt.Errorf("invalid measurement kind")}
+			switch kind {
+			case "logical_bytes": measurements[kind]=int64(4096)
+			case "file_count": measurements[kind]=int64(2)
+			default: return nil,fmt.Errorf("unsupported measurement kind: %s",kind)
+			}
+		}
+		return map[string]any{
+			"project_id":payload["project_id"],"source_id":payload["source_id"],
+			"coverage_state":"COMPLETE","items_seen":2,"pages_seen":1,
+			"measurements":measurements,"source_timestamp":"2026-11-20T10:00:00Z",
+			"limitations":[]any{},"evidence_ref":"test-evidence:go-peer-v02",
+		},nil
 	},"IDEMPOTENT",true)
 	if err!=nil{log.Fatal(err)}
 	host,_,err:=net.SplitHostPort(*addr);if err!=nil{log.Fatal(err)}
