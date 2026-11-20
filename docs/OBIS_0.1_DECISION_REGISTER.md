@@ -147,9 +147,9 @@ The long-term steward and approval process remain unresolved.
 
 ## 10. Current implementation boundary
 
-The Python reference peer is a local development/conformance prototype. It implements direct loopback HTTP, a development-only shared-secret HMAC profile, strict envelope checks, bounded TTL and payload sizes, in-memory replay rejection, capability scope checks, and signed correlated errors after peer authentication.
+The Python and Go reference peers are independently buildable development/conformance prototypes. Both implement the draft envelope and a loopback-only HMAC development profile. Their TLS 1.3 mTLS candidate uses no HMAC secret, binds a canonical URI SAN and certificate SHA-256 fingerprint to a local credential/principal, and validates the remote peer identity before accepting a connection. Bidirectional Python/Go loopback mTLS tests and a wrong-fingerprint rejection test are included in the current implementation branch.
 
-It does not implement the candidate production profile, durable replay/idempotency, certificate lifecycle, production audit, asynchronous operations, or cross-language interoperability. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
+The candidate is not production-approved. Durable replay/idempotency, durable revocation, trust-bundle freshness, certificate lifecycle, production audit, asynchronous operations, expanded cross-language conformance, and independent security review remain open. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
 
 **No production or 1.0 claim is authorized by this register.**
 
@@ -158,6 +158,6 @@ It does not implement the candidate production profile, durable replay/idempoten
 
 - OBIS 0.1 specification and schema remain draft baselines.
 - The Python reference and independent Go reference are development/conformance prototypes; their HTTP/HMAC mode is loopback-only and is not a production security profile.
-- Draft PR #76 contains a TLS 1.3 mTLS candidate with bidirectional Go/Python tests. Its latest recorded head `64329f67ecf3430ee504b43b932a22f44b699f1c` failed GitHub Actions run `44737370885` at Go compilation because of an unused import. No success is claimed for that head.
+- The earlier Draft PR #76 failed Go compilation due to an unused import and is not the accepted implementation line. The corrected mTLS implementation is being carried on the ordered BRIDEX/OBIS branch after PR #77; its own latest-head CI must pass before this candidate is considered verified.
 - Certificate issuance, rotation, revocation, trust-bundle freshness, emergency denylisting, durable replay/idempotency, production audit, and independent security review remain open.
 - No production endpoint, credential, live peer, deployment, or external connection is authorized by this status record.
