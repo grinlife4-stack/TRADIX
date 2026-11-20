@@ -26,9 +26,6 @@ func TestPeerAcceptsRequestAndRejectsReplay(t *testing.T) {
 	if err=p.RegisterCapability(Capability{ID:"records.read",Version:"1.0",RequiredScopes:map[string]bool{"records:read":true},Handler:func(payload map[string]any)(map[string]any,error){return map[string]any{"record_id":payload["record_id"]},nil}});err!=nil{t.Fatal(err)}
 	now:=time.Now().Unix()
 	request:=map[string]any{"protocol":Protocol,"version":Version,"message_type":"request","message_id":"req-1","nonce":"nonce-1","sender":map[string]any{"peer_id":"peer:python"},"recipient":map[string]any{"peer_id":"peer:go"},"issued_at":json.Number(strconv.FormatInt(now,10)),"expires_at":json.Number(strconv.FormatInt(now+30,10)),"capability":map[string]any{"id":"records.read","version":"1.0"},"authorization":map[string]any{"principal_ref":"principal:python","scopes":[]any{"records:read"}},"payload":map[string]any{"record_id":"r-1"}}
-	// Use integer JSON timestamps to match the wire representation.
-	request["issued_at"]=json.Number(time.Unix(now,0).Format("1136239445"))
-	request["expires_at"]=json.Number(time.Unix(now+30,0).Format("1136239445"))
 	sig,err:=Sign(request,secret);if err!=nil{t.Fatal(err)}
 	response,_,protocolErr:=p.Handle(request,"py-key",sig);if protocolErr!=nil{t.Fatal(protocolErr)}
 	if response["outcome"]!="succeeded"{t.Fatalf("unexpected response: %#v",response)}
