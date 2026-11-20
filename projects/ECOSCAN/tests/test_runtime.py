@@ -457,3 +457,25 @@ def test_runner_rejects_non_string_measurement_confidence(tmp_path):
     assert outcome.coverage_state == "FAILED"
     assert outcome.reason_code == "adapter_contract_violation"
     assert store.list_measurements() == []
+
+
+def test_runner_rechecks_owner_operator_authorization_before_each_page(tmp_path):
+    parsed = parse_registry(registry(source()))
+    store = ProjectStore(tmp_path, "project-a")
+    checks = {"count": 0}
+
+    def revoke_after_initial_gate(*_):
+        checks["count"] += 1
+        return checks["count"] == 1
+
+    adapter = FakeAdapter()
+    runner = ScanRunner(parsed, enabled_gate(revoke_after_initial_gate), {"filesystem": adapter}, store)
+
+    outcome = runner.run("fs-main", "operator-a")
+
+    assert outcome.coverage_state == "NOT_AUTHORIZED"
+    assert outcome.reason_code == "authorization_revoked"
+    assert checks["count"] == 2
+    assert adapter.calls == 1
+    assert store.list_measurements() == []
+    assert store.list_coverage()[0]["pages_seen"] == 0
