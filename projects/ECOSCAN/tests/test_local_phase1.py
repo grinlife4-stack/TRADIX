@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from ecoscan.cli import main
+from ecoscan.contracts import BudgetExceeded, BudgetGuard
 from ecoscan.controls import ControlState, ExecutionGate
 from ecoscan.filesystem import FilesystemAdapter
 from ecoscan.registry import parse_registry
@@ -411,3 +412,52 @@ def test_sqlite_database_can_be_copied_and_reopened_independently(tmp_path):
     restored = ProjectStore(destination_root, "project-a")
     assert restored.list_coverage() == original.list_coverage()
     assert restored.list_measurements() == original.list_measurements()
+
+
+
+def test_authorization_revocation_during_scan_discards_partial_measurements(tmp_path):
+    root = tmp_path / "source"
+    (root / "nested").mkdir(parents=True)
+    (root / "first.bin").write_bytes(b"first")
+    (root / "nested" / "second.bin").write_bytes(b"second")
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [source(root)],
+    })
+    calls = {"count": 0}
+
+    def authorizer(*args):
+        calls["count"] += 1
+        return calls["count"] < 3
+
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(
+        registry,
+        ExecutionGate(
+            ControlState(
+                True,
+                frozenset({"project-a"}),
+                frozenset({("project-a", "storage")}),
+                frozenset({("project-a", "fs-local")}),
+            ),
+            authorizer,
+        ),
+        {"filesystem": FilesystemAdapter(tmp_path, allowed_root=tmp_path)},
+        store,
+    ).run("fs-local", "operator-a")
+    assert outcome.coverage_state == "NOT_AUTHORIZED"
+    assert outcome.reason_code == "authorization_revoked"
+    assert store.list_measurements() == []
+
+
+def test_timeout_budget_is_enforced_before_page_work(monkeypatch, tmp_path):
+    from ecoscan.models import ScanBudget
+
+    clock = iter([10.0, 12.0])
+    monkeypatch.setattr("ecoscan.contracts.time.monotonic", lambda: next(clock))
+    guard = BudgetGuard(
+        ScanBudget(max_pages=10, max_items=10, timeout_seconds=1, max_duration_seconds=1)
+    )
+    with pytest.raises(BudgetExceeded, match="time budget"):
+        guard.consume_page()
