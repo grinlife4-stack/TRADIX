@@ -64,10 +64,10 @@ func Invoke(endpoint, localPeerID, remotePeerID, keyID, principal string, secret
 
 	client := &http.Client{Timeout: 3 * time.Second}
 	response, err := client.Do(request)
-	if err != nil { return nil, err }
+	if err != nil { return nil, classifyTransportError(err) }
 	defer response.Body.Close()
 	responseBody, err := io.ReadAll(io.LimitReader(response.Body, MaxMessageBytes+1))
-	if err != nil { return nil, err }
+	if err != nil { return nil, classifyTransportError(err) }
 	if len(responseBody) == 0 || len(responseBody) > MaxMessageBytes { return nil, errors.New("response size is invalid") }
 	if response.Header.Get("Content-Type") != "application/obis+json" { return nil, errors.New("unexpected response content type") }
 	messageResponse, err := DecodeStrict(responseBody)
@@ -121,3 +121,11 @@ func validateFailureResponse(message map[string]any, requestID, localPeerID, rem
 	return nil
 }
 
+
+func classifyTransportError(err error) error {
+	var networkError net.Error
+	if errors.As(err, &networkError) && networkError.Timeout() {
+		return &Error{Code: "peer.timeout", Message: "peer request timed out", Status: http.StatusGatewayTimeout}
+	}
+	return &Error{Code: "peer.unavailable", Message: "peer is unavailable", Status: http.StatusServiceUnavailable}
+}
