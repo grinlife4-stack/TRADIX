@@ -8,6 +8,7 @@ on:
       - "tools/ecoscan/**"
       - "tests/test_ecoscan.py"
       - "tests/test_ecoscan_postgres.py"
+      - "tests/test_ecoscan_local.py"
       - "pyproject.toml"
       - ".github/workflows/ecoscan-tests.yml"
   pull_request:
@@ -16,6 +17,8 @@ on:
     paths:
       - "tools/ecoscan/**"
       - "tests/test_ecoscan.py"
+      - "tests/test_ecoscan_postgres.py"
+      - "tests/test_ecoscan_local.py"
       - ".github/workflows/ecoscan-tests.yml"
 
 permissions:
@@ -39,4 +42,4 @@ jobs:
       - name: Install test runner
         run: python -m pip install --disable-pip-version-check pytest cryptography
       - name: Run ECOSCAN unit tests
-        run: python -m pytest -q tests/test_ecoscan.py tests/test_ecoscan_postgres.py
+        run: python -m pytest -q tests/test_ecoscan.py tests/test_ecoscan_postgres.py tests/test_ecoscan_local.py
