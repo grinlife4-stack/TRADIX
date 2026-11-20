@@ -142,3 +142,11 @@ def test_postgres_refresh_lock_uses_session_advisory_lock_and_releases_connectio
         assert any("pg_advisory_lock" in q for q, _ in db["queries"])
     assert connections[0].closed is True
     assert any("pg_advisory_unlock" in q for q, _ in db["queries"])
+
+
+def test_postgres_backend_rejects_transaction_pooler_for_session_lock():
+    key = AESGCM.generate_key(bit_length=256)
+    with pytest.raises(ValueError, match="direct PostgreSQL endpoint"):
+        PostgresTokenStore("postgresql://user:pass@ep-example-pooler.us-east-2.aws.neon.tech/db", key)
+    with pytest.raises(ValueError, match="direct PostgreSQL endpoint"):
+        PostgresRefreshLock("postgresql://user:pass@ep-example-pooler.us-east-2.aws.neon.tech/db")
