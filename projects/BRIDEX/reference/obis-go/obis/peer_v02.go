@@ -15,6 +15,7 @@ type OperationCapabilityV02 struct {
 	RequiredScopes map[string]bool
 	Handler CapabilityHandler
 	RecoveryClass string
+	ResourceBinding bool
 }
 
 type PeerV02 struct {
@@ -29,7 +30,11 @@ func NewPeerV02(peer *Peer, ledger *FileOperationLedger) (*PeerV02, error) {
 	return &PeerV02{Peer: peer, Ledger: ledger, capabilities: map[string]OperationCapabilityV02{}}, nil
 }
 
-func (p *PeerV02) RegisterCapability(id, version string, scopes map[string]bool, handler CapabilityHandler, recoveryClass string) error {\n\treturn p.RegisterCapabilityWithResourceBinding(id,version,scopes,handler,recoveryClass,false)\n}\n\nfunc (p *PeerV02) RegisterCapabilityWithResourceBinding(id, version string, scopes map[string]bool, handler CapabilityHandler, recoveryClass string, resourceBinding bool) error {
+func (p *PeerV02) RegisterCapability(id, version string, scopes map[string]bool, handler CapabilityHandler, recoveryClass string) error {
+\treturn p.RegisterCapabilityWithResourceBinding(id,version,scopes,handler,recoveryClass,false)
+}
+
+func (p *PeerV02) RegisterCapabilityWithResourceBinding(id, version string, scopes map[string]bool, handler CapabilityHandler, recoveryClass string, resourceBinding bool) error {
 	if id == "" || version == "" || handler == nil || len(scopes) == 0 { return errors.New("capability ID, version, handler, and required scopes are mandatory") }
 	if recoveryClass != "IDEMPOTENT" && recoveryClass != "QUERYABLE" && recoveryClass != "NON_RECOVERABLE" { return errors.New("invalid capability recovery class") }
 	key := id + "\x00" + version
@@ -115,6 +120,11 @@ func (p *PeerV02) authorize(m map[string]any, credential Credential) (OperationC
 	for _, raw := range rawScopes { requested[raw.(string)] = true }
 	for scope := range capability.RequiredScopes { if !requested[scope] || !credential.AllowedScopes[scope] { return OperationCapabilityV02{}, &Error{"authorization.denied","required scope is not granted",403} } }
 	for scope := range requested { if !credential.AllowedScopes[scope] { return OperationCapabilityV02{}, &Error{"authorization.denied","requested scope exceeds credential grant",403} } }
+	if capability.ResourceBinding {
+		payload,ok:=obj(m,"payload"); if !ok { return OperationCapabilityV02{}, &Error{"authorization.denied","resource-bound capability requires payload resource identity",403} }
+		projectID,ok1:=str(payload,"project_id"); sourceID,ok2:=str(payload,"source_id")
+		if !ok1||!ok2||!credential.AllowedResources[projectID+"\x00"+sourceID] { return OperationCapabilityV02{}, &Error{"authorization.denied","resource is outside credential grant",403} }
+	}
 	return capability,nil
 }
 
