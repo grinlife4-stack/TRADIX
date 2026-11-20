@@ -634,7 +634,7 @@ def test_obis_02_operation_schema_is_valid_and_packaged_copies_match():
     canonical_path = Path(__file__).resolve().parents[5] / "standards" / "obis" / "0.2" / "message.schema.json"
     canonical_bytes = canonical_path.read_bytes()
     package_root = files("obis_bridge").joinpath("schemas")
-    packaged_bytes = package_root.joinpath("obis-0.2-message.schema.json").read_bytes()
+    packaged_bytes = Path(__file__).resolve().parents[1].joinpath("schemas/obis-0.2-message.schema.json").read_bytes()
     source_copy = package_root.joinpath("message-0.2.schema.json").read_bytes()
     assert canonical_bytes == packaged_bytes == source_copy
     schema = json.loads(canonical_bytes)
@@ -645,7 +645,7 @@ def test_obis_02_schema_accepts_operation_request_status_and_unknown_response():
     from importlib.resources import files
     from jsonschema import Draft202012Validator
 
-    schema_path = files("obis_bridge").joinpath("schemas/obis-0.2-message.schema.json")
+    schema_path = files("obis_bridge").joinpath("schemas/message-0.2.schema.json")
     validator = Draft202012Validator(json.loads(schema_path.read_text(encoding="utf-8")))
     common = {
         "protocol": "obis",
