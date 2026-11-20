@@ -46,7 +46,7 @@ The candidate profile should require:
 
 - HTTPS with TLS 1.3; plaintext HTTP is prohibited outside loopback development tests.
 - Mutual TLS with X.509 certificates for peer authentication.
-- A profile-defined peer identity in the certificate Subject Alternative Name, explicitly mapped to the configured OBIS peer identifier. URI SAN is a candidate, but its exact scheme, canonicalization, and one-certificate-to-one-peer rules must be defined by OBIS.
+- A profile-defined peer identity in the certificate Subject Alternative Name, explicitly mapped to the configured OBIS peer identifier. The Python candidate reference uses exactly one canonical URI SAN of the form `urn:obis:peer:<lowercase-UUID>`. The server maps the authenticated client certificate URI and SHA-256 fingerprint to one local credential/principal record; one peer may have multiple distinct active certificate fingerprints during an owner-controlled rotation window.
 - Owner-controlled trust anchors and peer authorization configuration. A central certificate authority or identity provider is not mandatory.
 - Separate authentication and authorization checks. A valid certificate never grants capability access by itself.
 - Documented certificate issuance, expiry, rotation, revocation, trust-bundle replacement, and incident response.
@@ -54,7 +54,7 @@ The candidate profile should require:
 
 **Why this is a candidate, not an approval**
 
-TLS 1.3 and X.509 are mature standards, but selecting them does not by itself settle trust-anchor operations, certificate-to-peer mapping, revocation behavior, deployment profiles, or implementation security. These must be reviewed against the threat model and tested across at least two independent implementations before production approval.
+TLS 1.3 and X.509 are mature standards, but selecting them does not by itself settle trust-anchor operations, certificate-to-peer mapping, revocation behavior, deployment profiles, or implementation security. A Python reference candidate now exists with TLS 1.3 only, mandatory ALPN `obis/0.1`, URI SAN peer binding, and fingerprint-to-credential mapping. These choices remain implementation evidence, not normative approval; they must be reviewed against the threat model and tested across at least two independent implementations before production approval.
 
 The development HMAC profile in the Python prototype is not an alternative production profile and must never be used for real network deployments.
 
@@ -72,7 +72,7 @@ The implementation choices, certificate-profile requirements, revocation candida
 
 Define HTTPS/TLS 1.3 as the first production transport binding, separately from the OBIS core envelope. Keep transports replaceable and do not require a relay, broker, or shared gateway.
 
-The current loopback HTTP binding exists only to make the reference tests deterministic and safe to run locally. It is not the production transport binding.
+The loopback HTTP + HMAC binding remains development-only. A separate TLS 1.3 mTLS candidate binding now exists in the Python reference; it is not production-approved and must not be treated as the final transport binding until owner/security review and cross-language evidence are complete.
 
 ## 5. Message signing and canonicalization
 
@@ -147,8 +147,8 @@ The long-term steward and approval process remain unresolved.
 
 ## 10. Current implementation boundary
 
-The Python reference peer is a local development/conformance prototype. It implements direct loopback HTTP, a development-only shared-secret HMAC profile, strict envelope checks, bounded TTL and payload sizes, in-memory replay rejection, capability scope checks, and signed correlated errors after peer authentication.
+The Python reference peer is a development/conformance prototype. It implements direct loopback HTTP with development-only HMAC and a separate TLS 1.3 mTLS candidate with ALPN, endpoint hostname verification, URI SAN peer identity, certificate fingerprint binding, bounded handshake/request timeouts, capability scope checks, and local credential revocation.
 
-It does not implement the candidate production profile, durable replay/idempotency, certificate lifecycle, production audit, asynchronous operations, or cross-language interoperability. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
+It does not implement owner-operated certificate issuance/renewal, trust-bundle distribution, CRL/OCSP, durable revocation, durable replay/idempotency, production audit, asynchronous operations, or cross-language interoperability. The mTLS candidate is not production-approved. See [OBIS Reference Implementation Status](../projects/BRIDEX/reference/OBIS_REFERENCE_IMPLEMENTATION_STATUS.md).
 
 **No production or 1.0 claim is authorized by this register.**
