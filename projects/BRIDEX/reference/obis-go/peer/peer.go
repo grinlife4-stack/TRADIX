@@ -31,11 +31,13 @@ const (
 )
 
 type Credential struct {
-	KeyID        string
-	PeerID       string
-	PrincipalRef string
-	Secret       []byte
-	AllowedScopes map[string]bool
+	KeyID             string
+	PeerID            string
+	PrincipalRef      string
+	Secret            []byte
+	CertificateURI    string
+	CertificateSHA256 string
+	AllowedScopes     map[string]bool
 }
 
 type Handler func(map[string]any) (map[string]any, error)
@@ -58,8 +60,20 @@ func NewPeer(id string, credential Credential) (*Peer, error) {
 	if id == "" || credential.KeyID == "" || credential.PeerID == "" || credential.PrincipalRef == "" {
 		return nil, errors.New("peer and credential identifiers are required")
 	}
-	if len(credential.Secret) < 32 || len(credential.AllowedScopes) == 0 {
-		return nil, errors.New("reference credential requires a 32-byte secret and explicit scopes")
+	if len(credential.AllowedScopes) == 0 {
+		return nil, errors.New("credential requires explicit scopes")
+	}
+	if credential.CertificateURI == "" {
+		if len(credential.Secret) < 32 || credential.CertificateSHA256 != "" {
+			return nil, errors.New("development credential requires a 32-byte secret and no certificate binding")
+		}
+	} else {
+		if credential.Secret != nil || credential.CertificateURI != credential.PeerID || len(credential.CertificateSHA256) != 64 {
+			return nil, errors.New("mTLS credential requires a matching certificate URI, fingerprint, and no shared secret")
+		}
+		if _, err := hex.DecodeString(credential.CertificateSHA256); err != nil || strings.ToLower(credential.CertificateSHA256) != credential.CertificateSHA256 {
+			return nil, errors.New("mTLS certificate fingerprint must be lowercase SHA-256 hex")
+		}
 	}
 	return &Peer{ID: id, Credential: credential, Capabilities: map[string]Capability{}, seen: map[string]time.Time{}}, nil
 }
@@ -175,7 +189,7 @@ func stringSet(value any) (map[string]bool, bool) {
 	return result, true
 }
 
-func (p *Peer) validate(message map[string]any, keyID, signature string, now time.Time) (map[string]any, Capability, error) {
+func (p *Peer) validate(message map[string]any, keyID, signature, certificateURI, certificateSHA256 string, now time.Time) (map[string]any, Capability, error) {
 	if !exactKeys(message, "protocol", "version", "message_type", "message_id", "nonce", "sender", "recipient", "issued_at", "expires_at", "capability", "authorization", "payload") {
 		return nil, Capability{}, errors.New("protocol.invalid_message")
 	}
@@ -201,8 +215,20 @@ func (p *Peer) validate(message map[string]any, keyID, signature string, now tim
 	if !ok1 || !ok2 || sender != p.Credential.PeerID || recipient != p.ID {
 		return nil, Capability{}, errors.New("identity.peer_mismatch")
 	}
-	if keyID != p.Credential.KeyID || !Verify(message, p.Credential.Secret, signature) {
+	if keyID != p.Credential.KeyID {
 		return nil, Capability{}, errors.New("identity.authentication_failed")
+	}
+	if certificateURI == "" {
+		if p.Credential.CertificateURI != "" || !Verify(message, p.Credential.Secret, signature) {
+			return nil, Capability{}, errors.New("identity.authentication_failed")
+		}
+	} else {
+		if p.Credential.CertificateURI != certificateURI ||
+			p.Credential.CertificateSHA256 == "" ||
+			!hmac.Equal([]byte(p.Credential.CertificateSHA256), []byte(certificateSHA256)) ||
+			signature != "" || p.Credential.Secret != nil {
+			return nil, Capability{}, errors.New("identity.authentication_failed")
+		}
 	}
 	auth, ok := message["authorization"].(map[string]any)
 	if !ok || !exactKeys(auth, "principal_ref", "scopes") {
@@ -267,7 +293,7 @@ func randomID() string {
 }
 
 
-var peerIDPattern = regexp.MustCompile("^[a-z][a-z0-9-]{2,62}$")
+var peerIDPattern = regexp.MustCompile("^urn:obis:peer:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 
 func PeerIDFromCertificate(certificate *x509.Certificate) (string, error) {
 	if certificate == nil {
@@ -276,11 +302,11 @@ func PeerIDFromCertificate(certificate *x509.Certificate) (string, error) {
 	var found []string
 	for _, uri := range certificate.URIs {
 		if uri.Scheme == "urn" && strings.HasPrefix(uri.Opaque, "obis:peer:") {
-			found = append(found, strings.TrimPrefix(uri.Opaque, "obis:peer:"))
+			found = append(found, uri.String())
 		}
 	}
 	if len(found) != 1 || !peerIDPattern.MatchString(found[0]) {
-		return "", errors.New("certificate must contain exactly one valid OBIS peer URI SAN")
+		return "", errors.New("certificate must contain exactly one canonical OBIS peer URI SAN")
 	}
 	return found[0], nil
 }
@@ -309,19 +335,34 @@ func (p *Peer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		http.Error(writer, "invalid JSON message", http.StatusBadRequest)
 		return
 	}
+	certificateURI := ""
+	certificateSHA256 := ""
 	if request.TLS != nil {
 		if request.TLS.Version != tls.VersionTLS13 || request.TLS.NegotiatedProtocol != "http/1.1" || len(request.TLS.PeerCertificates) == 0 {
-			http.Error(writer, "OBIS requires TLS 1.3 mTLS and ALPN obis/1", http.StatusForbidden)
+			http.Error(writer, "OBIS requires TLS 1.3 mTLS and HTTP/1.1", http.StatusForbidden)
 			return
 		}
-		certificatePeerID, certErr := PeerIDFromCertificate(request.TLS.PeerCertificates[0])
+		certificateURI, err = PeerIDFromCertificate(request.TLS.PeerCertificates[0])
+		if err != nil {
+			http.Error(writer, "invalid OBIS client certificate identity", http.StatusForbidden)
+			return
+		}
+		fingerprint := sha256.Sum256(request.TLS.PeerCertificates[0].Raw)
+		certificateSHA256 = hex.EncodeToString(fingerprint[:])
 		senderPeerID, senderOK := peerRef(message["sender"])
-		if certErr != nil || !senderOK || certificatePeerID != senderPeerID {
+		if !senderOK || certificateURI != senderPeerID {
 			http.Error(writer, "TLS certificate peer identity mismatch", http.StatusForbidden)
 			return
 		}
 	}
-	payload, capability, err := p.validate(message, request.Header.Get("X-OBIS-Key-Id"), request.Header.Get("X-OBIS-Signature"), time.Now())
+	payload, capability, err := p.validate(
+		message,
+		request.Header.Get("X-OBIS-Key-Id"),
+		request.Header.Get("X-OBIS-Signature"),
+		certificateURI,
+		certificateSHA256,
+		time.Now(),
+	)
 	if err != nil {
 		http.Error(writer, err.Error(), http.StatusForbidden)
 		return
@@ -349,13 +390,15 @@ func (p *Peer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		http.Error(writer, "invalid response", http.StatusInternalServerError)
 		return
 	}
-	signature, err := Sign(response, p.Credential.Secret)
-	if err != nil {
-		http.Error(writer, "response signing failed", http.StatusInternalServerError)
-		return
-	}
 	writer.Header().Set("Content-Type", "application/obis+json")
-	writer.Header().Set("X-OBIS-Signature", signature)
+	if request.TLS == nil {
+		signature, signErr := Sign(response, p.Credential.Secret)
+		if signErr != nil {
+			http.Error(writer, "response signing failed", http.StatusInternalServerError)
+			return
+		}
+		writer.Header().Set("X-OBIS-Signature", signature)
+	}
 	writer.WriteHeader(http.StatusOK)
 	_, _ = writer.Write(body)
 }
