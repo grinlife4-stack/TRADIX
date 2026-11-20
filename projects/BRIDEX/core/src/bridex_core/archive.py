@@ -85,7 +85,7 @@ def restore_package(archive_path: str | Path, destination: str | Path) -> dict[s
                 if not name or "\\" in name:
                     raise ManifestValidationError("archive contains an invalid path")
                 relative = PurePosixPath(name)
-                if relative.is_absolute() or any(part in ("", ".", "..") for part in relative.parts):
+                if not relative.parts or relative.is_absolute() or any(part in ("", ".", "..") for part in relative.parts):
                     raise ManifestValidationError("archive path traversal is forbidden")
                 normalized = relative.as_posix().rstrip("/")
                 if normalized in seen:
