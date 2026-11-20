@@ -2,7 +2,7 @@
 
 **Status:** Executable development/conformance prototype  
 **OBIS target:** Draft 0.1.0  
-**Implementation:** Standalone Python reference peer  
+**Implementations:** Standalone Python reference peer; independent Go peer (early development stage)  
 **Production approval:** Not approved
 
 ## Implemented
@@ -29,6 +29,9 @@
 - [x] Signed, correlated error envelopes for authenticated request failures.
 - [x] Draft JSON Schema 2020-12 artifact and schema-validation tests.
 - [x] Positive integration test and negative security/validation tests.
+- [x] Independent Go 1.23 peer using only the Go standard library; it has its own strict parser, request validator, peer/principal binding, scope checks, nonce replay guard, and loopback HTTP server.
+- [x] Shared OBIS request-vector tests in Go.
+- [x] Cross-language Python-client → Go-server request/response test; CI run #1100 completed successfully on commit `1848b42dc9dd209ebe71bea8562185d5507f6533`.
 
 ## Deliberately not implemented
 The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/message.schema.json` and packaged with the reference peer. CI validates the schema and checks the packaged copy against the canonical artifact. Runtime schema negotiation and automatic schema-driven validation are not implemented.
@@ -41,7 +44,7 @@ The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/messa
 - Asynchronous operation lifecycle.
 - Production audit persistence and tamper-evident evidence.
 - Non-loopback transport binding.
-- Cross-language interoperability suite.
+- Full cross-language interoperability conformance. The first Python-to-Go success path is implemented and CI-tested; the reverse Go-to-Python path has now been added but its CI result is pending. Error-response parity and broader negative cross-language cases remain open.
 
 ## Release gates before OBIS 1.0.0
 
@@ -50,11 +53,11 @@ The draft JSON Schema 2020-12 artifact is published at `standards/obis/0.1/messa
 3. Define credential issuance, rotation, revocation, and principal delegation.
 4. Complete durable replay protection, business-operation idempotency, and unknown-outcome reconciliation. The optional SQLite nonce guard is implemented but does not yet provide an operation-result ledger.
 5. Define signed evidence/audit formats and retention controls.
-6. Implement at least one independent second-language peer.
-7. Pass cross-implementation positive and negative conformance suites.
+6. Complete the independent Go peer beyond its initial development transport, including reverse-direction, authenticated-error, and negative cross-language cases.
+7. Pass the full cross-implementation positive and negative conformance suite.
 8. Verify portable operation from a clean environment with TRADIX and BRIDEX unavailable.
 9. Complete threat-model review and security testing.
-10. Run the ECOSCAN adapter against this BRIDEX loopback peer in a combined cross-project integration test; the current two projects test their adapter and peer halves independently.
+10. Run the ECOSCAN adapter against both independently implemented peers in a combined cross-project integration test; the current two projects test their adapter and peer halves independently.
 
 A passing local test suite proves only the implemented reference behavior. It does not establish production security or universal interoperability.
 
@@ -72,3 +75,14 @@ The ECOSCAN inventory capability, credential-bound project/source grant, and thr
 The two PR branches have not had their commit histories merged; the implementation files were synchronized. PR #42 remains Draft and unmerged. PR #66 remains open/Draft for traceability and must not be merged independently.
 
 These CI results verify only the tests and packaging checks that actually ran. The optional SQLite nonce guard now persists replay state locally, but this does **not** close production security, business-operation idempotency/outcome reconciliation, audit persistence, second-language interoperability, or combined ECOSCAN-to-OBIS integration gates.
+
+
+## Independent Go peer — 2026-11-20
+
+A second-language peer has been added at `projects/BRIDEX/reference/obis-go`. It is independently buildable, uses only the Go standard library, and does not import or execute the Python implementation. The Go peer supports the local development HMAC profile, direct loopback HTTP, request validation, explicit peer/principal binding, scoped capabilities, and in-memory nonce replay rejection.
+
+- Go unit tests consume the shared OBIS request vectors.
+- CI run #1100 completed successfully for commit `1848b42dc9dd209ebe71bea8562185d5507f6533`, including Go tests/build and a Python reference client calling the Go peer and validating its signed response.
+- A reverse-direction Go client → Python peer integration test is now included; CI run #1108 is pending at the time of this note.
+
+This is early cross-implementation evidence, not full OBIS Interoperability Conformance. The Go implementation does not yet provide production TLS/mTLS, authenticated error-response parity, durable replay, business-operation idempotency/outcome reconciliation, audit persistence, or complete security-profile conformance. HMAC remains development-only.
