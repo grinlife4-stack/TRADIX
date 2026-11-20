@@ -61,3 +61,8 @@ python -m tools.ecoscan --scope source --source nexora-github
 ```
 
 Selectors are validated before scanning. Unknown IDs and invalid selector combinations stop the run.
+
+
+### Railway volume metadata
+
+Set `provider` to `railway_volume`, supply a verified `volume_instance_id`, and provide `RAILWAY_API_TOKEN` at runtime. The adapter reports provisioned capacity and backup inventory metadata without reading volume contents. It does not report used filesystem bytes. Do not substitute a project-level volume ID for a volume-instance ID.
