@@ -1,0 +1,40 @@
+name: ECOSCAN tests
+
+on:
+  push:
+    branches:
+      - feature/ecoscan-independent-tool-2026-11-20
+    paths:
+      - "tools/ecoscan/**"
+      - "tests/test_ecoscan.py"
+      - ".github/workflows/ecoscan-tests.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "tools/ecoscan/**"
+      - "tests/test_ecoscan.py"
+      - ".github/workflows/ecoscan-tests.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecoscan-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test runner
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Run ECOSCAN unit tests
+        run: python -m pytest -q tests/test_ecoscan.py
