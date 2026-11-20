@@ -151,14 +151,10 @@ def scan_local(source: dict[str, Any]) -> dict[str, Any]:
 
 def _railway_graphql(query: str, variables: dict[str, Any], token: str) -> dict[str, Any]:
     payload = json.dumps({"query": query, "variables": variables}).encode("utf-8")
-    if os.environ.get("RAILWAY_PROJECT_TOKEN") == token:
-        auth_headers = {"Project-Access-Token": token}
-    else:
-        auth_headers = {"Authorization": f"Bearer {token}"}
     request = urllib.request.Request(
         "https://backboard.railway.com/graphql/v2",
         data=payload,
-        headers={**auth_headers, "Content-Type": "application/json", "User-Agent": USER_AGENT},
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": USER_AGENT},
         method="POST",
     )
     try:
@@ -186,7 +182,7 @@ def scan_railway_volume(source: dict[str, Any], token: str | None) -> dict[str, 
     environment_id = source.get("environment_id")
     reference = source.get("reference") or volume_id or volume_instance_id
     if not token:
-        return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume", "reference": reference, "measured_at": measured_at, "status": "NOT_CONFIGURED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "Railway volume-instance metadata and backup inventory", "error": "RAILWAY_PROJECT_TOKEN or RAILWAY_API_TOKEN is required", "limitations": []}
+        return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume", "reference": reference, "measured_at": measured_at, "status": "NOT_CONFIGURED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "Railway volume-instance metadata and backup inventory", "error": "RAILWAY_OAUTH_ACCESS_TOKEN is required", "limitations": []}
     try:
         if not volume_instance_id:
             if not volume_id or not environment_id:
@@ -362,8 +358,7 @@ def scan_source(source: dict[str, Any], token: str | None) -> dict[str, Any]:
     if provider == "local":
         return scan_local(source)
     if provider == "railway_volume":
-        railway_token = os.environ.get("RAILWAY_PROJECT_TOKEN") or os.environ.get("RAILWAY_API_TOKEN")
-        return scan_railway_volume(source, railway_token)
+        return scan_railway_volume(source, os.environ.get("RAILWAY_OAUTH_ACCESS_TOKEN"))
     if provider == "s3_compatible":
         return scan_s3_compatible(source)
     return {"source_id": source.get("source_id", "unknown"), "project_id": source.get("project_id", "unknown"), "provider": str(provider), "reference": source.get("reference"), "measured_at": utc_now(), "status": "UNSUPPORTED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": source.get("capacity_bytes"), "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "not implemented", "error": f"Provider adapter not implemented: {provider}", "limitations": []}
