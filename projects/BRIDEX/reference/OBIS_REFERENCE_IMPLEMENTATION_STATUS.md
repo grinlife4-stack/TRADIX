@@ -263,7 +263,7 @@ PR #67 now runs a separate Go peer process on loopback and tests the ECOSCAN inv
 - OBIS 0.2 path: ECOSCAN now includes a native OBISV02Invoker. It clones the injected client with per-call scope narrowing and deadline-derived timeout, generates operation/idempotency identities, and maps only a verified SUCCEEDED operation into the existing ECOSCAN result contract. ACCEPTED, RUNNING, and UNKNOWN fail closed as TransportOutcomeUnknown; known terminal failures remain failures.
 - The standalone workflow pins the BRIDEX Go/Python reference implementation to commit ab6cf9ba108d5368844428eabbd5c492ad2e6069, builds the Go binary, and runs the tests without deploying or contacting an external provider.
 
-PR #67 CI on head 29da6f6e689d97a328339145dbad6343e8201cae passed: standalone run 44809260481 completed with 79 tests passed, registry validation, and a local-only synthetic scan; companion cross-project run 44809273940 completed with 186 tests passed. Both workflows used the native OBISV02Invoker and pinned the OBIS reference to the CI-validated PR #42 commit ab6cf9ba108d5368844428eabbd5c492ad2e6069. PR #67 remains Draft and unmerged.
+PR #67 CI on head 29da6f6e689d97a328339145dbad6343e8201cae passed: standalone run 44809607885 completed with 78 tests passed, registry validation, and a local-only synthetic scan; companion cross-project run 44809607770 completed with 185 tests passed. Both workflows used the native OBISV02Invoker and pinned the OBIS reference to the CI-validated PR #42 commit ab6cf9ba108d5368844428eabbd5c492ad2e6069. PR #67 remains Draft and unmerged.
 
 ## Shared request-hash vectors and authenticated error parity — 2026-11-20
 
