@@ -452,7 +452,8 @@ def test_authorization_revocation_during_scan_discards_partial_measurements(tmp_
 
 
 def test_timeout_budget_is_enforced_before_page_work(monkeypatch, tmp_path):
-    from ecoscan.models import ScanBudget
+    from ecoscan.obis_bridge import OBISBridgeAdapter, REQUIRED_SCOPE
+from ecoscan.models import ScanBudget
 
     clock = iter([10.0, 12.0])
     monkeypatch.setattr("ecoscan.contracts.time.monotonic", lambda: next(clock))
@@ -583,3 +584,115 @@ def test_append_scan_rolls_back_coverage_when_measurement_insert_fails(tmp_path)
         item["measurement_id"] != "forced-measurement-failure"
         for item in store.list_measurements()
     )
+
+
+
+class FakeOBISClient:
+    local_peer_id = "peer:ecoscan-local"
+    remote_peer_id = "peer:inventory-bridge"
+    scopes = frozenset({REQUIRED_SCOPE})
+
+    def __init__(self, result=None):
+        self.result = result or {
+            "project_id": "project-a",
+            "source_id": "remote-storage",
+            "coverage_state": "COMPLETE",
+            "items_seen": 2,
+            "pages_seen": 1,
+            "measurements": {"logical_bytes": 4096, "file_count": 2},
+            "source_timestamp": "2026-11-20T10:00:00Z",
+            "limitations": [],
+            "evidence_ref": "bridge-evidence-001",
+        }
+        self.calls = []
+
+    def invoke(self, endpoint, capability_id, capability_version, payload, scopes=None):
+        self.calls.append((endpoint, capability_id, capability_version, payload, scopes))
+        return {
+            "sender": {"peer_id": self.remote_peer_id},
+            "recipient": {"peer_id": self.local_peer_id},
+            "outcome": "succeeded",
+            "result": self.result,
+        }
+
+
+def obis_source(root=None):
+    raw = source(root or "peer:inventory-bridge", source_id="remote-storage")
+    raw.update({
+        "source_type": "obis_bridge",
+        "locator": "peer:inventory-bridge",
+        "adapter_id": "obis_bridge",
+        "adapter_version": "0.1.0",
+        "credential_ref": "external-secret-ref:inventory-bridge",
+    })
+    return raw
+
+
+def test_obis_bridge_adapter_runs_authenticated_read_only_peer_and_records_measurements(tmp_path):
+    client = FakeOBISClient()
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [obis_source()],
+    })
+    store = ProjectStore(tmp_path / "db", "project-a")
+    adapter = OBISBridgeAdapter(client, "https://bridge.example.invalid")
+    outcome = ScanRunner(registry, gate(source_id="remote-storage"), {"obis_bridge": adapter}, store).run(
+        "remote-storage", "operator-a"
+    )
+    assert outcome.coverage_state == "COMPLETE"
+    assert outcome.measurements_written == 2
+    assert {item["kind"]: item["value"] for item in store.list_measurements()} == {
+        "logical_bytes": 4096,
+        "file_count": 2,
+    }
+    endpoint, capability, version, payload, scopes = client.calls[0]
+    assert endpoint == "https://bridge.example.invalid"
+    assert capability == "ecoscan.inventory.read"
+    assert version == "1.0"
+    assert payload["project_id"] == "project-a"
+    assert payload["source_id"] == "remote-storage"
+    assert scopes == {REQUIRED_SCOPE}
+
+
+def test_obis_bridge_adapter_rejects_cross_project_response_before_storage(tmp_path):
+    result = FakeOBISClient().result.copy()
+    result["project_id"] = "project-b"
+    client = FakeOBISClient(result)
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [obis_source()],
+    })
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(
+        registry,
+        gate(source_id="remote-storage"),
+        {"obis_bridge": OBISBridgeAdapter(client, "https://bridge.example.invalid")},
+        store,
+    ).run("remote-storage", "operator-a")
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "adapter_contract_violation"
+    assert store.list_measurements() == []
+
+
+def test_obis_bridge_adapter_rejects_wrong_registered_peer(tmp_path):
+    client = FakeOBISClient()
+    raw = obis_source()
+    raw["locator"] = "peer:untrusted"
+    registry = parse_registry({
+        "schema_version": "0.1",
+        "project_id": "project-a",
+        "sources": [raw],
+    })
+    store = ProjectStore(tmp_path / "db", "project-a")
+    outcome = ScanRunner(
+        registry,
+        gate(source_id="remote-storage"),
+        {"obis_bridge": OBISBridgeAdapter(client, "https://bridge.example.invalid")},
+        store,
+    ).run("remote-storage", "operator-a")
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "adapter_contract_violation"
+    assert client.calls == []
+    assert store.list_measurements() == []
