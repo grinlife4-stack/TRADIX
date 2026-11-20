@@ -35,7 +35,7 @@ MAX_MESSAGE_BYTES = 64 * 1024
 MAX_TTL_SECONDS = 60
 CLOCK_SKEW_SECONDS = 30
 TLS_PROFILE_ID = "OBIS-TLS-MTLS-1"
-ALPN_PROTOCOL = "obis/0.1"
+ALPN_PROTOCOL = "http/1.1"
 _OBIS_PEER_URI_PREFIX = "urn:obis:peer:"
 
 def _validate_obis_peer_uri(value: str) -> str:
