@@ -130,6 +130,15 @@ ECOSCAN can be stopped, moved, upgraded, replaced, or removed without changing m
 
 ## 10. Bridge ownership and optional external integration
 
+### Permanent engineering-capability access
+
+The portfolio-wide Bridge standard also applies to ECOSCAN's engineering lifecycle. ECOSCAN may use authorized OBIS Bridge peers to access capabilities exposed by TRADIX and BRIDEX during initial construction and ongoing development, testing, maintenance, and upgrades. This is a continuing engineering capability, not a one-time bootstrap exception.
+
+Each exposing project owns and controls the Bridge instance that exposes its own capabilities: TRADIX owns its capability Bridge, and BRIDEX owns its capability Bridge. BRIDEX does not own Bridges belonging to TRADIX or other projects. ECOSCAN receives only approved peer identity, non-secret connection metadata, and scoped grants; credentials remain with the Bridge-owning project.
+
+This engineering relationship is separate from operational source Bridges used to inventory project resources. It does not require an always-on connection and does not make TRADIX or BRIDEX a runtime dependency for ECOSCAN's independent local operation. Endpoints and grants require separate authorization and are not implied to be configured or live.
+
+
 ECOSCAN core does not require a Bridge to operate. Local inventory, controls, storage, history, and export/import must remain usable when every Bridge, BRIDEX, TRADIX, network, and cloud service is unavailable.
 
 When an external project/provider source must be inventoried, the project that owns that source/resource owns the Bridge instance that accesses and exposes it. BRIDEX may generate, package, test, and document that Bridge, but never owns or centrally operates it and is never a runtime dependency. The source project controls the Bridge identity, source/package, credentials, permissions, deployment, operator, lifecycle, and revocation.
