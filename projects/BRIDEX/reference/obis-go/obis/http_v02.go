@@ -2,7 +2,9 @@ package obis
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"time"
 	"net/http"
 	"strconv"
 )
@@ -35,7 +37,33 @@ func (p *PeerV02) HandlerV02() http.Handler {
 		if err != nil { http.Error(w,"invalid JSON",http.StatusBadRequest); return }
 		response,secret,protocolErr := p.Handle(message,r.Header.Get("X-OBIS-Key-Id"),r.Header.Get("X-OBIS-Signature"))
 		if protocolErr != nil {
-			http.Error(w,protocolErr.Code+": "+protocolErr.Message,protocolErr.Status); return
+			if len(secret) >= 32 {
+				sender,_:=obj(message,"sender")
+				senderID,_:=str(sender,"peer_id")
+				errorResponse:=map[string]any{
+					"protocol":"obis","version":"0.2","message_type":"error_response",
+					"message_id":fmt.Sprintf("go-error-%d",time.Now().UnixNano()),
+					"correlation_id":message["message_id"],
+					"sender":map[string]any{"peer_id":p.Peer.ID},
+					"recipient":map[string]any{"peer_id":senderID},
+					"issued_at":float64(time.Now().Unix()),
+					"error":map[string]any{"code":protocolErr.Code,"message":protocolErr.Message},
+				}
+				errorBody,encodeErr:=CanonicalJSON(errorResponse)
+				if encodeErr==nil {
+					responseSignature,signErr:=Sign(errorResponse,secret)
+					if signErr==nil {
+						w.Header().Set("Content-Type","application/obis+json")
+						w.Header().Set("Content-Length",strconv.Itoa(len(errorBody)))
+						w.Header().Set("X-OBIS-Signature",responseSignature)
+						w.WriteHeader(protocolErr.Status)
+						_,_=w.Write(errorBody)
+						return
+					}
+				}
+			}
+			http.Error(w,protocolErr.Code+": "+protocolErr.Message,protocolErr.Status)
+			return
 		}
 		body,err := CanonicalJSON(response)
 		if err != nil { http.Error(w,"response encoding failed",http.StatusInternalServerError); return }
