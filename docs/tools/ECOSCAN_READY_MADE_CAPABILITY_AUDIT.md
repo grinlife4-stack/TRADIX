@@ -34,6 +34,7 @@ Custom development is justified only for the thin ECOSCAN layer that existing pr
 | Full-stack host/application monitoring | Netdata | Do not select as the default core | Agent is GPLv3+, but the Netdata UI and Cloud have closed-source components; Cloud has free and paid tiers. This creates a mixed licensing and optional cloud dependency that is unnecessary for ECOSCAN's core. |
 | Repository metadata and LFS accounting | GitHub REST API + Git LFS usage interfaces | Use provider-native interfaces directly | Repository metadata is not a complete measurement of all storage classes. Git LFS stores actual objects separately from pointer files and has separate quotas/billing. Actions artifacts, packages, releases, and backups need separate measurement paths. |
 | Object storage and provider capacity/usage | Provider-native APIs and inventory features | Use per-provider adapters only after separate review | No universal API or universal zero-cost guarantee. API request charges, inventory generation, egress, account eligibility, permissions, retention, and regional restrictions must be checked per provider. |
+| Existing TRADIX Backblaze B2 adapter | `src/tradix/storage/backblaze.py`, `scripts/verify_backblaze_b2.py`, and `docs/BACKBLAZE_B2_SETUP.md` | Reuse its validated endpoint/configuration and optional S3 client as a provider-specific building block after a read-only adapter is added | Current verifier lists one object and has an optional retained write/read-back test; it is not an ECOSCAN inventory adapter, does not enumerate all objects/pages, and does not expose normalized measurements, source coverage, scan budgets, or exportable history. Existing config is bucket-specific, not a portfolio-wide registry. |
 | Local filesystems, volumes, and backup directories | Native OS/filesystem metadata tools | Use directly through narrow read-only adapters | Logical size, allocated blocks, snapshots, deduplication, sparse files, hard links, and filesystem-level physical usage are not interchangeable. |
 
 ## 3. Candidate assessment
@@ -97,6 +98,21 @@ Custom development is justified only for the thin ECOSCAN layer that existing pr
 - **Evidence:** [Netdata repository and component licensing](https://github.com/netdata/netdata).
 
 ## 4. Source-specific measurement rules
+
+### Existing TRADIX Backblaze B2 integration
+
+The repository already contains a Backblaze S3-compatible configuration/client adapter at `src/tradix/storage/backblaze.py`, an access-verification script, configuration tests, a setup guide, and a manually dispatched GitHub Actions workflow. This is genuine reusable work and must not be rebuilt.
+
+Its verified scope is narrower than ECOSCAN:
+- Configuration validates HTTPS endpoint/region consistency and hides the application secret from dataclass representation.
+- The verifier calls `list_objects_v2` with `MaxKeys=1`; this proves a bounded sample listing, not complete bucket inventory or exact storage consumption.
+- The optional write test uploads and reads back a uniquely named object and deliberately retains it. It requires write permission and must never be used by a read-only ECOSCAN scan.
+- The setup guide records that runtime credentials and live connectivity were not yet configured/verified at the time of that document. Do not infer current live status from repository code.
+- The adapter creates an S3 client but does not yet define a read-only ECOSCAN source contract, paginated inventory/checkpointing, storage-class/version accounting, normalized measurement records, coverage states, or history.
+
+**Decision:** Reuse `BackblazeConfig` and the optional `boto3` client factory only behind a new ECOSCAN read-only adapter. Do not reuse the write-test path. Create a separate, bucket-scoped, least-privilege credential reference for each registered project/source. Never reuse a shared factory bucket as a substitute for each project's independent storage boundary. Confirm the exact B2 key capabilities and billing/retention behavior before enabling a source.
+
+Evidence in this repository: `src/tradix/storage/backblaze.py`, `scripts/verify_backblaze_b2.py`, `tests/test_backblaze_config.py`, `docs/BACKBLAZE_B2_SETUP.md`, and `.github/workflows/verify-backblaze-b2.yml`.
 
 ### GitHub repositories
 
