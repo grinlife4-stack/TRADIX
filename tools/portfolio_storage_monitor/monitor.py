@@ -259,6 +259,12 @@ def main(argv: list[str] | None = None) -> int:
     if config.get("mode", "MANUAL") == "DISABLED":
         print("Monitor is DISABLED; no scans were run.")
         return 0
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+    if event_name == "schedule" and not config.get("scheduled_enabled", False):
+        print("Scheduled monitoring is disabled in the registry; no scans were run.")
+        return 0
+    if event_name == "schedule":
+        config["mode"] = "SCHEDULED"
     token = os.environ.get("PORTFOLIO_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")
     results = [scan_source(source, token) for source in config.get("sources", [])]
     report = build_report(config, results)
