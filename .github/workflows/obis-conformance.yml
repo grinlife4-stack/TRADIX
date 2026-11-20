@@ -1,0 +1,38 @@
+name: obis-conformance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "projects/BRIDEX/reference/obis-python/**"
+      - "projects/BRIDEX/reference/obis-go/**"
+      - "standards/obis/**"
+  pull_request:
+    paths:
+      - "projects/BRIDEX/reference/obis-python/**"
+      - "projects/BRIDEX/reference/obis-go/**"
+      - "standards/obis/**"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: go version
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e "projects/BRIDEX/reference/obis-python[dev]"
+      - run: python -m pytest -q projects/BRIDEX/reference/obis-python/tests
+      - run: cd projects/BRIDEX/reference/obis-go && go test ./...
+      - run: python -m pip wheel --no-deps --wheel-dir /tmp/obis-wheel projects/BRIDEX/reference/obis-python
+      - run: python -m pip install --no-deps --target /tmp/obis-install /tmp/obis-wheel/*.whl
+      - run: python -c "from pathlib import Path; a=Path('standards/obis/0.1/message.schema.json').read_bytes(); b=Path('projects/BRIDEX/reference/obis-python/schemas/obis-0.1-message.schema.json').read_bytes(); c=Path('projects/BRIDEX/reference/obis-python/src/obis_bridge/schemas/message.schema.json').read_bytes(); assert a == b == c"
+      - run: PYTHONPATH=/tmp/obis-install python -c "import sys, obis_bridge; assert 'tradix' not in sys.modules and 'bridex_engine' not in sys.modules"
