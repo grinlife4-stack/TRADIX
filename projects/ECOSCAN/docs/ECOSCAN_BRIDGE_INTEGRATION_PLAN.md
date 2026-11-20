@@ -13,6 +13,18 @@ External provider connectivity is a separate integration layer. It must be imple
 
 The Bridge is an optional, replaceable peer adapter for sources that require external access. It is not a mandatory component of ECOSCAN, hub, relay, broker, registry, identity provider, or runtime dependency.
 
+### 1.1 Permanent engineering-capability integration
+
+ECOSCAN also uses the ecosystem Bridge standard for its own engineering lifecycle. Through explicitly authorized OBIS peers, it may access relevant engineering tools and capabilities exposed by TRADIX and BRIDEX during initial construction, testing, maintenance, and later development. This is an ongoing capability path, not a one-time bootstrap connection.
+
+This engineering path is distinct from the operational source Bridges described below:
+- A Bridge exposing TRADIX capabilities is owned and controlled by TRADIX; a Bridge exposing BRIDEX capabilities is owned and controlled by BRIDEX. BRIDEX's role as Bridge engineer does not transfer ownership of a TRADIX Bridge or any other project's Bridge to BRIDEX.
+- ECOSCAN receives only approved peer identity, non-secret connection metadata, and narrowly scoped capability grants. Credentials remain with the project that owns and operates the exposing Bridge.
+- Engineering access is available when authorized and needed; it does not create a mandatory network session or make BRIDEX/TRADIX a runtime dependency of ECOSCAN's standalone inventory functions.
+- These links are not the same Bridge instances or trust grants used to read operational resources from other projects.
+
+The exact endpoints and capability grants are not configured or live. This plan does not authorize a production connection.
+
 ## 2. Intended topology
 
 ```text
