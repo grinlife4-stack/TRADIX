@@ -35,6 +35,11 @@ class FilesystemAdapter:
     def validate_config(self, source_descriptor: SourceDescriptor) -> None:
         if source_descriptor.source_type != "filesystem":
             raise AdapterContractError("filesystem adapter accepts filesystem sources only")
+        supported = {"logical_bytes", "file_count"}
+        if not source_descriptor.expected_measurements or not set(source_descriptor.expected_measurements).issubset(supported):
+            raise AdapterContractError("filesystem adapter supports logical_bytes and file_count measurements only")
+        if "://" in source_descriptor.locator:
+            raise AdapterContractError("filesystem locator must be a local path, not a URL")
         self._root(source_descriptor)
 
     def scan(self, context: ScanContext) -> AdapterResult:
