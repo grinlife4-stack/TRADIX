@@ -1,10 +1,13 @@
 import json
 import os
 import subprocess
+import urllib.error
+import urllib.request
 
 import pytest
 
-from obis_bridge import OBISClient, OBISPeer, OBISServer, Credential, OBISRequestError, OBISRequestError
+from obis_bridge import OBISClient, OBISPeer, OBISServer, Credential, OBISRequestError
+from obis_bridge.peer import canonical_json, sign_message
 
 
 GO_PEER_BINARY = os.environ.get("OBIS_GO_PEER_BINARY")
@@ -269,3 +272,72 @@ def test_go_client_receives_signed_scope_denial_from_python_peer():
         )
     assert result.returncode != 0
     assert "authorization.denied" in result.stderr
+
+
+
+def _post_raw(endpoint, message, signature):
+    request = urllib.request.Request(
+        endpoint.rstrip("/") + "/obis/v0.1/messages",
+        data=canonical_json(message),
+        method="POST",
+        headers={
+            "Content-Type": "application/obis+json",
+            "X-OBIS-Key-Id": "python-dev-key",
+            "X-OBIS-Signature": signature,
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=3) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read()
+
+
+def test_python_raw_malformed_and_unauthenticated_requests_are_rejected_by_go_peer():
+    process, endpoint = _start_go_server()
+    try:
+        client = OBISClient(
+            local_peer_id="peer:python", remote_peer_id="peer:go",
+            key_id="python-dev-key", principal_ref="principal:python",
+            secret=SECRET, scopes={"records:read"},
+        )
+        malformed = client.build_request("records.read", "1.0", {"record_id": "bad-version"})
+        malformed["version"] = "0.2"
+        status, _ = _post_raw(endpoint, malformed, sign_message(malformed, SECRET))
+        assert status == 426
+
+        unauthenticated = client.build_request("records.read", "1.0", {"record_id": "bad-signature"})
+        status, _ = _post_raw(endpoint, unauthenticated, "00" * 32)
+        assert status == 401
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
+
+
+def test_go_format_malformed_and_unauthenticated_requests_do_not_execute_python_capability():
+    calls = []
+    credential = Credential(
+        key_id="go-dev-key", peer_id="peer:go", principal_ref="principal:go",
+        secret=SECRET, allowed_scopes=frozenset({"records:read"}),
+    )
+    peer = OBISPeer("peer:python", [credential])
+    peer.register_capability(
+        "records.read", "1.0", {"records:read"},
+        lambda payload: calls.append(payload) or {"record_id": payload["record_id"]},
+    )
+    client = OBISClient(
+        local_peer_id="peer:go", remote_peer_id="peer:python",
+        key_id="go-dev-key", principal_ref="principal:go",
+        secret=SECRET, scopes={"records:read"},
+    )
+    with OBISServer(peer) as server:
+        malformed = client.build_request("records.read", "1.0", {"record_id": "bad-version"})
+        malformed["version"] = "0.2"
+        status, _ = _post_raw(server.address, malformed, sign_message(malformed, SECRET))
+        assert status == 426
+
+        unauthenticated = client.build_request("records.read", "1.0", {"record_id": "bad-signature"})
+        status, _ = _post_raw(server.address, unauthenticated, "00" * 32)
+        assert status == 401
+
+    assert calls == []
