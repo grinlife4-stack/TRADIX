@@ -209,7 +209,21 @@ func (p *PeerV02) Handle(m map[string]any, keyID, signature string) (map[string]
 	if err != nil { return failAuthenticated(&Error{"operation.ledger_unavailable","operation ledger unavailable",503}) }
 	if created || record.State == "ACCEPTED" {
 		record,err = p.Ledger.Transition(opID,"RUNNING",float64(time.Now().Unix()),nil,"","")
-		if err != nil { return failAuthenticated(&Error{"operation.ledger_unavailable","operation could not enter RUNNING",503}) }
+		if err != nil {
+			// Another concurrent delivery may have won ACCEPTED -> RUNNING.
+			// Re-read the durable record and return its current state; never
+			// execute the capability from a losing delivery.
+			if errors.Is(err,ErrInvalidOperationTransition) {
+				current,readErr := p.Ledger.GetForResource(
+					opID,credential.PeerID,credential.PrincipalRef,
+					capability.ID,capability.Version,operationResourceRef(m,capability),
+				)
+				if readErr == nil && current.State != "ACCEPTED" {
+					return operationResponse(m,p.Peer.ID,current),credential.Secret,nil
+				}
+			}
+			return failAuthenticated(&Error{"operation.ledger_unavailable","operation could not enter RUNNING",503})
+		}
 		payload,_ := obj(m,"payload")
 		result,handlerErr := capability.Handler(payload)
 		if handlerErr != nil || result == nil {
