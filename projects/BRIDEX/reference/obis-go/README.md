@@ -15,7 +15,7 @@ It currently provides:
 - OBIS 0.1 request envelope validation, bounded TTL, and message-size checks.
 - Explicit peer/principal credential mapping.
 - Per-capability scope checks with default-deny behavior.
-- In-memory nonce replay rejection.
+- In-memory nonce replay rejection by default, with an optional owner-local durable file-backed replay guard.
 - Direct loopback HTTP request handling at /obis/v0.1/messages.
 - A Go client that validates response signatures, correlation, peer identity, success envelopes, and signed error envelopes.
 - HMAC-authenticated success and correlated error responses compatible with the Python development client.
@@ -69,6 +69,21 @@ The Go unit tests also consume all published OBIS 0.1 request and response schem
 
 The HMAC profile reproduces the Python prototype's local development behavior. It is not a normative production security profile, certificate identity mapping, TLS/mTLS, key lifecycle, or a substitute for the unresolved OBIS security decisions. The server and client refuse non-loopback endpoints.
 
-The implementation still lacks distributed replay protection, durable operation idempotency/outcome reconciliation, production audit persistence, and the complete malformed-message/transport failure matrix. The current Go envelope validator is implemented independently and is not yet a full JSON Schema validator for every possible OBIS message.
+The optional Go `FileReplayGuard` persists nonce claims across process restarts using exclusive file creation, file sync, and directory sync. Configure it before serving with `SetReplayGuard`; the directory must already exist and be controlled by the Bridge owner. Duplicate claims are rejected across guard instances/processes. Storage errors fail closed with HTTP 503 before capability execution. Marker files are intentionally retained permanently to avoid reopening replay windows; this consumes unbounded storage over time and requires owner monitoring/retention planning. This is local durable replay protection, not distributed replay protection or business-operation idempotency/outcome reconciliation. The default remains in-memory for development. The implementation still lacks durable operation idempotency/outcome reconciliation, production audit persistence, and the complete malformed-message/transport failure matrix. The current Go envelope validator is implemented independently and is not yet a full JSON Schema validator for every possible OBIS message.
 
 Do not expose this peer to the public internet or use it for real credentials or business data.
+
+
+## Durable replay guard
+
+The Go peer offers an opt-in standard-library-only `FileReplayGuard` for owner-local persistence:
+
+```go
+guard, err := obis.NewFileReplayGuard("/var/lib/my-bridge/obis-replay")
+if err != nil { return err }
+if err := peer.SetReplayGuard(guard); err != nil { return err }
+```
+
+Create the directory before startup and restrict it to the Bridge owner. Configure the guard before the peer begins serving requests. A nonce claim is created atomically with exclusive file creation; the marker and containing directory are synced before capability execution is allowed. A duplicate is rejected even after constructing a new guard or restarting the process. Any uncertain write/sync failure is fail-closed and prevents the handler from running.
+
+Markers are not automatically deleted, including after request expiry. This deliberately trades storage growth for avoiding unsafe cleanup races and replay-window reopening. Operators must monitor capacity and treat the directory as persistent security state. Do not manually delete markers while the peer is active. This guard is not distributed coordination, an operation idempotency ledger, or a production authentication profile.
