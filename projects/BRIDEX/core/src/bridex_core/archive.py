@@ -35,7 +35,10 @@ def export_package(package_root: str | Path, archive_path: str | Path) -> dict[s
         raise ManifestValidationError("archive output already exists")
     destination.parent.mkdir(parents=True, exist_ok=True)
 
-    files = sorted(path for path in root.rglob("*") if path.is_file())
+    entries = list(root.rglob("*"))
+    if any(path.is_symlink() for path in entries):
+        raise ManifestValidationError("package export rejects symlinks")
+    files = sorted(path for path in entries if path.is_file())
     if len(files) > MAX_ARCHIVE_ENTRIES:
         raise ManifestValidationError("package contains too many files")
     with zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
