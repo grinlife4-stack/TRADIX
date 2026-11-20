@@ -8,7 +8,7 @@ import urllib.request
 import pytest
 
 from obis_bridge import Credential, OBISClient, OBISPeer, OBISRequestError, OBISServer
-from obis_bridge.peer import MAX_TTL_SECONDS, ReplayGuard, canonical_json, sign_message, strict_json_loads, validate_request
+from obis_bridge.peer import MAX_TTL_SECONDS, ReplayGuard, canonical_json, sign_message, strict_json_loads, validate_request, validate_response
 
 
 SECRET = b"test-only-shared-secret-material-32-bytes-minimum"
@@ -337,3 +337,69 @@ def test_credential_repr_redacts_secret_and_freezes_scope_grants():
     mutable_scopes.add("admin:all")
     assert credential.allowed_scopes == frozenset({"inventory:read"})
     assert SECRET.decode("utf-8") not in repr(credential)
+
+
+def _valid_success_response(request):
+    return {
+        "protocol": "obis",
+        "version": "0.1",
+        "message_type": "response",
+        "message_id": "response-valid",
+        "correlation_id": request["message_id"],
+        "sender": {"peer_id": PEER_B},
+        "recipient": {"peer_id": PEER_A},
+        "issued_at": time.time(),
+        "outcome": "succeeded",
+        "result": {"ok": True},
+    }
+
+
+@pytest.mark.parametrize("malformed", [
+    [],
+    None,
+    "not-an-object",
+])
+def test_response_validator_rejects_non_object_json(malformed):
+    peer_b, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    with pytest.raises(OBISRequestError, match="JSON object"):
+        validate_response(malformed, request, PEER_A, PEER_B, "succeeded")
+
+
+def test_response_validator_rejects_extra_peer_reference_fields():
+    peer_b, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    response = _valid_success_response(request)
+    response["sender"]["display_name"] = "untrusted"
+    with pytest.raises(OBISRequestError, match="reference"):
+        validate_response(response, request, PEER_A, PEER_B, "succeeded")
+
+
+@pytest.mark.parametrize("timestamp", [-1, float("nan"), float("inf"), 10**400, True])
+def test_response_validator_rejects_invalid_timestamps(timestamp):
+    peer_b, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    response = _valid_success_response(request)
+    response["issued_at"] = timestamp
+    with pytest.raises(OBISRequestError, match="timestamp"):
+        validate_response(response, request, PEER_A, PEER_B, "succeeded")
+
+
+def test_response_validator_rejects_malformed_error_envelope():
+    peer_b, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    response = _valid_success_response(request)
+    response.pop("result")
+    response["outcome"] = "failed"
+    response["error"] = {"code": "authorization.denied"}
+    with pytest.raises(OBISRequestError, match="structured error"):
+        validate_response(response, request, PEER_A, PEER_B, "failed")
+
+
+def test_response_validator_rejects_correlation_mismatch():
+    peer_b, client = make_pair()
+    request = client.build_request("inventory.get", "1.0", {"item_id": "x"})
+    response = _valid_success_response(request)
+    response["correlation_id"] = "different-request"
+    with pytest.raises(OBISRequestError, match="correlation"):
+        validate_response(response, request, PEER_A, PEER_B, "succeeded")
