@@ -191,3 +191,12 @@ The independent Go test harness now sends the same signed OBIS request to two se
 CI run #1185 passed on commit `515079aeb0d4a69494d7dba3b2f6d8cd4d385d1e`. Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated wheel/install/schema checks all passed.
 
 This is evidence of owner-local SQLite nonce persistence across an actual Python process restart for a Go→Python request. It is not distributed replay protection, business-operation idempotency/outcome reconciliation, or persistent audit/evidence storage. HMAC remains development/conformance-only. No normative OBIS schema, wire envelope, TIIS contract, version negotiation semantics, or production security profile was changed.
+
+
+## 14. Go-originated malformed and expired request rejection by Python peer — 2026-11-20
+
+The independent Go-originated cross-peer test now verifies additional Python server rejection cases before capability execution: expired correctly signed request (HTTP 408), unknown top-level field (HTTP 400), unknown nested sender field (HTTP 400), malformed JSON (HTTP 400), and duplicate JSON object keys (HTTP 400). Existing authenticated unsupported-version (HTTP 426) and invalid-signature (HTTP 401) checks remain. The Python integration harness confirms that the capability handler is never invoked for any rejected request.
+
+CI run #1187 passed on commit `5b2a7d6dc7e3c3acf8a0c9c6995d8462d695fb88`, including Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
+
+This is selected Go→Python server-side negative coverage only. It does not establish full bidirectional negative conformance, production TLS/mTLS, credential lifecycle, distributed replay coordination, business-operation idempotency/outcome reconciliation, or persistent audit/evidence storage. HMAC remains development/conformance-only. No normative OBIS/TIIS contract or version negotiation semantics changed.
