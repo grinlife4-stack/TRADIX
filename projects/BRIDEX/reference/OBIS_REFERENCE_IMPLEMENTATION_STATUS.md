@@ -176,3 +176,17 @@ The independent Go-originated cross-peer negative test now also exercises the Py
 CI run #1187 passed on commit `5b2a7d6dc7e3c3acf8a0c9c6995d8462d695fb88`, including Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN suite, and isolated wheel/install/schema checks.
 
 This extends selected Go→Python server-side negative coverage. It does not complete the full bidirectional negative conformance matrix or production security approval. HMAC remains development/conformance-only; no normative OBIS schema, wire envelope, TIIS contract, or version negotiation semantics changed.
+
+
+## Python-to-Go malformed and expired request rejection — 2026-11-20
+
+The Python integration harness now sends authenticated and raw malformed requests to the independent Go peer and verifies the server rejects them before capability execution:
+- Expired signed request: HTTP 408.
+- Unknown top-level field in an otherwise signed request: HTTP 400.
+- Unknown nested sender field in an otherwise signed request: HTTP 400.
+- Malformed JSON bytes: HTTP 400.
+- Duplicate JSON object keys: HTTP 400.
+
+CI run #1189 passed on consolidated PR #42 head `2157d1de0fe60326898615b1b9fd037eac11139e` (run ID `44761677327`). The run completed Go tests/build, the full Python/BRIDEX Core/OBIS/ECOSCAN test suite, and isolated wheel/install/schema checks for BRIDEX Core, OBIS, and ECOSCAN.
+
+This adds selected Python→Go server-side malformed/expired request coverage. It does not establish full bidirectional negative conformance, full signed-error response parity, production security approval, or release readiness. HMAC remains development/conformance-only. No normative OBIS schema, wire envelope, TIIS contract, or version-negotiation semantics changed.
