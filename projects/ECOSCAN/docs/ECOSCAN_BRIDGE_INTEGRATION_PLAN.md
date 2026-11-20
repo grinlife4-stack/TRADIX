@@ -75,7 +75,7 @@ The Bridge integration must use OBIS as the independent peer-to-peer contract. I
 - Data classification, payload limits, request limits, TTL, timeout, and replay/idempotency behavior.
 - Revocation behavior and audit/evidence references.
 
-The first capability is now fixed for this integration: `ecoscan.inventory.read` version `1.0`, requiring the read-only scope `ecoscan:inventory:read`. The ECOSCAN adapter is implemented in `src/ecoscan/obis_bridge.py`. It accepts an injected authenticated OBIS client and endpoint, verifies sender/recipient identity and the project/source binding in the response, enforces local page/item budgets, and maps only the declared `logical_bytes` and `file_count` measurements. A separate `ecoscan.measurement.submit` capability is not part of this read-only integration.
+The first capability is now fixed for this integration: `ecoscan.inventory.read` version `1.0`, requiring the read-only scope `ecoscan:inventory:read`. The ECOSCAN adapter is implemented in `src/ecoscan/obis_bridge.py`. It accepts an injected authenticated OBIS client and endpoint, verifies sender/recipient identity and the project/source binding in the response, enforces local page/item budgets, and maps only the declared `logical_bytes` and `file_count` measurements. The BRIDEX reference peer now has a matching server-side helper in PR #66, with per-credential `allowed_resources` pairs enforced before the provider callback. A separate `ecoscan.measurement.submit` capability is not part of this read-only integration.
 
 The receiving ECOSCAN peer must authorize every request independently. A Bridge may submit only for the project/source pair explicitly bound to its peer grant. It cannot choose or widen the project boundary from payload data alone.
 
@@ -83,7 +83,7 @@ The receiving ECOSCAN peer must authorize every request independently. A Bridge 
 
 1. **Local Phase 1 acceptance:** Complete and pass the local path-boundary, symlink, control-precedence, budget/timeout, corrupted-transfer, SQLite portability, and independence tests. No external connection is enabled.
 2. **Bridge contract:** The initial `ecoscan.inventory.read@1.0` adapter contract and synthetic conformance tests now exist. The Bridge implementation must register that exact capability and independently bind its authenticated peer grant to the allowed project/source. Revocation, production transport, and durable replay handling remain additional requirements.
-3. **Development conformance:** Synthetic tests now cover successful adapter invocation, peer mismatch, and cross-project rejection. Next, connect the adapter to the BRIDEX loopback reference OBIS client/server and test invalid scope, replay, expiry, malformed payload, timeout, and revocation. The current CI fake-client tests do not prove wire-level interoperability and this stage is not production approval.
+3. **Development conformance:** ECOSCAN CI synthetic tests cover successful adapter invocation, peer mismatch, and cross-project rejection. BRIDEX PR #66 adds loopback HTTP tests for the matching server capability, including project/source grant rejection before provider execution. A combined ECOSCAN-adapter-to-BRIDEX-server wire test and fresh CI on PR #66's latest head are still pending. The current separate tests do not yet prove end-to-end interoperability and this stage is not production approval.
 4. **Production security profile:** Before any non-loopback connection, implement and independently review maintained TLS/mTLS or another approved authenticated transport, trust-anchor and certificate lifecycle, durable replay/idempotency, secret isolation, audit persistence, and operational revocation. The current BRIDEX OBIS reference prototype is loopback-only and its shared-secret HMAC profile is development-only.
 5. **Provider pilot:** Only after explicit owner approval, select one synthetic or specifically authorized low-risk source, use read-only credentials held by the Bridge, and prove bounded operation and complete export/restore. No broad ecosystem scan.
 6. **Expansion:** Add other providers only as separate Bridge-owned adapters after the previous source passes its own acceptance tests.
@@ -122,3 +122,17 @@ The ECOSCAN package now contains `src/ecoscan/obis_bridge.py`. Its transport is 
 The adapter invokes `ecoscan.inventory.read@1.0` with `ecoscan:inventory:read`, passing only the registered project ID, source ID, and requested measurement kinds. It rejects mismatched sender/recipient identity, project/source mismatch, unexpected result fields, unsupported measurement kinds, invalid counters, and budget overflow. The local runner remains the final authority and commits no measurement if adapter validation fails.
 
 Synthetic tests exercise the injected-client boundary. They do not yet constitute a live OBIS wire test. The CLI intentionally registers only the local filesystem adapter. A real Bridge endpoint, peer IDs, credential reference, and runtime secret injection must be supplied by the owner after local Phase 1 acceptance. The BRIDEX loopback reference implementation may be used for the next development conformance step, but its HTTP/HMAC profile must not be exposed beyond loopback or treated as production security.
+
+
+## 10. Bridge-side credential grant mapping
+
+The matching BRIDEX reference implementation is being developed in [TRADIX PR #66](https://github.com/grinlife4-stack/TRADIX/pull/66). Each Bridge credential must be provisioned with only the allowed `(project_id, source_id)` pairs for its peer relationship. The server capability uses `resource_binding=True`, so the authenticated OBIS peer rejects an out-of-grant payload before calling the provider. The Bridge provider callback then performs only the approved metadata read and returns the typed result expected by ECOSCAN.
+
+The two sides now share these exact values:
+- Capability: `ecoscan.inventory.read`
+- Version: `1.0`
+- Scope: `ecoscan:inventory:read`
+- Project/source payload keys: `project_id`, `source_id`
+- Measurement kinds: `logical_bytes`, `file_count`
+
+This establishes the integration contract and the two independent implementations. It does not claim that a live endpoint is configured or that the combined end-to-end test has passed.
