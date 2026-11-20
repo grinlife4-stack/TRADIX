@@ -28,7 +28,8 @@
 - [x] Draft JSON Schema 2020-12 artifact and schema-validation tests.
 - [x] Language-neutral OBIS 0.1 message-schema accept/reject vectors and standalone BRIDEX runner.
 - [x] Go unit tests consuming the shared OBIS request vectors.
-- [x] Bidirectional development-profile success-path tests: Python client → Go server and Go client → Python server.\n- [x] Initial authenticated error-response tests in both directions using the `capability.unknown` case; Go signs correlated errors and the Go client verifies signed Python error responses.
+- [x] Bidirectional development-profile success-path tests: Python client → Go server and Go client → Python server.
+- [x] Initial authenticated error-response tests in both directions using the `capability.unknown` case; Go signs correlated errors and the Go client verifies signed Python error responses.
 - [x] CI Go unit tests and binary build, followed by the full Python/BRIDEX Core/OBIS/ECOSCAN test suite with both cross-language tests enabled.
 
 ## Deliberately not implemented
