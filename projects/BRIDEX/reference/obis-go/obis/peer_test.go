@@ -231,9 +231,9 @@ func TestInvokeReturnsTimeoutWhenPeerDoesNotRespond(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected timeout when peer does not respond")
 	}
-	var netErr net.Error
-	if !errors.As(err, &netErr) || !netErr.Timeout() {
-		t.Fatalf("expected network timeout, got %T: %v", err, err)
+	var protocolErr *Error
+	if !errors.As(err, &protocolErr) || protocolErr.Code != "peer.timeout" || protocolErr.Status != http.StatusGatewayTimeout {
+		t.Fatalf("expected peer.timeout / HTTP 504, got %T: %v", err, err)
 	}
 }
 
@@ -249,8 +249,9 @@ func TestInvokeReturnsConnectionErrorWhenPeerIsUnavailable(t *testing.T) {
 		[]string{"records:read"}, "records.read", "1.0",
 		map[string]any{"record_id": "unavailable-test"},
 	)
-	if err == nil {
-		t.Fatal("expected connection error for unavailable peer")
+	var protocolErr *Error
+	if !errors.As(err, &protocolErr) || protocolErr.Code != "peer.unavailable" || protocolErr.Status != http.StatusServiceUnavailable {
+		t.Fatalf("expected peer.unavailable / HTTP 503, got %T: %v", err, err)
 	}
 }
 
