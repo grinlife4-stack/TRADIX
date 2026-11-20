@@ -7,7 +7,7 @@ import urllib.request
 import pytest
 
 from obis_bridge import OBISClient, OBISPeer, OBISServer, Credential, OBISRequestError
-from obis_bridge.peer import canonical_json, sign_message
+from obis_bridge.peer import canonical_json, sign_message, validate_response, verify_signature
 
 
 GO_PEER_BINARY = os.environ.get("OBIS_GO_PEER_BINARY")
@@ -278,7 +278,7 @@ def test_go_client_receives_signed_scope_denial_from_python_peer():
 
 
 
-def _post_raw(endpoint, message, signature):
+def _post_raw_with_headers(endpoint, message, signature):
     request = urllib.request.Request(
         endpoint.rstrip("/") + "/obis/v0.1/messages",
         data=canonical_json(message),
@@ -291,9 +291,22 @@ def _post_raw(endpoint, message, signature):
     )
     try:
         with urllib.request.urlopen(request, timeout=3) as response:
-            return response.status, response.read()
+            return response.status, response.read(), response.headers.get("X-OBIS-Signature", "")
     except urllib.error.HTTPError as exc:
-        return exc.code, exc.read()
+        return exc.code, exc.read(), exc.headers.get("X-OBIS-Signature", "")
+
+
+def _post_raw(endpoint, message, signature):
+    status, body, _ = _post_raw_with_headers(endpoint, message, signature)
+    return status, body
+
+
+def _assert_signed_error_response(request, status, body, response_signature, expected_status, expected_code):
+    assert status == expected_status
+    response = json.loads(body.decode("utf-8"))
+    assert verify_signature(response, SECRET, response_signature)
+    validate_response(response, request, "peer:python", "peer:go", "failed")
+    assert response["error"]["code"] == expected_code
 
 
 
@@ -464,3 +477,74 @@ def test_python_to_go_authenticated_negative_request_matrix():
         process.terminate()
         process.wait(timeout=5)
 
+
+
+
+def test_python_to_go_authenticated_error_responses_are_signed_and_bound():
+    process, endpoint = _start_go_server()
+    try:
+        client = OBISClient(
+            local_peer_id="peer:python", remote_peer_id="peer:go",
+            key_id="python-dev-key", principal_ref="principal:python",
+            secret=SECRET, scopes={"records:read", "records:write"},
+        )
+
+        expired = client.build_request("records.read", "1.0", {"record_id": "expired-signed-error"})
+        now = int(__import__("time").time())
+        expired["issued_at"] = now - 60
+        expired["expires_at"] = now - 30
+        status, body, response_signature = _post_raw_with_headers(
+            endpoint, expired, sign_message(expired, SECRET)
+        )
+        _assert_signed_error_response(
+            expired, status, body, response_signature, 408, "request.expired"
+        )
+
+        unsupported = client.build_request(
+            "records.read", "1.0", {"record_id": "unsupported-version-signed-error"}
+        )
+        unsupported["version"] = "0.2"
+        status, body, response_signature = _post_raw_with_headers(
+            endpoint, unsupported, sign_message(unsupported, SECRET)
+        )
+        _assert_signed_error_response(
+            unsupported, status, body, response_signature, 426, "protocol.unsupported_version"
+        )
+
+        missing_capability = client.build_request(
+            "missing.capability", "1.0", {"record_id": "missing-capability-signed-error"}
+        )
+        status, body, response_signature = _post_raw_with_headers(
+            endpoint, missing_capability, sign_message(missing_capability, SECRET)
+        )
+        _assert_signed_error_response(
+            missing_capability, status, body, response_signature, 404, "capability.unknown"
+        )
+
+        denied_scope = client.build_request(
+            "records.read", "1.0", {"record_id": "scope-denial-signed-error"},
+            scopes={"records:write"},
+        )
+        status, body, response_signature = _post_raw_with_headers(
+            endpoint, denied_scope, sign_message(denied_scope, SECRET)
+        )
+        _assert_signed_error_response(
+            denied_scope, status, body, response_signature, 403, "authorization.denied"
+        )
+
+        replay = client.build_request(
+            "records.read", "1.0", {"record_id": "replay-signed-error"},
+            scopes={"records:read"},
+        )
+        replay_signature = sign_message(replay, SECRET)
+        first_status, _, _ = _post_raw_with_headers(endpoint, replay, replay_signature)
+        assert first_status == 200
+        status, body, response_signature = _post_raw_with_headers(
+            endpoint, replay, replay_signature
+        )
+        _assert_signed_error_response(
+            replay, status, body, response_signature, 409, "request.replay_detected"
+        )
+    finally:
+        process.terminate()
+        process.wait(timeout=5)
