@@ -227,6 +227,92 @@ def scan_railway_volume(source: dict[str, Any], token: str | None) -> dict[str, 
     except ScanError as exc:
         return {"source_id": source["source_id"], "project_id": source["project_id"], "provider": "railway_volume", "reference": volume_instance_id, "measured_at": measured_at, "status": exc.status, "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "Railway GraphQL volume-instance metadata and backup inventory", "error": str(exc), "limitations": []}
 
+
+def _sign_s3_request(method: str, url: str, access_key: str, secret_key: str, region: str, now: datetime) -> urllib.request.Request:
+    parsed = urllib.parse.urlsplit(url)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    date_stamp = now.strftime("%Y%m%d")
+    payload_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    canonical_uri = urllib.parse.quote(urllib.parse.unquote(parsed.path or "/"), safe="/-_.~")
+    canonical_query = "&".join(
+        f"{urllib.parse.quote(k, safe='-_.~')}={urllib.parse.quote(v, safe='-_.~')}"
+        for k, v in sorted(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+    )
+    host = parsed.netloc
+    canonical_headers = f"host:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
+    signed_headers = "host;x-amz-content-sha256;x-amz-date"
+    canonical_request = "\n".join([method, canonical_uri, canonical_query, canonical_headers, signed_headers, payload_hash])
+    scope = f"{date_stamp}/{region}/s3/aws4_request"
+    string_to_sign = "\n".join(["AWS4-HMAC-SHA256", amz_date, scope, hashlib.sha256(canonical_request.encode()).hexdigest()])
+    def sign(key: bytes, message: str) -> bytes:
+        return hmac.new(key, message.encode(), hashlib.sha256).digest()
+    k_date = sign(("AWS4" + secret_key).encode(), date_stamp)
+    k_region = sign(k_date, region)
+    k_service = sign(k_region, "s3")
+    k_signing = sign(k_service, "aws4_request")
+    signature = hmac.new(k_signing, string_to_sign.encode(), hashlib.sha256).hexdigest()
+    authorization = f"AWS4-HMAC-SHA256 Credential={access_key}/{scope}, SignedHeaders={signed_headers}, Signature={signature}"
+    return urllib.request.Request(url, headers={"Host": host, "x-amz-date": amz_date, "x-amz-content-sha256": payload_hash, "Authorization": authorization, "User-Agent": USER_AGENT}, method=method)
+
+
+def scan_s3_compatible(source: dict[str, Any]) -> dict[str, Any]:
+    measured_at = utc_now()
+    source_id, project_id = source["source_id"], source["project_id"]
+    endpoint = str(source.get("endpoint") or "").rstrip("/")
+    bucket = source.get("bucket")
+    access_key = os.environ.get(source.get("access_key_env", ""))
+    secret_key = os.environ.get(source.get("secret_key_env", ""))
+    region = str(source.get("region") or "us-east-1")
+    if not endpoint or not bucket or not access_key or not secret_key:
+        missing = [name for name, value in (("endpoint", endpoint), ("bucket", bucket), ("access key environment variable", access_key), ("secret key environment variable", secret_key)) if not value]
+        return {"source_id": source_id, "project_id": project_id, "provider": "s3_compatible", "reference": bucket or endpoint or None, "measured_at": measured_at, "status": "NOT_CONFIGURED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "method": "S3 ListObjectsV2 metadata only", "error": "Missing " + ", ".join(missing), "limitations": []}
+    parsed_endpoint = urllib.parse.urlsplit(endpoint)
+    if parsed_endpoint.scheme not in ("https", "http") or not parsed_endpoint.netloc:
+        return {"source_id": source_id, "project_id": project_id, "provider": "s3_compatible", "reference": bucket, "measured_at": measured_at, "status": "FAILED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "method": "S3 ListObjectsV2 metadata only", "error": "endpoint must be an absolute HTTP(S) URL", "limitations": []}
+    style = source.get("url_style", "path")
+    if style == "virtual-host":
+        host = f"{bucket}.{parsed_endpoint.netloc}"
+        base_path = parsed_endpoint.path.rstrip("/")
+        base_url = urllib.parse.urlunsplit((parsed_endpoint.scheme, host, base_path, "", ""))
+    elif style == "path":
+        base_url = endpoint + "/" + urllib.parse.quote(str(bucket), safe="-_.~")
+    else:
+        return {"source_id": source_id, "project_id": project_id, "provider": "s3_compatible", "reference": bucket, "measured_at": measured_at, "status": "FAILED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "method": "S3 ListObjectsV2 metadata only", "error": "url_style must be path or virtual-host", "limitations": []}
+    count = total = pages = 0
+    continuation = None
+    max_pages = max(1, min(int(source.get("max_pages", 1000)), 10000))
+    try:
+        while True:
+            params = {"list-type": "2"}
+            if continuation:
+                params["continuation-token"] = continuation
+            query = urllib.parse.urlencode(params)
+            url = base_url + "?" + query
+            request = _sign_s3_request("GET", url, access_key, secret_key, region, datetime.now(timezone.utc))
+            with urllib.request.urlopen(request, timeout=30) as response:
+                body = response.read()
+            root = ET.fromstring(body)
+            for node in root.iter():
+                if node.tag.rsplit("}", 1)[-1] == "Contents":
+                    size = next((child.text for child in node if child.tag.rsplit("}", 1)[-1] == "Size"), None)
+                    if size is not None:
+                        total += int(size)
+                        count += 1
+            values = {node.tag.rsplit("}", 1)[-1]: node.text for node in root.iter() if len(node) == 0}
+            truncated = str(values.get("IsTruncated", "false")).lower() == "true"
+            continuation = values.get("NextContinuationToken")
+            pages += 1
+            if not truncated:
+                status = "EMPTY" if count == 0 else "COMPLETE"
+                break
+            if not continuation or pages >= max_pages:
+                status = "PARTIAL"
+                break
+        return {"source_id": source_id, "project_id": project_id, "provider": "s3_compatible", "reference": f"{endpoint}/{bucket}", "bucket": bucket, "measured_at": measured_at, "status": status, "file_count": count, "logical_bytes": total, "repository_size_bytes": None, "capacity_bytes": None, "page_count": pages, "method": "S3 ListObjectsV2; object key/size metadata only; no object bodies downloaded", "error": None, "limitations": ["Counts current objects returned by ListObjectsV2; historical object versions are not included.", "Incomplete multipart uploads are not included.", "Object metadata bytes are not the same as provider physical billing or deduplicated storage consumption."] + (["Listing was truncated by the configured page limit or lacked a continuation token."] if status == "PARTIAL" else [])}
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ET.ParseError, ValueError) as exc:
+        status = "NOT_AUTHORIZED_OR_NOT_FOUND" if isinstance(exc, urllib.error.HTTPError) and exc.code in (401, 403, 404) else "FAILED"
+        return {"source_id": source_id, "project_id": project_id, "provider": "s3_compatible", "reference": f"{endpoint}/{bucket}", "measured_at": measured_at, "status": status, "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": None, "method": "S3 ListObjectsV2; object metadata only", "error": f"Object-storage listing failed: {exc.__class__.__name__}", "limitations": []}
+
 def scan_source(source: dict[str, Any], token: str | None) -> dict[str, Any]:
     provider = source.get("provider")
     if provider == "github":
@@ -235,6 +321,8 @@ def scan_source(source: dict[str, Any], token: str | None) -> dict[str, Any]:
         return scan_local(source)
     if provider == "railway_volume":
         return scan_railway_volume(source, os.environ.get("RAILWAY_API_TOKEN"))
+    if provider == "s3_compatible":
+        return scan_s3_compatible(source)
     return {"source_id": source.get("source_id", "unknown"), "project_id": source.get("project_id", "unknown"), "provider": str(provider), "reference": source.get("reference"), "measured_at": utc_now(), "status": "UNSUPPORTED", "file_count": None, "logical_bytes": None, "repository_size_bytes": None, "capacity_bytes": source.get("capacity_bytes"), "backup_used_bytes": None, "backup_referenced_bytes": None, "method": "not implemented", "error": f"Provider adapter not implemented: {provider}", "limitations": []}
 
 
