@@ -5,6 +5,6 @@ The HMAC profile and loopback transport are not production approved.
 
 __version__ = "0.1.0"
 
-from .peer import Credential, OBISClient, OBISPeer, OBISRequestError, OBISServer
+from .peer import Credential, OBISClient, OBISPeer, OBISRequestError, OBISServer, create_tls13_client_context, create_tls13_server_context
 
-__all__ = ["Credential", "OBISClient", "OBISPeer", "OBISRequestError", "OBISServer"]
+__all__ = ["Credential", "OBISClient", "OBISPeer", "OBISRequestError", "OBISServer", "create_tls13_client_context", "create_tls13_server_context"]
