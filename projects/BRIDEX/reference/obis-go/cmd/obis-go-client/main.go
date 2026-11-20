@@ -62,7 +62,7 @@ func main() {
 			log.Fatal(err)
 		}
 		serverName := envOr("OBIS_TLS_SERVER_NAME", parsed.Hostname())
-		httpClient, err = peer.NewTLS13HTTPClient(caPEM, certificatePEM, privateKeyPEM, serverName, remotePeerID)
+		httpClient, err = peer.NewTLS13HTTPClient(caPEM, certificatePEM, privateKeyPEM, serverName, localPeerID, remotePeerID)
 		if err != nil {
 			log.Fatal(err)
 		}
