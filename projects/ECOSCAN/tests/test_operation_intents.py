@@ -19,6 +19,7 @@ def _intent():
         "capability_version": "1.0",
         "resource": {"project_id": "project-a", "source_id": "source-a"},
         "payload_sha256": hashlib.sha256(b'{"project_id":"project-a","source_id":"source-a"}').hexdigest(),
+        "request_hash": hashlib.sha256(b"request-projection").hexdigest(),
         "created_at": "2026-11-20T20:00:00Z",
     }
 
