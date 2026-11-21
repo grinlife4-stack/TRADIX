@@ -309,6 +309,15 @@ class ScanRunner:
                 source, actor_id, scan_id, started_at, "FAILED", "adapter_version_mismatch"
             )
 
+        # A subsequent run after process restart must settle old durable
+        # operations before dispatching any new operation for this source.
+        if self.store.list_unresolved_operation_intents(source_id):
+            self.reconcile_pending(source_id, actor_id)
+            if self.store.list_unresolved_operation_intents(source_id):
+                raise ScanError(
+                    "source has unresolved remote operations; no new operation was dispatched"
+                )
+
         def still_authorized() -> bool:
             return self.gate.evaluate(self.registry, source, actor_id).allowed
 
