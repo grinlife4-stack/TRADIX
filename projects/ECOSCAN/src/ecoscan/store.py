@@ -330,6 +330,10 @@ class ProjectStore:
             raise StoreError("reconciliation projection kinds must be unique")
         with closing(self._connect()) as db:
             with db:
+                # Acquire the SQLite write reservation before reading projection
+                # state. Otherwise two deferred transactions can both observe
+                # missing links and then collide while upgrading to writers.
+                db.execute("BEGIN IMMEDIATE")
                 event = db.execute(
                     """SELECT scan_id,project_id,source_id,outcome,recorded_at,result_json
                        FROM operation_reconciliations WHERE reconciliation_id=?""",
