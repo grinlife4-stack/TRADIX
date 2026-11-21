@@ -84,6 +84,16 @@ class ProjectStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_operation_reconciliations_scan
                   ON operation_reconciliations(scan_id, recorded_at);
+                CREATE TABLE IF NOT EXISTS reconciliation_measurement_links (
+                  reconciliation_id TEXT NOT NULL REFERENCES operation_reconciliations(reconciliation_id),
+                  measurement_id TEXT NOT NULL UNIQUE REFERENCES measurements(measurement_id),
+                  scan_id TEXT NOT NULL REFERENCES coverage(scan_id),
+                  source_id TEXT NOT NULL,
+                  kind TEXT NOT NULL,
+                  PRIMARY KEY(reconciliation_id, kind)
+                );
+                CREATE INDEX IF NOT EXISTS idx_reconciliation_measurement_links_scan
+                  ON reconciliation_measurement_links(scan_id, reconciliation_id);
                 """)
             columns = {row[1] for row in db.execute("PRAGMA table_info(coverage)")}
             if "schema_version" not in columns:
@@ -299,6 +309,75 @@ class ProjectStore:
             result.append(item)
         return result
 
+    def list_reconciliation_measurement_links(self, source_id: str | None = None) -> list[dict[str, Any]]:
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                """SELECT * FROM reconciliation_measurement_links
+                   WHERE (? IS NULL OR source_id=?)
+                   ORDER BY reconciliation_id,kind""",
+                (source_id, source_id),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def append_reconciliation_measurements(
+        self, *, reconciliation_id: str, measurements: Iterable[Mapping[str, Any]],
+    ) -> int:
+        items = list(measurements)
+        if not items:
+            raise StoreError("reconciliation projection must contain measurements")
+        kinds = [item.get("kind") for item in items]
+        if any(not isinstance(kind, str) or not kind for kind in kinds) or len(set(kinds)) != len(kinds):
+            raise StoreError("reconciliation projection kinds must be unique")
+        with closing(self._connect()) as db:
+            with db:
+                event = db.execute(
+                    """SELECT scan_id,project_id,source_id,outcome
+                       FROM operation_reconciliations WHERE reconciliation_id=?""",
+                    (reconciliation_id,),
+                ).fetchone()
+                if event is None or event["project_id"] != self.project_id or event["outcome"] != "SUCCEEDED":
+                    raise StoreError("projection requires a successful reconciliation event")
+                coverage = db.execute(
+                    "SELECT coverage_state,source_id FROM coverage WHERE scan_id=?",
+                    (event["scan_id"],),
+                ).fetchone()
+                if coverage is None or coverage["coverage_state"] != "INDETERMINATE" or coverage["source_id"] != event["source_id"]:
+                    raise StoreError("projection must reference the original INDETERMINATE coverage")
+                inserted = 0
+                for item in items:
+                    if (item.get("project_id") != self.project_id
+                            or item.get("source_id") != event["source_id"]
+                            or item.get("scan_id") != event["scan_id"]
+                            or item.get("coverage_state") not in {"COMPLETE", "PARTIAL"}):
+                        raise StoreError("projected measurement crosses reconciliation boundary")
+                    existing = db.execute(
+                        """SELECT l.*,m.* FROM reconciliation_measurement_links l
+                           JOIN measurements m ON m.measurement_id=l.measurement_id
+                           WHERE l.reconciliation_id=? AND l.kind=?""",
+                        (reconciliation_id, item["kind"]),
+                    ).fetchone()
+                    if existing:
+                        current = dict(existing)
+                        current["limitations"] = json.loads(current.pop("limitations_json"))
+                        expected = {**item, "limitations": list(item.get("limitations", []))}
+                        if current["measurement_id"] != item["measurement_id"] or any(
+                            current.get(key) != value for key, value in expected.items()
+                        ):
+                            raise StoreError("conflicting duplicate reconciliation measurement projection")
+                        continue
+                    db.execute(
+                        "INSERT INTO measurements VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        self._measurement_values(item),
+                    )
+                    db.execute(
+                        """INSERT INTO reconciliation_measurement_links
+                           (reconciliation_id,measurement_id,scan_id,source_id,kind)
+                           VALUES (?,?,?,?,?)""",
+                        (reconciliation_id,item["measurement_id"],event["scan_id"],event["source_id"],item["kind"]),
+                    )
+                    inserted += 1
+        return inserted
+
     def export_bundle(self) -> dict[str, Any]:
         with closing(self._connect()) as db:
             coverage = [dict(r) for r in db.execute("SELECT * FROM coverage ORDER BY started_at,scan_id").fetchall()]
@@ -309,6 +388,9 @@ class ProjectStore:
             ).fetchall()]
             intents = [dict(r) for r in db.execute(
                 "SELECT * FROM operation_intents ORDER BY created_at,scan_id"
+            ).fetchall()]
+            reconciliation_measurement_links = [dict(r) for r in db.execute(
+                "SELECT * FROM reconciliation_measurement_links ORDER BY reconciliation_id,kind"
             ).fetchall()]
         for row in coverage:
             row["limitations"] = json.loads(row.pop("limitations_json"))
@@ -321,7 +403,8 @@ class ProjectStore:
         for row in intents:
             row["resource"] = json.loads(row.pop("resource_json"))
         return {"coverage": coverage, "measurements": measurements, "checkpoints": checkpoints,
-                "operation_intents": intents, "operation_reconciliations": reconciliations}
+                "operation_intents": intents, "operation_reconciliations": reconciliations,
+                "reconciliation_measurement_links": reconciliation_measurement_links}
 
     def import_bundle(self, bundle: Mapping[str, Any]) -> int:
         coverage = bundle.get("coverage", [])
@@ -329,7 +412,8 @@ class ProjectStore:
         checkpoints = bundle.get("checkpoints", [])
         intents = bundle.get("operation_intents", [])
         reconciliations = bundle.get("operation_reconciliations", [])
-        if not all(isinstance(x, list) for x in (coverage, measurements, checkpoints, intents, reconciliations)):
+        reconciliation_measurement_links = bundle.get("reconciliation_measurement_links", [])
+        if not all(isinstance(x, list) for x in (coverage, measurements, checkpoints, intents, reconciliations, reconciliation_measurement_links)):
             raise StoreError("bundle record collections must be arrays")
         intent_by_scan = {}
         for record in intents:
@@ -339,6 +423,7 @@ class ProjectStore:
             if record.get("scan_id") in intent_by_scan:
                 raise StoreError("duplicate operation intent in export")
             intent_by_scan[record["scan_id"]] = record
+        reconciliation_by_id = {}
         for record in reconciliations:
             if (not isinstance(record, dict) or record.get("project_id") != self.project_id
                     or not isinstance(record.get("result"), dict)
@@ -347,6 +432,25 @@ class ProjectStore:
             intent = intent_by_scan.get(record.get("scan_id"))
             if intent is None or intent.get("source_id") != record.get("source_id"):
                 raise StoreError("reconciliation has no matching exported operation intent")
+            if record.get("reconciliation_id") in reconciliation_by_id:
+                raise StoreError("duplicate reconciliation id in export")
+            reconciliation_by_id[record["reconciliation_id"]] = record
+        measurement_by_id = {record.get("measurement_id"): record for record in measurements if isinstance(record, dict)}
+        link_keys = set()
+        for link in reconciliation_measurement_links:
+            if not isinstance(link, dict):
+                raise StoreError("invalid reconciliation measurement link")
+            event = reconciliation_by_id.get(link.get("reconciliation_id"))
+            measurement = measurement_by_id.get(link.get("measurement_id"))
+            key = (link.get("reconciliation_id"), link.get("kind"))
+            if (event is None or event.get("outcome") != "SUCCEEDED" or measurement is None
+                    or event.get("scan_id") != link.get("scan_id")
+                    or event.get("source_id") != link.get("source_id")
+                    or measurement.get("scan_id") != link.get("scan_id")
+                    or measurement.get("source_id") != link.get("source_id")
+                    or measurement.get("kind") != link.get("kind") or key in link_keys):
+                raise StoreError("reconciliation measurement link does not match its event and measurement")
+            link_keys.add(key)
         coverage_by_scan = {}
         for record in coverage:
             if not isinstance(record, dict) or record.get("project_id") != self.project_id:
@@ -443,6 +547,23 @@ class ProjectStore:
                         (record["reconciliation_id"],record["scan_id"],record["project_id"],
                          record["source_id"],record["outcome"],record["recorded_at"],
                          json.dumps(record["result"],sort_keys=True,separators=(",",":"),ensure_ascii=False)),
+                    )
+                    inserted += 1
+                for link in reconciliation_measurement_links:
+                    existing = db.execute(
+                        """SELECT * FROM reconciliation_measurement_links
+                           WHERE reconciliation_id=? AND kind=?""",
+                        (link["reconciliation_id"],link["kind"]),
+                    ).fetchone()
+                    if existing:
+                        if dict(existing) != link:
+                            raise StoreError("conflicting duplicate reconciliation measurement link")
+                        continue
+                    db.execute(
+                        """INSERT INTO reconciliation_measurement_links
+                           (reconciliation_id,measurement_id,scan_id,source_id,kind)
+                           VALUES (?,?,?,?,?)""",
+                        (link["reconciliation_id"],link["measurement_id"],link["scan_id"],link["source_id"],link["kind"]),
                     )
                     inserted += 1
         return inserted
