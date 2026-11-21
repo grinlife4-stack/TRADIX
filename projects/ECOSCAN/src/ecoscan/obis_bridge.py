@@ -288,6 +288,7 @@ class OBISV02Invoker:
         self.operation_ttl = operation_ttl
         self.local_peer_id = client.local_peer_id
         self.remote_peer_id = client.remote_peer_id
+        self.principal_ref = client.principal_ref
         self.scopes = frozenset(client.scopes)
 
     def _client_for_deadline(self, deadline: float | None, scopes: frozenset[str]) -> Any:
