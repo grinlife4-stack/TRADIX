@@ -331,7 +331,7 @@ class ProjectStore:
         with closing(self._connect()) as db:
             with db:
                 event = db.execute(
-                    """SELECT scan_id,project_id,source_id,outcome
+                    """SELECT scan_id,project_id,source_id,outcome,result_json
                        FROM operation_reconciliations WHERE reconciliation_id=?""",
                     (reconciliation_id,),
                 ).fetchone()
@@ -343,13 +343,24 @@ class ProjectStore:
                 ).fetchone()
                 if coverage is None or coverage["coverage_state"] != "INDETERMINATE" or coverage["source_id"] != event["source_id"]:
                     raise StoreError("projection must reference the original INDETERMINATE coverage")
+                recovered_result = json.loads(event["result_json"])
+                recovered_values = recovered_result.get("measurements")
+                if not isinstance(recovered_values, dict):
+                    raise StoreError("successful reconciliation has no measurement map")
                 inserted = 0
                 for item in items:
                     if (item.get("project_id") != self.project_id
                             or item.get("source_id") != event["source_id"]
                             or item.get("scan_id") != event["scan_id"]
-                            or item.get("coverage_state") not in {"COMPLETE", "PARTIAL"}):
-                        raise StoreError("projected measurement crosses reconciliation boundary")
+                            or item.get("coverage_state") not in {"COMPLETE", "PARTIAL"}
+                            or item.get("coverage_state") != recovered_result.get("coverage_state")
+                            or recovered_values.get(item.get("kind")) != item.get("value")
+                            or item.get("measured_at") != event["recorded_at"]
+                            or item.get("source_timestamp") != recovered_result.get("source_timestamp")
+                            or item.get("evidence_ref") != recovered_result.get("evidence_ref")
+                            or item.get("confidence") != "UNVERIFIED"
+                            or item.get("method") != f"obis_v0.2_status_reconciliation:{reconciliation_id}"):
+                        raise StoreError("projected measurement does not faithfully represent its reconciliation event")
                     existing = db.execute(
                         """SELECT l.*,m.* FROM reconciliation_measurement_links l
                            JOIN measurements m ON m.measurement_id=l.measurement_id
@@ -475,7 +486,14 @@ class ProjectStore:
                     or measurement.get("kind") != link.get("kind") or key in link_keys
                     or coverage_by_scan.get(link.get("scan_id")) != link.get("source_id")
                     or coverage_state_by_scan.get(link.get("scan_id")) != "INDETERMINATE"
-                    or measurement.get("coverage_state") not in {"COMPLETE", "PARTIAL"}):
+                    or measurement.get("coverage_state") not in {"COMPLETE", "PARTIAL"}
+                    or measurement.get("coverage_state") != event.get("result", {}).get("coverage_state")
+                    or event.get("result", {}).get("measurements", {}).get(link.get("kind")) != measurement.get("value")
+                    or measurement.get("measured_at") != event.get("recorded_at")
+                    or measurement.get("source_timestamp") != event.get("result", {}).get("source_timestamp")
+                    or measurement.get("evidence_ref") != event.get("result", {}).get("evidence_ref")
+                    or measurement.get("confidence") != "UNVERIFIED"
+                    or measurement.get("method") != f"obis_v0.2_status_reconciliation:{link.get('reconciliation_id')}"):
                 raise StoreError("reconciliation measurement link does not match its original indeterminate coverage, event, and measurement")
             link_keys.add(key)
 
