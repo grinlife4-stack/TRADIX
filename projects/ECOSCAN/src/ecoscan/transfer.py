@@ -88,6 +88,8 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
     coverage_states = {record["scan_id"]: record["coverage_state"] for record in bundle["coverage"]}
     allowed_units = {"logical_bytes": "byte", "allocated_bytes": "byte", "physical_bytes": "byte", "capacity_bytes": "byte", "object_count": "object", "file_count": "file", "provider_reported_usage": "provider_unit"}
     links = bundle.get("reconciliation_measurement_links", [])
+    if not isinstance(links, list):
+        raise TransferError("reconciliation_measurement_links must be an array")
     link_by_measurement = {item.get("measurement_id"): item for item in links if isinstance(item, dict)}
     successful_events = {
         item.get("reconciliation_id"): item
@@ -165,8 +167,11 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
                 or event.get("source_id") != link.get("source_id")
                 or measurement.get("scan_id") != link.get("scan_id")
                 or measurement.get("source_id") != link.get("source_id")
-                or measurement.get("kind") != link.get("kind") or key in link_keys):
-            raise TransferError("reconciliation measurement link is inconsistent")
+                or measurement.get("kind") != link.get("kind") or key in link_keys
+                or scan_sources.get(link.get("scan_id")) != link.get("source_id")
+                or coverage_states.get(link.get("scan_id")) != "INDETERMINATE"
+                or measurement.get("coverage_state") not in {"COMPLETE", "PARTIAL"}):
+            raise TransferError("reconciliation measurement link is inconsistent with original indeterminate coverage")
         link_keys.add(key)
 
 
