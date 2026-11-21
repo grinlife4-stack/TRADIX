@@ -41,7 +41,7 @@ python -m ecoscan import --project ECOSCAN_DEMO --db-dir /path/to/new-db --file 
 
 ## Storage and transfer
 
-Every project has its own append-only SQLite database. Coverage, measurements, and checkpoints are committed atomically. Duplicate scan/measurement IDs are rejected on normal append. Import is idempotent and validates manifest version, project ownership, counts, and scan references.
+Every project has its own append-only SQLite database. Coverage, measurements, and checkpoints are committed atomically. Durable OBIS operation intents and status-reconciliation events are stored separately; a recovered result never overwrites the original INDETERMINATE coverage record. Status reconciliation performs a read-only operation-status query and never resubmits the provider operation. Operation intents and reconciliation evidence are included in JSON/JSONL export and idempotent import. Import validates manifest version, project ownership, counts, and record references.
 
 The local filesystem adapter records logical bytes and file count from lstat metadata. It never opens source contents. Symbolic links are skipped and recorded as coverage limitations. Missing or inaccessible roots fail the scan rather than being reported as zero usage.
 
