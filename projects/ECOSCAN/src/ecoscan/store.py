@@ -307,6 +307,9 @@ class ProjectStore:
             reconciliations = [dict(r) for r in db.execute(
                 "SELECT * FROM operation_reconciliations ORDER BY recorded_at,reconciliation_id"
             ).fetchall()]
+            intents = [dict(r) for r in db.execute(
+                "SELECT * FROM operation_intents ORDER BY created_at,scan_id"
+            ).fetchall()]
         for row in coverage:
             row["limitations"] = json.loads(row.pop("limitations_json"))
         for row in measurements:
@@ -315,24 +318,35 @@ class ProjectStore:
             row["checkpoint"] = json.loads(row.pop("checkpoint_json"))
         for row in reconciliations:
             row["result"] = json.loads(row.pop("result_json"))
+        for row in intents:
+            row["resource"] = json.loads(row.pop("resource_json"))
         return {"coverage": coverage, "measurements": measurements, "checkpoints": checkpoints,
-                "operation_reconciliations": reconciliations}
+                "operation_intents": intents, "operation_reconciliations": reconciliations}
 
     def import_bundle(self, bundle: Mapping[str, Any]) -> int:
         coverage = bundle.get("coverage", [])
         measurements = bundle.get("measurements", [])
         checkpoints = bundle.get("checkpoints", [])
+        intents = bundle.get("operation_intents", [])
         reconciliations = bundle.get("operation_reconciliations", [])
-        if not all(isinstance(x, list) for x in (coverage, measurements, checkpoints, reconciliations)):
+        if not all(isinstance(x, list) for x in (coverage, measurements, checkpoints, intents, reconciliations)):
             raise StoreError("bundle record collections must be arrays")
+        intent_by_scan = {}
+        for record in intents:
+            if (not isinstance(record, dict) or record.get("project_id") != self.project_id
+                    or not isinstance(record.get("resource"), dict)):
+                raise StoreError("invalid operation intent export")
+            if record.get("scan_id") in intent_by_scan:
+                raise StoreError("duplicate operation intent in export")
+            intent_by_scan[record["scan_id"]] = record
         for record in reconciliations:
             if (not isinstance(record, dict) or record.get("project_id") != self.project_id
                     or not isinstance(record.get("result"), dict)
                     or record.get("outcome") not in {"SUCCEEDED", "FAILED"}):
                 raise StoreError("invalid operation reconciliation export")
-            intent = self.get_operation_intent(record.get("scan_id"))
-            if intent is None or intent["source_id"] != record.get("source_id"):
-                raise StoreError("reconciliation has no matching destination operation intent")
+            intent = intent_by_scan.get(record.get("scan_id"))
+            if intent is None or intent.get("source_id") != record.get("source_id"):
+                raise StoreError("reconciliation has no matching exported operation intent")
         coverage_by_scan = {}
         for record in coverage:
             if not isinstance(record, dict) or record.get("project_id") != self.project_id:
@@ -357,6 +371,28 @@ class ProjectStore:
         inserted = 0
         with closing(self._connect()) as db:
             with db:
+                for record in intents:
+                    existing = db.execute("SELECT * FROM operation_intents WHERE scan_id=?", (record["scan_id"],)).fetchone()
+                    normalized = {**record, "resource_json": json.dumps(record["resource"], sort_keys=True, separators=(",", ":"))}
+                    normalized.pop("resource", None)
+                    if existing:
+                        if dict(existing) != normalized:
+                            raise StoreError("conflicting duplicate operation intent")
+                        continue
+                    db.execute(
+                        """INSERT INTO operation_intents
+                           (scan_id,operation_id,idempotency_key,project_id,source_id,peer_id,
+                            principal_ref,capability_id,capability_version,resource_json,
+                            payload_sha256,request_hash,state,created_at,updated_at)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (record["scan_id"],record["operation_id"],record["idempotency_key"],
+                         record["project_id"],record["source_id"],record["peer_id"],record["principal_ref"],
+                         record["capability_id"],record["capability_version"],
+                         json.dumps(record["resource"],sort_keys=True,separators=(",", ":")),
+                         record["payload_sha256"],record["request_hash"],record["state"],
+                         record["created_at"],record["updated_at"]),
+                    )
+                    inserted += 1
                 for record in coverage:
                     existing = db.execute("SELECT * FROM coverage WHERE scan_id=?", (record["scan_id"],)).fetchone()
                     normalized_record = {**record, "schema_version": record.get("schema_version", "0.1"), "limitations": record.get("limitations", [])}
