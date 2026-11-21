@@ -304,15 +304,15 @@ class ProjectStore:
             coverage = [dict(r) for r in db.execute("SELECT * FROM coverage ORDER BY started_at,scan_id").fetchall()]
             measurements = [dict(r) for r in db.execute("SELECT * FROM measurements ORDER BY measured_at,measurement_id").fetchall()]
             checkpoints = [dict(r) for r in db.execute("SELECT * FROM checkpoints ORDER BY updated_at,source_id,scan_id").fetchall()]
+            reconciliations = [dict(r) for r in db.execute(
+                "SELECT * FROM operation_reconciliations ORDER BY recorded_at,reconciliation_id"
+            ).fetchall()]
         for row in coverage:
             row["limitations"] = json.loads(row.pop("limitations_json"))
         for row in measurements:
             row["limitations"] = json.loads(row.pop("limitations_json"))
         for row in checkpoints:
             row["checkpoint"] = json.loads(row.pop("checkpoint_json"))
-        reconciliations = [dict(r) for r in db.execute(
-            "SELECT * FROM operation_reconciliations ORDER BY recorded_at,reconciliation_id"
-        ).fetchall()]
         for row in reconciliations:
             row["result"] = json.loads(row.pop("result_json"))
         return {"coverage": coverage, "measurements": measurements, "checkpoints": checkpoints,
