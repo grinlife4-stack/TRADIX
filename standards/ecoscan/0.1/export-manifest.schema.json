@@ -43,6 +43,10 @@
     "operation_reconciliation_count": {
       "type": "integer",
       "minimum": 0
+    },
+    "reconciliation_measurement_link_count": {
+      "type": "integer",
+      "minimum": 0
     }
   }
 }
