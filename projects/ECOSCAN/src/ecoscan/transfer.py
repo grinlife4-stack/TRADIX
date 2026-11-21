@@ -57,8 +57,11 @@ def export_store(store: ProjectStore, output_dir: str | Path, fmt: str = "both")
 def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_id: str) -> None:
     if manifest.get("schema_version") != EXPORT_VERSION or manifest.get("project_id") != project_id:
         raise TransferError("export manifest version or project ownership mismatch")
-    for key in ("coverage", "measurements", "checkpoints"):
-        if not isinstance(bundle.get(key), list):
+    for key in (
+        "coverage", "measurements", "checkpoints", "operation_intents",
+        "operation_reconciliations", "reconciliation_measurement_links",
+    ):
+        if not isinstance(bundle.get(key, []), list):
             raise TransferError(f"{key} must be an array")
     counts = {
         "coverage_count": len(bundle["coverage"]),
