@@ -30,8 +30,11 @@ class FakeV02Client:
             "sender": {"peer_id": remote_peer_id},
             "recipient": {"peer_id": local_peer_id},
             "operation": {
+                "operation_id": "operation-001",
+                "request_hash": "a" * 64,
                 "state": self.default_state,
                 "result": {"items_seen": 1},
+                "result_ref": None,
                 "failure_code": self.default_failure_code,
             },
         }
@@ -40,6 +43,10 @@ class FakeV02Client:
 
     def invoke(self, endpoint, capability_id, capability_version, payload, **kwargs):
         self.calls.append((endpoint, capability_id, capability_version, payload, kwargs))
+        return self.response
+
+    def status(self, endpoint, capability_id, capability_version, operation_id, **kwargs):
+        self.calls.append((endpoint, capability_id, capability_version, operation_id, kwargs))
         return self.response
 
 
@@ -131,3 +138,36 @@ def test_v02_invoker_requires_operation_ttl_longer_than_message_ttl():
     _, original = make_invoker()
     with pytest.raises(ValueError):
         OBISV02Invoker(original, operation_ttl=60)
+
+
+def test_v02_invoker_status_is_identity_scoped_and_checks_durable_request_hash():
+    invoker, original = make_invoker()
+    response = invoker.status(
+        "http://127.0.0.1:9000",
+        "ecoscan.inventory.read",
+        "1.0",
+        "operation-001",
+        resource={"project_id": "project-a", "source_id": "source-a"},
+        expected_request_hash="a" * 64,
+        scopes={REQUIRED},
+    )
+    used_client = FakeV02Client.instances[-1]
+    assert used_client is not original
+    assert used_client.scopes == {REQUIRED}
+    assert response["outcome"] == "succeeded"
+    assert response["operation"]["operation_id"] == "operation-001"
+    assert used_client.calls[0][3] == "operation-001"
+    assert used_client.calls[0][4]["resource"] == {
+        "project_id": "project-a", "source_id": "source-a"
+    }
+
+    with pytest.raises(AdapterContractError, match="request hash"):
+        invoker.status(
+            "http://127.0.0.1:9000",
+            "ecoscan.inventory.read",
+            "1.0",
+            "operation-001",
+            resource={"project_id": "project-a", "source_id": "source-a"},
+            expected_request_hash="b" * 64,
+            scopes={REQUIRED},
+        )
