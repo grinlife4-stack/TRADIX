@@ -661,3 +661,28 @@ def test_runner_leaves_unknown_status_unresolved_and_never_reinvokes(tmp_path):
         runner.run("fs-main", "operator-a")
     assert adapter.calls == 1
     assert adapter.status_calls == 2
+
+
+def test_runner_records_confirmed_terminal_failure_without_retry(tmp_path):
+    from ecoscan.obis_bridge import OBISV02OperationFailed
+
+    parsed = parse_registry(registry(source()))
+    store = ProjectStore(tmp_path, "project-a")
+    adapter = DurableUnknownAdapter()
+    runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
+    first = runner.run("fs-main", "operator-a")
+
+    def failed_status(context, intent):
+        adapter.status_calls += 1
+        raise OBISV02OperationFailed("FAILED", "provider.denied")
+
+    adapter.reconcile_operation = failed_status
+    outcomes = runner.reconcile_pending("fs-main", "operator-a")
+
+    assert outcomes == [{"scan_id": first.scan_id, "state": "RECONCILED_FAILED"}]
+    assert adapter.calls == 1
+    assert adapter.status_calls == 1
+    assert store.get_operation_intent(first.scan_id)["state"] == "RECONCILED_FAILED"
+    event = store.list_operation_reconciliations()[0]
+    assert event["outcome"] == "FAILED"
+    assert event["result"] == {"operation_state": "FAILED", "failure_code": "provider.denied"}
