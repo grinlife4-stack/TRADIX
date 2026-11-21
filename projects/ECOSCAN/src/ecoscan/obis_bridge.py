@@ -376,3 +376,54 @@ class OBISV02Invoker:
         if state in {"FAILED", "REJECTED", "CANCELLED", "EXPIRED"}:
             raise OBISV02OperationFailed(state, operation.get("failure_code"))
         raise AdapterContractError("OBIS 0.2 operation state is invalid")
+
+    def status(
+        self,
+        endpoint: str,
+        capability_id: str,
+        capability_version: str,
+        operation_id: str,
+        *,
+        resource: dict[str, str],
+        expected_request_hash: str,
+        scopes: set[str] | frozenset[str] | None = None,
+        deadline: float | None = None,
+    ) -> dict[str, Any]:
+        if not operation_id or not isinstance(expected_request_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_request_hash):
+            raise AdapterContractError("OBIS status requires a stable operation ID and expected request hash")
+        if not isinstance(resource, dict) or set(resource) != {"project_id", "source_id"}:
+            raise AdapterContractError("OBIS status requires an exact project/source resource binding")
+        requested = frozenset(scopes if scopes is not None else {REQUIRED_SCOPE})
+        if not requested or not requested.issubset(self.scopes):
+            raise AdapterContractError("OBIS 0.2 client does not hold the requested status scope")
+        client = self._client_for_deadline(deadline, requested)
+        response = client.status(
+            endpoint, capability_id, capability_version, operation_id,
+            resource=resource,
+        )
+        if not isinstance(response, Mapping):
+            raise AdapterContractError("OBIS status response must be an object")
+        operation = response.get("operation")
+        if not isinstance(operation, Mapping):
+            raise AdapterContractError("OBIS status response has no operation record")
+        if operation.get("operation_id") != operation_id:
+            raise AdapterContractError("OBIS status returned a different operation ID")
+        if operation.get("request_hash") != expected_request_hash:
+            raise AdapterContractError("OBIS status request hash does not match the durable intent")
+        state = operation.get("state")
+        if state == "SUCCEEDED":
+            result = operation.get("result")
+            if not isinstance(result, Mapping):
+                raise AdapterContractError("committed OBIS status result must be an object")
+            return {
+                "sender": response.get("sender"),
+                "recipient": response.get("recipient"),
+                "outcome": "succeeded",
+                "result": dict(result),
+                "operation": dict(operation),
+            }
+        if state in {"ACCEPTED", "RUNNING", "UNKNOWN"}:
+            raise TransportOutcomeUnknown(f"OBIS status outcome is {state}")
+        if state in {"FAILED", "REJECTED", "CANCELLED", "EXPIRED"}:
+            raise OBISV02OperationFailed(state, operation.get("failure_code"))
+        raise AdapterContractError("OBIS status operation state is invalid")
