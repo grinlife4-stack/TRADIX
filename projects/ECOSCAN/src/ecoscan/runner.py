@@ -200,7 +200,10 @@ class ScanRunner:
                 outcomes.append({"scan_id": intent["scan_id"], "state": "UNRESOLVED",
                                  "reason_code": decision.reason_code or "authorization_denied"})
                 continue
-            guard = BudgetGuard(source.budget)
+            def still_authorized() -> bool:
+                return self.gate.evaluate(self.registry, source, actor_id).allowed
+
+            guard = BudgetGuard(source.budget, before_page=still_authorized)
             context = ScanContext(
                 self.registry.project_id, actor_id, source, source.budget, guard,
                 scan_id=intent["scan_id"], operation_intent=intent,
