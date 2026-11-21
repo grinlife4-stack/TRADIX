@@ -177,6 +177,73 @@ class ScanRunner:
         self.store.append_scan(record, [])
         return ScanOutcome(scan_id, self.registry.project_id, source.source_id, state, reason, 0)
 
+    def project_reconciled_measurements(self, source_id: str | None = None) -> list[dict[str, Any]]:
+        """Materialize successful recovery events as standard Measurements, idempotently."""
+        sources = {item.source_id: item for item in self.registry.sources}
+        projected = []
+        for event in self.store.list_operation_reconciliations(source_id):
+            if event["outcome"] != "SUCCEEDED":
+                continue
+            source = sources.get(event["source_id"])
+            if source is None:
+                projected.append({"reconciliation_id": event["reconciliation_id"], "state": "PROJECTION_REJECTED",
+                                  "reason_code": "source_not_registered"})
+                continue
+            result = event["result"]
+            values = result.get("measurements") if isinstance(result, Mapping) else None
+            if not isinstance(values, Mapping) or set(values) != set(source.expected_measurements):
+                projected.append({"reconciliation_id": event["reconciliation_id"], "state": "PROJECTION_REJECTED",
+                                  "reason_code": "measurement_set_mismatch"})
+                continue
+            coverage_state = result.get("coverage_state")
+            if coverage_state not in {"COMPLETE", "PARTIAL"}:
+                projected.append({"reconciliation_id": event["reconciliation_id"], "state": "PROJECTION_REJECTED",
+                                  "reason_code": "invalid_coverage_state"})
+                continue
+            measurements = []
+            try:
+                for kind in sorted(values):
+                    value = values[kind]
+                    if (kind not in UNIT_BY_KIND or kind not in source.expected_measurements
+                            or isinstance(value, bool) or not isinstance(value, int) or value < 0):
+                        raise ScanError("recovered measurement value or kind is invalid")
+                    measured = {
+                        "schema_version": "0.1",
+                        "measurement_id": str(uuid.uuid5(
+                            uuid.NAMESPACE_URL,
+                            f"ecoscan:reconciliation:{event['reconciliation_id']}:{kind}",
+                        )),
+                        "project_id": self.registry.project_id,
+                        "source_id": source.source_id,
+                        "kind": kind,
+                        "value": value,
+                        "unit": UNIT_BY_KIND[kind],
+                        "measured_at": event["recorded_at"],
+                        "source_timestamp": result.get("source_timestamp"),
+                        "method": f"obis_v0.2_status_reconciliation:{event['reconciliation_id']}",
+                        "adapter_id": source.adapter_id,
+                        "adapter_version": source.adapter_version,
+                        "coverage_state": coverage_state,
+                        "confidence": "UNVERIFIED",
+                        "limitations": list(result.get("limitations", [])) + ["RECOVERED_BY_STATUS_RECONCILIATION"],
+                        "evidence_ref": result.get("evidence_ref"),
+                        "checkpoint_ref": None,
+                        "scan_id": event["scan_id"],
+                    }
+                    _timestamp(measured["measured_at"], "measured_at")
+                    _timestamp(measured["source_timestamp"], "source_timestamp", nullable=True)
+                    measurements.append(measured)
+                count = self.store.append_reconciliation_measurements(
+                    reconciliation_id=event["reconciliation_id"],
+                    measurements=measurements,
+                )
+                projected.append({"reconciliation_id": event["reconciliation_id"], "state": "PROJECTED",
+                                  "measurements_inserted": count})
+            except Exception as exc:
+                projected.append({"reconciliation_id": event["reconciliation_id"], "state": "PROJECTION_PENDING",
+                                  "reason_code": type(exc).__name__})
+        return projected
+
     def reconcile_pending(self, source_id: str, actor_id: str) -> list[dict[str, Any]]:
         """Reconcile durable OBIS operations by status lookup only; never invoke again."""
         if not isinstance(actor_id, str) or not IDENTIFIER.fullmatch(actor_id):
@@ -193,6 +260,7 @@ class ScanRunner:
         if not callable(validate_config) or not callable(reconcile):
             raise ScanError("source adapter does not support durable operation reconciliation")
         validate_config(source)
+        self.project_reconciled_measurements(source_id)
         outcomes: list[dict[str, Any]] = []
         def still_authorized() -> bool:
             return self.gate.evaluate(self.registry, source, actor_id).allowed
@@ -247,15 +315,22 @@ class ScanRunner:
                     raise AdapterContractError("recovered limitations are invalid")
                 if result["evidence_ref"] is not None and not isinstance(result["evidence_ref"], str):
                     raise AdapterContractError("recovered evidence_ref is invalid")
+                reconciliation_id = str(uuid.uuid4())
                 self.store.append_operation_reconciliation(
-                    reconciliation_id=str(uuid.uuid4()),
+                    reconciliation_id=reconciliation_id,
                     scan_id=intent["scan_id"],
                     source_id=source.source_id,
                     outcome="SUCCEEDED",
                     recorded_at=_now(),
                     result=dict(result),
                 )
-                outcomes.append({"scan_id": intent["scan_id"], "state": "RECONCILED_SUCCEEDED"})
+                projection = self.project_reconciled_measurements(source_id)
+                projection_state = next(
+                    (item["state"] for item in projection if item["reconciliation_id"] == reconciliation_id),
+                    "PROJECTION_PENDING",
+                )
+                outcomes.append({"scan_id": intent["scan_id"], "state": "RECONCILED_SUCCEEDED",
+                                 "measurement_projection": projection_state})
             except Exception as exc:
                 from .obis_bridge import OBISV02OperationFailed
                 if isinstance(exc, OBISV02OperationFailed):
