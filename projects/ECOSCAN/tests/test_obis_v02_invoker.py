@@ -4,6 +4,7 @@ import pytest
 
 from ecoscan.contracts import AdapterContractError, BudgetExceeded, TransportOutcomeUnknown
 from ecoscan.obis_bridge import OBISV02Invoker, OBISV02OperationFailed
+from obis_bridge.v02 import operation_request_hash
 
 
 REQUIRED = "ecoscan:inventory:read"
@@ -171,3 +172,58 @@ def test_v02_invoker_status_is_identity_scoped_and_checks_durable_request_hash()
             expected_request_hash="b" * 64,
             scopes={REQUIRED},
         )
+
+
+def test_v02_invoker_status_keeps_unknown_state_indeterminate():
+    invoker, _ = make_invoker()
+    FakeV02Client.default_state = "UNKNOWN"
+    with pytest.raises(TransportOutcomeUnknown):
+        invoker.status(
+            "http://127.0.0.1:9000",
+            "ecoscan.inventory.read",
+            "1.0",
+            "operation-001",
+            resource={"project_id": "project-a", "source_id": "source-a"},
+            expected_request_hash="a" * 64,
+            scopes={REQUIRED},
+        )
+
+
+def test_prepared_request_hash_matches_obis_v02_reference_algorithm():
+    from ecoscan.obis_bridge import OBISBridgeAdapter
+    from ecoscan.contracts import BudgetGuard
+    from ecoscan.models import ScanBudget, SourceDescriptor
+
+    invoker, _ = make_invoker()
+    source = SourceDescriptor(
+        source_id="source-a",
+        owner_id="owner-a",
+        source_type="obis_bridge",
+        locator="peer:owner",
+        adapter_id="obis_bridge",
+        adapter_version="0.1.0",
+        expected_measurements=("logical_bytes",),
+        budget=ScanBudget(max_items=10, max_pages=2, timeout_seconds=5, max_duration_seconds=5),
+    )
+    context = type("Context", (), {
+        "scan_id": "scan-001",
+        "project_id": "project-a",
+        "source": source,
+    })()
+    adapter = OBISBridgeAdapter(invoker, "http://127.0.0.1:9000")
+    intent = adapter.prepare_operation(context)
+    payload = {
+        "project_id": "project-a",
+        "source_id": "source-a",
+        "measurement_kinds": ["logical_bytes"],
+    }
+    message = {
+        "protocol": "obis",
+        "version": "0.2",
+        "sender": {"peer_id": "peer:ecoscan"},
+        "recipient": {"peer_id": "peer:owner"},
+        "authorization": {"principal_ref": "principal:ecoscan", "scopes": [REQUIRED]},
+        "capability": {"id": "ecoscan.inventory.read", "version": "1.0"},
+        "payload": payload,
+    }
+    assert intent["request_hash"] == operation_request_hash(message)
