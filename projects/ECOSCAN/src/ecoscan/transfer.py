@@ -175,7 +175,14 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
                 or measurement.get("kind") != link.get("kind") or key in link_keys
                 or scan_sources.get(link.get("scan_id")) != link.get("source_id")
                 or coverage_states.get(link.get("scan_id")) != "INDETERMINATE"
-                or measurement.get("coverage_state") not in {"COMPLETE", "PARTIAL"}):
+                or measurement.get("coverage_state") not in {"COMPLETE", "PARTIAL"}
+                or measurement.get("coverage_state") != event.get("result", {}).get("coverage_state")
+                or event.get("result", {}).get("measurements", {}).get(link.get("kind")) != measurement.get("value")
+                or measurement.get("measured_at") != event.get("recorded_at")
+                or measurement.get("source_timestamp") != event.get("result", {}).get("source_timestamp")
+                or measurement.get("evidence_ref") != event.get("result", {}).get("evidence_ref")
+                or measurement.get("confidence") != "UNVERIFIED"
+                or measurement.get("method") != f"obis_v0.2_status_reconciliation:{link.get('reconciliation_id')}"):
             raise TransferError("reconciliation measurement link is inconsistent with original indeterminate coverage")
         link_keys.add(key)
 
