@@ -66,6 +66,7 @@ class ProjectStore:
                   capability_version TEXT NOT NULL,
                   resource_json TEXT NOT NULL,
                   payload_sha256 TEXT NOT NULL,
+                  request_hash TEXT NOT NULL DEFAULT '',
                   state TEXT NOT NULL CHECK(state IN ('PREPARED','INDETERMINATE','RECONCILED_SUCCEEDED','RECONCILED_FAILED')),
                   created_at TEXT NOT NULL,
                   updated_at TEXT NOT NULL
@@ -76,6 +77,9 @@ class ProjectStore:
             columns = {row[1] for row in db.execute("PRAGMA table_info(coverage)")}
             if "schema_version" not in columns:
                 db.execute("ALTER TABLE coverage ADD COLUMN schema_version TEXT NOT NULL DEFAULT '0.1'")
+            intent_columns = {row[1] for row in db.execute("PRAGMA table_info(operation_intents)")}
+            if "request_hash" not in intent_columns:
+                db.execute("ALTER TABLE operation_intents ADD COLUMN request_hash TEXT NOT NULL DEFAULT ''")
 
     @staticmethod
     def _coverage_values(record: Mapping[str, Any]):
@@ -147,7 +151,7 @@ class ProjectStore:
         self, *, scan_id: str, operation_id: str, idempotency_key: str,
         source_id: str, peer_id: str, principal_ref: str,
         capability_id: str, capability_version: str,
-        resource: Mapping[str, str], payload_sha256: str, created_at: str,
+        resource: Mapping[str, str], payload_sha256: str, request_hash: str, created_at: str,
     ) -> dict[str, Any]:
         identifiers = {
             "scan_id": scan_id, "operation_id": operation_id,
@@ -163,6 +167,8 @@ class ProjectStore:
             raise StoreError("operation intent resource crosses project/source boundary")
         if not isinstance(payload_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", payload_sha256):
             raise StoreError("operation intent payload_sha256 must be lowercase SHA-256")
+        if not isinstance(request_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", request_hash):
+            raise StoreError("operation intent request_hash must be lowercase SHA-256")
         if not isinstance(created_at, str) or not created_at:
             raise StoreError("operation intent created_at is required")
         resource_json = json.dumps(dict(resource), sort_keys=True, separators=(",", ":"))
@@ -172,11 +178,11 @@ class ProjectStore:
                     """INSERT INTO operation_intents
                     (scan_id,operation_id,idempotency_key,project_id,source_id,peer_id,
                      principal_ref,capability_id,capability_version,resource_json,
-                     payload_sha256,state,created_at,updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,'PREPARED',?,?)""",
+                     payload_sha256,request_hash,state,created_at,updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'PREPARED',?,?)""",
                     (scan_id,operation_id,idempotency_key,self.project_id,source_id,peer_id,
                      principal_ref,capability_id,capability_version,resource_json,
-                     payload_sha256,created_at,created_at),
+                     payload_sha256,request_hash,created_at,created_at),
                 )
         return self.get_operation_intent(scan_id)
 
