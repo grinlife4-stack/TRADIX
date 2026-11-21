@@ -435,25 +435,6 @@ class ProjectStore:
             if record.get("reconciliation_id") in reconciliation_by_id:
                 raise StoreError("duplicate reconciliation id in export")
             reconciliation_by_id[record["reconciliation_id"]] = record
-        measurement_by_id = {record.get("measurement_id"): record for record in measurements if isinstance(record, dict)}
-        link_keys = set()
-        for link in reconciliation_measurement_links:
-            if not isinstance(link, dict):
-                raise StoreError("invalid reconciliation measurement link")
-            event = reconciliation_by_id.get(link.get("reconciliation_id"))
-            measurement = measurement_by_id.get(link.get("measurement_id"))
-            key = (link.get("reconciliation_id"), link.get("kind"))
-            if (event is None or event.get("outcome") != "SUCCEEDED" or measurement is None
-                    or event.get("scan_id") != link.get("scan_id")
-                    or event.get("source_id") != link.get("source_id")
-                    or measurement.get("scan_id") != link.get("scan_id")
-                    or measurement.get("source_id") != link.get("source_id")
-                    or measurement.get("kind") != link.get("kind") or key in link_keys
-                    or coverage_by_scan.get(link.get("scan_id")) != link.get("source_id")
-                    or coverage_state_by_scan.get(link.get("scan_id")) != "INDETERMINATE"
-                    or measurement.get("coverage_state") not in {"COMPLETE", "PARTIAL"}):
-                raise StoreError("reconciliation measurement link does not match its original indeterminate coverage, event, and measurement")
-            link_keys.add(key)
         coverage_by_scan = {}
         coverage_state_by_scan = {}
         for record in coverage:
@@ -476,6 +457,25 @@ class ProjectStore:
                 raise StoreError("invalid checkpoint export")
             if coverage_by_scan.get(record.get("scan_id")) != record.get("source_id"):
                 raise StoreError("checkpoint source and scan must match the imported coverage record")
+        measurement_by_id = {record.get("measurement_id"): record for record in measurements if isinstance(record, dict)}
+        link_keys = set()
+        for link in reconciliation_measurement_links:
+            if not isinstance(link, dict):
+                raise StoreError("invalid reconciliation measurement link")
+            event = reconciliation_by_id.get(link.get("reconciliation_id"))
+            measurement = measurement_by_id.get(link.get("measurement_id"))
+            key = (link.get("reconciliation_id"), link.get("kind"))
+            if (event is None or event.get("outcome") != "SUCCEEDED" or measurement is None
+                    or event.get("scan_id") != link.get("scan_id")
+                    or event.get("source_id") != link.get("source_id")
+                    or measurement.get("scan_id") != link.get("scan_id")
+                    or measurement.get("source_id") != link.get("source_id")
+                    or measurement.get("kind") != link.get("kind") or key in link_keys
+                    or coverage_by_scan.get(link.get("scan_id")) != link.get("source_id")
+                    or coverage_state_by_scan.get(link.get("scan_id")) != "INDETERMINATE"
+                    or measurement.get("coverage_state") not in {"COMPLETE", "PARTIAL"}):
+                raise StoreError("reconciliation measurement link does not match its original indeterminate coverage, event, and measurement")
+            link_keys.add(key)
 
         inserted = 0
         with closing(self._connect()) as db:
