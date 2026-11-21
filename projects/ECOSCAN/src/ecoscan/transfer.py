@@ -74,7 +74,7 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
         scan_id, source_id = record.get("scan_id"), record.get("source_id")
         if not isinstance(scan_id, str) or not scan_id or not isinstance(source_id, str) or not source_id:
             raise TransferError("coverage identifiers are invalid")
-        if record.get("coverage_state") not in {"COMPLETE", "PARTIAL", "FAILED", "DISABLED", "NOT_AUTHORIZED", "NOT_CONFIGURED"}:
+        if record.get("coverage_state") not in {"COMPLETE", "PARTIAL", "FAILED", "DISABLED", "NOT_AUTHORIZED", "NOT_CONFIGURED", "INDETERMINATE"}:
             raise TransferError("coverage state is invalid")
         if any(isinstance(record.get(key), bool) or not isinstance(record.get(key), int) or record[key] < 0 for key in ("items_seen", "pages_seen")):
             raise TransferError("coverage counters are invalid")
