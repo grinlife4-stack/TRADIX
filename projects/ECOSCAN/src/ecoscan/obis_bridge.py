@@ -106,6 +106,19 @@ class OBISBridgeAdapter:
         payload_bytes = json.dumps(
             payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
         ).encode("utf-8")
+        request_projection = {
+            "protocol": "obis",
+            "version": "0.2",
+            "sender": {"peer_id": self.client.local_peer_id},
+            "recipient": {"peer_id": self.client.remote_peer_id},
+            "principal_ref": self.client.principal_ref,
+            "scopes": [REQUIRED_SCOPE],
+            "capability": {"id": CAPABILITY_ID, "version": CAPABILITY_VERSION},
+            "payload": payload,
+        }
+        request_hash = hashlib.sha256(json.dumps(
+            request_projection, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")).hexdigest()
         return {
             "operation_id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"ecoscan:{context.scan_id}:operation")),
             "idempotency_key": str(uuid.uuid5(uuid.NAMESPACE_URL, f"ecoscan:{context.scan_id}:idempotency")),
@@ -119,6 +132,7 @@ class OBISBridgeAdapter:
                 "source_id": context.source.source_id,
             },
             "payload_sha256": hashlib.sha256(payload_bytes).hexdigest(),
+            "request_hash": request_hash,
         }
 
     def scan(self, context: ScanContext) -> AdapterResult:
