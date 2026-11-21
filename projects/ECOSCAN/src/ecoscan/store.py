@@ -430,8 +430,10 @@ class ProjectStore:
                     or record.get("outcome") not in {"SUCCEEDED", "FAILED"}):
                 raise StoreError("invalid operation reconciliation export")
             intent = intent_by_scan.get(record.get("scan_id"))
-            if intent is None or intent.get("source_id") != record.get("source_id"):
-                raise StoreError("reconciliation has no matching exported operation intent")
+            expected_state = "RECONCILED_SUCCEEDED" if record.get("outcome") == "SUCCEEDED" else "RECONCILED_FAILED"
+            if (intent is None or intent.get("source_id") != record.get("source_id")
+                    or intent.get("state") != expected_state):
+                raise StoreError("reconciliation has no matching terminal operation intent")
             if record.get("reconciliation_id") in reconciliation_by_id:
                 raise StoreError("duplicate reconciliation id in export")
             reconciliation_by_id[record["reconciliation_id"]] = record
