@@ -450,6 +450,11 @@ class OBISV02Invoker:
         )
         if not isinstance(response, Mapping):
             raise AdapterContractError("OBIS status response must be an object")
+        sender = response.get("sender")
+        recipient = response.get("recipient")
+        if (not isinstance(sender, Mapping) or sender.get("peer_id") != self.remote_peer_id
+                or not isinstance(recipient, Mapping) or recipient.get("peer_id") != self.local_peer_id):
+            raise AdapterContractError("OBIS status response peer identity mismatch")
         operation = response.get("operation")
         if not isinstance(operation, Mapping):
             raise AdapterContractError("OBIS status response has no operation record")
