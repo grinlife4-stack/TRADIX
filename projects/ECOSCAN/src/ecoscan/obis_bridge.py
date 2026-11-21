@@ -74,6 +74,7 @@ class OBISBridgeAdapter:
             raise ValueError("OBIS endpoint must not contain query or fragment data")
         self.client = client
         self.endpoint = endpoint.rstrip("/")
+        self.supports_durable_operations = isinstance(client, OBISV02Invoker)
 
     def validate_config(self, source_descriptor: SourceDescriptor) -> None:
         if source_descriptor.source_type != "obis_bridge":
