@@ -219,24 +219,24 @@ class ScanRunner:
             checkpoint, scan_id=scan_id,
         )
         operation_intent = None
-        prepare_operation = getattr(adapter, "prepare_operation", None)
-        if getattr(adapter, "supports_durable_operations", False) and callable(prepare_operation):
-            intent_fields = prepare_operation(context)
-            operation_intent = self.store.create_operation_intent(
-                scan_id=scan_id,
-                created_at=started_at,
-                **intent_fields,
-            )
-            context = ScanContext(
-                self.registry.project_id, actor_id, source, source.budget, guard,
-                checkpoint, scan_id=scan_id, operation_intent=operation_intent,
-            )
         result: AdapterResult | None = None
         measurements: list[dict[str, Any]] = []
         failure_state: str | None = None
         failure_reason: str | None = None
         try:
             adapter.validate_config(source)
+            prepare_operation = getattr(adapter, "prepare_operation", None)
+            if getattr(adapter, "supports_durable_operations", False) and callable(prepare_operation):
+                intent_fields = prepare_operation(context)
+                operation_intent = self.store.create_operation_intent(
+                    scan_id=scan_id,
+                    created_at=started_at,
+                    **intent_fields,
+                )
+                context = ScanContext(
+                    self.registry.project_id, actor_id, source, source.budget, guard,
+                    checkpoint, scan_id=scan_id, operation_intent=operation_intent,
+                )
             result = adapter.scan(context)
             # Enforce the absolute deadline even when an adapter reports zero
             # items and therefore never calls consume_item() after its I/O.
@@ -307,11 +307,6 @@ class ScanRunner:
                 failure_state, failure_reason, 0
             )
 
-        if operation_intent is not None:
-            self.store.transition_operation_intent(
-                scan_id, "RECONCILED_SUCCEEDED", _now()
-            )
-
         if result is None:
             raise ScanError("adapter completed without a result")
         checkpoint_ref = scan_id if result.checkpoint is not None else None
@@ -325,6 +320,7 @@ class ScanRunner:
             measurements,
             checkpoint=result.checkpoint,
             checkpoint_updated_at=coverage_record["finished_at"] if result.checkpoint is not None else None,
+            reconcile_operation_intent=operation_intent is not None,
         )
         return ScanOutcome(
             scan_id, self.registry.project_id, source.source_id,
