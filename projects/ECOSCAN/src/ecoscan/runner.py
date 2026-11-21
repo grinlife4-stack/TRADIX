@@ -220,7 +220,7 @@ class ScanRunner:
         )
         operation_intent = None
         prepare_operation = getattr(adapter, "prepare_operation", None)
-        if callable(prepare_operation):
+        if getattr(adapter, "supports_durable_operations", False) and callable(prepare_operation):
             intent_fields = prepare_operation(context)
             operation_intent = self.store.create_operation_intent(
                 scan_id=scan_id,
