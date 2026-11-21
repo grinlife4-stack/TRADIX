@@ -10,9 +10,7 @@
     "exported_at",
     "coverage_count",
     "measurement_count",
-    "checkpoint_count",
-    "operation_intent_count",
-    "operation_reconciliation_count"
+    "checkpoint_count"
   ],
   "properties": {
     "schema_version": {
