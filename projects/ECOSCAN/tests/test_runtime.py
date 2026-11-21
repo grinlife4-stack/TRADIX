@@ -8,7 +8,7 @@ import pytest
 from ecoscan.contracts import AdapterResult, TransportOutcomeUnknown
 from ecoscan.controls import ControlState, ExecutionGate
 from ecoscan.registry import RegistryError, parse_registry
-from ecoscan.runner import ScanRunner
+from ecoscan.runner import ScanError, ScanRunner
 from ecoscan.store import ProjectStore, StoreError
 
 
@@ -657,3 +657,7 @@ def test_runner_leaves_unknown_status_unresolved_and_never_reinvokes(tmp_path):
     assert adapter.status_calls == 1
     assert store.get_operation_intent(first.scan_id)["state"] == "INDETERMINATE"
     assert store.list_operation_reconciliations() == []
+    with pytest.raises(ScanError, match="unresolved remote operations"):
+        runner.run("fs-main", "operator-a")
+    assert adapter.calls == 1
+    assert adapter.status_calls == 2
