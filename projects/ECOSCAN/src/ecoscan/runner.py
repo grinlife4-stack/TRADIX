@@ -177,6 +177,102 @@ class ScanRunner:
         self.store.append_scan(record, [])
         return ScanOutcome(scan_id, self.registry.project_id, source.source_id, state, reason, 0)
 
+    def reconcile_pending(self, source_id: str, actor_id: str) -> list[dict[str, Any]]:
+        """Reconcile durable OBIS operations by status lookup only; never invoke again."""
+        if not isinstance(actor_id, str) or not IDENTIFIER.fullmatch(actor_id):
+            raise ScanError("actor_id must be a valid identifier")
+        matches = [item for item in self.registry.sources if item.source_id == source_id]
+        if len(matches) != 1:
+            raise ScanError("source_id is not uniquely registered in this project")
+        source = matches[0]
+        adapter = self.adapters.get(source.adapter_id)
+        if adapter is None or adapter.adapter_id != source.adapter_id or adapter.version != source.adapter_version:
+            raise ScanError("the configured reconciliation adapter is unavailable or mismatched")
+        validate_config = getattr(adapter, "validate_config", None)
+        reconcile = getattr(adapter, "reconcile_operation", None)
+        if not callable(validate_config) or not callable(reconcile):
+            raise ScanError("source adapter does not support durable operation reconciliation")
+        validate_config(source)
+        outcomes: list[dict[str, Any]] = []
+        for intent in self.store.list_unresolved_operation_intents(source_id):
+            decision = self.gate.evaluate(self.registry, source, actor_id)
+            if not decision.allowed:
+                outcomes.append({"scan_id": intent["scan_id"], "state": "UNRESOLVED",
+                                 "reason_code": decision.reason_code or "authorization_denied"})
+                continue
+            guard = BudgetGuard(source.budget)
+            context = ScanContext(
+                self.registry.project_id, actor_id, source, source.budget, guard,
+                scan_id=intent["scan_id"], operation_intent=intent,
+            )
+            try:
+                response = reconcile(context, intent)
+                guard.check_deadline()
+                if not isinstance(response, Mapping) or not isinstance(response.get("result"), Mapping):
+                    raise AdapterContractError("reconciliation response has no committed result")
+                result = response["result"]
+                required = {
+                    "project_id", "source_id", "coverage_state", "items_seen",
+                    "pages_seen", "measurements", "source_timestamp", "limitations",
+                    "evidence_ref",
+                }
+                if set(result) != required:
+                    raise AdapterContractError("recovered OBIS result has unknown or missing fields")
+                if result["project_id"] != self.registry.project_id or result["source_id"] != source.source_id:
+                    raise AdapterContractError("recovered OBIS result crosses project/source boundary")
+                if result["coverage_state"] not in {"COMPLETE", "PARTIAL"}:
+                    raise AdapterContractError("recovered coverage state is invalid")
+                for key, maximum in (("items_seen", source.budget.max_items), ("pages_seen", source.budget.max_pages)):
+                    value = result[key]
+                    if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > maximum:
+                        raise AdapterContractError(f"recovered {key} is outside the configured budget")
+                if result["pages_seen"] < 1:
+                    raise AdapterContractError("recovered result must report at least one page")
+                values = result["measurements"]
+                if not isinstance(values, Mapping) or set(values) != set(source.expected_measurements):
+                    raise AdapterContractError("recovered measurement set does not match the source")
+                for kind, value in values.items():
+                    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                        raise AdapterContractError(f"recovered measurement {kind} is invalid")
+                if result["source_timestamp"] is not None and not isinstance(result["source_timestamp"], str):
+                    raise AdapterContractError("recovered source_timestamp is invalid")
+                if not isinstance(result["limitations"], (list, tuple)) or any(
+                    not isinstance(item, str) or not item for item in result["limitations"]
+                ):
+                    raise AdapterContractError("recovered limitations are invalid")
+                if result["evidence_ref"] is not None and not isinstance(result["evidence_ref"], str):
+                    raise AdapterContractError("recovered evidence_ref is invalid")
+                self.store.append_operation_reconciliation(
+                    reconciliation_id=str(uuid.uuid4()),
+                    scan_id=intent["scan_id"],
+                    source_id=source.source_id,
+                    outcome="SUCCEEDED",
+                    recorded_at=_now(),
+                    result=dict(result),
+                )
+                outcomes.append({"scan_id": intent["scan_id"], "state": "RECONCILED_SUCCEEDED"})
+            except Exception as exc:
+                from .obis_bridge import OBISV02OperationFailed
+                if isinstance(exc, OBISV02OperationFailed):
+                    self.store.append_operation_reconciliation(
+                        reconciliation_id=str(uuid.uuid4()),
+                        scan_id=intent["scan_id"],
+                        source_id=source.source_id,
+                        outcome="FAILED",
+                        recorded_at=_now(),
+                        result={"operation_state": exc.state, "failure_code": exc.failure_code},
+                    )
+                    outcomes.append({"scan_id": intent["scan_id"], "state": "RECONCILED_FAILED"})
+                elif isinstance(exc, (TransportOutcomeUnknown, BudgetExceeded, AuthorizationRevoked)):
+                    outcomes.append({"scan_id": intent["scan_id"], "state": "UNRESOLVED",
+                                     "reason_code": "status_outcome_unknown"})
+                else:
+                    # A malformed response or changed identity must never
+                    # resolve an intent. Keep the evidence available for review.
+                    outcomes.append({"scan_id": intent["scan_id"], "state": "UNRESOLVED",
+                                     "reason_code": "reconciliation_validation_failed"})
+        return outcomes
+
     def run(
         self,
         source_id: str,
