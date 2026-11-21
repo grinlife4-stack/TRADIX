@@ -155,3 +155,74 @@ def test_projection_rejects_event_without_original_indeterminate_coverage(tmp_pa
     result = _runner(store).project_reconciled_measurements("remote-storage")
     assert result[0]["state"] == "PROJECTION_PENDING"
     assert store.list_measurements() == []
+
+
+
+def test_projection_recovers_after_restart_between_event_commit_and_projection(tmp_path):
+    store = _prepared_store(tmp_path)
+    # Simulate the durable reconciliation event being committed, followed by
+    # process termination before any Measurement projection begins.
+    assert store.list_operation_reconciliations()[0]["outcome"] == "SUCCEEDED"
+    assert store.list_measurements() == []
+
+    reopened = ProjectStore(tmp_path, "project-a")
+    result = _runner(reopened).project_reconciled_measurements("remote-storage")
+
+    assert result == [{
+        "reconciliation_id": "reconciliation-original",
+        "state": "PROJECTED",
+        "measurements_inserted": 2,
+    }]
+    assert len(reopened.list_measurements()) == 2
+    assert len(reopened.list_reconciliation_measurement_links()) == 2
+    assert reopened.list_coverage()[0]["coverage_state"] == "INDETERMINATE"
+
+
+def test_projection_rolls_back_measurements_and_links_as_one_unit(tmp_path):
+    store = _prepared_store(tmp_path)
+    original_values = store._measurement_values
+    calls = 0
+
+    def fail_on_second_measurement(record):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("simulated process failure during projection")
+        return original_values(record)
+
+    store._measurement_values = fail_on_second_measurement
+    failed = _runner(store).project_reconciled_measurements("remote-storage")
+
+    assert failed[0]["state"] == "PROJECTION_PENDING"
+    assert store.list_measurements() == []
+    assert store.list_reconciliation_measurement_links() == []
+    assert store.list_operation_reconciliations()[0]["outcome"] == "SUCCEEDED"
+    assert store.list_coverage()[0]["coverage_state"] == "INDETERMINATE"
+
+    store._measurement_values = original_values
+    recovered = _runner(ProjectStore(tmp_path, "project-a")).project_reconciled_measurements("remote-storage")
+    assert recovered[0]["state"] == "PROJECTED"
+    assert recovered[0]["measurements_inserted"] == 2
+    assert len(store.list_measurements()) == 2
+    assert len(store.list_reconciliation_measurement_links()) == 2
+
+
+def test_concurrent_projection_is_idempotent_across_store_instances(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    store_a = _prepared_store(tmp_path)
+    store_b = ProjectStore(tmp_path, "project-a")
+    runner_a = _runner(store_a)
+    runner_b = _runner(store_b)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(
+            lambda runner: runner.project_reconciled_measurements("remote-storage"),
+            (runner_a, runner_b),
+        ))
+
+    assert all(result[0]["state"] == "PROJECTED" for result in results)
+    assert sum(result[0]["measurements_inserted"] for result in results) == 2
+    assert len(store_a.list_measurements()) == 2
+    assert len(store_a.list_reconciliation_measurement_links()) == 2
+    assert store_a.list_coverage()[0]["coverage_state"] == "INDETERMINATE"
