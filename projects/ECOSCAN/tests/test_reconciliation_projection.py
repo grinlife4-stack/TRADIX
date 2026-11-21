@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import multiprocessing
+import os
+import signal
+
 from ecoscan.controls import ControlState, ExecutionGate
 from ecoscan.models import ProjectRegistry, RetentionPolicy, ScanBudget, SourceDescriptor
 from ecoscan.runner import ScanRunner
@@ -100,6 +104,23 @@ def _runner(store):
     )
     return ScanRunner(registry, gate, {}, store)
 
+
+
+def _kill_process_during_projection(database_root):
+    store = ProjectStore(database_root, "project-a")
+    original_connect = store._connect
+
+    def connect_with_crash_function():
+        db = original_connect()
+        db.create_function(
+            "crash_projection",
+            0,
+            lambda: os.kill(os.getpid(), signal.SIGKILL),
+        )
+        return db
+
+    store._connect = connect_with_crash_function
+    _runner(store).project_reconciled_measurements("remote-storage")
 
 def test_successful_reconciliation_projects_standard_measurements_idempotently(tmp_path):
     store = _prepared_store(tmp_path)
@@ -226,3 +247,48 @@ def test_concurrent_projection_is_idempotent_across_store_instances(tmp_path):
     assert len(store_a.list_measurements()) == 2
     assert len(store_a.list_reconciliation_measurement_links()) == 2
     assert store_a.list_coverage()[0]["coverage_state"] == "INDETERMINATE"
+
+
+def test_sqlite_requires_full_sync_and_survives_hard_process_kill_mid_projection(tmp_path):
+    store = _prepared_store(tmp_path)
+
+    with store._connect() as db:
+        assert db.execute("PRAGMA synchronous").fetchone()[0] == 2
+        db.execute(
+            """
+            CREATE TRIGGER crash_during_projection
+            BEFORE INSERT ON reconciliation_measurement_links
+            BEGIN
+                SELECT crash_projection();
+            END
+            """
+        )
+
+    process = multiprocessing.get_context("fork").Process(
+        target=_kill_process_during_projection,
+        args=(str(tmp_path),),
+    )
+    process.start()
+    process.join(timeout=15)
+    if process.is_alive():
+        process.kill()
+        process.join(timeout=5)
+        raise AssertionError("projection child did not terminate within timeout")
+
+    assert process.exitcode == -signal.SIGKILL
+
+    reopened = ProjectStore(tmp_path, "project-a")
+    assert reopened.list_operation_reconciliations()[0]["outcome"] == "SUCCEEDED"
+    assert reopened.get_operation_intent("scan-original")["state"] == "RECONCILED_SUCCEEDED"
+    assert reopened.list_measurements() == []
+    assert reopened.list_reconciliation_measurement_links() == []
+    assert reopened.list_coverage()[0]["coverage_state"] == "INDETERMINATE"
+
+    with reopened._connect() as db:
+        db.execute("DROP TRIGGER crash_during_projection")
+
+    recovered = _runner(reopened).project_reconciled_measurements("remote-storage")
+    assert recovered[0]["state"] == "PROJECTED"
+    assert recovered[0]["measurements_inserted"] == 2
+    assert len(reopened.list_measurements()) == 2
+    assert len(reopened.list_reconciliation_measurement_links()) == 2
