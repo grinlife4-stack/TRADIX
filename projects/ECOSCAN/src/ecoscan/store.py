@@ -73,6 +73,17 @@ class ProjectStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_operation_intents_unresolved
                   ON operation_intents(state, created_at);
+                CREATE TABLE IF NOT EXISTS operation_reconciliations (
+                  reconciliation_id TEXT PRIMARY KEY,
+                  scan_id TEXT NOT NULL REFERENCES operation_intents(scan_id),
+                  project_id TEXT NOT NULL,
+                  source_id TEXT NOT NULL,
+                  outcome TEXT NOT NULL CHECK(outcome IN ('SUCCEEDED','FAILED')),
+                  recorded_at TEXT NOT NULL,
+                  result_json TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_operation_reconciliations_scan
+                  ON operation_reconciliations(scan_id, recorded_at);
                 """)
             columns = {row[1] for row in db.execute("PRAGMA table_info(coverage)")}
             if "schema_version" not in columns:
@@ -237,6 +248,57 @@ class ProjectStore:
             raise StoreError("operation intent disappeared after transition")
         return result
 
+    def append_operation_reconciliation(
+        self, *, reconciliation_id: str, scan_id: str, source_id: str,
+        outcome: str, recorded_at: str, result: Mapping[str, Any],
+    ) -> None:
+        if not all(isinstance(v, str) and _ID.fullmatch(v) for v in
+                   (reconciliation_id, scan_id, source_id)):
+            raise StoreError("invalid reconciliation identifiers")
+        if outcome not in {"SUCCEEDED", "FAILED"} or not isinstance(recorded_at, str) or not recorded_at:
+            raise StoreError("invalid reconciliation outcome or timestamp")
+        if not isinstance(result, Mapping):
+            raise StoreError("reconciliation result must be an object")
+        encoded = json.dumps(dict(result), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        target_state = "RECONCILED_SUCCEEDED" if outcome == "SUCCEEDED" else "RECONCILED_FAILED"
+        with closing(self._connect()) as db:
+            with db:
+                intent = db.execute(
+                    "SELECT project_id,source_id,state FROM operation_intents WHERE scan_id=?",
+                    (scan_id,),
+                ).fetchone()
+                if intent is None or intent["project_id"] != self.project_id or intent["source_id"] != source_id:
+                    raise StoreError("reconciliation does not match a durable operation intent")
+                if intent["state"] not in {"PREPARED", "INDETERMINATE"}:
+                    raise StoreError("operation intent is already terminal")
+                db.execute(
+                    """INSERT INTO operation_reconciliations
+                       (reconciliation_id,scan_id,project_id,source_id,outcome,recorded_at,result_json)
+                       VALUES (?,?,?,?,?,?,?)""",
+                    (reconciliation_id,scan_id,self.project_id,source_id,outcome,recorded_at,encoded),
+                )
+                cursor = db.execute(
+                    """UPDATE operation_intents SET state=?,updated_at=?
+                       WHERE scan_id=? AND state IN ('PREPARED','INDETERMINATE')""",
+                    (target_state,recorded_at,scan_id),
+                )
+                if cursor.rowcount != 1:
+                    raise StoreError("intent state changed during reconciliation commit")
+
+    def list_operation_reconciliations(self, source_id: str | None = None) -> list[dict[str, Any]]:
+        with closing(self._connect()) as db:
+            rows = db.execute(
+                """SELECT * FROM operation_reconciliations
+                   WHERE (? IS NULL OR source_id=?) ORDER BY recorded_at,reconciliation_id""",
+                (source_id,source_id),
+            ).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["result"] = json.loads(item.pop("result_json"))
+            result.append(item)
+        return result
+
     def export_bundle(self) -> dict[str, Any]:
         with closing(self._connect()) as db:
             coverage = [dict(r) for r in db.execute("SELECT * FROM coverage ORDER BY started_at,scan_id").fetchall()]
@@ -248,14 +310,29 @@ class ProjectStore:
             row["limitations"] = json.loads(row.pop("limitations_json"))
         for row in checkpoints:
             row["checkpoint"] = json.loads(row.pop("checkpoint_json"))
-        return {"coverage": coverage, "measurements": measurements, "checkpoints": checkpoints}
+        reconciliations = [dict(r) for r in db.execute(
+            "SELECT * FROM operation_reconciliations ORDER BY recorded_at,reconciliation_id"
+        ).fetchall()]
+        for row in reconciliations:
+            row["result"] = json.loads(row.pop("result_json"))
+        return {"coverage": coverage, "measurements": measurements, "checkpoints": checkpoints,
+                "operation_reconciliations": reconciliations}
 
     def import_bundle(self, bundle: Mapping[str, Any]) -> int:
         coverage = bundle.get("coverage", [])
         measurements = bundle.get("measurements", [])
         checkpoints = bundle.get("checkpoints", [])
-        if not all(isinstance(x, list) for x in (coverage, measurements, checkpoints)):
+        reconciliations = bundle.get("operation_reconciliations", [])
+        if not all(isinstance(x, list) for x in (coverage, measurements, checkpoints, reconciliations)):
             raise StoreError("bundle record collections must be arrays")
+        for record in reconciliations:
+            if (not isinstance(record, dict) or record.get("project_id") != self.project_id
+                    or not isinstance(record.get("result"), dict)
+                    or record.get("outcome") not in {"SUCCEEDED", "FAILED"}):
+                raise StoreError("invalid operation reconciliation export")
+            intent = self.get_operation_intent(record.get("scan_id"))
+            if intent is None or intent["source_id"] != record.get("source_id"):
+                raise StoreError("reconciliation has no matching destination operation intent")
         coverage_by_scan = {}
         for record in coverage:
             if not isinstance(record, dict) or record.get("project_id") != self.project_id:
@@ -310,5 +387,26 @@ class ProjectStore:
                             raise StoreError("conflicting duplicate checkpoint in destination store")
                         continue
                     db.execute("INSERT INTO checkpoints VALUES (?,?,?,?)", (record["source_id"], record["scan_id"], json.dumps(record["checkpoint"], ensure_ascii=False), record["updated_at"]))
+                    inserted += 1
+                for record in reconciliations:
+                    existing = db.execute(
+                        "SELECT * FROM operation_reconciliations WHERE reconciliation_id=?",
+                        (record["reconciliation_id"],),
+                    ).fetchone()
+                    normalized = {**record, "result": record.get("result", {})}
+                    if existing:
+                        current = dict(existing)
+                        current["result"] = json.loads(current.pop("result_json"))
+                        if current != normalized:
+                            raise StoreError("conflicting duplicate reconciliation")
+                        continue
+                    db.execute(
+                        """INSERT INTO operation_reconciliations
+                           (reconciliation_id,scan_id,project_id,source_id,outcome,recorded_at,result_json)
+                           VALUES (?,?,?,?,?,?,?)""",
+                        (record["reconciliation_id"],record["scan_id"],record["project_id"],
+                         record["source_id"],record["outcome"],record["recorded_at"],
+                         json.dumps(record["result"],sort_keys=True,separators=(",",":"),ensure_ascii=False)),
+                    )
                     inserted += 1
         return inserted
