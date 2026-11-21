@@ -192,18 +192,25 @@ def test_v02_invoker_status_keeps_unknown_state_indeterminate():
 def test_prepared_request_hash_matches_obis_v02_reference_algorithm():
     from ecoscan.obis_bridge import OBISBridgeAdapter
     from ecoscan.contracts import BudgetGuard
-    from ecoscan.models import ScanBudget, SourceDescriptor
+    from ecoscan.models import RetentionPolicy, ScanBudget, SourceDescriptor
 
     invoker, _ = make_invoker()
     source = SourceDescriptor(
         source_id="source-a",
         owner_id="owner-a",
+        operator_id="operator-a",
+        subsystem_id="subsystem-a",
         source_type="obis_bridge",
         locator="peer:owner",
         adapter_id="obis_bridge",
         adapter_version="0.1.0",
+        enabled=True,
+        scope_tags=(),
+        budget=ScanBudget(max_pages=2, max_items=10, timeout_seconds=5, max_duration_seconds=5),
         expected_measurements=("logical_bytes",),
-        budget=ScanBudget(max_items=10, max_pages=2, timeout_seconds=5, max_duration_seconds=5),
+        retention_policy=RetentionPolicy(history_days=30, evidence_days=7),
+        created_at="2026-11-21T00:00:00Z",
+        updated_at="2026-11-21T00:00:00Z",
     )
     context = type("Context", (), {
         "scan_id": "scan-001",
