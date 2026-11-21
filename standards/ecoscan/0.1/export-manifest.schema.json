@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tradix.dev/standards/ecoscan/0.1/export-manifest.schema.json",
+  "title": "ECOSCAN Export Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project_id",
+    "exported_at",
+    "coverage_count",
+    "measurement_count",
+    "checkpoint_count"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "exported_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "coverage_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "measurement_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "checkpoint_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "operation_intent_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "operation_reconciliation_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reconciliation_measurement_link_count": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

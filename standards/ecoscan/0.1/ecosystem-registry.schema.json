@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tradix.example/standards/ecoscan/0.1/ecosystem-registry.schema.json",
+  "title": "ECOSCAN Ecosystem Registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "projects"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "$ref": "source-registry.schema.json"
+      },
+      "uniqueItems": true
+    }
+  }
+}

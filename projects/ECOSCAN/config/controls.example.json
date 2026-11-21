@@ -1,0 +1,7 @@
+{
+  "global_enabled": true,
+  "enabled_projects": ["ECOSCAN_DEMO"],
+  "enabled_subsystems": [["ECOSCAN_DEMO", "storage"]],
+  "enabled_sources": [["ECOSCAN_DEMO", "demo-files"]],
+  "authorized_actors": [["demo-operator", "ECOSCAN_DEMO", "demo-owner", "demo-operator", "demo-files"]]
+}

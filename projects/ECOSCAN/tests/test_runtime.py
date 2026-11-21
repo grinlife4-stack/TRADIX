@@ -1,13 +1,14 @@
 import json
 import sqlite3
+import time
 from pathlib import Path
 
 import pytest
 
-from ecoscan.contracts import AdapterResult
+from ecoscan.contracts import AdapterResult, TransportOutcomeUnknown
 from ecoscan.controls import ControlState, ExecutionGate
 from ecoscan.registry import RegistryError, parse_registry
-from ecoscan.runner import ScanRunner
+from ecoscan.runner import ScanError, ScanRunner
 from ecoscan.store import ProjectStore, StoreError
 
 
@@ -21,7 +22,6 @@ def source(source_id="fs-main", subsystem_id="storage"):
         "locator": "/not-scanned-by-these-tests",
         "adapter_id": "filesystem",
         "adapter_version": "0.1.0",
-        "credential_ref": None,
         "enabled": True,
         "scope_tags": ["local"],
         "budget": {
@@ -355,6 +355,52 @@ def test_runner_rejects_cross_project_measurement_and_records_failure(tmp_path):
     assert store.list_coverage()[0]["coverage_state"] == "FAILED"
 
 
+def test_runner_rejects_late_empty_result_after_absolute_deadline(tmp_path):
+    parsed = parse_registry(registry({
+        **source(),
+        "budget": {
+            "max_pages": 1,
+            "max_items": 1,
+            "timeout_seconds": 1,
+            "max_duration_seconds": 1,
+        },
+    }))
+    store = ProjectStore(tmp_path, "project-a")
+
+    class SlowEmptyAdapter(FakeAdapter):
+        def scan(self, context):
+            self.calls += 1
+            context.guard.consume_page()
+            time.sleep(1.05)
+            return AdapterResult("COMPLETE", (), 0, 1)
+
+    adapter = SlowEmptyAdapter()
+    runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
+    outcome = runner.run("fs-main", "operator-a")
+
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "budget_exhausted"
+    assert store.list_measurements() == []
+    assert store.list_coverage()[0]["coverage_state"] == "FAILED"
+    assert store.list_coverage()[0]["items_seen"] == 0
+    assert store.list_coverage()[0]["pages_seen"] == 1
+
+
+def test_runner_rejects_malformed_source_timestamp_without_measurement_commit(tmp_path):
+    parsed = parse_registry(registry(source()))
+    store = ProjectStore(tmp_path, "project-a")
+    invalid = {**measurement(), "source_timestamp": "not-a-timestamp"}
+    adapter = FakeAdapter(result=AdapterResult("COMPLETE", (invalid,), 1, 1))
+    runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
+
+    outcome = runner.run("fs-main", "operator-a")
+
+    assert outcome.coverage_state == "FAILED"
+    assert outcome.reason_code == "adapter_contract_violation"
+    assert store.list_measurements() == []
+    assert store.list_coverage()[0]["coverage_state"] == "FAILED"
+
+
 def test_runner_records_budget_exhaustion_and_does_not_commit_measurements(tmp_path):
     parsed = parse_registry(registry({
         **source(),
@@ -479,3 +525,168 @@ def test_runner_rechecks_owner_operator_authorization_before_each_page(tmp_path)
     assert adapter.calls == 1
     assert store.list_measurements() == []
     assert store.list_coverage()[0]["pages_seen"] == 0
+
+
+def test_runner_records_indeterminate_transport_without_measurements_or_checkpoint(tmp_path):
+    parsed = parse_registry(registry(source()))
+    store = ProjectStore(tmp_path, "project-a")
+    adapter = FakeAdapter(error=TransportOutcomeUnknown("remote outcome unavailable"))
+    runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
+    outcome = runner.run("fs-main", "operator-a")
+    assert outcome.coverage_state == "INDETERMINATE"
+    assert outcome.reason_code == "transport_outcome_unknown"
+    assert outcome.measurements_written == 0
+    assert store.list_measurements() == []
+    assert store.load_checkpoint("fs-main", outcome.scan_id) is None
+    record = store.list_coverage()[0]
+    assert record["coverage_state"] == "INDETERMINATE"
+    assert record["schema_version"] == "0.2"
+
+
+def test_store_migrates_legacy_coverage_table_without_rewriting_records(tmp_path):
+    path = tmp_path / "project-a.sqlite3"
+    with sqlite3.connect(path) as db:
+        db.executescript("""
+            CREATE TABLE coverage (
+              scan_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, source_id TEXT NOT NULL,
+              requested_scope TEXT NOT NULL, coverage_state TEXT NOT NULL,
+              started_at TEXT NOT NULL, finished_at TEXT NOT NULL, actor_id TEXT NOT NULL,
+              adapter_id TEXT NOT NULL, adapter_version TEXT NOT NULL,
+              items_seen INTEGER NOT NULL, pages_seen INTEGER NOT NULL,
+              reason_code TEXT, limitations_json TEXT NOT NULL, checkpoint_ref TEXT
+            );
+            INSERT INTO coverage VALUES (
+              'legacy-scan','project-a','fs-main','source:fs-main','COMPLETE',
+              '2026-11-20T09:00:00Z','2026-11-20T09:00:01Z','operator-a',
+              'filesystem','0.1.0',1,1,NULL,'[]',NULL
+            );
+        """)
+    store = ProjectStore(tmp_path, "project-a")
+    record = store.list_coverage()[0]
+    assert record["scan_id"] == "legacy-scan"
+    assert record["schema_version"] == "0.1"
+    assert record["coverage_state"] == "COMPLETE"
+
+
+class DurableUnknownAdapter(FakeAdapter):
+    supports_durable_operations = True
+
+    def __init__(self):
+        super().__init__(error=TransportOutcomeUnknown("response lost after remote execution"))
+        self.status_calls = 0
+
+    def prepare_operation(self, context):
+        return {
+            "operation_id": "operation-recovery-001",
+            "idempotency_key": "idempotency-recovery-001",
+            "source_id": context.source.source_id,
+            "peer_id": "peer:owner",
+            "principal_ref": "principal:ecoscan",
+            "capability_id": "ecoscan.inventory.read",
+            "capability_version": "1.0",
+            "resource": {"project_id": context.project_id, "source_id": context.source.source_id},
+            "payload_sha256": "a" * 64,
+            "request_hash": "b" * 64,
+        }
+
+    def reconcile_operation(self, context, intent):
+        self.status_calls += 1
+        assert intent["operation_id"] == "operation-recovery-001"
+        return {
+            "result": {
+                "project_id": "project-a",
+                "source_id": "fs-main",
+                "coverage_state": "COMPLETE",
+                "items_seen": 1,
+                "pages_seen": 1,
+                "measurements": {"logical_bytes": 12, "file_count": 1},
+                "source_timestamp": "2026-11-21T00:00:00Z",
+                "limitations": [],
+                "evidence_ref": "peer-result:001",
+            }
+        }
+
+
+def test_runner_reconciles_after_restart_without_reinvoking_or_rewriting_coverage(tmp_path):
+    parsed = parse_registry(registry(source()))
+    store = ProjectStore(tmp_path, "project-a")
+    adapter = DurableUnknownAdapter()
+    runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
+
+    first = runner.run("fs-main", "operator-a")
+    assert first.coverage_state == "INDETERMINATE"
+    original_coverage = store.list_coverage("fs-main")
+    assert len(original_coverage) == 1
+    assert store.get_operation_intent(first.scan_id)["state"] == "INDETERMINATE"
+    assert adapter.calls == 1
+
+    # Re-open the SQLite store to model an ECOSCAN process restart.
+    restarted_store = ProjectStore(tmp_path, "project-a")
+    restarted_runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, restarted_store)
+    outcomes = restarted_runner.reconcile_pending("fs-main", "operator-a")
+
+    assert outcomes == [{
+        "scan_id": first.scan_id,
+        "state": "RECONCILED_SUCCEEDED",
+        "measurement_projection": "PROJECTED",
+    }]
+    assert adapter.calls == 1
+    assert adapter.status_calls == 1
+    assert restarted_store.get_operation_intent(first.scan_id)["state"] == "RECONCILED_SUCCEEDED"
+    assert restarted_store.list_coverage("fs-main") == original_coverage
+    reconciliations = restarted_store.list_operation_reconciliations("fs-main")
+    assert len(reconciliations) == 1
+    assert reconciliations[0]["scan_id"] == first.scan_id
+    assert reconciliations[0]["result"]["measurements"]["logical_bytes"] == 12
+    assert restarted_store.list_unresolved_operation_intents("fs-main") == []
+
+
+def test_runner_leaves_unknown_status_unresolved_and_never_reinvokes(tmp_path):
+    parsed = parse_registry(registry(source()))
+    store = ProjectStore(tmp_path, "project-a")
+    adapter = DurableUnknownAdapter()
+    runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
+    first = runner.run("fs-main", "operator-a")
+
+    def unknown_status(context, intent):
+        adapter.status_calls += 1
+        raise TransportOutcomeUnknown("peer still reports UNKNOWN")
+
+    adapter.reconcile_operation = unknown_status
+    result = runner.reconcile_pending("fs-main", "operator-a")
+
+    assert result == [{"scan_id": first.scan_id, "state": "UNRESOLVED",
+                       "reason_code": "status_outcome_unknown"}]
+    assert adapter.calls == 1
+    assert adapter.status_calls == 1
+    assert store.get_operation_intent(first.scan_id)["state"] == "INDETERMINATE"
+    assert store.list_operation_reconciliations() == []
+    with pytest.raises(ScanError, match="unresolved remote operations"):
+        runner.run("fs-main", "operator-a")
+    assert adapter.calls == 1
+    assert adapter.status_calls == 2
+
+
+def test_runner_records_confirmed_terminal_failure_without_retry(tmp_path):
+    from ecoscan.obis_bridge import OBISV02OperationFailed
+
+    parsed = parse_registry(registry(source()))
+    store = ProjectStore(tmp_path, "project-a")
+    adapter = DurableUnknownAdapter()
+    runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, store)
+    first = runner.run("fs-main", "operator-a")
+
+    def failed_status(context, intent):
+        adapter.status_calls += 1
+        raise OBISV02OperationFailed("FAILED", "provider.denied")
+
+    adapter.reconcile_operation = failed_status
+    outcomes = runner.reconcile_pending("fs-main", "operator-a")
+
+    assert outcomes == [{"scan_id": first.scan_id, "state": "RECONCILED_FAILED"}]
+    assert adapter.calls == 1
+    assert adapter.status_calls == 1
+    assert store.get_operation_intent(first.scan_id)["state"] == "RECONCILED_FAILED"
+    event = store.list_operation_reconciliations()[0]
+    assert event["outcome"] == "FAILED"
+    assert event["result"] == {"operation_state": "FAILED", "failure_code": "provider.denied"}
