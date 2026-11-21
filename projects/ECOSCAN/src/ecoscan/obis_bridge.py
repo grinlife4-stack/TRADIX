@@ -169,6 +169,10 @@ class OBISBridgeAdapter:
         except Exception as exc:
             code = getattr(exc, "code", None)
             http_status = getattr(exc, "http_status", None)
+            if code == "operation.not_found":
+                # Absence from the remote ledger is not proof that a request
+                # never executed (for example, after ledger loss or expiry).
+                raise TransportOutcomeUnknown("OBIS operation is absent from the status ledger") from exc
             if http_status in {400, 401, 403, 404, 408, 409, 413, 415, 426}:
                 raise
             if code in {"authorization.denied", "capability.unknown", "identity.unknown_peer"}:
