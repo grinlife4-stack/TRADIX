@@ -448,10 +448,14 @@ class ProjectStore:
                     or event.get("source_id") != link.get("source_id")
                     or measurement.get("scan_id") != link.get("scan_id")
                     or measurement.get("source_id") != link.get("source_id")
-                    or measurement.get("kind") != link.get("kind") or key in link_keys):
-                raise StoreError("reconciliation measurement link does not match its event and measurement")
+                    or measurement.get("kind") != link.get("kind") or key in link_keys
+                    or coverage_by_scan.get(link.get("scan_id")) != link.get("source_id")
+                    or coverage_state_by_scan.get(link.get("scan_id")) != "INDETERMINATE"
+                    or measurement.get("coverage_state") not in {"COMPLETE", "PARTIAL"}):
+                raise StoreError("reconciliation measurement link does not match its original indeterminate coverage, event, and measurement")
             link_keys.add(key)
         coverage_by_scan = {}
+        coverage_state_by_scan = {}
         for record in coverage:
             if not isinstance(record, dict) or record.get("project_id") != self.project_id:
                 raise StoreError("coverage project does not match destination store")
@@ -461,6 +465,7 @@ class ProjectStore:
             if scan_id in coverage_by_scan:
                 raise StoreError("duplicate scan_id in import bundle")
             coverage_by_scan[scan_id] = source_id
+            coverage_state_by_scan[scan_id] = record.get("coverage_state")
         for record in measurements:
             if not isinstance(record, dict) or record.get("project_id") != self.project_id:
                 raise StoreError("measurement project does not match destination store")
