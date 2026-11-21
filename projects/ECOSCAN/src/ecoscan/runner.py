@@ -214,7 +214,23 @@ class ScanRunner:
             return self.gate.evaluate(self.registry, source, actor_id).allowed
 
         guard = BudgetGuard(source.budget, before_page=still_authorized)
-        context = ScanContext(self.registry.project_id, actor_id, source, source.budget, guard, checkpoint)
+        context = ScanContext(
+            self.registry.project_id, actor_id, source, source.budget, guard,
+            checkpoint, scan_id=scan_id,
+        )
+        operation_intent = None
+        prepare_operation = getattr(adapter, "prepare_operation", None)
+        if callable(prepare_operation):
+            intent_fields = prepare_operation(context)
+            operation_intent = self.store.create_operation_intent(
+                scan_id=scan_id,
+                created_at=started_at,
+                **intent_fields,
+            )
+            context = ScanContext(
+                self.registry.project_id, actor_id, source, source.budget, guard,
+                checkpoint, scan_id=scan_id, operation_intent=operation_intent,
+            )
         result: AdapterResult | None = None
         measurements: list[dict[str, Any]] = []
         failure_state: str | None = None
@@ -268,6 +284,10 @@ class ScanRunner:
             failure_state, failure_reason = "NOT_AUTHORIZED", "authorization_revoked"
         except TransportOutcomeUnknown:
             failure_state, failure_reason = "INDETERMINATE", "transport_outcome_unknown"
+            if operation_intent is not None:
+                self.store.transition_operation_intent(
+                    scan_id, "INDETERMINATE", _now()
+                )
         except BudgetExceeded:
             failure_state, failure_reason = "FAILED", "budget_exhausted"
         except AdapterContractError:
@@ -285,6 +305,11 @@ class ScanRunner:
             return ScanOutcome(
                 scan_id, self.registry.project_id, source.source_id,
                 failure_state, failure_reason, 0
+            )
+
+        if operation_intent is not None:
+            self.store.transition_operation_intent(
+                scan_id, "RECONCILED_SUCCEEDED", _now()
             )
 
         if result is None:
