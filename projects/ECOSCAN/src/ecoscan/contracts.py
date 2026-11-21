@@ -71,6 +71,8 @@ class ScanContext:
     budget: ScanBudget
     guard: BudgetGuard
     checkpoint: Mapping[str, Any] | None = None
+    scan_id: str | None = None
+    operation_intent: Mapping[str, Any] | None = None
 
 class Adapter(Protocol):
     adapter_id: str
