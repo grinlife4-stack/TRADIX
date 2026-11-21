@@ -135,6 +135,48 @@ class OBISBridgeAdapter:
             "request_hash": request_hash,
         }
 
+    def reconcile_operation(
+        self, context: ScanContext, intent: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Query the authenticated Peer ledger; never resubmit the operation."""
+        if not isinstance(self.client, OBISV02Invoker):
+            raise AdapterContractError("status reconciliation requires an OBIS 0.2 invoker")
+        if (
+            intent.get("peer_id") != self.client.remote_peer_id
+            or intent.get("principal_ref") != self.client.principal_ref
+            or intent.get("capability_id") != CAPABILITY_ID
+            or intent.get("capability_version") != CAPABILITY_VERSION
+            or intent.get("resource") != {
+                "project_id": context.project_id,
+                "source_id": context.source.source_id,
+            }
+        ):
+            raise AdapterContractError("durable operation identity no longer matches the configured OBIS source")
+        context.guard.consume_page()
+        try:
+            response = self.client.status(
+                self.endpoint,
+                CAPABILITY_ID,
+                CAPABILITY_VERSION,
+                intent["operation_id"],
+                resource=dict(intent["resource"]),
+                expected_request_hash=intent["request_hash"],
+                scopes={REQUIRED_SCOPE},
+                deadline=context.guard.deadline,
+            )
+        except TransportOutcomeUnknown:
+            raise
+        except Exception as exc:
+            code = getattr(exc, "code", None)
+            http_status = getattr(exc, "http_status", None)
+            if http_status in {400, 401, 403, 404, 408, 409, 413, 415, 426}:
+                raise
+            if code in {"authorization.denied", "capability.unknown", "identity.unknown_peer"}:
+                raise
+            raise TransportOutcomeUnknown("OBIS status query outcome is unknown") from exc
+        context.guard.check_deadline()
+        return response
+
     def scan(self, context: ScanContext) -> AdapterResult:
         # Charge the request page before making a remote call. Every provider
         # page/item reported by the Bridge is charged against the same local budget.
