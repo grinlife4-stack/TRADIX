@@ -168,8 +168,14 @@ client-specific transport timeout remains a distinct adapter execution failure.
 Failure coverage is committed with no measurements.
 
 A timeout does not prove the remote provider did not execute. The peer may
-have completed the operation before the response was cut off. No automatic
-retry is authorized by this contract; retry/idempotency and unknown-outcome
-reconciliation remain separate future work. The current OBIS reference remains
-loopback-only and development/conformance-only, not a production transport.
+have completed the operation before the response was cut off. ECOSCAN persists
+a durable operation intent before dispatch. After restart, the runner can query
+the authenticated OBIS 0.2 status endpoint and reconcile only a committed
+terminal outcome; it never resubmits the operation. Unknown/not-found status
+remains unresolved. Reconciliation evidence is appended to a separate SQLite
+table and included in portable exports; the original INDETERMINATE coverage
+record is never overwritten. This is owner-local recovery, not distributed
+exactly-once execution or production audit certification. The current OBIS
+reference remains loopback-only and development/conformance-only, not a
+production transport.
 
