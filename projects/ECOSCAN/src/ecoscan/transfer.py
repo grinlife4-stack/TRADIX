@@ -132,6 +132,7 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
         if scan_sources.get(record.get("scan_id")) != record.get("source_id"):
             raise TransferError("checkpoint source does not match its coverage record")
     intent_ids = set()
+    intent_by_scan = {}
     for record in bundle.get("operation_intents", []):
         if (not isinstance(record, dict) or record.get("project_id") != project_id
                 or not isinstance(record.get("resource"), dict)
@@ -143,13 +144,17 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
         if record.get("scan_id") in intent_ids:
             raise TransferError("duplicate operation intent")
         intent_ids.add(record["scan_id"])
+        intent_by_scan[record["scan_id"]] = record
     reconciliation_ids = set()
     for record in bundle.get("operation_reconciliations", []):
+        intent = intent_by_scan.get(record.get("scan_id")) if isinstance(record, dict) else None
+        expected_state = "RECONCILED_SUCCEEDED" if isinstance(record, dict) and record.get("outcome") == "SUCCEEDED" else "RECONCILED_FAILED"
         if (not isinstance(record, dict) or record.get("project_id") != project_id
                 or record.get("scan_id") not in intent_ids
                 or record.get("outcome") not in {"SUCCEEDED", "FAILED"}
-                or not isinstance(record.get("result"), dict)):
-            raise TransferError("invalid operation reconciliation")
+                or not isinstance(record.get("result"), dict)
+                or intent is None or intent.get("state") != expected_state):
+            raise TransferError("invalid operation reconciliation or mismatched terminal intent state")
         if record.get("reconciliation_id") in reconciliation_ids:
             raise TransferError("duplicate operation reconciliation")
         reconciliation_ids.add(record["reconciliation_id"])
