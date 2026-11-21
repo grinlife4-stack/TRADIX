@@ -64,6 +64,8 @@ def test_v02_invoker_narrows_scopes_and_returns_only_committed_result():
     response = invoker.invoke(
         "http://127.0.0.1:9000", "ecoscan.inventory.read", "1.0",
         {"project_id": "project-a", "source_id": "source-a"},
+            operation_id="operation-001",
+            idempotency_key="idem-001",
     )
 
     used_client = FakeV02Client.instances[-1]
@@ -71,8 +73,8 @@ def test_v02_invoker_narrows_scopes_and_returns_only_committed_result():
     assert used_client.scopes == {REQUIRED}
     assert response["outcome"] == "succeeded"
     assert response["result"] == {"items_seen": 1}
-    assert used_client.calls[0][4]["operation_id"]
-    assert used_client.calls[0][4]["idempotency_key"]
+    assert used_client.calls[0][4]["operation_id"] == "operation-001"
+    assert used_client.calls[0][4]["idempotency_key"] == "idem-001"
     assert used_client.calls[0][4]["operation_ttl"] == 300
 
 
@@ -83,6 +85,8 @@ def test_v02_invoker_never_converts_unknown_operation_into_success():
         invoker.invoke(
             "http://127.0.0.1:9000", "ecoscan.inventory.read", "1.0",
             {"project_id": "project-a", "source_id": "source-a"},
+            operation_id="operation-001",
+            idempotency_key="idem-001",
             scopes={REQUIRED},
         )
 
@@ -95,6 +99,8 @@ def test_v02_invoker_surfaces_known_terminal_failure():
         invoker.invoke(
             "http://127.0.0.1:9000", "ecoscan.inventory.read", "1.0",
             {"project_id": "project-a", "source_id": "source-a"},
+            operation_id="operation-001",
+            idempotency_key="idem-001",
             scopes={REQUIRED},
         )
     assert raised.value.failure_code == "provider.denied"
@@ -106,12 +112,16 @@ def test_v02_invoker_rejects_scope_escalation_and_expired_deadline():
         invoker.invoke(
             "http://127.0.0.1:9000", "ecoscan.inventory.read", "1.0",
             {"project_id": "project-a", "source_id": "source-a"},
+            operation_id="operation-001",
+            idempotency_key="idem-001",
             scopes={REQUIRED, "billing:write"},
         )
     with pytest.raises(BudgetExceeded):
         invoker.invoke(
             "http://127.0.0.1:9000", "ecoscan.inventory.read", "1.0",
             {"project_id": "project-a", "source_id": "source-a"},
+            operation_id="operation-001",
+            idempotency_key="idem-001",
             scopes={REQUIRED}, deadline=time.monotonic() - 1,
         )
     assert original.calls == []
