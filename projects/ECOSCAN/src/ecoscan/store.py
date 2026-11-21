@@ -371,6 +371,9 @@ class ProjectStore:
                         current = dict(existing)
                         current["limitations"] = json.loads(current.pop("limitations_json"))
                         expected = {**item, "limitations": list(item.get("limitations", []))}
+                        # schema_version is part of the exported Measurement contract,
+                        # while the SQLite table stores the normalized fields only.
+                        expected.pop("schema_version", None)
                         if current["measurement_id"] != item["measurement_id"] or any(
                             current.get(key) != value for key, value in expected.items()
                         ):
