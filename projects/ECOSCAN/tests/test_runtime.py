@@ -625,7 +625,11 @@ def test_runner_reconciles_after_restart_without_reinvoking_or_rewriting_coverag
     restarted_runner = ScanRunner(parsed, enabled_gate(), {"filesystem": adapter}, restarted_store)
     outcomes = restarted_runner.reconcile_pending("fs-main", "operator-a")
 
-    assert outcomes == [{"scan_id": first.scan_id, "state": "RECONCILED_SUCCEEDED"}]
+    assert outcomes == [{
+        "scan_id": first.scan_id,
+        "state": "RECONCILED_SUCCEEDED",
+        "measurement_projection": "PROJECTED",
+    }]
     assert adapter.calls == 1
     assert adapter.status_calls == 1
     assert restarted_store.get_operation_intent(first.scan_id)["state"] == "RECONCILED_SUCCEEDED"
