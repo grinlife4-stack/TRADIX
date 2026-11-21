@@ -85,7 +85,7 @@ class ProjectStore:
     def _measurement_values(record: Mapping[str, Any]):
         return (record["measurement_id"], record["scan_id"], record["project_id"], record["source_id"], record["kind"], record["value"], record["unit"], record["measured_at"], record["source_timestamp"], record["method"], record["adapter_id"], record["adapter_version"], record["coverage_state"], record["confidence"], json.dumps(record["limitations"], ensure_ascii=False), record["evidence_ref"], record["checkpoint_ref"])
 
-    def append_scan(self, coverage: Mapping[str, Any], measurements: Iterable[Mapping[str, Any]], checkpoint: Mapping[str, Any] | None = None, checkpoint_updated_at: str | None = None) -> None:
+    def append_scan(self, coverage: Mapping[str, Any], measurements: Iterable[Mapping[str, Any]], checkpoint: Mapping[str, Any] | None = None, checkpoint_updated_at: str | None = None, reconcile_operation_intent: bool = False) -> None:
         if coverage.get("project_id") != self.project_id:
             raise StoreError("coverage project_id does not match project store")
         items = list(measurements)
@@ -101,6 +101,15 @@ class ProjectStore:
                     db.execute("INSERT INTO measurements VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", self._measurement_values({**item, "scan_id": coverage["scan_id"]}))
                 if checkpoint is not None:
                     db.execute("INSERT INTO checkpoints VALUES (?,?,?,?)", (coverage["source_id"], coverage["scan_id"], json.dumps(dict(checkpoint), ensure_ascii=False), checkpoint_updated_at))
+                if reconcile_operation_intent:
+                    cursor = db.execute(
+                        """UPDATE operation_intents
+                           SET state='RECONCILED_SUCCEEDED', updated_at=?
+                           WHERE scan_id=? AND state IN ('PREPARED','INDETERMINATE')""",
+                        (coverage["finished_at"], coverage["scan_id"]),
+                    )
+                    if cursor.rowcount != 1:
+                        raise StoreError("operation intent could not be atomically reconciled with scan commit")
 
     def list_coverage(self, source_id: str | None = None) -> list[dict[str, Any]]:
         with closing(self._connect()) as db:
