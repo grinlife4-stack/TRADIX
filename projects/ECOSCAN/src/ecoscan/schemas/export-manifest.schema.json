@@ -35,6 +35,14 @@
     "checkpoint_count": {
       "type": "integer",
       "minimum": 0
+    },
+    "operation_intent_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "operation_reconciliation_count": {
+      "type": "integer",
+      "minimum": 0
     }
   }
 }
