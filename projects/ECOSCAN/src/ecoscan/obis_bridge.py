@@ -8,6 +8,8 @@ into ECOSCAN's bounded measurement contract.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import time
 import uuid
@@ -91,23 +93,66 @@ class OBISBridgeAdapter:
             return frozenset()
         return frozenset(item for item in scopes if isinstance(item, str))
 
+    def prepare_operation(self, context: ScanContext) -> dict[str, Any]:
+        """Create stable, secret-free operation identity before any network dispatch."""
+        if not context.scan_id:
+            raise AdapterContractError("OBIS 0.2 operation requires a stable scan_id")
+        payload = {
+            "project_id": context.project_id,
+            "source_id": context.source.source_id,
+            "measurement_kinds": list(context.source.expected_measurements),
+        }
+        payload_bytes = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+        return {
+            "operation_id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"ecoscan:{context.scan_id}:operation")),
+            "idempotency_key": str(uuid.uuid5(uuid.NAMESPACE_URL, f"ecoscan:{context.scan_id}:idempotency")),
+            "source_id": context.source.source_id,
+            "peer_id": self.client.remote_peer_id,
+            "principal_ref": self.client.principal_ref,
+            "capability_id": CAPABILITY_ID,
+            "capability_version": CAPABILITY_VERSION,
+            "resource": {
+                "project_id": context.project_id,
+                "source_id": context.source.source_id,
+            },
+            "payload_sha256": hashlib.sha256(payload_bytes).hexdigest(),
+        }
+
     def scan(self, context: ScanContext) -> AdapterResult:
         # Charge the request page before making a remote call. Every provider
         # page/item reported by the Bridge is charged against the same local budget.
         context.guard.consume_page()
         try:
-            response = self.client.invoke(
-                self.endpoint,
-                CAPABILITY_ID,
-                CAPABILITY_VERSION,
-                {
-                    "project_id": context.project_id,
-                    "source_id": context.source.source_id,
-                    "measurement_kinds": list(context.source.expected_measurements),
-                },
-                scopes={REQUIRED_SCOPE},
-                deadline=context.guard.deadline,
-            )
+            payload = {
+                "project_id": context.project_id,
+                "source_id": context.source.source_id,
+                "measurement_kinds": list(context.source.expected_measurements),
+            }
+            if isinstance(self.client, OBISV02Invoker):
+                intent = context.operation_intent
+                if intent is None:
+                    # Direct adapter tests may bypass ScanRunner; production
+                    # execution always supplies a SQLite-persisted intent.
+                    scan_id = context.scan_id or str(uuid.uuid4())
+                    fallback_context = ScanContext(
+                        context.project_id, context.actor_id, context.source,
+                        context.budget, context.guard, context.checkpoint,
+                        scan_id=scan_id,
+                    )
+                    intent = self.prepare_operation(fallback_context)
+                response = self.client.invoke(
+                    self.endpoint, CAPABILITY_ID, CAPABILITY_VERSION, payload,
+                    scopes={REQUIRED_SCOPE}, deadline=context.guard.deadline,
+                    operation_id=intent["operation_id"],
+                    idempotency_key=intent["idempotency_key"],
+                )
+            else:
+                response = self.client.invoke(
+                    self.endpoint, CAPABILITY_ID, CAPABILITY_VERSION, payload,
+                    scopes={REQUIRED_SCOPE}, deadline=context.guard.deadline,
+                )
         except Exception as exc:
             # Once invoke() has begun, an exception without a verified,
             # pre-execution rejection cannot prove that the remote capability
@@ -276,7 +321,11 @@ class OBISV02Invoker:
         payload: dict[str, Any],
         scopes: set[str] | frozenset[str] | None = None,
         deadline: float | None = None,
+        operation_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
+        if not operation_id or not idempotency_key:
+            raise AdapterContractError("OBIS 0.2 requires pre-persisted operation and idempotency identities")
         requested = frozenset(scopes if scopes is not None else {REQUIRED_SCOPE})
         if not requested or not requested.issubset(self.scopes):
             raise AdapterContractError("OBIS 0.2 client does not hold the requested scope")
@@ -286,8 +335,8 @@ class OBISV02Invoker:
             capability_id,
             capability_version,
             payload,
-            operation_id=str(uuid.uuid4()),
-            idempotency_key=str(uuid.uuid4()),
+            operation_id=operation_id,
+            idempotency_key=idempotency_key,
             operation_ttl=self.operation_ttl,
         )
         if not isinstance(response, Mapping):
