@@ -20,6 +20,8 @@ def _manifest(store: ProjectStore, bundle: dict[str, Any]) -> dict[str, Any]:
         "coverage_count": len(bundle["coverage"]),
         "measurement_count": len(bundle["measurements"]),
         "checkpoint_count": len(bundle["checkpoints"]),
+        "operation_intent_count": len(bundle.get("operation_intents", [])),
+        "operation_reconciliation_count": len(bundle.get("operation_reconciliations", [])),
     }
 
 def export_store(store: ProjectStore, output_dir: str | Path, fmt: str = "both") -> list[Path]:
@@ -37,8 +39,13 @@ def export_store(store: ProjectStore, output_dir: str | Path, fmt: str = "both")
     if fmt in {"jsonl", "both"}:
         path = target / f"{store.project_id}.jsonl"
         lines = [json.dumps({"type": "manifest", **manifest}, ensure_ascii=False)]
-        records = {"coverage": bundle["coverage"], "measurement": bundle["measurements"], "checkpoint": bundle["checkpoints"]}
-        for kind in ("coverage", "measurement", "checkpoint"):
+        records = {
+            "coverage": bundle["coverage"], "measurement": bundle["measurements"],
+            "checkpoint": bundle["checkpoints"],
+            "operation_intent": bundle.get("operation_intents", []),
+            "operation_reconciliation": bundle.get("operation_reconciliations", []),
+        }
+        for kind in ("coverage", "measurement", "checkpoint", "operation_intent", "operation_reconciliation"):
             for item in records[kind]:
                 lines.append(json.dumps({"type": kind, **item}, ensure_ascii=False))
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -55,8 +62,10 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
         "coverage_count": len(bundle["coverage"]),
         "measurement_count": len(bundle["measurements"]),
         "checkpoint_count": len(bundle["checkpoints"]),
+        "operation_intent_count": len(bundle.get("operation_intents", [])),
+        "operation_reconciliation_count": len(bundle.get("operation_reconciliations", [])),
     }
-    if any(manifest.get(key) != value for key, value in counts.items()):
+    if any(manifest.get(key, 0) != value for key, value in counts.items()):
         raise TransferError("export manifest record counts do not match")
     scan_sources = {}
     for record in bundle["coverage"]:
@@ -99,6 +108,28 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
             raise TransferError("invalid checkpoint record")
         if scan_sources.get(record.get("scan_id")) != record.get("source_id"):
             raise TransferError("checkpoint source does not match its coverage record")
+    intent_ids = set()
+    for record in bundle.get("operation_intents", []):
+        if (not isinstance(record, dict) or record.get("project_id") != project_id
+                or not isinstance(record.get("resource"), dict)
+                or record.get("resource") != {"project_id": project_id, "source_id": record.get("source_id")}
+                or record.get("state") not in {"PREPARED", "INDETERMINATE", "RECONCILED_SUCCEEDED", "RECONCILED_FAILED"}
+                or not isinstance(record.get("request_hash"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", record["request_hash"])):
+            raise TransferError("invalid exported operation intent")
+        if record.get("scan_id") in intent_ids:
+            raise TransferError("duplicate operation intent")
+        intent_ids.add(record["scan_id"])
+    reconciliation_ids = set()
+    for record in bundle.get("operation_reconciliations", []):
+        if (not isinstance(record, dict) or record.get("project_id") != project_id
+                or record.get("scan_id") not in intent_ids
+                or record.get("outcome") not in {"SUCCEEDED", "FAILED"}
+                or not isinstance(record.get("result"), dict)):
+            raise TransferError("invalid operation reconciliation")
+        if record.get("reconciliation_id") in reconciliation_ids:
+            raise TransferError("duplicate operation reconciliation")
+        reconciliation_ids.add(record["reconciliation_id"])
 
 
 def import_store(path: str | Path, store: ProjectStore) -> int:
@@ -110,17 +141,23 @@ def import_store(path: str | Path, store: ProjectStore) -> int:
             if not objects or objects[0].get("type") != "manifest":
                 raise TransferError("JSONL export is missing manifest")
             manifest = {key: value for key, value in objects[0].items() if key != "type"}
-            bundle = {"coverage": [], "measurements": [], "checkpoints": []}
+            bundle = {"coverage": [], "measurements": [], "checkpoints": [],
+                      "operation_intents": [], "operation_reconciliations": []}
             for obj in objects[1:]:
                 kind = obj.get("type")
-                if kind not in {"coverage", "measurement", "checkpoint"}:
+                if kind not in {"coverage", "measurement", "checkpoint", "operation_intent", "operation_reconciliation"}:
                     raise TransferError("unknown JSONL record type")
-                key = {"coverage": "coverage", "measurement": "measurements", "checkpoint": "checkpoints"}[kind]
+                key = {"coverage": "coverage", "measurement": "measurements", "checkpoint": "checkpoints",
+                       "operation_intent": "operation_intents",
+                       "operation_reconciliation": "operation_reconciliations"}[kind]
                 bundle[key].append({key: value for key, value in obj.items() if key != "type"})
         else:
             payload = json.loads(raw)
             manifest = payload.get("manifest", {})
-            bundle = {key: payload.get(key, []) for key in ("coverage", "measurements", "checkpoints")}
+            bundle = {key: payload.get(key, []) for key in (
+                "coverage", "measurements", "checkpoints", "operation_intents",
+                "operation_reconciliations"
+            )}
     except (OSError, UnicodeError, json.JSONDecodeError, AttributeError) as exc:
         raise TransferError(f"cannot read export: {exc}") from exc
     _validate_bundle(manifest, bundle, store.project_id)
