@@ -200,6 +200,14 @@ class ScanRunner:
                 projected.append({"reconciliation_id": event["reconciliation_id"], "state": "PROJECTION_REJECTED",
                                   "reason_code": "invalid_coverage_state"})
                 continue
+            limitations = result.get("limitations")
+            evidence_ref = result.get("evidence_ref")
+            if (not isinstance(limitations, (list, tuple))
+                    or any(not isinstance(item, str) or not item for item in limitations)
+                    or (evidence_ref is not None and (not isinstance(evidence_ref, str) or not evidence_ref))):
+                projected.append({"reconciliation_id": event["reconciliation_id"], "state": "PROJECTION_REJECTED",
+                                  "reason_code": "invalid_measurement_provenance"})
+                continue
             measurements = []
             try:
                 for kind in sorted(values):
@@ -225,8 +233,8 @@ class ScanRunner:
                         "adapter_version": source.adapter_version,
                         "coverage_state": coverage_state,
                         "confidence": "UNVERIFIED",
-                        "limitations": list(result.get("limitations", [])) + ["RECOVERED_BY_STATUS_RECONCILIATION"],
-                        "evidence_ref": result.get("evidence_ref"),
+                        "limitations": list(limitations) + ["RECOVERED_BY_STATUS_RECONCILIATION"],
+                        "evidence_ref": evidence_ref,
                         "checkpoint_ref": None,
                         "scan_id": event["scan_id"],
                     }
