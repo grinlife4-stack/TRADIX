@@ -22,6 +22,7 @@ def _manifest(store: ProjectStore, bundle: dict[str, Any]) -> dict[str, Any]:
         "checkpoint_count": len(bundle["checkpoints"]),
         "operation_intent_count": len(bundle.get("operation_intents", [])),
         "operation_reconciliation_count": len(bundle.get("operation_reconciliations", [])),
+        "reconciliation_measurement_link_count": len(bundle.get("reconciliation_measurement_links", [])),
     }
 
 def export_store(store: ProjectStore, output_dir: str | Path, fmt: str = "both") -> list[Path]:
@@ -44,8 +45,9 @@ def export_store(store: ProjectStore, output_dir: str | Path, fmt: str = "both")
             "checkpoint": bundle["checkpoints"],
             "operation_intent": bundle.get("operation_intents", []),
             "operation_reconciliation": bundle.get("operation_reconciliations", []),
+            "reconciliation_measurement_link": bundle.get("reconciliation_measurement_links", []),
         }
-        for kind in ("coverage", "measurement", "checkpoint", "operation_intent", "operation_reconciliation"):
+        for kind in ("coverage", "measurement", "checkpoint", "operation_intent", "operation_reconciliation", "reconciliation_measurement_link"):
             for item in records[kind]:
                 lines.append(json.dumps({"type": kind, **item}, ensure_ascii=False))
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -64,6 +66,7 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
         "checkpoint_count": len(bundle["checkpoints"]),
         "operation_intent_count": len(bundle.get("operation_intents", [])),
         "operation_reconciliation_count": len(bundle.get("operation_reconciliations", [])),
+        "reconciliation_measurement_link_count": len(bundle.get("reconciliation_measurement_links", [])),
     }
     if any(manifest.get(key, 0) != value for key, value in counts.items()):
         raise TransferError("export manifest record counts do not match")
@@ -84,6 +87,13 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
     measurement_ids = set()
     coverage_states = {record["scan_id"]: record["coverage_state"] for record in bundle["coverage"]}
     allowed_units = {"logical_bytes": "byte", "allocated_bytes": "byte", "physical_bytes": "byte", "capacity_bytes": "byte", "object_count": "object", "file_count": "file", "provider_reported_usage": "provider_unit"}
+    links = bundle.get("reconciliation_measurement_links", [])
+    link_by_measurement = {item.get("measurement_id"): item for item in links if isinstance(item, dict)}
+    successful_events = {
+        item.get("reconciliation_id"): item
+        for item in bundle.get("operation_reconciliations", [])
+        if isinstance(item, dict) and item.get("outcome") == "SUCCEEDED"
+    }
     for record in bundle["measurements"]:
         if not isinstance(record, dict) or record.get("project_id") != project_id:
             raise TransferError("measurement crosses project boundary")
@@ -100,7 +110,18 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
         if kind not in allowed_units or record.get("unit") != allowed_units[kind]:
             raise TransferError("measurement kind and unit are invalid")
         if record.get("coverage_state") != coverage_states.get(record.get("scan_id")):
-            raise TransferError("measurement coverage state does not match its scan")
+            link = link_by_measurement.get(record.get("measurement_id"))
+            event = successful_events.get(link.get("reconciliation_id")) if link else None
+            if not (
+                coverage_states.get(record.get("scan_id")) == "INDETERMINATE"
+                and event is not None
+                and event.get("scan_id") == record.get("scan_id")
+                and event.get("source_id") == record.get("source_id")
+                and link.get("scan_id") == record.get("scan_id")
+                and link.get("source_id") == record.get("source_id")
+                and link.get("kind") == record.get("kind")
+            ):
+                raise TransferError("measurement coverage state does not match its scan or successful reconciliation link")
         if not isinstance(record.get("measured_at"), str) or not isinstance(record.get("method"), str) or not isinstance(record.get("confidence"), str):
             raise TransferError("measurement metadata is invalid")
     for record in bundle["checkpoints"]:
@@ -130,6 +151,23 @@ def _validate_bundle(manifest: dict[str, Any], bundle: dict[str, Any], project_i
         if record.get("reconciliation_id") in reconciliation_ids:
             raise TransferError("duplicate operation reconciliation")
         reconciliation_ids.add(record["reconciliation_id"])
+    measurement_by_id = {record.get("measurement_id"): record for record in bundle["measurements"]}
+    event_by_id = {record.get("reconciliation_id"): record for record in bundle.get("operation_reconciliations", [])}
+    link_keys = set()
+    for link in bundle.get("reconciliation_measurement_links", []):
+        if not isinstance(link, dict):
+            raise TransferError("invalid reconciliation measurement link")
+        event = event_by_id.get(link.get("reconciliation_id"))
+        measurement = measurement_by_id.get(link.get("measurement_id"))
+        key = (link.get("reconciliation_id"), link.get("kind"))
+        if (event is None or event.get("outcome") != "SUCCEEDED" or measurement is None
+                or event.get("scan_id") != link.get("scan_id")
+                or event.get("source_id") != link.get("source_id")
+                or measurement.get("scan_id") != link.get("scan_id")
+                or measurement.get("source_id") != link.get("source_id")
+                or measurement.get("kind") != link.get("kind") or key in link_keys):
+            raise TransferError("reconciliation measurement link is inconsistent")
+        link_keys.add(key)
 
 
 def import_store(path: str | Path, store: ProjectStore) -> int:
@@ -142,21 +180,23 @@ def import_store(path: str | Path, store: ProjectStore) -> int:
                 raise TransferError("JSONL export is missing manifest")
             manifest = {key: value for key, value in objects[0].items() if key != "type"}
             bundle = {"coverage": [], "measurements": [], "checkpoints": [],
-                      "operation_intents": [], "operation_reconciliations": []}
+                      "operation_intents": [], "operation_reconciliations": [],
+                      "reconciliation_measurement_links": []}
             for obj in objects[1:]:
                 kind = obj.get("type")
-                if kind not in {"coverage", "measurement", "checkpoint", "operation_intent", "operation_reconciliation"}:
+                if kind not in {"coverage", "measurement", "checkpoint", "operation_intent", "operation_reconciliation", "reconciliation_measurement_link"}:
                     raise TransferError("unknown JSONL record type")
                 key = {"coverage": "coverage", "measurement": "measurements", "checkpoint": "checkpoints",
                        "operation_intent": "operation_intents",
-                       "operation_reconciliation": "operation_reconciliations"}[kind]
+                       "operation_reconciliation": "operation_reconciliations",
+                       "reconciliation_measurement_link": "reconciliation_measurement_links"}[kind]
                 bundle[key].append({key: value for key, value in obj.items() if key != "type"})
         else:
             payload = json.loads(raw)
             manifest = payload.get("manifest", {})
             bundle = {key: payload.get(key, []) for key in (
                 "coverage", "measurements", "checkpoints", "operation_intents",
-                "operation_reconciliations"
+                "operation_reconciliations", "reconciliation_measurement_links"
             )}
     except (OSError, UnicodeError, json.JSONDecodeError, AttributeError) as exc:
         raise TransferError(f"cannot read export: {exc}") from exc
