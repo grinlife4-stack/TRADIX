@@ -194,16 +194,18 @@ class ScanRunner:
             raise ScanError("source adapter does not support durable operation reconciliation")
         validate_config(source)
         outcomes: list[dict[str, Any]] = []
+        def still_authorized() -> bool:
+            return self.gate.evaluate(self.registry, source, actor_id).allowed
+
+        # One shared guard bounds the complete recovery batch, not each
+        # individual status request independently.
+        guard = BudgetGuard(source.budget, before_page=still_authorized)
         for intent in self.store.list_unresolved_operation_intents(source_id):
             decision = self.gate.evaluate(self.registry, source, actor_id)
             if not decision.allowed:
                 outcomes.append({"scan_id": intent["scan_id"], "state": "UNRESOLVED",
                                  "reason_code": decision.reason_code or "authorization_denied"})
-                continue
-            def still_authorized() -> bool:
-                return self.gate.evaluate(self.registry, source, actor_id).allowed
-
-            guard = BudgetGuard(source.budget, before_page=still_authorized)
+                break
             context = ScanContext(
                 self.registry.project_id, actor_id, source, source.budget, guard,
                 scan_id=intent["scan_id"], operation_intent=intent,
@@ -269,6 +271,8 @@ class ScanRunner:
                 elif isinstance(exc, (TransportOutcomeUnknown, BudgetExceeded, AuthorizationRevoked)):
                     outcomes.append({"scan_id": intent["scan_id"], "state": "UNRESOLVED",
                                      "reason_code": "status_outcome_unknown"})
+                    if isinstance(exc, (BudgetExceeded, AuthorizationRevoked)):
+                        break
                 else:
                     # A malformed response or changed identity must never
                     # resolve an intent. Keep the evidence available for review.
