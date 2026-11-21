@@ -27,6 +27,11 @@ class ProjectStore:
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys=ON")
         db.execute("PRAGMA busy_timeout=10000")
+        # Require SQLite to sync the rollback journal and database file at
+        # transaction commit. This protects committed local records against
+        # process termination and improves power-loss durability, subject to
+        # the filesystem and storage device honoring fsync.
+        db.execute("PRAGMA synchronous=FULL")
         return db
 
     def _initialize(self) -> None:
